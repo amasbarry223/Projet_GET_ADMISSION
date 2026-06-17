@@ -167,3 +167,34 @@ Stage Summary:
 - Aucun fond sombre, mode clair uniquement, contrastes AA, focus ring azur, prefers-reduced-motion respecté (Reveal + smooth scroll).
 - Microcopy premium FR : "Créer mon dossier", "Confirmer le paiement" → "Paiement confirmé", "Votre attestation sera disponible…", formats FCFA + dates JJ mois AAAA.
 - Vérification browser réussie : la plateforme est interactive et runnable.
+
+---
+Task ID: 9
+Agent: Lead (main)
+Task: Deep interaction QA pass (agent-browser) + visual verification (VLM) + sticky footer test + correction workflow gap fix.
+
+Work Log:
+- VLM analysis of 4 screenshots (home, espace, admin, attestation): filtered hallucinated claims (MRZ "missing", stamp "not tilted" — both verified FALSE via DOM inspection: MRZ band present in Geist Mono, stamp rotated -6° confirmed via transform matrix 0.9945/-0.1045). Real finding: bar chart uses short university names by design (intentional).
+- Deep interaction test (agent-browser):
+  * /espace/dossier stepper: step 1 Sorbonne prefilled (850 000 FCFA) → step 3 upload zones toggle state (Téléverser → Marquer validé → Retirer) → step 5 submit DISABLED with "Dossier incomplet" + inline explanation "pièce(s) obligatoire(s) manquante(s)" → upload identity pieces → submit ENABLED → click → toast "Dossier soumis — Votre conseiller va prendre en charge votre dossier." ✓
+  * /espace/messages: fill input → send → message appended (2 candidate messages vs 1 before) ✓
+  * /admin/dossiers/d-0050 (paiement_attente): "Confirmer le paiement" → toast "Paiement confirmé — Dossier prêt à être transmis." ✓
+  * /admin/dossiers/d-0057 (correction): GAP FOUND — no workflow action for "correction" state.
+  * /admin/catalogue: "Modifier" → Sheet opens with description, frais min/max, formations list (3 formations with frais) ✓
+  * /faq accordion: click "Quels sont les frais d'agence ?" → expands (expanded=true) ✓
+  * /contact validation: empty submit → 5 inline errors → fill all + select objet → toast "Message envoyé — Un conseiller vous répondra sous 24h ouvrées." ✓
+  * Role selector: /espace (candidat) → open dropdown → click "Administrateur" → redirect /admin with admin nav ✓ (key demo entry point works)
+- Fix: added workflow action for "correction" state → "Vérifier les corrections" (ShieldCheck icon, primary) → toast "Corrections vérifiées — Le dossier reprend son parcours." Now all 12 states have contextual actions (brouillon/cloture/attestation = no action needed, others covered).
+- Sticky footer verification (vitrine layout):
+  * Tall viewport 1440×2200, FAQ content 1728px → footer bottom=2200=viewport, 0px gap → STICKY confirmed.
+  * Short viewport 1440×1200, FAQ content 1625px > viewport → footer pushed to 1625 → NATURAL PUSH confirmed.
+  * Both behaviors correct via `flex min-h-screen flex-col` + `main.flex-1` + `footer.mt-auto` pattern.
+- Final: 24 routes all 200 OK, lint 0 errors, 0 console errors, 0 hydration mismatches.
+
+Stage Summary:
+- All Definition of Done criteria verified end-to-end via real browser interaction.
+- 1 gap fixed (correction state workflow action).
+- Carte d'embarquement signature verified in DOM (stamp -6° + MRZ Geist Mono).
+- Sticky footer verified in both modes (short content = sticks, long content = pushed).
+- Role selector verified as functional cross-surface navigation (candidat ↔ admin).
+- Platform is interactive, runnable, and production-ready for demo.

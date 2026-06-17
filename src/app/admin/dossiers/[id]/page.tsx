@@ -38,6 +38,9 @@ export default function AdminDossierDetail() {
     actions.push({ label: "Vérifier le dossier", icon: ShieldCheck, tone: "primary", onClick: action("Dossier vérifié", "Transition vers « Paiement en attente ».") });
     actions.push({ label: "Demander correction", icon: AlertCircle, tone: "outline", onClick: action("Correction demandée", "Le candidat a été notifié.") });
   }
+  if (dossier.etat === "correction") {
+    actions.push({ label: "Vérifier les corrections", icon: ShieldCheck, tone: "primary", onClick: action("Corrections vérifiées", "Le dossier reprend son parcours.") });
+  }
   if (dossier.etat === "paiement_attente") {
     actions.push({ label: "Confirmer le paiement", icon: Wallet, tone: "primary", onClick: action("Paiement confirmé", "Dossier prêt à être transmis.") });
   }
