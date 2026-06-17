@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,9 +31,9 @@ export default function ProfilPage() {
       <Card className="border-ligne bg-blanc p-6">
         <div className="flex flex-wrap items-center gap-4">
           <div className="relative">
-            <Avatar className="h-16 w-16 border-2 border-ligne">
-              <AvatarFallback className="bg-lapis/10 font-mono text-lg font-bold text-lapis">FD</AvatarFallback>
-            </Avatar>
+            <div className="relative h-16 w-16 overflow-hidden rounded-full border-2 border-ligne">
+              <Image src="/images/candidate-portrait.png" alt="Fatou Diallo" fill className="object-cover" sizes="64px" />
+            </div>
             <button className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-lapis text-blanc shadow-sm hover:bg-lapis/90" aria-label="Changer la photo">
               <Camera className="h-3 w-3" strokeWidth={1.5} />
             </button>

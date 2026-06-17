@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Plane, LayoutDashboard, FileText, CreditCard, MessageSquare, Stamp, User, LogOut, Bell, Menu } from "lucide-react";
@@ -71,9 +72,9 @@ function UserCard() {
   return (
     <div className="border-t border-ligne p-3">
       <div className="flex items-center gap-3 rounded-md p-2">
-        <Avatar className="h-9 w-9 border border-ligne">
-          <AvatarFallback className="bg-lapis/10 font-mono text-xs font-semibold text-lapis">{u.initiales}</AvatarFallback>
-        </Avatar>
+        <div className="relative h-9 w-9 flex-none overflow-hidden rounded-full border border-ligne">
+          <Image src="/images/candidate-portrait.png" alt={`${u.prenom} ${u.nom}`} fill className="object-cover" sizes="36px" />
+        </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-encre">{u.prenom} {u.nom}</p>
           <p className="truncate text-xs text-ardoise">Candidat</p>

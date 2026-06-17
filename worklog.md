@@ -274,3 +274,41 @@ Stage Summary:
 - 3 tables admin (dossiers, finance, utilisateurs) ont toutes la colonne de sélection. Dossiers a la barre d'actions fonctionnelle (affecter conseiller + exporter).
 - Lint 100% clean (0 erreur, 0 warning).
 - Plateforme finalisée : 21 routes, 3 surfaces, app-shell plein écran, DataTable + Alert + AlertDialog, vérifiée au navigateur.
+
+---
+Task ID: 13
+Agent: Lead (main) — expert UX/UI
+Task: Refonte visuelle avec images — donner vie au portail Candidat.
+
+Work Log:
+- Images générées (image-generation skill, z-ai CLI) :
+  * public/images/hero-dashboard.png (1344x768) — illustration éditoriale premium : passeport ouvert avec tampon doré, carte d'embarquement, vue aérienne douce d'un campus européen. Palette lapis/or/porcelaine, sans texte, sans personne.
+  * public/images/advisor-portrait.png (864x1152) — portrait professionnel d'une femme ouest-africaine ~30 ans, blazer navy, sourire chaleureux, éclairage doux.
+  * public/images/candidate-portrait.png (864x1152) — portrait d'une jeune étudiante ouest-africaine ~20 ans, sourire naturel, top clair, éclairage doux.
+  * public/images/payment-success.png (1024x1024) — illustration minimaliste : sceau doré avec coche, confettis discrets navy/or, fond porcelaine.
+- Image récupérée (image-search skill) :
+  * public/images/campus-sorbonne.jpg (1300x956) — photo réelle de la façade historique de la Sorbonne (search "Sorbonne university Paris exterior facade historic architecture").
+- Refonte /espace (dashboard) :
+  * Welcome hero banner (grid 1.3fr/1fr) : texte gauche (Bonjour Fatou, statut pré-admission, CTA) + illustration hero-dashboard.png à droite avec gradient de fondu. Filet doré en bas.
+  * Carte destination (nouvelle) : photo campus-sorbonne.jpg en h-32 avec gradient encre/85 renforcé pour lisibilité du texte blanc, drapeau, ville/pays, formation, lien vers détail université.
+  * Carte conseillère : photo advisor-portrait.png (h-12 w-12 rounded-full border-or-pale) au lieu des initiales AD.
+  * Boarding pass déplacé en bas du dashboard (signature footer).
+  * Timeline 12 étapes + prochaine action + raccourcis conservés.
+- Refonte /espace/messages : 3 instances du portrait conseillère (sidebar conversation list, header mobile, header desktop) remplacent les avatars à initiales AD.
+- Refonte /espace/paiement : écran de succès utilise payment-success.png (h-28 w-28 object-contain) au lieu du CheckCircle2 icon.
+- Refonte /espace/profil : photo candidate-portrait.png (h-16 w-16 rounded-full) remplace l'avatar à initiales FD dans l'en-tête identité.
+- Refonte /components/espace/shell.tsx : UserCard de la sidebar utilise candidate-portrait.png au lieu de l'avatar à initiales.
+- Vérification agent-browser :
+  * Dashboard : 4 images chargées (candidate-portrait sidebar 36x48, hero-dashboard 576x329, campus-sorbonne 359x239, advisor-portrait 44x44). Toutes loaded=true. ✓
+  * Messages : 4 instances advisor-portrait chargées. ✓
+  * Paiement succès : payment-success.png chargée après confirmation. ✓
+  * Profil : candidate-portrait chargée. ✓
+- VLM evaluation : "Sorbonne Université" lisible sur la photo campus, page chaleureuse et vivante tout en restant premium, aucun problème critique. Gradient encre/85 renforcé après premier feedback VLM sur le contraste.
+- Lint : 0 erreur, 0 warning.
+
+Stage Summary:
+- 5 images ajoutées (4 générées + 1 photo réelle) → le portail candidat a maintenant de la chaleur et de la vie.
+- Dashboard refondu : hero illustré + carte destination avec photo campus + carte conseillère avec portrait réelle + boarding pass signature.
+- Messagerie, paiement, profil, sidebar : tous bénéficient des portraits/photos.
+- Contraste texte/images vérifié (gradient renforcé sur carte destination).
+- Concept "Le Passage" renforcé : l'illustration hero (passeport + tampon + campus) ancre visuellement le thème du voyage d'études.

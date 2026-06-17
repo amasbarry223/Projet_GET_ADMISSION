@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -45,9 +46,9 @@ export default function MessagesPage() {
             </div>
             <div className="flex-1 overflow-y-auto scroll-fine p-2">
               <button className="flex w-full items-start gap-3 rounded-md bg-lapis/5 p-3 text-left">
-                <Avatar className="h-10 w-10 border border-ligne">
-                  <AvatarFallback className="bg-lapis/10 font-mono text-xs font-semibold text-lapis">AD</AvatarFallback>
-                </Avatar>
+                <div className="relative h-10 w-10 flex-none overflow-hidden rounded-full border border-ligne">
+                  <Image src="/images/advisor-portrait.png" alt={conv.conseillerNom} fill className="object-cover" sizes="40px" />
+                </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <p className="truncate text-sm font-semibold text-encre">{conv.conseillerNom}</p>
@@ -77,7 +78,9 @@ export default function MessagesPage() {
             {/* Mobile header */}
             <div className="flex items-center gap-3 border-b border-ligne px-4 py-3 md:hidden">
               <Button variant="ghost" size="icon" aria-label="Retour"><ArrowLeft className="h-4 w-4" /></Button>
-              <Avatar className="h-8 w-8"><AvatarFallback className="bg-lapis/10 font-mono text-xs text-lapis">AD</AvatarFallback></Avatar>
+              <div className="relative h-8 w-8 flex-none overflow-hidden rounded-full border border-ligne">
+                <Image src="/images/advisor-portrait.png" alt={conv.conseillerNom} fill className="object-cover" sizes="32px" />
+              </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-encre">{conv.conseillerNom}</p>
                 <p className="text-xs text-vert">En ligne</p>
@@ -85,7 +88,9 @@ export default function MessagesPage() {
             </div>
             {/* Desktop header */}
             <div className="hidden md:flex items-center gap-3 border-b border-ligne px-4 py-3">
-              <Avatar className="h-9 w-9"><AvatarFallback className="bg-lapis/10 font-mono text-xs font-semibold text-lapis">AD</AvatarFallback></Avatar>
+              <div className="relative h-9 w-9 flex-none overflow-hidden rounded-full border border-ligne">
+                <Image src="/images/advisor-portrait.png" alt={conv.conseillerNom} fill className="object-cover" sizes="36px" />
+              </div>
               <div>
                 <p className="text-sm font-semibold text-encre">{conv.conseillerNom}</p>
                 <p className="text-xs text-ardoise">Conseillère · Répond généralement sous 24h</p>

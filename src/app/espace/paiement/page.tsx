@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -52,8 +53,15 @@ export default function PaiementPage() {
 
       {status === "success" ? (
         <Card className="border-vert/30 bg-vert/5 p-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-vert/15">
-            <CheckCircle2 className="h-7 w-7 text-vert" strokeWidth={1.5} />
+          <div className="relative mx-auto mb-4 h-28 w-28">
+            <Image
+              src="/images/payment-success.png"
+              alt="Paiement confirmé"
+              fill
+              className="object-contain"
+              sizes="112px"
+              priority
+            />
           </div>
           <h2 className="font-display text-2xl font-bold text-encre">Paiement confirmé.</h2>
           <p className="mt-1 text-sm text-ardoise">Votre paiement a bien été reçu. Le reçu est disponible ci-dessous.</p>

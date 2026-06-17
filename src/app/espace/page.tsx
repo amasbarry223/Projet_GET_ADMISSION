@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { BoardingPass } from "@/components/getadm/boarding-pass";
 import { Reveal, RevealStagger, RevealItem, Eyebrow } from "@/components/site/reveal";
 import { Card } from "@/components/ui/card";
@@ -13,7 +14,7 @@ import { UNIVERSITES } from "@/lib/mock/universites";
 import { ETATS, etatParCode } from "@/lib/mock/etats";
 import { CONVERSATIONS } from "@/lib/mock/messages";
 import { formatFCFA, formatDate } from "@/lib/format";
-import { CreditCard, MessageSquare, Stamp, ArrowRight, CheckCircle2, Circle, Clock, Sparkles } from "lucide-react";
+import { CreditCard, MessageSquare, Stamp, ArrowRight, CheckCircle2, Circle, Clock, Sparkles, MapPin, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function EspaceDashboard() {
@@ -27,38 +28,55 @@ export default function EspaceDashboard() {
   const dateParEtat = new Map(d.historique.map((h) => [h.etat, h.date]));
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
+    <div className="space-y-6">
+      {/* ====================== Welcome hero avec illustration ====================== */}
       <Reveal>
-        <div className="flex flex-col gap-1">
-          <Eyebrow>Réf. {d.reference}</Eyebrow>
-          <h1 className="font-display text-3xl font-bold tracking-tight text-encre sm:text-4xl">
-            Bonjour, Fatou.
-          </h1>
-          <p className="text-ardoise">Voici l'avancement en temps réel de votre dossier.</p>
-        </div>
-      </Reveal>
-
-      {/* Boarding pass large */}
-      <Reveal delay={0.05}>
-        <BoardingPass
-          variant="large"
-          animateOnMount
-          reference={d.reference}
-          universiteNom={univ?.nom ?? ""}
-          formationLabel={`${form?.niveau ?? ""} · ${form?.intitule ?? ""}`}
-          etat={d.etat}
-          etapeActuelle={d.etapeActuelle}
-          etapeTotal={12}
-          conseiller={d.conseillerNom}
-          fraisAgence={d.fraisAgence}
-          mrz={d.mrz}
-        />
+        <Card className="relative overflow-hidden border-ligne bg-blanc p-0">
+          <div className="grid lg:grid-cols-[1.3fr_1fr]">
+            {/* Texte */}
+            <div className="p-6 sm:p-8 lg:p-10">
+              <Eyebrow>Réf. {d.reference}</Eyebrow>
+              <h1 className="mt-3 font-display text-3xl font-bold tracking-tight text-encre sm:text-4xl">
+                Bonjour, Fatou.
+              </h1>
+              <p className="mt-2 max-w-md text-ardoise">
+                Voici l'avancement en temps réel de votre dossier vers <span className="font-medium text-encre">{univ?.nom}</span>.
+              </p>
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <Badge className="bg-vert/10 font-mono text-[11px] uppercase text-vert">
+                  <CheckCircle2 className="mr-1 h-3 w-3" strokeWidth={1.5} /> Pré-admission accordée
+                </Badge>
+                <span className="font-mono text-xs text-ardoise">Étape {d.etapeActuelle} / 12</span>
+              </div>
+              <div className="mt-6 flex flex-wrap gap-2">
+                <Button asChild size="sm" className="bg-lapis text-blanc hover:bg-lapis/90">
+                  <Link href="/espace/dossier">Continuer mon dossier <ArrowRight className="ml-1.5 h-3.5 w-3.5" strokeWidth={1.5} /></Link>
+                </Button>
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/espace/attestation">Voir l'attestation</Link>
+                </Button>
+              </div>
+            </div>
+            {/* Illustration */}
+            <div className="relative min-h-[200px] lg:min-h-full">
+              <Image
+                src="/images/hero-dashboard.png"
+                alt="Illustration du parcours d'admission à l'étranger"
+                fill
+                className="object-cover"
+                sizes="(max-width: 1024px) 100vw, 40vw"
+                priority
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-blanc via-blanc/10 to-transparent lg:from-blanc/80" aria-hidden />
+            </div>
+          </div>
+          <div className="rule-or" aria-hidden />
+        </Card>
       </Reveal>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         {/* Timeline */}
-        <Reveal delay={0.1}>
+        <Reveal delay={0.05}>
           <Card className="overflow-hidden border-ligne bg-blanc p-0">
             <div className="flex items-center justify-between border-b border-ligne px-6 py-4">
               <div>
@@ -113,6 +131,42 @@ export default function EspaceDashboard() {
 
         {/* Right column */}
         <RevealStagger className="space-y-4" gap={60}>
+          {/* Destination card avec photo campus */}
+          <RevealItem>
+            <Card className="overflow-hidden border-ligne bg-blanc p-0">
+              <div className="relative h-32">
+                <Image
+                  src="/images/campus-sorbonne.jpg"
+                  alt={`Campus de ${univ?.nom}`}
+                  fill
+                  className="object-cover"
+                  sizes="360px"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-encre/85 via-encre/40 to-encre/10" aria-hidden />
+                <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-mono text-[10px] uppercase tracking-eyebrow text-blanc/80">Votre destination</p>
+                    <p className="truncate font-display text-base font-bold text-blanc">{univ?.nom}</p>
+                  </div>
+                  <span className="text-2xl">{univ?.drapeau}</span>
+                </div>
+              </div>
+              <div className="p-4">
+                <div className="flex items-center gap-1.5 text-xs text-ardoise">
+                  <MapPin className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  <span>{univ?.ville}, {univ?.pays}</span>
+                </div>
+                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-ardoise">
+                  <GraduationCap className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  <span className="truncate">{form?.intitule}</span>
+                </div>
+                <Button asChild variant="ghost" size="sm" className="mt-2 -ml-2 text-lapis hover:bg-lapis/5">
+                  <Link href="/universites/sorbonne-universite">Voir l'université <ArrowRight className="ml-1 h-3 w-3" strokeWidth={1.5} /></Link>
+                </Button>
+              </div>
+            </Card>
+          </RevealItem>
+
           {/* Prochaine action */}
           <RevealItem>
             <Card className="border-lapis/30 bg-lapis/5 p-5">
@@ -124,11 +178,36 @@ export default function EspaceDashboard() {
                 Pré-admission accordée — attestation en cours d'émission.
               </p>
               <p className="mt-1 text-sm text-ardoise">
-                La Sorbonne Université a accepté votre candidature. Votre attestation de pré-inscription sera disponible sous 48h.
+                La Sorbonne Université a accepté votre candidature. Votre attestation sera disponible sous 48h.
               </p>
               <Button asChild className="mt-4 w-full bg-lapis text-blanc hover:bg-lapis/90" size="sm">
                 <Link href="/espace/attestation">Voir l'attestation <ArrowRight className="ml-1.5 h-3.5 w-3.5" strokeWidth={1.5} /></Link>
               </Button>
+            </Card>
+          </RevealItem>
+
+          {/* Conseiller avec photo */}
+          <RevealItem>
+            <Card className="border-ligne bg-blanc p-4">
+              <p className="eyebrow mb-3">Votre conseillère</p>
+              <div className="flex items-center gap-3">
+                <div className="relative h-12 w-12 flex-none overflow-hidden rounded-full border-2 border-or-pale">
+                  <Image
+                    src="/images/advisor-portrait.png"
+                    alt={d.conseillerNom}
+                    fill
+                    className="object-cover"
+                    sizes="48px"
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-encre">{d.conseillerNom}</p>
+                  <p className="text-xs text-ardoise">Conseillère GET Admission</p>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/espace/messages">Écrire</Link>
+                </Button>
+              </div>
             </Card>
           </RevealItem>
 
@@ -143,25 +222,25 @@ export default function EspaceDashboard() {
               </div>
             </Card>
           </RevealItem>
-
-          {/* Conseiller */}
-          <RevealItem>
-            <Card className="border-ligne bg-blanc p-4">
-              <p className="eyebrow mb-3">Votre conseiller</p>
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-lapis/10 font-mono text-xs font-semibold text-lapis">AD</div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-encre">{d.conseillerNom}</p>
-                  <p className="text-xs text-ardoise">Conseillère GET Admission</p>
-                </div>
-                <Button asChild variant="outline" size="sm">
-                  <Link href="/espace/messages">Écrire</Link>
-                </Button>
-              </div>
-            </Card>
-          </RevealItem>
         </RevealStagger>
       </div>
+
+      {/* Boarding pass en bas — signature */}
+      <Reveal delay={0.1}>
+        <BoardingPass
+          variant="large"
+          animateOnMount
+          reference={d.reference}
+          universiteNom={univ?.nom ?? ""}
+          formationLabel={`${form?.niveau ?? ""} · ${form?.intitule ?? ""}`}
+          etat={d.etat}
+          etapeActuelle={d.etapeActuelle}
+          etapeTotal={12}
+          conseiller={d.conseillerNom}
+          fraisAgence={d.fraisAgence}
+          mrz={d.mrz}
+        />
+      </Reveal>
     </div>
   );
 }
