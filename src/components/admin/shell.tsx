@@ -7,8 +7,7 @@ import { cn } from "@/lib/utils";
 import { Plane, LayoutDashboard, FolderOpen, Building2, Wallet, Users, Stamp, Settings, LogOut, Menu, Search, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetClose } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { RoleSelector } from "@/components/site/role-selector";
 import { useAuth } from "@/lib/auth-context";
@@ -30,10 +29,7 @@ const SECTIONS = [
       { href: "/admin/attestations", label: "Attestations", icon: Stamp },
     ],
   },
-  {
-    title: "Système",
-    items: [{ href: "/admin/parametres", label: "Paramètres", icon: Settings }],
-  },
+  { title: "Système", items: [{ href: "/admin/parametres", label: "Paramètres", icon: Settings }] },
 ];
 
 function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
@@ -115,22 +111,26 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const current = SECTIONS.flatMap((s) => s.items).find((i) => (i.exact ? pathname === i.href : pathname.startsWith(i.href)));
 
   return (
-    <div className="flex min-h-screen bg-porcelaine">
-      <aside className="hidden lg:flex w-60 flex-col border-r border-ligne bg-blanc">
-        <AdminBrand />
+    // App-shell plein écran : sidebar + header fixes, seul le contenu défile
+    <div className="flex h-screen overflow-hidden bg-porcelaine">
+      {/* Sidebar desktop — pleine hauteur */}
+      <aside className="hidden lg:flex w-60 flex-none flex-col border-r border-ligne bg-blanc">
+        <div className="flex-none"><AdminBrand /></div>
         <div className="flex-1 overflow-y-auto scroll-fine"><AdminNav /></div>
-        <AdminUser />
+        <div className="flex-none"><AdminUser /></div>
       </aside>
 
-      <div className="flex flex-1 flex-col min-w-0">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-ligne bg-blanc/90 px-4 backdrop-blur sm:px-6">
+      {/* Conteneur droit : header + breadcrumb + main scrollable */}
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+        {/* Header fixe — pleine largeur */}
+        <header className="flex flex-none h-14 items-center gap-3 border-b border-ligne bg-blanc/90 px-4 backdrop-blur sm:px-6">
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Ouvrir le menu">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 bg-blanc p-0">
+            <SheetContent side="left" className="w-72 bg-blanc p-0 flex flex-col">
               <SheetTitle className="sr-only">Menu administration</SheetTitle>
               <AdminBrand />
               <div className="flex-1 overflow-y-auto"><AdminNav onNavigate={() => setOpen(false)} /></div>
@@ -138,7 +138,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </SheetContent>
           </Sheet>
 
-          <div className="relative hidden sm:block flex-1 max-w-md">
+          <div className="relative hidden sm:block flex-1 max-w-xl">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise" strokeWidth={1.5} />
             <Input placeholder="Recherche globale — référence, candidat, université…" className="h-9 pl-9 bg-porcelaine" aria-label="Recherche globale" />
           </div>
@@ -152,7 +152,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <div className="border-b border-ligne bg-blanc px-4 py-2.5 sm:px-6">
+        {/* Barre breadcrumb — pleine largeur */}
+        <div className="flex flex-none items-center h-10 border-b border-ligne bg-blanc px-4 sm:px-6">
           <nav className="flex items-center gap-1.5 text-sm" aria-label="Fil d'Ariane">
             <Link href="/admin" className="text-ardoise hover:text-lapis">Admin</Link>
             <span className="text-ardoise/50">/</span>
@@ -160,8 +161,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
 
-        <main className="flex-1 overflow-x-hidden">
-          <div className="mx-auto max-w-admin px-4 py-6 sm:px-6 lg:px-8">
+        {/* Main scrollable — contenu pleine largeur */}
+        <main className="flex-1 overflow-y-auto scroll-fine">
+          <div className="w-full p-4 sm:p-6 lg:p-8">
             {children}
           </div>
         </main>

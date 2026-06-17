@@ -219,3 +219,35 @@ Stage Summary:
 - Reduced-motion + keyboard nav confirmed compliant (CSS + JS + component hooks).
 - Hero strengthened with passport-grid + meridian-arc motifs — reinforces "Le Passage" concept while staying premium and light.
 - Platform fully verified: 24 routes, 3 surfaces, light mode only, AA contrast, responsive, a11y, reduced-motion, French microcopy, FCFA + dates localisés.
+
+---
+Task ID: 11
+Agent: Lead (main)
+Task: Refonte structurelle — layouts plein écran (app-shell) + DataTable + Alerts + AlertDialog.
+
+Work Log:
+- src/components/data-table/data-table.tsx — NOUVEAU composant DataTable réutilisable basé sur @tanstack/react-table v8 : sorting (en-têtes cliquables avec icônes asc/desc/unsorted), filtering (searchKey + filtres custom via render-prop toolbar), pagination (first/prev/next/last + page size selector + compteur "Affichage de X–Y sur Z"), column visibility (dropdown), row selection (cases à cocher), empty state custom. Sous-composants exportés : DataTableColumnHeader, DataTableToolbar, DataTablePagination.
+- src/components/admin/shell.tsx — REFACTO app-shell plein écran : `flex h-screen overflow-hidden` → sidebar w-60 flex-none full-height (brand flex-none / nav flex-1 scrollable / user flex-none) + conteneur droit flex-col overflow-hidden (header h-14 flex-none fixe + breadcrumb h-10 flex-none + main flex-1 overflow-y-auto scroll-fine). Contenu en `w-full p-4 sm:p-6 lg:p-8` SANS max-width → couvre tout le layout. Sidebar mobile via Sheet drawer.
+- src/components/espace/shell.tsx — REFACTO même pattern app-shell plein écran : sidebar w-64 flex-none full-height + header h-16 flex-none + main flex-1 overflow-y-auto. Contenu full-width.
+- src/app/admin/dossiers/page.tsx — REFACTO avec DataTable : 9 colonnes (référence mono, candidat, université, formation, statut badge tampon, conseiller, date, frais mono, action lien). Toolbar render-prop avec 3 Selects (statut 12 états, université 10, conseiller 4) wired aux filtres de colonnes via table.getColumn().setFilterValue(). Empty state custom. Alert info pour sélection multiple.
+- src/app/admin/finance/page.tsx — REFACTO avec DataTable : 7 colonnes (référence, candidat, dossier, date, moyen, montant, statut). Toolbar Select statut wired. 4 KPI cards full-width. Alert rapprochement bancaire (ambre).
+- src/app/admin/utilisateurs/page.tsx — REFACTO avec DataTable : 5 colonnes (membre avatar+nom+email, rôle badge avec icône, dossiers, date, switch actif). Toolbar Select rôle wired. Alert gestion des accès (lapis).
+- src/app/admin/dossiers/[id]/page.tsx — REFACTO avec AlertDialog pour confirmations workflow : chaque action destructive/irréversible (Demander correction, Confirmer paiement, Transmettre, Marquer accepté/refusé, Émettre attestation) ouvre un AlertDialog avec titre + description contextuelle + boutons Annuler/Confirmer. Actions simples (Vérifier) restent en toast direct. Alert carmin pour état refusé. Tabs inchangés.
+- src/app/espace/attestation/page.tsx — REFACTO avec Alert (Clock icon ambre) pour l'état verrouillé en plus de la card.
+- src/app/admin/parametres/page.tsx — REFACTO avec Alert (Lock icon ambre) pour verrou Super Admin.
+- Vérification agent-browser :
+  * Layout plein écran : sidebar 240px + main 1200px = 1440px viewport (rempli), sidebar full-height, contenu sans max-width. ✓
+  * DataTable sorting : click "RÉFÉRENCE" → tri asc, première ligne GETADM-2026-0048. ✓
+  * DataTable filtering : Select statut = "Pré-admission accordée" → 1 résultat filtré (GETADM-2026-0048). ✓
+  * DataTable pagination : page size selector (8), navigation first/prev/next/last. ✓
+  * AlertDialog workflow : d-0050 "Confirmer le paiement" → modal "Confirmer le paiement ?" + Annuler/Confirmer → click Confirmer → toast "Paiement confirmé — Dossier prêt à être transmis." ✓
+  * Alert components : attestation (Clock ambre), parametres (Lock ambre), dossiers refusé (XCircle carmin). ✓
+  * Mobile 390px : sidebar desktop cachée, bouton menu présent, main + header full-width. ✓
+- Lint : 0 erreur (1 warning React Compiler vs TanStack Table — connu, pas un bug).
+- 21 routes vérifiées 200 OK.
+
+Stage Summary:
+- Layouts refacto en app-shell plein écran (h-screen + sidebar flex-none full-height + header fixe + main scrollable). Le contenu couvre tout le layout disponible (plus de max-width).
+- Composant DataTable réutilisable créé (@tanstack/react-table) avec sorting/filtering/pagination/column-visibility/row-selection. Utilisé sur 3 pages admin (dossiers, finance, utilisateurs).
+- AlertDialog pour toutes les actions de workflow nécessitant confirmation (6 actions). Alert pour états contextuels (attestation verrouillée, accès restreint super-admin, candidature refusée, rapprochement bancaire, sélection multiple, gestion des accès).
+- Layout plein écran vérifié au DOM : sidebar + main = viewport width, sidebar full-height, contenu full-width.

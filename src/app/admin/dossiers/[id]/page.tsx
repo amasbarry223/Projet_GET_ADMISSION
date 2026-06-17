@@ -6,19 +6,40 @@ import { notFound, useParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { BoardingPass } from "@/components/getadm/boarding-pass";
 import { dossierParId } from "@/lib/mock/dossiers";
-import { formationParId, nomUniversite } from "@/lib/mock/formations";
+import { formationParId } from "@/lib/mock/formations";
 import { UNIVERSITES } from "@/lib/mock/universites";
 import { etatParCode, ETATS, COULEUR_BADGE } from "@/lib/mock/etats";
 import { formatFCFA, formatDate, formatDateTime } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, CheckCircle2, AlertCircle, FileText, Send, Wallet, Stamp, XCircle, History, MessageSquare, User, ShieldCheck, Upload, Eye } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, FileText, Send, Wallet, Stamp, XCircle, History, MessageSquare, User, ShieldCheck, Eye, AlertTriangle, Info } from "lucide-react";
+
+type ActionDef = {
+  label: string;
+  icon: React.ElementType;
+  tone: "primary" | "outline" | "danger";
+  toastLabel: string;
+  toastDesc: string;
+  confirm?: { title: string; desc: string };
+};
 
 export default function AdminDossierDetail() {
   const params = useParams<{ id: string }>();
@@ -30,30 +51,29 @@ export default function AdminDossierDetail() {
   const form = formationParId(dossier.formationId);
   const univ = UNIVERSITES.find((u) => u.id === dossier.universiteId);
 
-  const action = (label: string, desc: string) => () => toast.success(label, { description: desc });
-
-  // Workflow actions contextuels
-  const actions: { label: string; icon: React.ElementType; tone: "primary" | "outline" | "danger"; onClick: () => void }[] = [];
+  const actions: ActionDef[] = [];
   if (dossier.etat === "soumis" || dossier.etat === "verification") {
-    actions.push({ label: "Vérifier le dossier", icon: ShieldCheck, tone: "primary", onClick: action("Dossier vérifié", "Transition vers « Paiement en attente ».") });
-    actions.push({ label: "Demander correction", icon: AlertCircle, tone: "outline", onClick: action("Correction demandée", "Le candidat a été notifié.") });
+    actions.push({ label: "Vérifier le dossier", icon: ShieldCheck, tone: "primary", toastLabel: "Dossier vérifié", toastDesc: "Transition vers « Paiement en attente »." });
+    actions.push({ label: "Demander correction", icon: AlertCircle, tone: "outline", toastLabel: "Correction demandée", toastDesc: "Le candidat a été notifié.", confirm: { title: "Demander une correction ?", desc: `Le candidat ${dossier.candidatPrenom} sera notifié et le dossier repassera en « À corriger ».` } });
   }
   if (dossier.etat === "correction") {
-    actions.push({ label: "Vérifier les corrections", icon: ShieldCheck, tone: "primary", onClick: action("Corrections vérifiées", "Le dossier reprend son parcours.") });
+    actions.push({ label: "Vérifier les corrections", icon: ShieldCheck, tone: "primary", toastLabel: "Corrections vérifiées", toastDesc: "Le dossier reprend son parcours." });
   }
   if (dossier.etat === "paiement_attente") {
-    actions.push({ label: "Confirmer le paiement", icon: Wallet, tone: "primary", onClick: action("Paiement confirmé", "Dossier prêt à être transmis.") });
+    actions.push({ label: "Confirmer le paiement", icon: Wallet, tone: "primary", toastLabel: "Paiement confirmé", toastDesc: "Dossier prêt à être transmis.", confirm: { title: "Confirmer le paiement ?", desc: `Vérifiez que les ${formatFCFA(dossier.fraisAgence)} ont bien été reçus avant de confirmer.` } });
   }
   if (dossier.etat === "paiement_confirme") {
-    actions.push({ label: "Transmettre à l'université", icon: Send, tone: "primary", onClick: action("Dossier transmis", `${univ?.nom} a été notifié.`) });
+    actions.push({ label: "Transmettre à l'université", icon: Send, tone: "primary", toastLabel: "Dossier transmis", toastDesc: `${univ?.nom} a été notifié.`, confirm: { title: "Transmettre à l'université ?", desc: `Le dossier sera envoyé à ${univ?.nom}. Cette action est irréversible.` } });
   }
   if (dossier.etat === "attente_reponse") {
-    actions.push({ label: "Marquer accepté", icon: CheckCircle2, tone: "primary", onClick: action("Pré-admission accordée", "Attestation à émettre sous 48h.") });
-    actions.push({ label: "Marquer refusé", icon: XCircle, tone: "danger", onClick: action("Candidature refusée", "Le candidat a été informé.") });
+    actions.push({ label: "Marquer accepté", icon: CheckCircle2, tone: "primary", toastLabel: "Pré-admission accordée", toastDesc: "Attestation à émettre sous 48h.", confirm: { title: "Marquer la candidature acceptée ?", desc: `L'université ${univ?.nom} a accordé la pré-admission. L'attestation pourra ensuite être émise.` } });
+    actions.push({ label: "Marquer refusé", icon: XCircle, tone: "danger", toastLabel: "Candidature refusée", toastDesc: "Le candidat a été informé.", confirm: { title: "Marquer la candidature refusée ?", desc: `Cette action notifiera ${dossier.candidatPrenom} du refus de ${univ?.nom}.` } });
   }
   if (dossier.etat === "pre_admission") {
-    actions.push({ label: "Émettre l'attestation", icon: Stamp, tone: "primary", onClick: action("Attestation émise", "Disponible dans l'espace candidat.") });
+    actions.push({ label: "Émettre l'attestation", icon: Stamp, tone: "primary", toastLabel: "Attestation émise", toastDesc: "Disponible dans l'espace candidat.", confirm: { title: "Émettre l'attestation ?", desc: "L'attestation de pré-inscription sera générée avec sceau officiel et code de vérification." } });
   }
+
+  const execAction = (a: ActionDef) => () => toast.success(a.toastLabel, { description: a.toastDesc });
 
   return (
     <div className="space-y-5">
@@ -91,7 +111,6 @@ export default function AdminDossierDetail() {
             <TabsTrigger value="messages"><MessageSquare className="mr-1.5 h-3.5 w-3.5" /> Messages</TabsTrigger>
           </TabsList>
 
-          {/* Profil */}
           <TabsContent value="profil">
             <Card className="border-ligne bg-blanc p-6">
               <div className="flex items-center gap-4">
@@ -117,7 +136,6 @@ export default function AdminDossierDetail() {
             </Card>
           </TabsContent>
 
-          {/* Pièces */}
           <TabsContent value="pieces">
             <Card className="border-ligne bg-blanc p-0 overflow-hidden">
               <div className="border-b border-ligne px-6 py-4">
@@ -150,7 +168,6 @@ export default function AdminDossierDetail() {
             </Card>
           </TabsContent>
 
-          {/* Paiements */}
           <TabsContent value="paiements">
             <Card className="border-ligne bg-blanc p-0 overflow-hidden">
               <div className="border-b border-ligne px-6 py-4">
@@ -186,7 +203,6 @@ export default function AdminDossierDetail() {
             </Card>
           </TabsContent>
 
-          {/* Historique */}
           <TabsContent value="historique">
             <Card className="border-ligne bg-blanc p-6">
               <p className="eyebrow">Journal horodaté</p>
@@ -213,7 +229,6 @@ export default function AdminDossierDetail() {
             </Card>
           </TabsContent>
 
-          {/* Messages */}
           <TabsContent value="messages">
             <Card className="border-ligne bg-blanc p-6">
               <p className="eyebrow">Messagerie</p>
@@ -235,7 +250,7 @@ export default function AdminDossierDetail() {
           </TabsContent>
         </Tabs>
 
-        {/* Sidebar: workflow */}
+        {/* Sidebar: workflow + statut */}
         <div className="space-y-4">
           <Card className="border-ligne bg-blanc p-5">
             <p className="eyebrow">Statut courant</p>
@@ -268,19 +283,61 @@ export default function AdminDossierDetail() {
               <p className="eyebrow">Prochaine transition</p>
               <p className="mt-1 text-sm font-medium text-encre">Actions de workflow</p>
               <div className="mt-3 space-y-2">
-                {actions.map((a) => (
-                  <Button
-                    key={a.label}
-                    variant={a.tone === "primary" ? "default" : a.tone === "danger" ? "outline" : "outline"}
-                    className={cn("w-full justify-start", a.tone === "primary" && "bg-lapis text-blanc hover:bg-lapis/90", a.tone === "danger" && "border-carmin/40 text-carmin hover:bg-carmin/5")}
-                    size="sm"
-                    onClick={a.onClick}
-                  >
-                    <a.icon className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> {a.label}
-                  </Button>
-                ))}
+                {actions.map((a) =>
+                  a.confirm ? (
+                    <AlertDialog key={a.label}>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant={a.tone === "primary" ? "default" : a.tone === "danger" ? "outline" : "outline"}
+                          className={cn("w-full justify-start", a.tone === "primary" && "bg-lapis text-blanc hover:bg-lapis/90", a.tone === "danger" && "border-carmin/40 text-carmin hover:bg-carmin/5")}
+                          size="sm"
+                        >
+                          <a.icon className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> {a.label}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="bg-blanc">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="font-display text-lg flex items-center gap-2">
+                            {a.tone === "danger" ? <AlertTriangle className="h-5 w-5 text-carmin" strokeWidth={1.5} /> : <Info className="h-5 w-5 text-lapis" strokeWidth={1.5} />}
+                            {a.confirm.title}
+                          </AlertDialogTitle>
+                          <AlertDialogDescription className="text-sm text-ardoise">{a.confirm.desc}</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel className="bg-porcelaine">Annuler</AlertDialogCancel>
+                          <AlertDialogAction
+                            className={cn(a.tone === "danger" ? "bg-carmin text-blanc hover:bg-carmin/90" : "bg-lapis text-blanc hover:bg-lapis/90")}
+                            onClick={execAction(a)}
+                          >
+                            Confirmer
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  ) : (
+                    <Button
+                      key={a.label}
+                      variant={a.tone === "primary" ? "default" : "outline"}
+                      className={cn("w-full justify-start", a.tone === "primary" && "bg-lapis text-blanc hover:bg-lapis/90")}
+                      size="sm"
+                      onClick={execAction(a)}
+                    >
+                      <a.icon className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> {a.label}
+                    </Button>
+                  )
+                )}
               </div>
             </Card>
+          )}
+
+          {dossier.etat === "refuse" && (
+            <Alert className="border-carmin/40 bg-carmin/5">
+              <XCircle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
+              <AlertTitle className="font-display text-sm font-bold text-carmin">Candidature refusée</AlertTitle>
+              <AlertDescription className="text-sm text-ardoise">
+                L'université a décliné cette candidature. Contactez le candidat pour l'accompagner vers une alternative.
+              </AlertDescription>
+            </Alert>
           )}
         </div>
       </div>

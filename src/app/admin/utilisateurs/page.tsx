@@ -1,18 +1,31 @@
 "use client";
 
 import * as React from "react";
+import type { ColumnDef, Table } from "@tanstack/react-table";
+import { DataTable, DataTableColumnHeader } from "@/components/data-table/data-table";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UTILISATEURS_INTERNES, type RoleInterne } from "@/lib/mock/utilisateurs";
 import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
-import { Plus, Search, ShieldCheck, Headset, Wallet, Crown, UserCog } from "lucide-react";
+import { Plus, Search, ShieldCheck, Headset, Wallet, Crown, Info, UserCog } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+type Row = {
+  id: string;
+  nom: string;
+  initiales: string;
+  email: string;
+  role: RoleInterne;
+  dossiers: number;
+  date: string;
+  actif: boolean;
+};
 
 const ROLE_ICON: Record<RoleInterne, React.ElementType> = {
   Conseiller: Headset,
@@ -27,18 +40,53 @@ const ROLE_TONE: Record<RoleInterne, string> = {
   "Super Admin": "bg-or/15 text-or",
 };
 
-export default function AdminUtilisateursPage() {
-  const [q, setQ] = React.useState("");
-  const [role, setRole] = React.useState("tous");
+const COLUMNS: ColumnDef<Row>[] = [
+  {
+    id: "nom",
+    accessorKey: "nom",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Membre" />,
+    cell: ({ row }) => (
+      <div className="flex items-center gap-3">
+        <Avatar className="h-9 w-9 border border-ligne"><AvatarFallback className="bg-lapis/10 font-mono text-xs font-semibold text-lapis">{row.original.initiales}</AvatarFallback></Avatar>
+        <div>
+          <p className="text-sm font-medium text-encre">{row.original.nom}</p>
+          <p className="font-mono text-[11px] text-ardoise">{row.original.email}</p>
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "role",
+    accessorKey: "role",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Rôle" />,
+    cell: ({ row }) => {
+      const Icon = ROLE_ICON[row.original.role];
+      return <Badge className={cn("font-mono text-[10px] uppercase", ROLE_TONE[row.original.role])}><Icon className="mr-1 h-3 w-3" strokeWidth={1.5} /> {row.original.role}</Badge>;
+    },
+    filterFn: (row, _id, value: string) => value === "tous" ? true : row.original.role === value,
+  },
+  { id: "dossiers", accessorKey: "dossiers", header: ({ column }) => <DataTableColumnHeader column={column} title="Dossiers" />, cell: ({ row }) => <span className="font-mono text-sm text-encre">{row.original.dossiers}</span> },
+  { id: "date", accessorKey: "date", header: ({ column }) => <DataTableColumnHeader column={column} title="Créé le" />, cell: ({ row }) => <span className="font-mono text-xs text-ardoise">{formatDate(row.original.date)}</span> },
+  {
+    id: "actif",
+    accessorKey: "actif",
+    header: () => <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Actif</span>,
+    cell: ({ row }) => <Switch defaultChecked={row.original.actif} onCheckedChange={(v) => toast.success(v ? "Membre activé" : "Membre suspendu", { description: row.original.nom })} aria-label={`Activer ${row.original.nom}`} />,
+    enableSorting: false,
+  },
+];
 
-  const filtered = UTILISATEURS_INTERNES.filter((u) => {
-    if (q) {
-      const s = `${u.prenom} ${u.nom} ${u.email}`.toLowerCase();
-      if (!s.includes(q.toLowerCase())) return false;
-    }
-    if (role !== "tous" && u.role !== role) return false;
-    return true;
-  });
+export default function AdminUtilisateursPage() {
+  const data: Row[] = React.useMemo(() => UTILISATEURS_INTERNES.map((u) => ({
+    id: u.id,
+    nom: `${u.prenom} ${u.nom}`,
+    initiales: u.initiales,
+    email: u.email,
+    role: u.role,
+    dossiers: u.dossiersAssignes,
+    date: u.dateCreation,
+    actif: u.actif,
+  })), []);
 
   return (
     <div className="space-y-5">
@@ -53,14 +101,18 @@ export default function AdminUtilisateursPage() {
         </Button>
       </div>
 
-      <Card className="border-ligne bg-blanc p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-[220px] flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise" strokeWidth={1.5} />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nom, e-mail…" className="pl-9" />
-          </div>
-          <Select value={role} onValueChange={setRole}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Rôle" /></SelectTrigger>
+      <DataTable
+        columns={COLUMNS}
+        data={data}
+        searchKey="nom"
+        searchPlaceholder="Rechercher un membre…"
+        pageSize={8}
+        toolbar={(table: Table<Row>) => (
+          <Select
+            value={(table.getColumn("role")?.getFilterValue() as string) ?? "tous"}
+            onValueChange={(v) => table.getColumn("role")?.setFilterValue(v)}
+          >
+            <SelectTrigger className="h-9 w-[170px]"><SelectValue placeholder="Rôle" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="tous">Tous les rôles</SelectItem>
               <SelectItem value="Conseiller">Conseiller</SelectItem>
@@ -69,52 +121,16 @@ export default function AdminUtilisateursPage() {
               <SelectItem value="Super Admin">Super Admin</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-      </Card>
+        )}
+      />
 
-      <Card className="border-ligne bg-blanc p-0 overflow-hidden">
-        <div className="overflow-x-auto scroll-fine">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="font-mono text-[10px] uppercase text-ardoise">Membre</TableHead>
-                <TableHead className="font-mono text-[10px] uppercase text-ardoise">Rôle</TableHead>
-                <TableHead className="font-mono text-[10px] uppercase text-ardoise">Dossiers</TableHead>
-                <TableHead className="font-mono text-[10px] uppercase text-ardoise">Créé le</TableHead>
-                <TableHead className="text-right font-mono text-[10px] uppercase text-ardoise">Actif</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((u) => {
-                const Icon = ROLE_ICON[u.role];
-                return (
-                  <TableRow key={u.id} className="border-ligne hover:bg-porcelaine/60">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-9 w-9 border border-ligne"><AvatarFallback className="bg-lapis/10 font-mono text-xs font-semibold text-lapis">{u.initiales}</AvatarFallback></Avatar>
-                        <div>
-                          <p className="text-sm font-medium text-encre">{u.prenom} {u.nom}</p>
-                          <p className="font-mono text-[11px] text-ardoise">{u.email}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={`font-mono text-[10px] uppercase ${ROLE_TONE[u.role]}`}>
-                        <Icon className="mr-1 h-3 w-3" strokeWidth={1.5} /> {u.role}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-mono text-sm text-encre">{u.dossiersAssignes}</TableCell>
-                    <TableCell className="font-mono text-xs text-ardoise">{formatDate(u.dateCreation)}</TableCell>
-                    <TableCell className="text-right">
-                      <Switch defaultChecked={u.actif} onCheckedChange={(v) => toast.success(v ? "Membre activé" : "Membre suspendu", { description: `${u.prenom} ${u.nom}` })} aria-label={`Activer ${u.prenom}`} />
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      </Card>
+      <Alert className="border-ligne bg-blanc">
+        <UserCog className="h-4 w-4 text-lapis" strokeWidth={1.5} />
+        <AlertTitle className="font-display text-sm font-bold text-encre">Gestion des accès</AlertTitle>
+        <AlertDescription className="text-sm text-ardoise">
+          Les rôles déterminent les permissions : <strong>Conseiller</strong> (dossiers assignés), <strong>Financier</strong> (transactions & reçus), <strong>Admin</strong> (toutes les sections sauf paramètres système), <strong>Super Admin</strong> (accès complet incl. paramètres).
+        </AlertDescription>
+      </Alert>
     </div>
   );
 }

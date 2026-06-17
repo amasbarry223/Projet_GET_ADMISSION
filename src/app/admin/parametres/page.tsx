@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -23,10 +24,13 @@ export default function AdminParametresPage() {
         <p className="eyebrow">Paramètres</p>
         <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Configuration de l'agence.</h1>
         {!isSuperAdmin && (
-          <div className="mt-3 flex items-center gap-2 rounded-md border border-ambre/30 bg-ambre/5 p-3">
+          <Alert className="mt-3 border-ambre/40 bg-ambre/5">
             <Lock className="h-4 w-4 text-ambre" strokeWidth={1.5} />
-            <p className="text-sm text-ambre">Certaines sections sont réservées au Super Admin. Connectez-vous en démo avec ce rôle pour tout modifier.</p>
-          </div>
+            <AlertTitle className="font-display text-sm font-bold text-ambre">Accès restreint</AlertTitle>
+            <AlertDescription className="text-sm text-ardoise">
+              Certaines sections sont réservées au Super Admin. Connectez-vous en démo avec ce rôle (via le sélecteur en haut à droite) pour tout modifier.
+            </AlertDescription>
+          </Alert>
         )}
       </div>
 

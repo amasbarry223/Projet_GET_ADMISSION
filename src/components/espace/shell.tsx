@@ -7,11 +7,10 @@ import { cn } from "@/lib/utils";
 import { Plane, LayoutDashboard, FileText, CreditCard, MessageSquare, Stamp, User, LogOut, Bell, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetClose } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { RoleSelector } from "@/components/site/role-selector";
 import { useAuth } from "@/lib/auth-context";
-import { CONVERSATIONS } from "@/lib/mock/messages";
 
 const NAV = [
   { href: "/espace", label: "Tableau de bord", icon: LayoutDashboard, exact: true },
@@ -97,28 +96,28 @@ export function EspaceShell({ children }: { children: React.ReactNode }) {
   React.useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   return (
-    <div className="flex min-h-screen bg-porcelaine">
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-64 flex-col border-r border-ligne bg-blanc">
-        <Brand />
-        <div className="flex-1 py-2"><NavList /></div>
-        <UserCard />
+    // App-shell plein écran : sidebar + header fixes, seul le contenu défile
+    <div className="flex h-screen overflow-hidden bg-porcelaine">
+      {/* Sidebar desktop — pleine hauteur */}
+      <aside className="hidden lg:flex w-64 flex-none flex-col border-r border-ligne bg-blanc">
+        <div className="flex-none"><Brand /></div>
+        <div className="flex-1 overflow-y-auto scroll-fine py-2"><NavList /></div>
+        <div className="flex-none"><UserCard /></div>
       </aside>
 
-      <div className="flex flex-1 flex-col min-w-0">
-        {/* Topbar */}
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-ligne bg-blanc/90 px-4 backdrop-blur sm:px-6">
-          {/* Mobile menu */}
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+        {/* Header fixe — pleine largeur */}
+        <header className="flex flex-none h-16 items-center gap-3 border-b border-ligne bg-blanc/90 px-4 backdrop-blur sm:px-6">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Ouvrir le menu">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 bg-blanc p-0">
+            <SheetContent side="left" className="w-72 bg-blanc p-0 flex flex-col">
               <SheetTitle className="sr-only">Menu candidat</SheetTitle>
               <Brand />
-              <NavList onNavigate={() => setMobileOpen(false)} />
+              <div className="flex-1 overflow-y-auto py-2"><NavList onNavigate={() => setMobileOpen(false)} /></div>
               <UserCard />
             </SheetContent>
           </Sheet>
@@ -138,8 +137,9 @@ export function EspaceShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-x-hidden">
-          <div className="mx-auto max-w-content px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        {/* Main scrollable — contenu pleine largeur */}
+        <main className="flex-1 overflow-y-auto scroll-fine">
+          <div className="w-full p-4 sm:p-6 lg:p-8">
             {children}
           </div>
         </main>
@@ -147,6 +147,3 @@ export function EspaceShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-
-// Silence unused import in some builds
-void CONVERSATIONS;

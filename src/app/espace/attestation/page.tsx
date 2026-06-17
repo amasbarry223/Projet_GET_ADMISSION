@@ -4,6 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { DOSSIER_DEMO_CANDIDAT } from "@/lib/mock/dossiers";
@@ -11,7 +12,7 @@ import { UNIVERSITES } from "@/lib/mock/universites";
 import { formationParId } from "@/lib/mock/formations";
 import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
-import { Stamp, Lock, Download, Eye, EyeOff, MapPin, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { Stamp, Lock, Download, Eye, EyeOff, MapPin, ShieldCheck, CheckCircle2, Clock } from "lucide-react";
 
 export default function AttestationPage() {
   const d = DOSSIER_DEMO_CANDIDAT;
@@ -28,6 +29,14 @@ export default function AttestationPage() {
       </div>
 
       {/* Locked state */}
+      <Alert className="border-ligne bg-blanc p-6">
+        <Clock className="h-5 w-5 text-ambre" strokeWidth={1.5} />
+        <AlertTitle className="font-display text-xl font-bold text-encre">Attestation en cours d'émission.</AlertTitle>
+        <AlertDescription className="mt-1 text-sm text-ardoise">
+          Votre attestation sera disponible après la décision de l'université partenaire.
+        </AlertDescription>
+      </Alert>
+
       <Card className="border-ligne bg-blanc p-8 text-center">
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-ardoise/10">
           <Lock className="h-7 w-7 text-ardoise" strokeWidth={1.5} />
@@ -37,7 +46,7 @@ export default function AttestationPage() {
           Votre attestation sera disponible après la décision de l'université partenaire.
         </p>
 
-        <div className="mx-auto mt-5 max-w-sm rounded-md border border-ligne bg-porcelaine p-4 text-left">
+        <div className="mx-auto mt-5 max-w-sm rounded-md border border-vert/30 bg-vert/5 p-4 text-left">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-vert" strokeWidth={1.5} />
             <p className="text-sm font-medium text-encre">Pré-admission accordée le {formatDate("2026-02-03")}</p>
