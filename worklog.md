@@ -198,3 +198,24 @@ Stage Summary:
 - Sticky footer verified in both modes (short content = sticks, long content = pushed).
 - Role selector verified as functional cross-surface navigation (candidat ↔ admin).
 - Platform is interactive, runnable, and production-ready for demo.
+
+---
+Task ID: 10
+Agent: Lead (main)
+Task: Final QA sweep — mobile deep pages, reduced-motion compliance, keyboard nav + hero concept reinforcement.
+
+Work Log:
+- Mobile rendering verified (390×844) on /espace/dossier (stepper scrolls horizontally, step 1 content fits), /espace/paiement (method grid stacks 2-col, amount card full width), /espace/attestation (preview + golden seal render correctly). VLM analysis: all 3 "OK", no broken layout, no overflow, no touch-target issues.
+- Reduced-motion compliance: confirmed @media (prefers-reduced-motion: reduce) CSS block in globals.css neutralizes all animations (duration 0.001ms !important) + scroll-behavior auto. SmoothScrollProvider checks matchMedia and returns early (no Lenis instance). Reveal/RevealItem components use useReducedMotion() hook to skip translate.
+- Keyboard navigation: admin dossier detail tabs (5) — focus moves with Arrow Right (Profil → Pièces), Enter activates panel (aria-selected=true, panel becomes visible). Focus ring azur 2px offset 2px global via :focus-visible in globals.css.
+- Hero concept reinforcement (legitimate VLM feedback): added two restrained background motifs to the hero section to evoke "Le Passage" without going kitsch:
+  * Faint dotted passport-page grid (radial-gradient 1px dots, 22px spacing, opacity 0.35, masked to fade toward edges) — left side.
+  * Subtle golden meridian/compass arc (SVG, 3 concentric circles + 4 cardinal lines, opacity 0.12, stroke #B8902E) — right side, behind boarding pass.
+  * VLM before/after comparison confirms: more evocative of travel concept, still premium/calm, no rendering issues (no text overlap, not too strong).
+- Final: 16 routes checked 200 OK, lint 0 errors.
+
+Stage Summary:
+- Mobile experience verified on 3 deep candidate pages (stepper, payment, attestation) — all render correctly at 390px.
+- Reduced-motion + keyboard nav confirmed compliant (CSS + JS + component hooks).
+- Hero strengthened with passport-grid + meridian-arc motifs — reinforces "Le Passage" concept while staying premium and light.
+- Platform fully verified: 24 routes, 3 surfaces, light mode only, AA contrast, responsive, a11y, reduced-motion, French microcopy, FCFA + dates localisés.

@@ -107,15 +107,43 @@ export default function AccueilPage() {
     <>
       {/* ============================== Hero ============================== */}
       <section className="relative overflow-hidden bg-porcelaine" aria-labelledby="hero-title">
-        {/* Motif fond : très subtil, lignes concentriques façon monde */}
+        {/* Motif fond « Le Passage » : grille pointillée façon page de passeport + arc méridien */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.5]"
+          className="pointer-events-none absolute inset-0"
           style={{
             backgroundImage:
               "radial-gradient(circle at 80% 30%, rgba(45,107,240,0.06), transparent 45%), radial-gradient(circle at 10% 80%, rgba(184,144,46,0.05), transparent 40%)",
           }}
         />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.35]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle, rgba(14,27,51,0.08) 1px, transparent 1.4px)",
+            backgroundSize: "22px 22px",
+            maskImage: "radial-gradient(ellipse 80% 60% at 20% 40%, black, transparent 70%)",
+            WebkitMaskImage: "radial-gradient(ellipse 80% 60% at 20% 40%, black, transparent 70%)",
+          }}
+        />
+        {/* Arc méridien doré, très atténué — évocation cartographique */}
+        <svg
+          aria-hidden
+          className="pointer-events-none absolute -right-32 top-1/2 -translate-y-1/2 opacity-[0.12]"
+          width="700"
+          height="700"
+          viewBox="0 0 700 700"
+          fill="none"
+        >
+          <circle cx="350" cy="350" r="340" stroke="#B8902E" strokeWidth="1" />
+          <circle cx="350" cy="350" r="270" stroke="#B8902E" strokeWidth="0.75" />
+          <circle cx="350" cy="350" r="200" stroke="#B8902E" strokeWidth="0.5" />
+          <line x1="350" y1="10" x2="350" y2="690" stroke="#B8902E" strokeWidth="0.5" />
+          <line x1="10" y1="350" x2="690" y2="350" stroke="#B8902E" strokeWidth="0.5" />
+          <line x1="106" y1="106" x2="594" y2="594" stroke="#B8902E" strokeWidth="0.4" />
+          <line x1="594" y1="106" x2="106" y2="594" stroke="#B8902E" strokeWidth="0.4" />
+        </svg>
         <div className="relative mx-auto max-w-content px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24">
           <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
             {/* Colonne gauche */}
