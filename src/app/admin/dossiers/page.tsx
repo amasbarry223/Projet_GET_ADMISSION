@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import type { ColumnDef, Table } from "@tanstack/react-table";
-import { DataTable, DataTableColumnHeader } from "@/components/data-table/data-table";
+import { DataTable, DataTableColumnHeader, createSelectColumn } from "@/components/data-table/data-table";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,8 @@ import { ETATS, etatParCode, COULEUR_BADGE, type EtatCode } from "@/lib/mock/eta
 import { formationParId, nomUniversite } from "@/lib/mock/formations";
 import { UNIVERSITES } from "@/lib/mock/universites";
 import { formatFCFA, formatDate } from "@/lib/format";
-import { ArrowRight, FolderOpen, Info } from "lucide-react";
+import { toast } from "sonner";
+import { ArrowRight, FolderOpen, Info, UserCog, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Row = {
@@ -30,6 +31,7 @@ type Row = {
 };
 
 const COLUMNS: ColumnDef<Row>[] = [
+  createSelectColumn<Row>(),
   {
     id: "reference",
     accessorKey: "reference",
@@ -167,6 +169,29 @@ export default function AdminDossiersPage() {
             </Select>
           </>
         )}
+        selectionBar={(table: Table<Row>) => {
+          const count = table.getFilteredSelectedRowModel().rows.length;
+          return (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 border-ligne bg-blanc"
+                onClick={() => toast.success("Conseiller affecté", { description: `${count} dossier${count > 1 ? "s" : ""} réaffecté${count > 1 ? "s" : ""} à Aïssatou Diallo.` })}
+              >
+                <UserCog className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Affecter un conseiller
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 border-ligne bg-blanc"
+                onClick={() => toast.success("Export généré", { description: `${count} dossier${count > 1 ? "s" : ""} exporté${count > 1 ? "s" : ""} en CSV.` })}
+              >
+                <Download className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Exporter
+              </Button>
+            </>
+          );
+        }}
       />
 
       <Alert className="border-ligne bg-blanc">

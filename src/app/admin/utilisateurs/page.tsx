@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { ColumnDef, Table } from "@tanstack/react-table";
-import { DataTable, DataTableColumnHeader } from "@/components/data-table/data-table";
+import { DataTable, DataTableColumnHeader, createSelectColumn } from "@/components/data-table/data-table";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,7 @@ const ROLE_TONE: Record<RoleInterne, string> = {
 };
 
 const COLUMNS: ColumnDef<Row>[] = [
+  createSelectColumn<Row>(),
   {
     id: "nom",
     accessorKey: "nom",

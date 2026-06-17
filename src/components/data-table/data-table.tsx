@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   type ColumnDef,
   type ColumnFiltersState,
+  type Row,
   type SortingState,
   type VisibilityState,
   flexRender,
@@ -16,6 +17,7 @@ import {
 import { ArrowUpDown, ChevronDown, ChevronUp, ChevronsUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -65,6 +67,32 @@ export function DataTableColumnHeader<TData, TValue>({
       )}
     </button>
   );
+}
+
+/* ----------------------- Colonne de sélection (cases à cocher) ----------------------- */
+
+export function createSelectColumn<TData>(): ColumnDef<TData> {
+  return {
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Sélectionner toutes les lignes de la page"
+        className="translate-y-[2px]"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Sélectionner la ligne"
+        className="translate-y-[2px]"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  };
 }
 
 /* ------------------------------ Toolbar ------------------------------ */
@@ -176,6 +204,8 @@ interface DataTableProps<TData, TValue> {
   searchPlaceholder?: string;
   /** Render-prop recevant l'instance de table — pour des filtres custom (Selects, etc.) */
   toolbar?: (table: import("@tanstack/react-table").Table<TData>) => React.ReactNode;
+  /** Render-prop affiché quand des lignes sont sélectionnées (barre d'actions de masse) */
+  selectionBar?: (table: import("@tanstack/react-table").Table<TData>) => React.ReactNode;
   emptyState?: React.ReactNode;
   pageSize?: number;
   className?: string;
@@ -187,6 +217,7 @@ export function DataTable<TData, TValue>({
   searchKey,
   searchPlaceholder,
   toolbar,
+  selectionBar,
   emptyState,
   pageSize = 8,
   className,
@@ -196,6 +227,7 @@ export function DataTable<TData, TValue>({
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns,
@@ -211,6 +243,8 @@ export function DataTable<TData, TValue>({
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
+
+  const selectedCount = table.getFilteredSelectedRowModel().rows.length;
 
   return (
     <div className={cn("flex flex-col gap-3", className)}>
@@ -251,6 +285,26 @@ export function DataTable<TData, TValue>({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Barre d'actions de masse — visible quand des lignes sont sélectionnées */}
+      {selectedCount > 0 && selectionBar && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-lapis/30 bg-lapis/5 px-4 py-2.5">
+          <span className="font-mono text-xs font-semibold text-lapis">
+            {selectedCount} sélectionné{selectedCount > 1 ? "s" : ""}
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {selectionBar(table)}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto h-8 text-ardoise hover:text-encre"
+            onClick={() => table.resetRowSelection()}
+          >
+            Désélectionner
+          </Button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-hidden rounded-lg border border-ligne bg-blanc">

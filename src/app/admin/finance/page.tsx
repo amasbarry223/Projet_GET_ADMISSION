@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { ColumnDef, Table } from "@tanstack/react-table";
-import { DataTable, DataTableColumnHeader } from "@/components/data-table/data-table";
+import { DataTable, DataTableColumnHeader, createSelectColumn } from "@/components/data-table/data-table";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ const STATUT_TONE: Record<string, string> = {
 };
 
 const COLUMNS: ColumnDef<Row>[] = [
+  createSelectColumn<Row>(),
   { id: "reference", accessorKey: "reference", header: ({ column }) => <DataTableColumnHeader column={column} title="Référence" />, cell: ({ row }) => <span className="font-mono text-xs font-semibold text-encre">{row.original.reference}</span> },
   { id: "candidat", accessorKey: "candidat", header: ({ column }) => <DataTableColumnHeader column={column} title="Candidat" />, cell: ({ row }) => <span className="text-sm text-encre">{row.original.candidat}</span> },
   { id: "dossier", accessorKey: "dossier", header: ({ column }) => <DataTableColumnHeader column={column} title="Dossier" />, cell: ({ row }) => <span className="font-mono text-xs text-ardoise">{row.original.dossier}</span> },
