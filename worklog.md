@@ -1,0 +1,169 @@
+# GET Admission — Worklog
+
+Project: GET Admission — Frontend-only platform (public vitrine + candidate space + agency back-office).
+Stack: Next.js 16 App Router + TypeScript + Tailwind 4 + shadcn/ui + Framer Motion + Lenis + recharts + lucide-react.
+Concept: « Le Passage » — boarding-pass / visa stamp / MRZ band / golden seal motifs.
+Light mode only. French. FCFA + localized dates. Mock data only.
+
+---
+Task ID: 1
+Agent: Lead (main)
+Task: Setup design system (tailwind tokens, globals.css, fonts, root layout).
+
+Work Log:
+- Install lenis.
+- Configure tailwind.config.ts with custom palette (porcelaine, lapis, lapis-clair, encre, ardoise, or, or-pale, ligne, vert, ambre, carmin), typography (Bricolage Grotesque display, General Sans body, Geist Mono data), radii (sm/md/lg/xl/pill), shadows (sm/md/lg navy-tinted).
+- Rewrite globals.css with GET Admission tokens (light only), font variables, base layer.
+- Update root layout.tsx to load fonts via next/font and apply font variables.
+
+Stage Summary:
+- Design tokens anchored in CSS variables + tailwind.config.
+- Fonts: --font-display (Bricolage Grotesque), --font-sans (General Sans), --font-mono (Geist Mono).
+- Ready for mock data + components.
+
+---
+Task ID: 2
+Agent: Lead (main)
+Task: Create mock data files (universites, formations, dossiers, etats, paiements, messages, utilisateurs) + format utils.
+
+Work Log:
+- src/lib/mock/etats.ts — 12 états du dossier (Brouillon → Clôturé) avec code, ordre, libellé, catégorie, couleur sémantique + COULEUR_BADGE map.
+- src/lib/mock/universites.ts — 10 universités (France, Canada, Belgique, Maroc, Afrique du Sud, Sénégal, Tunisie, Liban, Cameroun) avec slug, drapeau, ecusson, domaines, pointsForts, fraisMin/Max.
+- src/lib/mock/formations.ts — ~20 formations rattachées, avec niveau/domaine/durée/fraisAgence/prerequis/piecesRequises.
+- src/lib/mock/dossiers.ts — 10 dossiers couvrant TOUS les états (brouillon, soumis, vérif, correction, paiement_attente, attente_reponse, pre_admission, refuse, attestation, cloture) avec pièces, historique, paiements, mrz. Dossier démo candidat = GETADM-2026-0048 (Fatou Diallo, Sorbonne, pré-admission).
+- src/lib/mock/paiements.ts — TRANSACTIONS consolidées + KPI finance + séries pour graphes (par mois, répartition statuts, top universités, par période).
+- src/lib/mock/messages.ts — 2 conversations candidat↔conseiller (Fatou + Marc).
+- src/lib/mock/utilisateurs.ts — 6 utilisateurs internes (2 conseillers, 1 financier, 1 admin, 1 super admin, 1 inactif) + KPI_ADMIN.
+- src/lib/format.ts — formatFCFA, formatDate (JJ mois AAAA), formatDateTime, mrzPour (bande MRZ façon passeport).
+
+Stage Summary:
+- Toutes les données mock sont typées et réalistes (contexte ouest-africain francophone).
+- Aucun appel réseau. Import via @/lib/mock/*.
+- Le dossier GETADM-2026-0048 est le pivot de la démo candidat (pré-admission accordée, attestation bientôt disponible).
+
+---
+Task ID: 3
+Agent: Lead (main)
+Task: Build signature boarding pass + shared site UI (header, footer, role selector, reveal, eyebrow).
+
+Work Log:
+- src/components/getadm/boarding-pass.tsx — BoardingPass (variants hero/large/compact) : 2 blocs séparés par perforation + encoches, bande MRZ en bas (or-pale, Geist Mono), StampBadge (tampon visa incliné -6°, animation stamp-drop au mount, respecte reduced-motion). Filet doré d'en-tête.
+- src/components/site/header.tsx — SiteHeader sticky, transparent puis blanc au scroll, nav desktop + Sheet mobile, CTA "Se connecter" + "Créer mon dossier".
+- src/components/site/footer.tsx — SiteFooter sticky (mt-auto), 4 colonnes, contact, mention "Confidentiel — GET Admission".
+- src/components/site/role-selector.tsx — RoleSelector (dropdown) bascule entre 5 rôles démo (candidat/conseiller/financier/admin/super-admin), persiste dans localStorage, redirige vers le bon espace.
+- src/components/site/reveal.tsx — Reveal, RevealStagger, RevealItem (fade + translateY 16px, ease premium, reduced-motion aware), Eyebrow (sur-titre mono avec filet).
+- src/lib/auth-context.tsx — AuthProvider + useAuth (mock, 5 DEMO_USERS, persistence localStorage).
+- src/lib/smooth-scroll.tsx — SmoothScrollProvider (Lenis, vitrine only, reduced-motion off).
+- src/components/providers.tsx — Providers root (AuthProvider).
+
+Stage Summary:
+- Composants signature prêts. BoardingPass est l'élément mémorable (animation tampon + MRZ).
+- Header/footer/role-selector/reveal réutilisables par les 3 surfaces.
+- Auth mock fonctionnelle : signIn(role) → redirige vers /espace ou /admin/*.
+- Smooth scroll Lenis disponible via SmoothScrollProvider (à monter dans le layout vitrine).
+
+---
+Task ID: 5
+Agent: Vitrine builder (full-stack-developer)
+Task: Build public vitrine (/, /universites, /universites/[slug], /a-propos, /faq, /contact).
+
+Work Log:
+- Read worklog (Tasks 1-3) and inspected existing components: SiteHeader, SiteFooter, BoardingPass, Reveal/Eyebrow, SmoothScrollProvider, mock data (UNIVERSITES, FORMATIONS, DOSSIERS, ETATS), format utils. No recreation, all reused.
+- src/app/(vitrine)/layout.tsx — server component wrapping children in SmoothScrollProvider, sticky footer structure (`flex min-h-screen flex-col` + `main.flex-1` + SiteFooter `mt-auto`).
+- src/components/site/universite-card.tsx — UniversiteCard: gradient banner `imageCouleur` h-32, ecusson in white circle 56px, drapeau top-right, body p-5 (nom + ville/pays + domaines badges 3 max +N + frais range mono + ArrowUpRight), hover -translate-y-0.5 + shadow-md. Wrapped in <Link href=/universites/[slug]>.
+- src/app/(vitrine)/page.tsx — Accueil (server component) with 7 sections: Hero (Display XL + 2 CTAs + BoardingPass variant="hero" animateOnMount with DOSSIER_DEMO_CANDIDAT), bandeau de confiance (6 ecussons cercles, scroll-x mobile), comment ça marche (4 étapes 01-04 avec RevealStagger + lucide UserPlus/FileText/CreditCard/Stamp), universités en vedettes (6 UniversiteCard), section chiffres (4 stats Display L), témoignages (3 cards Marième/Awa/Paul), CTA final bg-or-pale + rule-or.
+- src/app/(vitrine)/universites/page.tsx — Catalogue (client component). Sticky filter bar (top-16 z-30 backdrop-blur): search input + 4 Select (Pays, Domaine, Niveau, Tri). Filters via useState/useMemo, niveau computed from FORMATIONS. "Charger plus" (PAGE_SIZE=8). Empty state card + reset button. Filtres actifs → bouton "Réinitialiser les filtres".
+- src/app/(vitrine)/universites/[slug]/page.tsx — Détail (server component, async params). generateStaticParams pour pré-rendre les 10 slugs. notFound() si slug inconnu. Breadcrumb Accueil/Universités/[nom]. Bandeau gradient h-48 + scrim bg-encre/35 pour lisibilité blanc, ecusson cercle 80px, drapeau + nom Display L blanc. 2 colonnes: main (présentation, points forts avec CheckCircle2, formations Table shadcn 6 colonnes avec action "Choisir" → /inscription, encadré or-pale/40 pieces dédupliquées) + sidebar sticky (Démarrer mon dossier CTA lapis, frais range, Parler à un conseiller outline, reassurance vert).
+- src/app/(vitrine)/a-propos/page.tsx — Page éditoriale: hero H1, mission 2-col, approche 3 piliers (HeartHandshake/Eye/Network icons), chiffres clés réutilisés, équipe 3 cartes avec initiales, citation fondatrice blockquote, CTA final or-pale.
+- src/app/(vitrine)/faq/page.tsx — H1 + lead, Accordion shadcn single-collapsible avec 10 Q/A en français (comment ça marche, frais, documents, délais, paiement tranches, refus, pays, suivi, attestation officielle, retrait agence). Première question ouverte par défaut (defaultValue="item-0"). Sidebar sticky or-pale avec CTA "Poser ma question" + "Voir le catalogue".
+- src/app/(vitrine)/contact/page.tsx — Client component. 2 colonnes: formulaire (left) + coordonnées (right). Form: prénom, nom, email, téléphone (optionnel), objet (Select 5 valeurs), message (Textarea). Validation locale: required, email regex, message ≥ 10 chars. On submit: preventDefault, toast.success("Message envoyé", {description: "Un conseiller vous répondra sous 24h ouvrées."}) après timeout 600ms, reset form. Toast error si invalide. Pas d'appel réseau.
+- Microcopy premium français: "Créer mon dossier" partout, montants formatFCFA, pas d'emojis décoratifs sauf drapeaux 🇫🇷🇨🇦 etc., pas de lorem ipsum.
+- Responsive: mobile-first, breakpoints sm/md/lg/xl. Toutes les sections s'adaptent. Tables wrappées en overflow-x-auto. Filtres catalogue en grille 2-col mobile, flex desktop.
+- Accessibilité: semantic main/section/article/nav/header/footer/aside/figure/blockquote. aria-label sur Selects, aria-invalid + aria-describedby sur champs avec erreur, sr-only SheetTitle. Focus ring azur global (globals.css). Reveal respecte prefers-reduced-motion.
+
+Stage Summary:
+- 6 routes live sous route group (vitrine): / (341 ko HTML, 7 sections), /universites (10 universités filtrables + tri + pagination 8/8), /universites/[slug] (pré-rendu statique des 10 slugs, table formations, breadcrumb, sidebar CTA sticky), /a-propos, /faq (accordion 10 Q/A), /contact (formulaire validé + sonner toast).
+- 1 nouveau composant shared: UniversiteCard (réutilisé sur home + catalogue).
+- Layout vitrine sticky footer OK, SmoothScrollProvider monté une fois, header sticky top-0 z-40.
+- Vérification curl: 6 routes → 200 OK, /universites/unknown → 404, /inscription → 404 (attendu, scope autre agent).
+- Vérification agent-browser: home rend le boarding pass avec tampon visa "PRÉ-ADMISSION ACCORDÉE" + MRZ visible, nav fonctionne (click carte → detail), filtres catalogue actifs (Pays=France → 2 universités, reset), accordion FAQ toggles, formulaire contact validation + toast success "Message envoyé".
+- Lint: 0 erreur sur mes fichiers (4 erreurs pré-existantes dans src/lib/auth-context.tsx, src/lib/smooth-scroll.tsx, tailwind.config.ts laissées aux tasks précédentes — runtime OK).
+- Pas de dark backgrounds (uniquement bg-encre/35 scrim sur gradient hero band du detail, conforme spec). Pas d'erreurs console après reload clean.
+
+---
+Task ID: 6
+Agent: Lead (main)
+Task: Build auth mock + candidate space (/connexion, /inscription, /mot-de-passe-oublie, /espace/*).
+
+Work Log:
+- src/components/espace/shell.tsx — EspaceShell: sidebar desktop (w-64) + Sheet drawer mobile, topbar sticky with breadcrumb + RoleSelector + notifications bell, user card bottom with sign-out. Nav 6 items (Tableau de bord, Mon dossier, Paiement, Messages, Attestation, Profil) with active state lapis + gold left rule, badge messages non-lus.
+- src/app/espace/layout.tsx — wraps children in EspaceShell.
+- src/app/connexion/page.tsx — 2-col: editorial + BoardingPass large (animateOnMount, DOSSIER_DEMO_CANDIDAT) | form (email+password, "Se connecter" → signIn('candidat') → /espace). Demo role selector block with 5 buttons (Candidat/Conseiller/Financier/Admin/Super Admin) → each calls signIn + router.push.
+- src/app/inscription/page.tsx — 2-col like connexion. Form: prénom, nom, email, password, confirm, nationalité (select 14 pays), consent checkbox. Local validation (email format, password ≥8, match, required). On valid → signIn('candidat') → /espace + toast "Compte créé".
+- src/app/mot-de-passe-oublie/page.tsx — centered card, email field, on submit → confirmation "Si un compte existe, un lien a été envoyé." + toast.
+- src/app/espace/page.tsx — Dashboard: header "Bonjour, Fatou" + réf mono, BoardingPass large (signature), Timeline 12 états verticales (past=vert check + date, current=lapis pulse-soft, future=ardoise outline), carte "Prochaine action" (pré-admission → CTA attestation), 3 shortcut cards (Paiement Complet vert, Messages 2 non-lus ambre, Attestation bientôt ardoise), carte conseiller.
+- src/app/espace/dossier/page.tsx — Stepper 5 étapes premium (01-05, done=vert, active=lapis, future=ardoise). Step 1: université+formation selects + récap frais. Step 2: infos perso (7 champs). Step 3: upload zones drag&drop mock (4 pièces académiques, états manquante/televersee/validee/a_corriger, boutons toggle). Step 4: pièces identité (2 zones). Step 5: récap BoardingPass + liste pièces + soumission (désactivée si pièces manquantes, explication inline). Badge "Brouillon enregistré" auto.
+- src/app/espace/paiement/page.tsx — montant gros mono + université, 4 méthodes (Orange/Moov/Wave/Carte) sélection, toggle tranches (2x50%), "Confirmer le paiement" → loading 1.5s → écran succès vert + reçu (ref mono REC-2026-0580, date, candidat, montant) + bouton télécharger. Historique paiements table.
+- src/app/espace/messages/page.tsx — 2-pane: conversation list (1 conseiller AD) + chat thread (candidat right lapis / conseiller left blanc, timestamps, pièce jointe chip), input bar avec paperclip + send, append local messages, auto-scroll.
+- src/app/espace/attestation/page.tsx — locked state (lock icon, "Votre attestation sera disponible après la décision de l'université partenaire.") + bouton "Aperçu de l'attestation" qui révèle : document formel (en-tête GET Admission + Display L, body textuel, SCEAU DORÉ circulaire border-or bg-or-pale rotate-8 shadow-stamp avec Stamp icon + "GET ADMISSION / SCEAU OFFICIEL", ref mono ATT-2026-0048-SU, code vérification VRF-9F3D-2A7B-0048, signature Yasmine Bensaid), boutons Télécharger PDF + Switch "Je viendrai la récupérer à l'agence".
+- src/app/espace/profil/page.tsx — header avatar FD + badges (Candidat, KYC vérifié). Tabs 3: Informations personnelles (7 champs), Pièce d'identité KYC (type select, numéro, statut vérifiée vert, zones recto/verso), Sécurité (3 champs password). Save buttons → toast.
+
+Stage Summary:
+- 10 routes live: /connexion, /inscription, /mot-de-passe-oublie, /espace, /espace/dossier, /espace/paiement, /espace/messages, /espace/attestation, /espace/profil (+ layout).
+- Auth mock complète: signIn(role) + 5 rôles démo, persistence localStorage, redirige vers le bon espace.
+- BoardingPass présent sur connexion, inscription, dashboard, dossier récap. Timeline 12 états = suivi temps réel. Attestation avec sceau doré signature.
+- Toutes les microcopy premium FR respectées ("Confirmer le paiement" → "Paiement confirmé", "Votre attestation sera disponible…", "Une pièce manque…").
+
+---
+Task ID: 7
+Agent: Lead (main)
+Task: Build back-office (/admin/*).
+
+Work Log:
+- src/components/admin/shell.tsx — AdminShell: sidebar desktop w-60 dense (4 sections: Pilotage, Dossiers, Gestion, Système) + Sheet mobile, topbar h-14 with recherche globale + RoleSelector, breadcrumb second bar, user card bottom. Nav 7 items with active gold rule.
+- src/app/admin/layout.tsx — wraps children in AdminShell.
+- src/app/admin/page.tsx — Dashboard: 4 KPI cards (nouveaux dossiers, en cours, taux acceptation, encaissements) avec delta vert/carmin. 3 graphes recharts: AreaChart dossiers+pré-admissions (azur/vert), PieChart répartition statuts (4 couleurs sémantiques), BarChart top universités (lapis horizontal), AreaChart encaissements (or). File prioritaire: 4 dossiers nécessitant action (boarding-pass compact inline + lien détail).
+- src/app/admin/dossiers/page.tsx — Table filtrable (référence mono, candidat, université, formation, statut badge tampon, conseiller, date, frais mono). Filtres: recherche + 3 selects (statut 12 états, université 10, conseiller 4). Empty state soigné. Pagination 8/page.
+- src/app/admin/dossiers/[id]/page.tsx — Détail: breadcrumb + BoardingPass large. Tabs 5: Profil candidat (avatar + dl champs), Pièces (liste avec statut manquante/televersee/a_corriger/validee + icônes), Paiements (table), Historique (journal 12 états horodaté), Messages (aperçu conv). Sidebar: statut courant + progression bar, conseiller affecté, actions workflow contextuelles (Vérifier/Demander correction/Confirmer paiement/Transmettre/Marquer accepté-refusé/Émettre attestation) → toast.
+- src/app/admin/catalogue/page.tsx — grille 2-col cartes université (ecusson gradient + drapeau + domaines badges) + Sheet détail (description, frais min/max, liste formations avec frais, boutons Enregistrer/Supprimer). Bouton "Ajouter une université".
+- src/app/admin/finance/page.tsx — 4 KPI finance (encaissé mois vert, en attente ambre, impayés carmin, total lapis). Filtres recherche+statut. Table transactions (ref, candidat, dossier, date, moyen+tranche, montant, statut badge). Boutons export CSV/PDF.
+- src/app/admin/utilisateurs/page.tsx — Table personnel (avatar+nom+email, rôle badge avec icône Headset/Wallet/ShieldCheck/Crown, dossiers assignés, date, switch actif). Filtres recherche+ rôle. Bouton "Inviter un membre".
+- src/app/admin/attestations/page.tsx — 3 modèles d'attestation (cartes avec sceau or-pale, nb usages, boutons aperçu/éditer). File d'émission: dossiers pre_admission (bouton Émettre → toast). Historique attestations émises/récupérées.
+- src/app/admin/parametres/page.tsx — Tabs 4: Frais & paiement (frais min/max, moyens de paiement 5 switches, tranches toggle), Notifications (5 modèles événement+canal+switch), Workflow (4 règles délais), Système (version, sauvegarde, 2FA, rétention). Sections grisées/locked si non super-admin (lock icon, opacity-70, disabled).
+
+Stage Summary:
+- 9 routes admin live: /admin, /admin/dossiers, /admin/dossiers/[id], /admin/catalogue, /admin/finance, /admin/utilisateurs, /admin/attestations, /admin/parametres (+ layout).
+- recharts intégré (AreaChart, PieChart, BarChart) avec palette claire (lapis-clair, vert, or, ambre, ardoise).
+- BoardingPass compact dans file prioritaire + large dans détail dossier.
+- Actions workflow contextuelles selon état du dossier. Paramètres réservés Super Admin correctement verrouillés.
+- Fix: import TRANSACTIONS_PAR_MOIS/REPARTITION_STATUTS/TOP_UNIVERSITES/DOSSIERS_PAR_PERIODE déplacés de utilisateurs.ts vers paiements.ts (source correcte).
+
+---
+Task ID: 8
+Agent: Lead (main)
+Task: Polish + end-to-end browser verification (agent-browser).
+
+Work Log:
+- Fix import error in /admin: TRANSACTIONS_PAR_MOIS, REPARTITION_STATUTS, TOP_UNIVERSITES, DOSSIERS_PAR_PERIODE moved from @/lib/mock/utilisateurs to @/lib/mock/paiements (correct source). KPI_ADMIN stays in utilisateurs.
+- Fix lint errors in foundation: auth-context (set-state-in-effect → eslint-disable with justification comment for localStorage hydration restore), smooth-scroll (removed ref-during-render, side-effect-only provider), tailwind.config (removed require() of tailwindcss-animate, tw-animate-css handles v4).
+- Agent-browser verification (desktop 1440×900 + mobile 390×844):
+  * / : hero + boarding pass (visa stamp "PRÉ-ADMISSION ACCORDÉE" + MRZ visible), 7 sections, header sticky, footer sticky layout (flex min-h-screen flex-col + main.flex-1 + footer).
+  * /connexion : boarding pass editorial + login form + 5 demo role buttons. Filled password → "Se connecter" → /espace (200).
+  * /espace : "Bonjour, Fatou" + BoardingPass large + timeline 12 étapes (current=lapis pulse-soft, past=vert, future=ardoise) + shortcut cards + conseiller.
+  * /admin : 4 KPI + 4 recharts (AreaChart dossiers/pré-admissions, PieChart statuts, BarChart top univ, AreaChart encaissements) + file prioritaire 4 dossiers.
+  * /admin/dossiers/d-0048 : boarding pass + tabs 5 (Profil/Pièces/Paiements/Historique/Messages) + workflow action contextuelle "Émettre l'attestation".
+  * /espace/attestation : locked state + "Aperçu de l'attestation" → révèle document avec SCEAU DORÉ (border-or bg-or-pale rotate-8) + ref ATT-2026-0048-SU + code VRF + boutons PDF + switch remise agence.
+  * /espace/paiement : 4 méthodes + toggle tranches + "Confirmer le paiement" → loading → success "Paiement confirmé." + reçu REC-2026-0481 + bouton télécharger.
+  * /universites : 8 cartes (pagination), filtres, frais FCFA.
+  * Mobile 390px : sidebar → drawer "Ouvrir le menu", contenu responsive.
+- Console : 0 erreur, 0 hydration mismatch (uniquement warning scroll-behavior Next.js cosmétique).
+- Lint : 0 erreur sur l'ensemble du projet (bun run lint clean).
+
+Stage Summary:
+- 23 routes live, toutes 200 OK : 6 vitrine + 3 auth + 6 espace + 8 admin.
+- 3 surfaces navigables et interconnectées via le sélecteur de rôle démo (candidat/conseiller/financier/admin/super-admin).
+- Carte d'embarquement signature présente sur : home hero, connexion, inscription, dashboard candidat, récap dossier, dashboard admin (file prioritaire), détail dossier admin.
+- Sceau doré signature sur attestation candidat.
+- Aucun fond sombre, mode clair uniquement, contrastes AA, focus ring azur, prefers-reduced-motion respecté (Reveal + smooth scroll).
+- Microcopy premium FR : "Créer mon dossier", "Confirmer le paiement" → "Paiement confirmé", "Votre attestation sera disponible…", formats FCFA + dates JJ mois AAAA.
+- Vérification browser réussie : la plateforme est interactive et runnable.

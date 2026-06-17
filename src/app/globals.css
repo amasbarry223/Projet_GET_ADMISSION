@@ -1,0 +1,217 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ===== GET Admission design tokens (Tailwind v4 @theme) ===== */
+@theme {
+  /* Palette signature (light only) */
+  --color-porcelaine: #F4F6FB;
+  --color-blanc: #FFFFFF;
+  --color-lapis: #173A7A;
+  --color-lapis-clair: #2D6BF0;
+  --color-encre: #0E1B33;
+  --color-ardoise: #5A6781;
+  --color-or: #B8902E;
+  --color-or-pale: #F3ECD8;
+  --color-ligne: #E2E7F0;
+  --color-vert: #1F8A5B;
+  --color-ambre: #C77A12;
+  --color-carmin: #C0392B;
+
+  /* shadcn semantic aliases (résolues vers les vars :root) */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Polices */
+  --font-display: "Bricolage Grotesque", sans-serif;
+  --font-sans: "General Sans", "Inter", sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", monospace;
+
+  /* Rayons */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  /* Largeurs de contenu */
+  --container-content: 1200px;
+  --container-admin: 1280px;
+
+  /* Shadows (teintées navy) */
+  --shadow-sm: 0 1px 2px rgba(14,27,51,.04);
+  --shadow-md: 0 1px 2px rgba(14,27,51,.04), 0 8px 24px rgba(14,27,51,.06);
+  --shadow-lg: 0 12px 40px rgba(14,27,51,.10);
+
+  /* Lettre spacings */
+  --tracking-eyebrow: 0.18em;
+  --tracking-tightest: -0.02em;
+
+  /* Keyframes signature */
+  --animate-stamp-drop: stamp-drop 0.55s cubic-bezier(0.22,1,0.36,1) both;
+  --animate-trace-line: trace-line 0.8s cubic-bezier(0.22,1,0.36,1) both;
+  --animate-pulse-soft: pulse-soft 2s ease-in-out infinite;
+  --animate-fade-up: fade-up 0.6s cubic-bezier(0.22,1,0.36,1) both;
+
+  @keyframes stamp-drop {
+    0% { opacity: 0; transform: scale(1.6) rotate(-12deg); }
+    60% { opacity: 1; transform: scale(0.94) rotate(-7deg); }
+    100% { opacity: 1; transform: scale(1) rotate(-6deg); }
+  }
+  @keyframes trace-line {
+    0% { transform: scaleX(0); opacity: 0; }
+    100% { transform: scaleX(1); opacity: 1; }
+  }
+  @keyframes pulse-soft {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(23,58,122,.35); }
+    50% { box-shadow: 0 0 0 8px rgba(23,58,122,0); }
+  }
+  @keyframes fade-up {
+    0% { opacity: 0; transform: translateY(16px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+}
+
+/* ===== shadcn semantic tokens (light only) ===== */
+:root {
+  --radius: 12px;
+  --background: #F4F6FB;   /* porcelaine */
+  --foreground: #0E1B33;   /* encre */
+  --card: #FFFFFF;         /* blanc */
+  --card-foreground: #0E1B33;
+  --popover: #FFFFFF;
+  --popover-foreground: #0E1B33;
+  --primary: #173A7A;      /* lapis */
+  --primary-foreground: #FFFFFF;
+  --secondary: #F4F6FB;
+  --secondary-foreground: #173A7A;
+  --muted: #F4F6FB;
+  --muted-foreground: #5A6781; /* ardoise */
+  --accent: #F3ECD8;       /* or-pale */
+  --accent-foreground: #B8902E; /* or */
+  --destructive: #C0392B;  /* carmin */
+  --border: #E2E7F0;       /* ligne */
+  --input: #E2E7F0;
+  --ring: #2D6BF0;         /* lapis-clair (azur) */
+  --chart-1: #2D6BF0;      /* lapis-clair */
+  --chart-2: #1F8A5B;      /* vert */
+  --chart-3: #B8902E;      /* or */
+  --chart-4: #C77A12;      /* ambre */
+  --chart-5: #5A6781;      /* ardoise */
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #0E1B33;
+  --sidebar-primary: #173A7A;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #F4F6FB;
+  --sidebar-accent-foreground: #173A7A;
+  --sidebar-border: #E2E7F0;
+  --sidebar-ring: #2D6BF0;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-ligne);
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+  body {
+    background-color: var(--color-porcelaine);
+    color: var(--color-encre);
+    -webkit-font-smoothing: antialiased;
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+  /* Visible focus ring (azur) */
+  :focus-visible {
+    outline: 2px solid var(--color-lapis-clair);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  /* Eyebrow / sur-titre */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-eyebrow);
+    color: var(--color-lapis);
+  }
+  .eyebrow-or {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-eyebrow);
+    color: var(--color-or);
+  }
+  /* MRZ band */
+  .mrz {
+    font-family: var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  /* Hairline gold rule */
+  .rule-or {
+    background: linear-gradient(90deg, transparent, #B8902E 12%, #B8902E 88%, transparent);
+    height: 1px;
+  }
+  /* Perforation between boarding pass halves */
+  .perforation {
+    background-image: radial-gradient(circle, #F4F6FB 4px, transparent 4.5px);
+    background-size: 14px 14px;
+    background-repeat: repeat-y;
+    background-position: center;
+  }
+  /* Custom scrollbar */
+  .scroll-fine::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scroll-fine::-webkit-scrollbar-track { background: transparent; }
+  .scroll-fine::-webkit-scrollbar-thumb { background: #E2E7F0; border-radius: 9999px; }
+  .scroll-fine::-webkit-scrollbar-thumb:hover { background: #5A6781; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
