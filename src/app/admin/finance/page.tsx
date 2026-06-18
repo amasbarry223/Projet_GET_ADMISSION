@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TRANSACTIONS, FINANCE_KPIS } from "@/lib/mock/paiements";
 import { formatFCFA, formatFCFACompact, formatDate } from "@/lib/format";
 import { toast } from "sonner";
-import { Download, Wallet, TrendingUp, Clock, XCircle, FileDown, Info } from "lucide-react";
+import { Download, Wallet, TrendingUp, Clock, XCircle, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Row = {
@@ -69,7 +69,7 @@ export default function AdminFinancePage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => toast.success("Export CSV", { description: "transactions-fevrier-2026.csv" })}>
-            <FileDown className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Export CSV
+            <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Export CSV
           </Button>
           <Button variant="outline" onClick={() => toast.success("Export PDF", { description: "rapport-financier-fevrier-2026.pdf" })}>
             <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Export PDF

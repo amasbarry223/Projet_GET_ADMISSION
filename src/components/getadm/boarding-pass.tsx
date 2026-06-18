@@ -140,7 +140,7 @@ export function StampBadge({ etat, animate = false }: { etat: EtatCode; animate?
       animate={animate ? { opacity: 1, scale: 1, rotate: -6 } : undefined}
       transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1], delay: 0.35 }}
       className={cn(
-        "mt-2 inline-flex flex-col items-center justify-center rounded-md border-2 px-3 py-1.5",
+        "mt-8 inline-flex flex-col items-center justify-center rounded-md border-2 px-3 py-1.5",
         couleur.text,
         couleur.border,
         "bg-blanc/70 backdrop-blur-[1px]",

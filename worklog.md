@@ -312,3 +312,33 @@ Stage Summary:
 - Messagerie, paiement, profil, sidebar : tous bénéficient des portraits/photos.
 - Contraste texte/images vérifié (gradient renforcé sur carte destination).
 - Concept "Le Passage" renforcé : l'illustration hero (passeport + tampon + campus) ancre visuellement le thème du voyage d'études.
+
+---
+Task ID: 14
+Agent: Lead (main) — expert UX/UI
+Task: Audit et correction des erreurs UX/UI.
+
+Work Log:
+- Audit VLM de 14 captures d'écran (7 desktop + 3 mobile + 4 admin) avec vérification DOM de chaque signalement pour filtrer les hallucinations.
+- ERREUR 1 CONFIRMÉE — Tampon visa chevauche le label "Statut" dans la boarding pass :
+  * Vérifié au DOM : gap vertical = -16px (chevauchement confirmé). Le tampon rotaté -6deg a une bounding box qui remonte au-dessus de sa position de layout.
+  * Fix : src/components/getadm/boarding-pass.tsx StampBadge `mt-2` → `mt-8` (32px). Gap maintenant +8px, plus de chevauchement.
+  * VLM post-fix : "stamp well-positioned, not overlapping the STATUT label, visual hierarchy clear, no spacing issues."
+- ERREUR 2 CONFIRMÉE — Icônes inconsistantes sur boutons export finance :
+  * CSV utilisait FileDown, PDF utilisait Download.
+  * Fix : src/app/admin/finance/page.tsx — les deux boutons utilisent maintenant Download (cohérence).
+- HALLUCINATIONS VLM filtrées (non corrigées car inexistantes) :
+  * "Compiling... badge" sur university detail — n'existe pas dans le code.
+  * "Aperçu d'un dossier candidat" texte sur home — n'existe pas.
+  * "Hero columns overlap" — vérifié au DOM : gap 48px, pas de chevauchement.
+  * "Status column truncation" — vérifié au DOM : badges nowrap 150px dans cellules 166px, pas de troncature.
+  * "Colonne dropdown duplicated" — faux (1 seul dropdown par table).
+  * "1 Issue badge on sidebar" — n'existe pas.
+- Mobile (390px) vérifié sur home, university detail, dashboard candidat : VLM "OK" sur les 3.
+- Lint : 0 erreur, 0 warning. 8 routes vérifiées 200 OK.
+
+Stage Summary:
+- 2 erreurs UX/UI réelles corrigées : chevauchement tampon/label (boarding pass) et inconsistance icônes export (finance).
+- Audit méthodique : chaque signalement VLM vérifié au DOM avant correction (filtre des hallucinations).
+- Boarding pass signature maintenant visuellement correcte (tampon dégagé du label Statut).
+- Plateforme maintenue : 0 erreur lint, routes 200 OK, mobile et desktop vérifiés.
