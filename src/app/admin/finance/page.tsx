@@ -2,16 +2,19 @@
 
 import * as React from "react";
 import type { ColumnDef, Table } from "@tanstack/react-table";
-import { DataTable, DataTableColumnHeader, createSelectColumn } from "@/components/data-table/data-table";
+import { DataTable, DataTableColumnHeader, createSelectColumn, createActionsColumn, type ActionItem } from "@/components/data-table/data-table";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { TRANSACTIONS, FINANCE_KPIS } from "@/lib/mock/paiements";
 import { formatFCFA, formatFCFACompact, formatDate } from "@/lib/format";
 import { toast } from "sonner";
-import { Download, Wallet, TrendingUp, Clock, XCircle, Info } from "lucide-react";
+import { Download, Wallet, TrendingUp, Clock, XCircle, Info, Eye, FileText, RefreshCw, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Row = {
@@ -31,24 +34,9 @@ const STATUT_TONE: Record<string, string> = {
   échoué: "bg-carmin/10 text-carmin border-carmin",
 };
 
-const COLUMNS: ColumnDef<Row>[] = [
-  createSelectColumn<Row>(),
-  { id: "reference", accessorKey: "reference", header: ({ column }) => <DataTableColumnHeader column={column} title="Référence" />, cell: ({ row }) => <span className="font-mono text-xs font-semibold text-encre">{row.original.reference}</span> },
-  { id: "candidat", accessorKey: "candidat", header: ({ column }) => <DataTableColumnHeader column={column} title="Candidat" />, cell: ({ row }) => <span className="text-sm text-encre">{row.original.candidat}</span> },
-  { id: "dossier", accessorKey: "dossier", header: ({ column }) => <DataTableColumnHeader column={column} title="Dossier" />, cell: ({ row }) => <span className="font-mono text-xs text-ardoise">{row.original.dossier}</span> },
-  { id: "date", accessorKey: "date", header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />, cell: ({ row }) => <span className="text-sm text-encre">{formatDate(row.original.date)}</span> },
-  { id: "moyen", accessorKey: "moyen", header: ({ column }) => <DataTableColumnHeader column={column} title="Moyen" />, cell: ({ row }) => <span className="text-sm text-encre">{row.original.moyen}</span> },
-  { id: "montant", accessorKey: "montant", header: ({ column }) => <DataTableColumnHeader column={column} title="Montant" />, cell: ({ row }) => <span className="text-right font-mono text-sm font-semibold text-encre">{formatFCFA(row.original.montant)}</span> },
-  {
-    id: "statut",
-    accessorKey: "statut",
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Statut" />,
-    cell: ({ row }) => <Badge className={cn("font-mono text-[10px] uppercase border", STATUT_TONE[row.original.statut])}>{row.original.statut.replace("_", " ")}</Badge>,
-    filterFn: (row, _id, value: string) => value === "tous" ? true : row.original.statut === value,
-  },
-];
-
 export default function AdminFinancePage() {
+  const [newOpen, setNewOpen] = React.useState(false);
+
   const data: Row[] = React.useMemo(() => TRANSACTIONS.map((t) => ({
     id: t.id,
     reference: t.reference,
@@ -60,6 +48,54 @@ export default function AdminFinancePage() {
     statut: t.statut as Row["statut"],
   })), []);
 
+  // Actions cohérentes pour chaque transaction
+  const actions: ActionItem<Row>[] = React.useMemo(() => [
+    {
+      label: "Voir le reçu",
+      icon: Eye,
+      onClick: (row) => toast.success("Reçu ouvert", { description: `${row.reference} — ${row.candidat}.` }),
+    },
+    {
+      label: "Télécharger le reçu",
+      icon: FileText,
+      onClick: (row) => toast.success("Reçu téléchargé", { description: `${row.reference}.pdf` }),
+    },
+    {
+      label: "Relancer la transaction",
+      icon: RefreshCw,
+      confirm: {
+        title: "Relancer la transaction ?",
+        description: (row) => `Une nouvelle tentative de prélèvement sera effectuée pour ${row.reference}.`,
+        confirmLabel: "Relancer",
+        onConfirm: (row) => toast.success("Transaction relancée", { description: `${row.reference} — nouvelle tentative en cours.` }),
+      },
+    },
+  ], []);
+
+  const columns: ColumnDef<Row>[] = React.useMemo(() => [
+    createSelectColumn<Row>(),
+    { id: "reference", accessorKey: "reference", header: ({ column }) => <DataTableColumnHeader column={column} title="Référence" />, cell: ({ row }) => <span className="font-mono text-xs font-semibold text-encre">{row.original.reference}</span> },
+    { id: "candidat", accessorKey: "candidat", header: ({ column }) => <DataTableColumnHeader column={column} title="Candidat" />, cell: ({ row }) => <span className="text-sm text-encre">{row.original.candidat}</span> },
+    { id: "dossier", accessorKey: "dossier", header: ({ column }) => <DataTableColumnHeader column={column} title="Dossier" />, cell: ({ row }) => <span className="font-mono text-xs text-ardoise">{row.original.dossier}</span> },
+    { id: "date", accessorKey: "date", header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />, cell: ({ row }) => <span className="text-sm text-encre">{formatDate(row.original.date)}</span> },
+    { id: "moyen", accessorKey: "moyen", header: ({ column }) => <DataTableColumnHeader column={column} title="Moyen" />, cell: ({ row }) => <span className="text-sm text-encre">{row.original.moyen}</span> },
+    { id: "montant", accessorKey: "montant", header: ({ column }) => <DataTableColumnHeader column={column} title="Montant" />, cell: ({ row }) => <span className="text-right font-mono text-sm font-semibold text-encre">{formatFCFA(row.original.montant)}</span> },
+    {
+      id: "statut",
+      accessorKey: "statut",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Statut" />,
+      cell: ({ row }) => <Badge className={cn("font-mono text-[10px] uppercase border", STATUT_TONE[row.original.statut])}>{row.original.statut.replace("_", " ")}</Badge>,
+      filterFn: (row, _id, value: string) => value === "tous" ? true : row.original.statut === value,
+    },
+    createActionsColumn<Row>(actions, { ariaLabel: (row) => `Actions sur la transaction ${row.reference}` }),
+  ], [actions]);
+
+  const handleNewTransaction = (e: React.FormEvent) => {
+    e.preventDefault();
+    setNewOpen(false);
+    toast.success("Transaction enregistrée", { description: "La transaction manuelle a été ajoutée." });
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -67,7 +103,48 @@ export default function AdminFinancePage() {
           <p className="eyebrow">Finance</p>
           <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Transactions & reçus.</h1>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Dialog open={newOpen} onOpenChange={setNewOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-lapis text-blanc hover:bg-lapis/90">
+                <Plus className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Nouvelle transaction
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-blanc sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="font-display text-lg font-bold text-encre">Nouvelle transaction manuelle</DialogTitle>
+                <DialogDescription className="text-sm text-ardoise">Enregistrez un paiement reçu hors plateforme (espèces, virement agence).</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleNewTransaction} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium text-encre">Candidat</Label>
+                    <Input placeholder="Référence dossier" className="font-mono" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium text-encre">Montant (FCFA)</Label>
+                    <Input type="number" placeholder="850000" className="font-mono" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium text-encre">Moyen de paiement</Label>
+                  <Select defaultValue="espece">
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="espece">Espèces (agence)</SelectItem>
+                      <SelectItem value="virement">Virement bancaire</SelectItem>
+                      <SelectItem value="orange">Orange Money</SelectItem>
+                      <SelectItem value="wave">Wave</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setNewOpen(false)}>Annuler</Button>
+                  <Button type="submit" className="bg-lapis text-blanc hover:bg-lapis/90">Enregistrer</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
           <Button variant="outline" onClick={() => toast.success("Export CSV", { description: "transactions-fevrier-2026.csv" })}>
             <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Export CSV
           </Button>
@@ -86,7 +163,7 @@ export default function AdminFinancePage() {
       </div>
 
       <DataTable
-        columns={COLUMNS}
+        columns={columns}
         data={data}
         searchKey="candidat"
         searchPlaceholder="Rechercher par candidat…"

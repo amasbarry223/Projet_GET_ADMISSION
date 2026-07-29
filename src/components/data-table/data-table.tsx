@@ -14,16 +14,28 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ChevronDown, ChevronUp, ChevronsUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react";
+import { ArrowUpDown, ChevronDown, ChevronUp, ChevronsUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, MoreHorizontal, AlertTriangle, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -93,6 +105,96 @@ export function createSelectColumn<TData>(): ColumnDef<TData> {
     enableSorting: false,
     enableHiding: false,
   };
+}
+
+/* ----------------------- Colonne Actions (dropdown menu cohérent) ----------------------- */
+
+export type ActionItem<TData> = {
+  label: string;
+  icon: React.ElementType;
+  tone?: "default" | "danger";
+  /** Action directe (toast, navigation, etc.) */
+  onClick?: (row: TData) => void;
+  /** Action nécessitant confirmation (destructive / irréversible) — ouvre un AlertDialog */
+  confirm?: {
+    title: string;
+    description: string | ((row: TData) => string);
+    confirmLabel?: string;
+    onConfirm: (row: TData) => void;
+  };
+};
+
+export function createActionsColumn<TData>(
+  actions: ActionItem<TData>[],
+  options?: { ariaLabel?: (row: TData) => string }
+): ColumnDef<TData> {
+  return {
+    id: "actions",
+    header: () => <span className="sr-only">Actions</span>,
+    cell: ({ row }) => <RowActions row={row.original} actions={actions} ariaLabel={options?.ariaLabel?.(row.original)} />,
+    enableSorting: false,
+    enableHiding: false,
+  };
+}
+
+function RowActions<TData>({ row, actions, ariaLabel }: { row: TData; actions: ActionItem<TData>[]; ariaLabel?: string }) {
+  return (
+    <div className="flex items-center justify-end">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-ardoise hover:bg-porcelaine hover:text-encre" aria-label={ariaLabel ?? "Actions sur la ligne"}>
+            <MoreHorizontal className="h-4 w-4" strokeWidth={1.5} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Actions</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {actions.map((action, i) =>
+            action.confirm ? (
+              <AlertDialog key={i}>
+                <AlertDialogTrigger asChild>
+                  <DropdownMenuItem
+                    className={cn("gap-2 text-sm", action.tone === "danger" && "text-carmin focus:text-carmin")}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    <action.icon className="h-4 w-4" strokeWidth={1.5} /> {action.label}
+                  </DropdownMenuItem>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="bg-blanc">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="font-display text-lg flex items-center gap-2">
+                      {action.tone === "danger" ? <AlertTriangle className="h-5 w-5 text-carmin" strokeWidth={1.5} /> : <Info className="h-5 w-5 text-lapis" strokeWidth={1.5} />}
+                      {action.confirm.title}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="text-sm text-ardoise">
+                      {typeof action.confirm.description === "function" ? action.confirm.description(row) : action.confirm.description}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="bg-porcelaine">Annuler</AlertDialogCancel>
+                    <AlertDialogAction
+                      className={cn(action.tone === "danger" ? "bg-carmin text-blanc hover:bg-carmin/90" : "bg-lapis text-blanc hover:bg-lapis/90")}
+                      onClick={() => action.confirm!.onConfirm(row)}
+                    >
+                      {action.confirm.confirmLabel ?? "Confirmer"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : (
+              <DropdownMenuItem
+                key={i}
+                className={cn("gap-2 text-sm", action.tone === "danger" && "text-carmin focus:text-carmin")}
+                onClick={() => action.onClick?.(row)}
+              >
+                <action.icon className="h-4 w-4" strokeWidth={1.5} /> {action.label}
+              </DropdownMenuItem>
+            )
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
 }
 
 /* ------------------------------ Toolbar ------------------------------ */

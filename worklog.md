@@ -342,3 +342,41 @@ Stage Summary:
 - Audit méthodique : chaque signalement VLM vérifié au DOM avant correction (filtre des hallucinations).
 - Boarding pass signature maintenant visuellement correcte (tampon dégagé du label Statut).
 - Plateforme maintenue : 0 erreur lint, routes 200 OK, mobile et desktop vérifiés.
+
+---
+Task ID: 15
+Agent: Lead (main) — expert frontend
+Task: Refonte back-office — Actions column cohérente + modales + alerts contextuelles.
+
+Work Log:
+- src/components/data-table/data-table.tsx :
+  * NOUVEAU helper `createActionsColumn<TData>(actions, options)` : génère une colonne Actions avec dropdown menu (icône MoreHorizontal, aria-label contextuel).
+  * NOUVEAU type `ActionItem<TData>` : label + icon + tone (default/danger) + onClick (action directe) OU confirm (action avec AlertDialog).
+  * `confirm.description` accepte une string OU une fonction `(row) => string` pour des descriptions dynamiques (ex: nom du candidat, référence dossier).
+  * Composant interne `RowActions` : rendu du dropdown avec items, intégration AlertDialog pour les actions `confirm` (title + description dynamique + boutons Annuler/Confirmer), ton danger (carmin) pour les actions destructives.
+  * Imports ajoutés : MoreHorizontal, AlertTriangle, Info (lucide) + AlertDialog* + DropdownMenuItem (shadcn).
+- src/app/admin/dossiers/page.tsx :
+  * Colonne Actions remplace le simple lien ArrowRight → dropdown 4 actions : Voir le dossier (navigation), Affecter un conseiller (toast), Transmettre à l'université (AlertDialog confirm dynamique "Le dossier {ref} sera envoyé à {univ}"), Exporter le dossier (toast).
+  * Alert info mise à jour pour expliquer les deux modes d'action (sélection masse + menu par ligne).
+- src/app/admin/finance/page.tsx :
+  * Colonne Actions ajoutée → dropdown 3 actions : Voir le reçu, Télécharger le reçu, Relancer la transaction (AlertDialog confirm dynamique).
+  * NOUVEAU bouton "Nouvelle transaction" avec Dialog modal (formulaire : Candidat/référence, Montant, Moyen de paiement Select) → Enregistrer → toast "Transaction enregistrée".
+- src/app/admin/utilisateurs/page.tsx :
+  * Colonne Actions ajoutée → dropdown 4 actions : Voir le profil, Renvoyer l'invitation, Suspendre l'accès (AlertDialog), Supprimer le compte (AlertDialog danger dynamique "{nom} — données archivées").
+  * Bouton "Inviter un membre" → Dialog modal (formulaire : Prénom, Nom, Email, Rôle Select) → Envoyer l'invitation → toast.
+- src/app/admin/page.tsx :
+  * Alert contextuelle ambre ajoutée avant la file prioritaire : "File prioritaire — N dossier(s) en attente d'action" avec description explicative.
+- Vérification agent-browser :
+  * Actions dropdown utilisateurs : 4 items (Voir le profil, Renvoyer l'invitation, Suspendre l'accès, Supprimer le compte). ✓
+  * AlertDialog "Supprimer le compte" : description dynamique "Cette action est irréversible. Toutes les données de Aïssatou Diallo seront archivées." → click Supprimer → toast "Compte supprimé — Aïssatou Diallo — données archivées." ✓
+  * Dialog "Nouvelle transaction" finance : formulaire s'ouvre (Référence, Montant, Moyen Select) → Enregistrer → toast "Transaction enregistrée — La transaction manuelle a été ajoutée." ✓
+  * Actions dropdown dossiers : 4 items (Voir, Affecter, Transmettre, Exporter). ✓
+  * AlertDialog "Transmettre à l'université" : description dynamique "Le dossier GETADM-2026-0048 sera envoyé à Sorbonne Université. Cette action est irréversible." ✓
+- Lint : 0 erreur, 0 warning. 8 routes admin 200 OK.
+
+Stage Summary:
+- Colonne Actions cohérente sur les 3 tables admin (dossiers, finance, utilisateurs) via helper `createActionsColumn`.
+- Pattern unifié : dropdown menu (⋯) → items avec icônes → actions directes (toast/nav) OU actions confirmées (AlertDialog avec description dynamique).
+- Modales Dialog pour les opérations "Nouveau" : transaction finance + invitation utilisateur (formulaires avec Select).
+- Alert contextuelle sur dashboard admin pour la file prioritaire.
+- Toutes les descriptions AlertDialog sont dynamiques (référencent le row concerné) — expérience utilisateur contextuelle et précise.

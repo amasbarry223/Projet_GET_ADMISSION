@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BoardingPass } from "@/components/getadm/boarding-pass";
 import { Eyebrow } from "@/components/site/reveal";
 import { KPI_ADMIN } from "@/lib/mock/utilisateurs";
@@ -12,7 +13,7 @@ import { DOSSIERS } from "@/lib/mock/dossiers";
 import { formationParId, nomUniversite } from "@/lib/mock/formations";
 import { formatFCFA, formatFCFACompact, formatDate } from "@/lib/format";
 import { etatParCode, COULEUR_BADGE } from "@/lib/mock/etats";
-import { FolderOpen, TrendingUp, TrendingDown, CheckCircle2, Wallet, ArrowRight, AlertCircle } from "lucide-react";
+import { FolderOpen, TrendingUp, TrendingDown, CheckCircle2, Wallet, ArrowRight, AlertCircle, AlertTriangle } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, BarChart, Bar } from "recharts";
 import { cn } from "@/lib/utils";
 
@@ -139,6 +140,17 @@ export default function AdminDashboard() {
           </div>
         </Card>
       </div>
+
+      {/* File prioritaire — alerte contextuelle */}
+      {filePrioritaire.length > 0 && (
+        <Alert className="border-ambre/40 bg-ambre/5">
+          <AlertTriangle className="h-4 w-4 text-ambre" strokeWidth={1.5} />
+          <AlertTitle className="font-display text-sm font-bold text-encre">File prioritaire — {filePrioritaire.length} dossier(s) en attente d'action</AlertTitle>
+          <AlertDescription className="text-sm text-ardoise">
+            Ces dossiers nécessitent une intervention conseiller ou finance. Cliquez sur une ligne pour ouvrir le détail et déclencher l'action de workflow appropriée.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* File prioritaire */}
       <Card className="border-ligne bg-blanc p-0 overflow-hidden">

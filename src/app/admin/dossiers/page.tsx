@@ -2,20 +2,21 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { ColumnDef, Table } from "@tanstack/react-table";
-import { DataTable, DataTableColumnHeader, createSelectColumn } from "@/components/data-table/data-table";
+import { DataTable, DataTableColumnHeader, createSelectColumn, createActionsColumn, type ActionItem } from "@/components/data-table/data-table";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DOSSIERS } from "@/lib/mock/dossiers";
+import { DOSSIERS, type Dossier } from "@/lib/mock/dossiers";
 import { ETATS, etatParCode, COULEUR_BADGE, type EtatCode } from "@/lib/mock/etats";
 import { formationParId, nomUniversite } from "@/lib/mock/formations";
 import { UNIVERSITES } from "@/lib/mock/universites";
 import { formatFCFA, formatDate } from "@/lib/format";
 import { toast } from "sonner";
-import { ArrowRight, FolderOpen, Info, UserCog, Download } from "lucide-react";
+import { FolderOpen, Info, UserCog, Download, Eye, UserPlus, Send, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Row = {
@@ -30,75 +31,9 @@ type Row = {
   frais: number;
 };
 
-const COLUMNS: ColumnDef<Row>[] = [
-  createSelectColumn<Row>(),
-  {
-    id: "reference",
-    accessorKey: "reference",
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Référence" />,
-    cell: ({ row }) => <span className="font-mono text-xs font-semibold text-encre">{row.original.reference}</span>,
-  },
-  {
-    id: "candidat",
-    accessorKey: "candidat",
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Candidat" />,
-    cell: ({ row }) => <span className="text-sm font-medium text-encre">{row.original.candidat}</span>,
-  },
-  {
-    id: "universite",
-    accessorKey: "universite",
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Université" />,
-    cell: ({ row }) => <span className="text-sm text-encre">{row.original.universite}</span>,
-  },
-  {
-    id: "formation",
-    accessorKey: "formation",
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Formation" />,
-    cell: ({ row }) => <span className="max-w-[220px] truncate text-sm text-ardoise" title={row.original.formation}>{row.original.formation}</span>,
-  },
-  {
-    id: "etat",
-    accessorKey: "etat",
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Statut" />,
-    cell: ({ row }) => {
-      const e = etatParCode(row.original.etat);
-      const c = COULEUR_BADGE[e.couleur];
-      return <Badge className={cn("font-mono text-[10px] uppercase", c.text, c.border, c.bg)}>{e.libelle}</Badge>;
-    },
-    filterFn: (row, _id, value: string) => value === "tous" ? true : row.original.etat === value,
-  },
-  {
-    id: "conseiller",
-    accessorKey: "conseiller",
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Conseiller" />,
-    cell: ({ row }) => <span className="text-sm text-ardoise">{row.original.conseiller}</span>,
-    filterFn: (row, _id, value: string) => value === "Tous" ? true : row.original.conseiller === value,
-  },
-  {
-    id: "date",
-    accessorKey: "date",
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />,
-    cell: ({ row }) => <span className="font-mono text-xs text-ardoise">{formatDate(row.original.date)}</span>,
-  },
-  {
-    id: "frais",
-    accessorKey: "frais",
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Frais" />,
-    cell: ({ row }) => <span className="font-mono text-xs font-semibold text-encre">{formatFCFA(row.original.frais)}</span>,
-  },
-  {
-    id: "actions",
-    header: () => <span className="sr-only">Actions</span>,
-    cell: ({ row }) => (
-      <Link href={`/admin/dossiers/${row.original.id}`} className="inline-flex text-ardoise hover:text-lapis" aria-label={`Voir le dossier ${row.original.reference}`}>
-        <ArrowRight className="h-4 w-4" strokeWidth={1.5} />
-      </Link>
-    ),
-    enableHiding: false,
-  },
-];
-
 export default function AdminDossiersPage() {
+  const router = useRouter();
+
   const data: Row[] = React.useMemo(() => DOSSIERS.map((d) => ({
     id: d.id,
     reference: d.reference,
@@ -111,6 +46,94 @@ export default function AdminDossiersPage() {
     frais: d.fraisAgence,
   })), []);
 
+  // Actions cohérentes pour chaque ligne
+  const actions: ActionItem<Row>[] = React.useMemo(() => [
+    {
+      label: "Voir le dossier",
+      icon: Eye,
+      onClick: (row) => router.push(`/admin/dossiers/${row.id}`),
+    },
+    {
+      label: "Affecter un conseiller",
+      icon: UserPlus,
+      onClick: (row) => toast.success("Conseiller affecté", { description: `Dossier ${row.reference} réaffecté à Aïssatou Diallo.` }),
+    },
+    {
+      label: "Transmettre à l'université",
+      icon: Send,
+      confirm: {
+        title: "Transmettre à l'université ?",
+        description: (row) => `Le dossier ${row.reference} sera envoyé à ${row.universite}. Cette action est irréversible.`,
+        confirmLabel: "Transmettre",
+        onConfirm: (row) => toast.success("Dossier transmis", { description: `${row.reference} envoyé à ${row.universite}.` }),
+      },
+    },
+    {
+      label: "Exporter le dossier",
+      icon: FileText,
+      onClick: (row) => toast.success("Export généré", { description: `${row.reference}.pdf téléchargé.` }),
+    },
+  ], [router]);
+
+  const columns: ColumnDef<Row>[] = React.useMemo(() => [
+    createSelectColumn<Row>(),
+    {
+      id: "reference",
+      accessorKey: "reference",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Référence" />,
+      cell: ({ row }) => <span className="font-mono text-xs font-semibold text-encre">{row.original.reference}</span>,
+    },
+    {
+      id: "candidat",
+      accessorKey: "candidat",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Candidat" />,
+      cell: ({ row }) => <span className="text-sm font-medium text-encre">{row.original.candidat}</span>,
+    },
+    {
+      id: "universite",
+      accessorKey: "universite",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Université" />,
+      cell: ({ row }) => <span className="text-sm text-encre">{row.original.universite}</span>,
+    },
+    {
+      id: "formation",
+      accessorKey: "formation",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Formation" />,
+      cell: ({ row }) => <span className="max-w-[220px] truncate text-sm text-ardoise" title={row.original.formation}>{row.original.formation}</span>,
+    },
+    {
+      id: "etat",
+      accessorKey: "etat",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Statut" />,
+      cell: ({ row }) => {
+        const e = etatParCode(row.original.etat);
+        const c = COULEUR_BADGE[e.couleur];
+        return <Badge className={cn("font-mono text-[10px] uppercase", c.text, c.border, c.bg)}>{e.libelle}</Badge>;
+      },
+      filterFn: (row, _id, value: string) => value === "tous" ? true : row.original.etat === value,
+    },
+    {
+      id: "conseiller",
+      accessorKey: "conseiller",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Conseiller" />,
+      cell: ({ row }) => <span className="text-sm text-ardoise">{row.original.conseiller}</span>,
+      filterFn: (row, _id, value: string) => value === "Tous" ? true : row.original.conseiller === value,
+    },
+    {
+      id: "date",
+      accessorKey: "date",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />,
+      cell: ({ row }) => <span className="font-mono text-xs text-ardoise">{formatDate(row.original.date)}</span>,
+    },
+    {
+      id: "frais",
+      accessorKey: "frais",
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Frais" />,
+      cell: ({ row }) => <span className="font-mono text-xs font-semibold text-encre">{formatFCFA(row.original.frais)}</span>,
+    },
+    createActionsColumn<Row>(actions, { ariaLabel: (row) => `Actions sur le dossier ${row.reference}` }),
+  ], [actions]);
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -122,7 +145,7 @@ export default function AdminDossiersPage() {
       </div>
 
       <DataTable
-        columns={COLUMNS}
+        columns={columns}
         data={data}
         searchKey="candidat"
         searchPlaceholder="Rechercher par candidat…"
@@ -173,20 +196,10 @@ export default function AdminDossiersPage() {
           const count = table.getFilteredSelectedRowModel().rows.length;
           return (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 border-ligne bg-blanc"
-                onClick={() => toast.success("Conseiller affecté", { description: `${count} dossier${count > 1 ? "s" : ""} réaffecté${count > 1 ? "s" : ""} à Aïssatou Diallo.` })}
-              >
+              <Button variant="outline" size="sm" className="h-8 border-ligne bg-blanc" onClick={() => toast.success("Conseiller affecté", { description: `${count} dossier${count > 1 ? "s" : ""} réaffecté${count > 1 ? "s" : ""} à Aïssatou Diallo.` })}>
                 <UserCog className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Affecter un conseiller
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 border-ligne bg-blanc"
-                onClick={() => toast.success("Export généré", { description: `${count} dossier${count > 1 ? "s" : ""} exporté${count > 1 ? "s" : ""} en CSV.` })}
-              >
+              <Button variant="outline" size="sm" className="h-8 border-ligne bg-blanc" onClick={() => toast.success("Export généré", { description: `${count} dossier${count > 1 ? "s" : ""} exporté${count > 1 ? "s" : ""} en CSV.` })}>
                 <Download className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Exporter
               </Button>
             </>
@@ -196,9 +209,9 @@ export default function AdminDossiersPage() {
 
       <Alert className="border-ligne bg-blanc">
         <Info className="h-4 w-4 text-lapis" strokeWidth={1.5} />
-        <AlertTitle className="font-display text-sm font-bold text-encre">Sélection multiple</AlertTitle>
+        <AlertTitle className="font-display text-sm font-bold text-encre">Sélection multiple & actions par ligne</AlertTitle>
         <AlertDescription className="text-sm text-ardoise">
-          Sélectionnez plusieurs dossiers via les cases à cocher pour une action de masse (affectation de conseiller, export). Fonctionnalité de démonstration.
+          Cochez plusieurs dossiers pour une action de masse (affectation, export). Le menu <strong>⋯</strong> en fin de chaque ligne donne accès aux actions individuelles : voir, affecter, transmettre, exporter.
         </AlertDescription>
       </Alert>
     </div>
