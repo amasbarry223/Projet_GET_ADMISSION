@@ -8,14 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BoardingPass } from "@/components/getadm/boarding-pass";
-import { UNIVERSITES } from "@/lib/mock/universites";
-import { FORMATIONS, formationsParUniversite } from "@/lib/mock/formations";
-import { DOSSIER_DEMO_CANDIDAT } from "@/lib/mock/dossiers";
 import { formatFCFA } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Upload, FileText, CheckCircle2, AlertCircle, X, ArrowLeft, ArrowRight, Save, Check, Lock, Plane } from "lucide-react";
+import { Upload, CheckCircle2, AlertCircle, X, ArrowLeft, ArrowRight, Save, Check, Lock, Plane, Loader2 } from "lucide-react";
 
 const STEPS = [
   { n: 1, label: "Université & formation" },
@@ -27,33 +25,149 @@ const STEPS = [
 
 type PieceState = "manquante" | "televersee" | "validee" | "a_corriger";
 
+type Universite = {
+  id: string;
+  nom: string;
+  ville: string;
+  drapeau: string;
+  pays: string;
+  domaines: string[];
+  formations: Formation[];
+};
+
+type Formation = {
+  id: string;
+  intitule: string;
+  niveau: string;
+  domaine: string;
+  duree: string;
+  fraisAgence: number;
+  prerequis: string[] | string;
+  piecesRequises: string[] | string;
+};
+
+type Dossier = {
+  id: string;
+  reference: string;
+  etat: string;
+  etapeActuelle: number;
+  fraisAgence: number;
+  mrz: string;
+  candidat: { prenom: string; nom: string; email: string; nationalite: string; telephone: string };
+  universite: { id: string; nom: string };
+  formation: { id: string; intitule: string; niveau: string; fraisAgence: number };
+  conseiller: { prenom: string; nom: string } | null;
+  pieces: { id: string; libelle: string; statut: PieceState }[];
+};
+
+function parseStringList(value: string[] | string | undefined | null): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function DossierPage() {
+  const [loadingDossier, setLoadingDossier] = React.useState(true);
+  const [universites, setUniversites] = React.useState<Universite[]>([]);
+  const [universitesLoading, setUniversitesLoading] = React.useState(true);
+  const [universitesError, setUniversitesError] = React.useState(false);
+  const [existingDossier, setExistingDossier] = React.useState<Dossier | null>(null);
+
   const [step, setStep] = React.useState(1);
-  const [univId, setUnivId] = React.useState(DOSSIER_DEMO_CANDIDAT.universiteId);
-  const [formId, setFormId] = React.useState(DOSSIER_DEMO_CANDIDAT.formationId);
-  const [info, setInfo] = React.useState({ nom: "Diallo", prenom: "Fatou", naissance: "2002-04-12", nationalite: "Sénégalaise", email: "fatou.diallo@demo.getadm", tel: "+221 77 123 45 67", adresse: "Dakar, Sénégal" });
-  const [pieces, setPieces] = React.useState<Record<string, PieceState>>(() => {
-    const map: Record<string, PieceState> = {};
-    DOSSIER_DEMO_CANDIDAT.pieces.forEach((p) => { map[p.libelle] = p.statut; });
-    return map;
-  });
+  const [univId, setUnivId] = React.useState("");
+  const [formId, setFormId] = React.useState("");
+  const [info, setInfo] = React.useState({ nom: "", prenom: "", naissance: "", nationalite: "", email: "", tel: "", adresse: "" });
+  const [pieces, setPieces] = React.useState<Record<string, PieceState>>({});
   const [savedBadge, setSavedBadge] = React.useState(false);
 
-  const formation = FORMATIONS.find((f) => f.id === formId);
-  const universite = UNIVERSITES.find((u) => u.id === univId);
+  // Fetch universités (public, no auth needed) — pour les selectors step 1
+  React.useEffect(() => {
+    fetch("/api/universites")
+      .then((r) => {
+        if (!r.ok) throw new Error();
+        return r.json();
+      })
+      .then((data: Universite[]) => {
+        setUniversites(data);
+        setUniversitesLoading(false);
+      })
+      .catch(() => {
+        setUniversitesError(true);
+        setUniversitesLoading(false);
+      });
+  }, []);
+
+  // Fetch le dossier existant du candidat — pour pré-remplir
+  React.useEffect(() => {
+    fetch("/api/dossiers")
+      .then((r) => {
+        if (!r.ok) throw new Error();
+        return r.json();
+      })
+      .then((data: Dossier[]) => {
+        if (data[0]) {
+          const d = data[0];
+          setExistingDossier(d);
+          setUnivId(d.universite.id);
+          setFormId(d.formation.id);
+          setInfo({
+            nom: d.candidat.nom,
+            prenom: d.candidat.prenom,
+            naissance: "",
+            nationalite: d.candidat.nationalite,
+            email: d.candidat.email,
+            tel: d.candidat.telephone,
+            adresse: "",
+          });
+          const map: Record<string, PieceState> = {};
+          d.pieces.forEach((p) => {
+            const st = (["manquante", "televersee", "validee", "a_corriger"].includes(p.statut) ? p.statut : "manquante") as PieceState;
+            map[p.libelle] = st;
+          });
+          setPieces(map);
+        }
+        setLoadingDossier(false);
+      })
+      .catch(() => {
+        setLoadingDossier(false);
+      });
+  }, []);
+
+  // Sélection par défaut : première université + première formation
+  React.useEffect(() => {
+    if (!universitesLoading && universites.length > 0 && !univId) {
+      const first = universites[0];
+      setUnivId(first.id);
+      if (first.formations[0]) {
+        setFormId(first.formations[0].id);
+      }
+    }
+  }, [universitesLoading, universites, univId]);
+
+  const universite = universites.find((u) => u.id === univId);
+  const formationsForUniv = universite?.formations ?? [];
+  const formation = formationsForUniv.find((f) => f.id === formId);
+
+  const prerequisList = parseStringList(formation?.prerequis);
+  const piecesRequises = parseStringList(formation?.piecesRequises);
 
   // Mock "draft saved" indicator
   React.useEffect(() => {
+    if (loadingDossier || universitesLoading) return;
     const t = setTimeout(() => {
       setSavedBadge(true);
       setTimeout(() => setSavedBadge(false), 2000);
     }, 800);
     return () => clearTimeout(t);
-  }, [step, univId, formId, info, pieces]);
+  }, [step, univId, formId, info, pieces, loadingDossier, universitesLoading]);
 
-  const requiredAcademic = formation?.piecesRequises ?? [];
   const identityPieces = ["Passeport ou CNI (page photo)", "Photo d'identité récente"];
-  const allPieces = [...requiredAcademic, ...identityPieces];
+  const allPieces = [...piecesRequises, ...identityPieces];
   const missing = allPieces.filter((p) => !pieces[p] || pieces[p] === "manquante");
   const canSubmit = missing.length === 0 && step === 5;
 
@@ -73,6 +187,34 @@ export default function DossierPage() {
     toast.success("Dossier soumis", { description: "Votre conseiller va prendre en charge votre dossier." });
     setStep(1);
   };
+
+  if (loadingDossier || universitesLoading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
+      </div>
+    );
+  }
+
+  if (universitesError) {
+    return (
+      <Alert className="border-ambre/40 bg-ambre/5">
+        <AlertCircle className="h-4 w-4 text-ambre" strokeWidth={1.5} />
+        <AlertTitle className="font-display text-sm font-bold text-encre">Catalogue indisponible</AlertTitle>
+        <AlertDescription className="text-sm text-ardoise">
+          Impossible de charger les universités partenaires. Réessayez dans un instant.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  // Helpers pour les champs récap
+  const boardingReference = existingDossier?.reference ?? "GETADM-2026-NOUVEAU";
+  const boardingEtat = existingDossier?.etat ?? "brouillon";
+  const boardingEtape = existingDossier?.etapeActuelle ?? 1;
+  const boardingMrz = existingDossier?.mrz ?? "GETADM<<NEW<<<<<<<<<<<<<<<<<<<<<<\n2026<<UNIV<<NIVEAU<<<<<<<<<<<<<<\nGETADM-2026-NOUVEAU<<<<<<<<<<<<";
+  const boardingConseiller = existingDossier?.conseiller ? `${existingDossier.conseiller.prenom} ${existingDossier.conseiller.nom}` : "Non affecté";
+  const boardingFrais = formation?.fraisAgence ?? existingDossier?.fraisAgence ?? 0;
 
   return (
     <div className="space-y-6">
@@ -129,19 +271,23 @@ export default function DossierPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-encre">Université partenaire</Label>
-                <Select value={univId} onValueChange={(v) => { setUnivId(v); const first = formationsParUniversite(v)[0]; if (first) setFormId(first.id); }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select value={univId} onValueChange={(v) => {
+                  setUnivId(v);
+                  const u = universites.find((x) => x.id === v);
+                  if (u?.formations[0]) setFormId(u.formations[0].id);
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Sélectionnez une université" /></SelectTrigger>
                   <SelectContent>
-                    {UNIVERSITES.map((u) => <SelectItem key={u.id} value={u.id}>{u.drapeau} {u.nom} — {u.ville}</SelectItem>)}
+                    {universites.map((u) => <SelectItem key={u.id} value={u.id}>{u.drapeau} {u.nom} — {u.ville}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-encre">Formation</Label>
                 <Select value={formId} onValueChange={setFormId}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Sélectionnez une formation" /></SelectTrigger>
                   <SelectContent>
-                    {formationsParUniversite(univId).map((f) => <SelectItem key={f.id} value={f.id}>{f.intitule} ({f.niveau})</SelectItem>)}
+                    {formationsForUniv.map((f) => <SelectItem key={f.id} value={f.id}>{f.intitule} ({f.niveau})</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -156,7 +302,7 @@ export default function DossierPage() {
                 </div>
                 <div className="mt-3 border-t border-ligne pt-3">
                   <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Prérequis</p>
-                  <p className="mt-1 text-sm text-encre">{formation.prerequis.join(" · ")}</p>
+                  <p className="mt-1 text-sm text-encre">{prerequisList.length > 0 ? prerequisList.join(" · ") : "—"}</p>
                 </div>
               </div>
             )}
@@ -211,9 +357,15 @@ export default function DossierPage() {
               <p className="text-sm text-ardoise">Téléversez vos pièces au format PDF, JPG ou PNG (10 Mo max).</p>
             </div>
             <div className="space-y-3">
-              {requiredAcademic.map((libelle) => (
-                <UploadZone key={libelle} libelle={libelle} state={pieces[libelle] ?? "manquante"} onToggle={() => togglePiece(libelle)} />
-              ))}
+              {piecesRequises.length === 0 ? (
+                <p className="rounded-md border border-ligne bg-porcelaine p-4 text-sm text-ardoise">
+                  Sélectionnez d'abord une formation à l'étape 1 pour voir la liste des pièces requises.
+                </p>
+              ) : (
+                piecesRequises.map((libelle) => (
+                  <UploadZone key={libelle} libelle={libelle} state={pieces[libelle] ?? "manquante"} onToggle={() => togglePiece(libelle)} />
+                ))
+              )}
             </div>
           </div>
         )}
@@ -243,21 +395,21 @@ export default function DossierPage() {
 
             <BoardingPass
               variant="large"
-              reference={DOSSIER_DEMO_CANDIDAT.reference}
+              reference={boardingReference}
               universiteNom={universite?.nom ?? ""}
               formationLabel={`${formation?.niveau ?? ""} · ${formation?.intitule ?? ""}`}
-              etat={DOSSIER_DEMO_CANDIDAT.etat}
-              etapeActuelle={DOSSIER_DEMO_CANDIDAT.etapeActuelle}
+              etat={boardingEtat}
+              etapeActuelle={boardingEtape}
               etapeTotal={12}
-              conseiller={DOSSIER_DEMO_CANDIDAT.conseillerNom}
-              fraisAgence={formation?.fraisAgence ?? DOSSIER_DEMO_CANDIDAT.fraisAgence}
-              mrz={DOSSIER_DEMO_CANDIDAT.mrz}
+              conseiller={boardingConseiller}
+              fraisAgence={boardingFrais}
+              mrz={boardingMrz}
             />
 
             <div className="rounded-md border border-ligne bg-porcelaine p-4">
               <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Informations</p>
               <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
-                <RecapLine label="Candidat" value={`${info.prenom} ${info.nom}`} />
+                <RecapLine label="Candidat" value={`${info.prenom} ${info.nom}`.trim()} />
                 <RecapLine label="Nationalité" value={info.nationalite} />
                 <RecapLine label="E-mail" value={info.email} />
                 <RecapLine label="Téléphone" value={info.tel} />

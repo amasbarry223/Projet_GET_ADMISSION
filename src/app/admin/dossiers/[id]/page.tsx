@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { notFound, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,14 +23,64 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { BoardingPass } from "@/components/getadm/boarding-pass";
-import { dossierParId } from "@/lib/mock/dossiers";
-import { formationParId } from "@/lib/mock/formations";
-import { UNIVERSITES } from "@/lib/mock/universites";
-import { etatParCode, ETATS, COULEUR_BADGE } from "@/lib/mock/etats";
+import { etatParCode, COULEUR_BADGE } from "@/lib/mock/etats";
 import { formatFCFA, formatDate, formatDateTime } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, CheckCircle2, AlertCircle, FileText, Send, Wallet, Stamp, XCircle, History, MessageSquare, User, ShieldCheck, Eye, AlertTriangle, Info } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, FileText, Send, Wallet, Stamp, XCircle, History, MessageSquare, User, ShieldCheck, Eye, AlertTriangle, Info, Loader2 } from "lucide-react";
+
+type PieceApi = {
+  id: string;
+  libelle: string;
+  statut: string;
+  type: string;
+  taille: string | null;
+  televerseeLe: string | null;
+};
+
+type PaiementApi = {
+  id: string;
+  reference: string;
+  date: string;
+  montant: number;
+  moyen: string;
+  statut: string;
+  tranche: string | null;
+};
+
+type HistoriqueApi = {
+  id: string;
+  date: string;
+  etat: string;
+  auteur: string;
+  note: string;
+};
+
+type MessageApi = {
+  id: string;
+  texte: string;
+  createdAt: string;
+  auteurId: string;
+};
+
+type DossierDetail = {
+  id: string;
+  reference: string;
+  etat: string;
+  etapeActuelle: number;
+  fraisAgence: number;
+  mrz: string;
+  createdAt: string;
+  updatedAt: string;
+  candidat: { prenom: string; nom: string; email: string; nationalite: string; telephone: string | null };
+  universite: { nom: string };
+  formation: { intitule: string; niveau: string; domaine: string };
+  conseiller: { prenom: string; nom: string } | null;
+  pieces: PieceApi[];
+  paiements: PaiementApi[];
+  historiques: HistoriqueApi[];
+  conversation: { messages: MessageApi[] } | null;
+};
 
 type ActionDef = {
   label: string;
@@ -38,42 +88,113 @@ type ActionDef = {
   tone: "primary" | "outline" | "danger";
   toastLabel: string;
   toastDesc: string;
+  workflowAction?: string;
   confirm?: { title: string; desc: string };
 };
 
 export default function AdminDossierDetail() {
   const params = useParams<{ id: string }>();
-  const dossier = dossierParId(params.id);
-  if (!dossier) notFound();
+  const [dossier, setDossier] = React.useState<DossierDetail | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const loadDossier = React.useCallback(() => {
+    setLoading(true);
+    fetch(`/api/dossiers/${params.id}`)
+      .then((r) => {
+        if (!r.ok) return null;
+        return r.json();
+      })
+      .then((d: DossierDetail | null) => {
+        if (!d) {
+          setError("Dossier introuvable ou accès refusé.");
+          setLoading(false);
+          return;
+        }
+        setDossier(d);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError("Erreur réseau lors du chargement du dossier.");
+        setLoading(false);
+      });
+  }, [params.id]);
+
+  React.useEffect(() => {
+    loadDossier();
+  }, [loadDossier]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
+      </div>
+    );
+  }
+
+  if (error || !dossier) {
+    return (
+      <Alert className="border-carmin/40 bg-carmin/5">
+        <AlertTriangle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
+        <AlertTitle className="font-display text-sm font-bold text-encre">Erreur de chargement</AlertTitle>
+        <AlertDescription className="text-sm text-ardoise">{error ?? "Dossier indisponible."}</AlertDescription>
+      </Alert>
+    );
+  }
 
   const e = etatParCode(dossier.etat);
   const c = COULEUR_BADGE[e.couleur];
-  const form = formationParId(dossier.formationId);
-  const univ = UNIVERSITES.find((u) => u.id === dossier.universiteId);
+  const form = dossier.formation;
+  const univ = dossier.universite;
+  const candidatNomComplet = `${dossier.candidat.prenom} ${dossier.candidat.nom}`;
+  const conseillerNomComplet = dossier.conseiller ? `${dossier.conseiller.prenom} ${dossier.conseiller.nom}` : "Non affecté";
+  const etatLower = dossier.etat.toLowerCase();
 
   const actions: ActionDef[] = [];
-  if (dossier.etat === "soumis" || dossier.etat === "verification") {
-    actions.push({ label: "Vérifier le dossier", icon: ShieldCheck, tone: "primary", toastLabel: "Dossier vérifié", toastDesc: "Transition vers « Paiement en attente »." });
-    actions.push({ label: "Demander correction", icon: AlertCircle, tone: "outline", toastLabel: "Correction demandée", toastDesc: "Le candidat a été notifié.", confirm: { title: "Demander une correction ?", desc: `Le candidat ${dossier.candidatPrenom} sera notifié et le dossier repassera en « À corriger ».` } });
+  if (etatLower === "soumis" || etatLower === "verification") {
+    actions.push({ label: "Vérifier le dossier", icon: ShieldCheck, tone: "primary", toastLabel: "Dossier vérifié", toastDesc: "Transition vers « Paiement en attente ».", workflowAction: "verifier" });
+    actions.push({ label: "Demander correction", icon: AlertCircle, tone: "outline", toastLabel: "Correction demandée", toastDesc: "Le candidat a été notifié.", workflowAction: "correction", confirm: { title: "Demander une correction ?", desc: `Le candidat ${dossier.candidat.prenom} sera notifié et le dossier repassera en « À corriger ».` } });
   }
-  if (dossier.etat === "correction") {
-    actions.push({ label: "Vérifier les corrections", icon: ShieldCheck, tone: "primary", toastLabel: "Corrections vérifiées", toastDesc: "Le dossier reprend son parcours." });
+  if (etatLower === "correction") {
+    actions.push({ label: "Vérifier les corrections", icon: ShieldCheck, tone: "primary", toastLabel: "Corrections vérifiées", toastDesc: "Le dossier reprend son parcours.", workflowAction: "verifier_corrections" });
   }
-  if (dossier.etat === "paiement_attente") {
-    actions.push({ label: "Confirmer le paiement", icon: Wallet, tone: "primary", toastLabel: "Paiement confirmé", toastDesc: "Dossier prêt à être transmis.", confirm: { title: "Confirmer le paiement ?", desc: `Vérifiez que les ${formatFCFA(dossier.fraisAgence)} ont bien été reçus avant de confirmer.` } });
+  if (etatLower === "paiement_attente") {
+    actions.push({ label: "Confirmer le paiement", icon: Wallet, tone: "primary", toastLabel: "Paiement confirmé", toastDesc: "Dossier prêt à être transmis.", workflowAction: "confirmer_paiement", confirm: { title: "Confirmer le paiement ?", desc: `Vérifiez que les ${formatFCFA(dossier.fraisAgence)} ont bien été reçus avant de confirmer.` } });
   }
-  if (dossier.etat === "paiement_confirme") {
-    actions.push({ label: "Transmettre à l'université", icon: Send, tone: "primary", toastLabel: "Dossier transmis", toastDesc: `${univ?.nom} a été notifié.`, confirm: { title: "Transmettre à l'université ?", desc: `Le dossier sera envoyé à ${univ?.nom}. Cette action est irréversible.` } });
+  if (etatLower === "paiement_confirme") {
+    actions.push({ label: "Transmettre à l'université", icon: Send, tone: "primary", toastLabel: "Dossier transmis", toastDesc: `${univ?.nom} a été notifié.`, workflowAction: "transmettre", confirm: { title: "Transmettre à l'université ?", desc: `Le dossier sera envoyé à ${univ?.nom}. Cette action est irréversible.` } });
   }
-  if (dossier.etat === "attente_reponse") {
-    actions.push({ label: "Marquer accepté", icon: CheckCircle2, tone: "primary", toastLabel: "Pré-admission accordée", toastDesc: "Attestation à émettre sous 48h.", confirm: { title: "Marquer la candidature acceptée ?", desc: `L'université ${univ?.nom} a accordé la pré-admission. L'attestation pourra ensuite être émise.` } });
-    actions.push({ label: "Marquer refusé", icon: XCircle, tone: "danger", toastLabel: "Candidature refusée", toastDesc: "Le candidat a été informé.", confirm: { title: "Marquer la candidature refusée ?", desc: `Cette action notifiera ${dossier.candidatPrenom} du refus de ${univ?.nom}.` } });
+  if (etatLower === "attente_reponse") {
+    actions.push({ label: "Marquer accepté", icon: CheckCircle2, tone: "primary", toastLabel: "Pré-admission accordée", toastDesc: "Attestation à émettre sous 48h.", workflowAction: "accepter", confirm: { title: "Marquer la candidature acceptée ?", desc: `L'université ${univ?.nom} a accordé la pré-admission. L'attestation pourra ensuite être émise.` } });
+    actions.push({ label: "Marquer refusé", icon: XCircle, tone: "danger", toastLabel: "Candidature refusée", toastDesc: "Le candidat a été informé.", workflowAction: "refuser", confirm: { title: "Marquer la candidature refusée ?", desc: `Cette action notifiera ${dossier.candidat.prenom} du refus de ${univ?.nom}.` } });
   }
-  if (dossier.etat === "pre_admission") {
-    actions.push({ label: "Émettre l'attestation", icon: Stamp, tone: "primary", toastLabel: "Attestation émise", toastDesc: "Disponible dans l'espace candidat.", confirm: { title: "Émettre l'attestation ?", desc: "L'attestation de pré-inscription sera générée avec sceau officiel et code de vérification." } });
+  if (etatLower === "pre_admission") {
+    actions.push({ label: "Émettre l'attestation", icon: Stamp, tone: "primary", toastLabel: "Attestation émise", toastDesc: "Disponible dans l'espace candidat.", workflowAction: "emettre_attestation", confirm: { title: "Émettre l'attestation ?", desc: "L'attestation de pré-inscription sera générée avec sceau officiel et code de vérification." } });
   }
 
-  const execAction = (a: ActionDef) => () => toast.success(a.toastLabel, { description: a.toastDesc });
+  const execAction = (a: ActionDef) => async () => {
+    if (!a.workflowAction) {
+      toast.success(a.toastLabel, { description: a.toastDesc });
+      return;
+    }
+    try {
+      const res = await fetch(`/api/dossiers/${dossier.id}/workflow`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: a.workflowAction }),
+      });
+      if (!res.ok) {
+        toast.error("Action échouée", { description: "Le serveur a refusé la transition." });
+        return;
+      }
+      toast.success(a.toastLabel, { description: a.toastDesc });
+      loadDossier();
+    } catch {
+      toast.error("Action échouée", { description: "Erreur réseau." });
+    }
+  };
+
+  const messages = dossier.conversation?.messages ?? [];
 
   return (
     <div className="space-y-5">
@@ -95,7 +216,7 @@ export default function AdminDossierDetail() {
         etat={dossier.etat}
         etapeActuelle={dossier.etapeActuelle}
         etapeTotal={12}
-        conseiller={dossier.conseillerNom}
+        conseiller={conseillerNomComplet}
         fraisAgence={dossier.fraisAgence}
         mrz={dossier.mrz}
       />
@@ -115,23 +236,23 @@ export default function AdminDossierDetail() {
             <Card className="border-ligne bg-blanc p-6">
               <div className="flex items-center gap-4">
                 <Avatar className="h-14 w-14 border border-ligne">
-                  <AvatarFallback className="bg-lapis/10 font-mono text-base font-bold text-lapis">{dossier.candidatNom.slice(0, 2)}</AvatarFallback>
+                  <AvatarFallback className="bg-lapis/10 font-mono text-base font-bold text-lapis">{dossier.candidat.nom.slice(0, 2)}</AvatarFallback>
                 </Avatar>
                 <div>
-                  <h2 className="font-display text-lg font-bold text-encre">{dossier.candidatPrenom} {dossier.candidatNom}</h2>
-                  <p className="text-sm text-ardoise">Nationalité : {dossier.candidatNationalite}</p>
+                  <h2 className="font-display text-lg font-bold text-encre">{candidatNomComplet}</h2>
+                  <p className="text-sm text-ardoise">Nationalité : {dossier.candidat.nationalite || "—"}</p>
                 </div>
               </div>
               <Separator className="my-4 bg-ligne" />
               <dl className="grid gap-3 sm:grid-cols-2">
-                <Field label="E-mail" value="fatou.diallo@demo.getadm" />
-                <Field label="Téléphone" value="+221 77 123 45 67" />
+                <Field label="E-mail" value={dossier.candidat.email || "—"} />
+                <Field label="Téléphone" value={dossier.candidat.telephone || "—"} />
                 <Field label="Université" value={univ?.nom ?? ""} />
                 <Field label="Formation" value={form?.intitule ?? ""} />
                 <Field label="Niveau" value={form?.niveau ?? ""} />
                 <Field label="Domaine" value={form?.domaine ?? ""} />
                 <Field label="Frais d'agence" value={formatFCFA(dossier.fraisAgence)} mono />
-                <Field label="Date de création" value={formatDate(dossier.dateCreation)} />
+                <Field label="Date de création" value={formatDate(dossier.createdAt)} />
               </dl>
             </Card>
           </TabsContent>
@@ -142,29 +263,33 @@ export default function AdminDossierDetail() {
                 <p className="eyebrow">Pièces du dossier</p>
                 <h2 className="font-display text-base font-bold text-encre">{dossier.pieces.length} document(s)</h2>
               </div>
-              <ul className="divide-y divide-ligne">
-                {dossier.pieces.map((p) => {
-                  const cfg = {
-                    manquante: { icon: AlertCircle, color: "text-carmin", bg: "bg-carmin/5", label: "Manquante" },
-                    televersee: { icon: FileText, color: "text-lapis", bg: "bg-lapis/5", label: "Téléversée" },
-                    a_corriger: { icon: AlertCircle, color: "text-ambre", bg: "bg-ambre/5", label: "À corriger" },
-                    validee: { icon: CheckCircle2, color: "text-vert", bg: "bg-vert/5", label: "Validée" },
-                  }[p.statut];
-                  return (
-                    <li key={p.id} className="flex items-center gap-3 px-6 py-3">
-                      <div className={cn("flex h-9 w-9 items-center justify-center rounded-md", cfg.bg, cfg.color)}>
-                        <cfg.icon className="h-4 w-4" strokeWidth={1.5} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-encre">{p.libelle}</p>
-                        {p.taille && <p className="font-mono text-[11px] text-ardoise">{p.taille}{p.televerseeLe ? ` · ${formatDate(p.televerseeLe)}` : ""}</p>}
-                      </div>
-                      <Badge className={cn("font-mono text-[10px] uppercase", cfg.color, "border-current")}>{cfg.label}</Badge>
-                      <Button variant="ghost" size="icon" aria-label="Voir la pièce"><Eye className="h-4 w-4" strokeWidth={1.5} /></Button>
-                    </li>
-                  );
-                })}
-              </ul>
+              {dossier.pieces.length === 0 ? (
+                <p className="px-6 py-10 text-center text-sm text-ardoise">Aucune pièce enregistrée.</p>
+              ) : (
+                <ul className="divide-y divide-ligne">
+                  {dossier.pieces.map((p) => {
+                    const cfg = {
+                      manquante: { icon: AlertCircle, color: "text-carmin", bg: "bg-carmin/5", label: "Manquante" },
+                      televersee: { icon: FileText, color: "text-lapis", bg: "bg-lapis/5", label: "Téléversée" },
+                      a_corriger: { icon: AlertCircle, color: "text-ambre", bg: "bg-ambre/5", label: "À corriger" },
+                      validee: { icon: CheckCircle2, color: "text-vert", bg: "bg-vert/5", label: "Validée" },
+                    }[p.statut] ?? { icon: FileText, color: "text-ardoise", bg: "bg-porcelaine", label: p.statut };
+                    return (
+                      <li key={p.id} className="flex items-center gap-3 px-6 py-3">
+                        <div className={cn("flex h-9 w-9 items-center justify-center rounded-md", cfg.bg, cfg.color)}>
+                          <cfg.icon className="h-4 w-4" strokeWidth={1.5} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-encre">{p.libelle}</p>
+                          {p.taille && <p className="font-mono text-[11px] text-ardoise">{p.taille}{p.televerseeLe ? ` · ${formatDate(p.televerseeLe)}` : ""}</p>}
+                        </div>
+                        <Badge className={cn("font-mono text-[10px] uppercase", cfg.color, "border-current")}>{cfg.label}</Badge>
+                        <Button variant="ghost" size="icon" aria-label="Voir la pièce"><Eye className="h-4 w-4" strokeWidth={1.5} /></Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </Card>
           </TabsContent>
 
@@ -208,7 +333,7 @@ export default function AdminDossierDetail() {
               <p className="eyebrow">Journal horodaté</p>
               <h2 className="font-display text-base font-bold text-encre">Historique du dossier</h2>
               <ol className="mt-4 space-y-3">
-                {dossier.historique.slice().reverse().map((h) => {
+                {dossier.historiques.slice().reverse().map((h) => {
                   const he = etatParCode(h.etat);
                   const hc = COULEUR_BADGE[he.couleur];
                   return (
@@ -232,17 +357,22 @@ export default function AdminDossierDetail() {
           <TabsContent value="messages">
             <Card className="border-ligne bg-blanc p-6">
               <p className="eyebrow">Messagerie</p>
-              <h2 className="font-display text-base font-bold text-encre">Conversation avec {dossier.candidatPrenom}</h2>
-              <div className="mt-4 space-y-3">
-                <div className="rounded-md border border-ligne bg-blanc px-3.5 py-2.5 text-sm text-encre">
-                  Bonjour {dossier.candidatPrenom}, votre dossier a bien été reçu. Je démarre la vérification.
-                  <p className="mt-1 font-mono text-[10px] text-ardoise">14 janvier 2026 · 14:30 — {dossier.conseillerNom}</p>
+              <h2 className="font-display text-base font-bold text-encre">Conversation avec {dossier.candidat.prenom}</h2>
+              {messages.length === 0 ? (
+                <p className="mt-4 text-sm text-ardoise">Aucun message échangé pour le moment.</p>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {messages.map((m) => {
+                    const isConseiller = dossier.conseiller && m.auteurId === dossier.conseiller.id;
+                    return (
+                      <div key={m.id} className={cn("max-w-[80%] rounded-md px-3.5 py-2.5 text-sm", isConseiller ? "ml-auto bg-lapis text-blanc" : "border border-ligne bg-blanc text-encre")}>
+                        {m.texte}
+                        <p className={cn("mt-1 font-mono text-[10px]", isConseiller ? "text-blanc/60" : "text-ardoise")}>{formatDateTime(m.createdAt)}</p>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="ml-auto max-w-[80%] rounded-md bg-lapis px-3.5 py-2.5 text-sm text-blanc">
-                  Bonjour Madame, merci beaucoup. Faut-il fournir une copie certifiée du diplôme ?
-                  <p className="mt-1 font-mono text-[10px] text-blanc/60">14 janvier 2026 · 15:02 — {dossier.candidatPrenom}</p>
-                </div>
-              </div>
+              )}
               <Button variant="outline" className="mt-4" onClick={() => toast.success("Ouverture de la messagerie")}>
                 <MessageSquare className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Ouvrir la conversation
               </Button>
@@ -270,9 +400,9 @@ export default function AdminDossierDetail() {
           <Card className="border-ligne bg-blanc p-5">
             <p className="eyebrow">Conseiller affecté</p>
             <div className="mt-2 flex items-center gap-2.5">
-              <Avatar className="h-8 w-8"><AvatarFallback className="bg-lapis/10 font-mono text-[10px] font-semibold text-lapis">{dossier.conseillerNom.split(" ").map((w) => w[0]).join("").slice(0, 2)}</AvatarFallback></Avatar>
+              <Avatar className="h-8 w-8"><AvatarFallback className="bg-lapis/10 font-mono text-[10px] font-semibold text-lapis">{conseillerNomComplet.split(" ").map((w) => w[0]).join("").slice(0, 2)}</AvatarFallback></Avatar>
               <div>
-                <p className="text-sm font-medium text-encre">{dossier.conseillerNom}</p>
+                <p className="text-sm font-medium text-encre">{conseillerNomComplet}</p>
                 <p className="text-xs text-ardoise">Conseiller(ère)</p>
               </div>
             </div>
@@ -330,7 +460,7 @@ export default function AdminDossierDetail() {
             </Card>
           )}
 
-          {dossier.etat === "refuse" && (
+          {etatLower === "refuse" && (
             <Alert className="border-carmin/40 bg-carmin/5">
               <XCircle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
               <AlertTitle className="font-display text-sm font-bold text-carmin">Candidature refusée</AlertTitle>

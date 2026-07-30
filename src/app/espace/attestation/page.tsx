@@ -1,25 +1,86 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { DOSSIER_DEMO_CANDIDAT } from "@/lib/mock/dossiers";
-import { UNIVERSITES } from "@/lib/mock/universites";
-import { formationParId } from "@/lib/mock/formations";
 import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
-import { Stamp, Lock, Download, Eye, EyeOff, MapPin, ShieldCheck, CheckCircle2, Clock } from "lucide-react";
+import { Stamp, Lock, Download, Eye, EyeOff, MapPin, ShieldCheck, CheckCircle2, Clock, Loader2, AlertCircle } from "lucide-react";
+
+type Dossier = {
+  id: string;
+  reference: string;
+  etat: string;
+  mrz: string;
+  candidat: { prenom: string; nom: string };
+  universite: { nom: string; ville: string; pays: string };
+  formation: { intitule: string };
+  historiques: { id: string; date: string; etat: string; auteur: string; note: string }[];
+};
 
 export default function AttestationPage() {
-  const d = DOSSIER_DEMO_CANDIDAT;
-  const univ = UNIVERSITES.find((u) => u.id === d.universiteId);
-  const form = formationParId(d.formationId);
+  const [dossier, setDossier] = React.useState<Dossier | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const [showPreview, setShowPreview] = React.useState(false);
   const [remiseAgence, setRemiseAgence] = React.useState(false);
+
+  React.useEffect(() => {
+    fetch("/api/dossiers")
+      .then((r) => {
+        if (!r.ok) throw new Error();
+        return r.json();
+      })
+      .then((data: Dossier[]) => {
+        setDossier(data[0] ?? null);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError("Impossible de charger votre dossier.");
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
+      </div>
+    );
+  }
+
+  if (error || !dossier) {
+    return (
+      <Alert className="border-ambre/40 bg-ambre/5">
+        <AlertCircle className="h-4 w-4 text-ambre" strokeWidth={1.5} />
+        <AlertTitle className="font-display text-sm font-bold text-encre">Aucun dossier</AlertTitle>
+        <AlertDescription className="text-sm text-ardoise">
+          Vous n'avez pas encore de dossier.{" "}
+          <Link href="/espace/dossier" className="font-medium text-lapis-clair hover:underline">
+            Créer mon dossier
+          </Link>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  const d = dossier;
+  // Attestation disponible uniquement si l'état est ATTESTATION ou CLOTURE.
+  const etatUpper = d.etat.toUpperCase();
+  const isAvailable = etatUpper === "ATTESTATION" || etatUpper === "CLOTURE";
+  const referenceAtt = `ATT-${d.reference.slice(-4)}`;
+  const codeVerification = `VRF-${d.id.slice(0, 4).toUpperCase()}-${d.reference.slice(-4)}`;
+
+  // Date de pré-admission : chercher dans l'historique une entrée PRE_ADMISSION
+  const preAdmissionEntry = d.historiques.find((h) => h.etat.toUpperCase() === "PRE_ADMISSION");
+  const preAdmissionDate = preAdmissionEntry?.date;
+  // Date d'émission : la plus récente entrée ATTESTATION, sinon aujourd'hui
+  const attestationEntry = d.historiques.find((h) => h.etat.toUpperCase() === "ATTESTATION");
+  const emissionDate = attestationEntry?.date ?? new Date().toISOString();
 
   return (
     <div className="space-y-6">
@@ -28,30 +89,51 @@ export default function AttestationPage() {
         <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Votre attestation officielle.</h1>
       </div>
 
-      {/* Locked state */}
-      <Alert className="border-ligne bg-blanc p-6">
-        <Clock className="h-5 w-5 text-ambre" strokeWidth={1.5} />
-        <AlertTitle className="font-display text-xl font-bold text-encre">Attestation en cours d'émission.</AlertTitle>
-        <AlertDescription className="mt-1 text-sm text-ardoise">
-          Votre attestation sera disponible après la décision de l'université partenaire.
-        </AlertDescription>
-      </Alert>
+      {isAvailable ? (
+        <Alert className="border-vert/30 bg-vert/5 p-6">
+          <CheckCircle2 className="h-5 w-5 text-vert" strokeWidth={1.5} />
+          <AlertTitle className="font-display text-xl font-bold text-encre">Attestation disponible.</AlertTitle>
+          <AlertDescription className="mt-1 text-sm text-ardoise">
+            Votre attestation est prête. Téléchargez-la ou récupérez-la à l'agence.
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <Alert className="border-ligne bg-blanc p-6">
+          <Clock className="h-5 w-5 text-ambre" strokeWidth={1.5} />
+          <AlertTitle className="font-display text-xl font-bold text-encre">Attestation en cours d'émission.</AlertTitle>
+          <AlertDescription className="mt-1 text-sm text-ardoise">
+            Votre attestation sera disponible après la décision de l'université partenaire.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card className="border-ligne bg-blanc p-8 text-center">
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-ardoise/10">
           <Lock className="h-7 w-7 text-ardoise" strokeWidth={1.5} />
         </div>
-        <h2 className="font-display text-xl font-bold text-encre">Attestation en cours d'émission.</h2>
+        <h2 className="font-display text-xl font-bold text-encre">
+          {isAvailable ? "Attestation prête à être récupérée." : "Attestation en cours d'émission."}
+        </h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-ardoise">
-          Votre attestation sera disponible après la décision de l'université partenaire.
+          {isAvailable
+            ? "Téléchargez votre attestation officielle ci-dessous ou activez le retrait à l'agence."
+            : "Votre attestation sera disponible après la décision de l'université partenaire."}
         </p>
 
         <div className="mx-auto mt-5 max-w-sm rounded-md border border-vert/30 bg-vert/5 p-4 text-left">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-vert" strokeWidth={1.5} />
-            <p className="text-sm font-medium text-encre">Pré-admission accordée le {formatDate("2026-02-03")}</p>
+            <p className="text-sm font-medium text-encre">
+              {preAdmissionDate
+                ? `Pré-admission accordée le ${formatDate(preAdmissionDate)}`
+                : "Pré-admission en cours"}
+            </p>
           </div>
-          <p className="mt-1 text-xs text-ardoise">Attestation disponible sous 48h ouvrées. Votre conseiller vous notifiera dès qu'elle sera prête.</p>
+          <p className="mt-1 text-xs text-ardoise">
+            {isAvailable
+              ? "Attestation émise et disponible. Votre conseiller vous notifiera dès qu'elle sera prête."
+              : "Attestation disponible sous 48h ouvrées. Votre conseiller vous notifiera dès qu'elle sera prête."}
+          </p>
         </div>
 
         <div className="mt-6 flex flex-wrap justify-center gap-2">
@@ -80,7 +162,7 @@ export default function AttestationPage() {
               </div>
               <div className="text-right">
                 <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Référence</p>
-                <p className="font-mono text-sm font-semibold text-encre">ATT-2026-0048-SU</p>
+                <p className="font-mono text-sm font-semibold text-encre">{referenceAtt}</p>
                 <p className="mt-2 font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Année</p>
                 <p className="font-mono text-sm text-encre">2026-2027</p>
               </div>
@@ -94,27 +176,27 @@ export default function AttestationPage() {
                 Je soussignée <span className="font-semibold">Yasmine Bensaid</span>, Directrice de GET Admission, atteste que
               </p>
               <p className="font-display text-xl font-bold text-lapis">
-                {d.candidatPrenom} {d.candidatNom}
+                {d.candidat.prenom} {d.candidat.nom}
               </p>
               <p className="text-sm leading-relaxed">
                 a constitué un dossier complet et conforme, et a été admis(e) en pré-inscription pour le cursus
               </p>
               <p className="font-display text-lg font-bold text-encre">
-                {form?.intitule}
+                {d.formation.intitule}
               </p>
               <p className="text-sm leading-relaxed">
-                à l'<span className="font-semibold">{univ?.nom}</span> ({univ?.ville}, {univ?.pays}), pour l'année universitaire 2026-2027.
+                à l'<span className="font-semibold">{d.universite.nom}</span> ({d.universite.ville}, {d.universite.pays}), pour l'année universitaire 2026-2027.
               </p>
 
               <div className="rounded-md border border-ligne bg-porcelaine p-4">
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Code vérification</p>
-                    <p className="font-mono text-sm font-semibold text-encre">VRF-9F3D-2A7B-0048</p>
+                    <p className="font-mono text-sm font-semibold text-encre">{codeVerification}</p>
                   </div>
                   <div>
                     <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Date d'émission</p>
-                    <p className="font-mono text-sm text-encre">{formatDate("2026-02-05")}</p>
+                    <p className="font-mono text-sm text-encre">{formatDate(emissionDate)}</p>
                   </div>
                 </div>
               </div>
@@ -154,7 +236,7 @@ export default function AttestationPage() {
           <div className="border-t border-ligne bg-porcelaine px-6 py-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-2">
-                <Button onClick={() => toast.success("Téléchargement", { description: "attestation-2026-0048.pdf" })}>
+                <Button onClick={() => toast.success("Téléchargement", { description: `${referenceAtt.toLowerCase()}.pdf` })}>
                   <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Télécharger le PDF
                 </Button>
                 <div className="flex items-center gap-2 rounded-md border border-ligne bg-blanc px-3 py-1.5">

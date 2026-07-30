@@ -13,11 +13,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import {
-  UNIVERSITES,
-  universiteParSlug,
-} from "@/lib/mock/universites";
-import { formationsParUniversite } from "@/lib/mock/formations";
+import { db } from "@/lib/db";
 import { formatFCFA, formatFCFACompact } from "@/lib/format";
 
 import { Button } from "@/components/ui/button";
@@ -40,8 +36,11 @@ import {
 } from "@/components/ui/breadcrumb";
 import { cn } from "@/lib/utils";
 
-export function generateStaticParams() {
-  return UNIVERSITES.map((u) => ({ slug: u.slug }));
+export const dynamic = "force-dynamic";
+
+export async function generateStaticParams() {
+  const univs = await db.universite.findMany({ select: { slug: true } });
+  return univs.map((u) => ({ slug: u.slug }));
 }
 
 export default async function UniversiteDetailPage({
@@ -50,10 +49,23 @@ export default async function UniversiteDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const universite = universiteParSlug(slug);
-  if (!universite) notFound();
+  const row = await db.universite.findUnique({
+    where: { slug },
+    include: { formations: true },
+  });
+  if (!row) notFound();
 
-  const formations = formationsParUniversite(universite.id);
+  // Normalise : parse les champs JSON string (SQLite limitation).
+  const universite = {
+    ...row,
+    domaines: JSON.parse(row.domaines) as string[],
+    pointsForts: JSON.parse(row.pointsForts) as string[],
+  };
+  const formations = row.formations.map((f) => ({
+    ...f,
+    prerequis: JSON.parse(f.prerequis) as string[],
+    piecesRequises: JSON.parse(f.piecesRequises) as string[],
+  }));
 
   // PiecesRequises dédupliquées (toutes formations confondues)
   const piecesUniques = Array.from(new Set(formations.flatMap((f) => f.piecesRequises))).sort(

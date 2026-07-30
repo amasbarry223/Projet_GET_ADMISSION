@@ -4,12 +4,10 @@ import * as React from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DOSSIERS } from "@/lib/mock/dossiers";
-import { UNIVERSITES } from "@/lib/mock/universites";
-import { formationParId } from "@/lib/mock/formations";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
-import { Stamp, FileText, Download, Eye, Plus, CheckCircle2 } from "lucide-react";
+import { Stamp, FileText, Eye, Plus, CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
 
 const MODELES = [
   { id: "m1", nom: "Attestation standard", description: "Attestation de pré-inscription générique, sceau doré.", used: 4 },
@@ -17,9 +15,84 @@ const MODELES = [
   { id: "m3", nom: "Certificat de transmission", description: "Document officiel de transmission du dossier à l'université.", used: 8 },
 ];
 
+type DossierApi = {
+  id: string;
+  reference: string;
+  etat: string;
+  updatedAt: string;
+  candidat: { prenom: string; nom: string };
+  universite: { nom: string; ecusson: string };
+  formation: { intitule: string };
+};
+
 export default function AdminAttestationsPage() {
-  const aEmettre = DOSSIERS.filter((d) => d.etat === "pre_admission");
-  const emises = DOSSIERS.filter((d) => d.etat === "attestation" || d.etat === "cloture");
+  const [dossiers, setDossiers] = React.useState<DossierApi[] | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    fetch("/api/dossiers")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: DossierApi[] | null) => {
+        if (!d) {
+          setError("Impossible de charger les dossiers.");
+          setLoading(false);
+          return;
+        }
+        setDossiers(d);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError("Erreur réseau lors du chargement des dossiers.");
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
+      </div>
+    );
+  }
+
+  if (error || !dossiers) {
+    return (
+      <Alert className="border-carmin/40 bg-carmin/5">
+        <AlertTriangle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
+        <AlertTitle className="font-display text-sm font-bold text-encre">Erreur de chargement</AlertTitle>
+        <AlertDescription className="text-sm text-ardoise">{error ?? "Données indisponibles."}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  const aEmettre = dossiers.filter((d) => d.etat?.toLowerCase() === "pre_admission");
+  const emises = dossiers.filter((d) => {
+    const e = d.etat?.toLowerCase();
+    return e === "attestation" || e === "cloture";
+  });
+
+  const emettreAttestation = async (dossierId: string, reference: string) => {
+    try {
+      const res = await fetch(`/api/dossiers/${dossierId}/workflow`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "emettre_attestation" }),
+      });
+      if (!res.ok) {
+        toast.error("Émission échouée", { description: "Le serveur a refusé l'action." });
+        return;
+      }
+      toast.success("Attestation émise", { description: `${reference} — disponible dans l'espace candidat.` });
+      // Refresh data
+      fetch("/api/dossiers")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: DossierApi[] | null) => { if (d) setDossiers(d); })
+        .catch(() => {});
+    } catch {
+      toast.error("Émission échouée", { description: "Erreur réseau." });
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -69,25 +142,21 @@ export default function AdminAttestationsPage() {
           </div>
         ) : (
           <ul className="divide-y divide-ligne">
-            {aEmettre.map((d) => {
-              const u = UNIVERSITES.find((x) => x.id === d.universiteId);
-              const f = formationParId(d.formationId);
-              return (
-                <li key={d.id} className="flex flex-wrap items-center gap-3 px-6 py-3">
-                  <div className="flex h-9 w-9 flex-none items-center justify-center rounded-md bg-ambre/10 font-mono text-[10px] font-semibold text-ambre">{d.candidatNom.slice(0, 2)}</div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-encre">{d.candidatPrenom} {d.candidatNom}</p>
-                    <p className="text-xs text-ardoise">{u?.nom} · {f?.intitule} · pré-admission le {formatDate(d.dateMaj)}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => toast.success("Aperçu généré")}><Eye className="mr-1.5 h-3.5 w-3.5" /> Aperçu</Button>
-                    <Button size="sm" className="bg-lapis text-blanc hover:bg-lapis/90" onClick={() => toast.success("Attestation émise", { description: `${d.reference} — disponible dans l'espace candidat.` })}>
-                      <Stamp className="mr-1.5 h-3.5 w-3.5" /> Émettre
-                    </Button>
-                  </div>
-                </li>
-              );
-            })}
+            {aEmettre.map((d) => (
+              <li key={d.id} className="flex flex-wrap items-center gap-3 px-6 py-3">
+                <div className="flex h-9 w-9 flex-none items-center justify-center rounded-md bg-ambre/10 font-mono text-[10px] font-semibold text-ambre">{(d.candidat?.nom ?? "").slice(0, 2)}</div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-encre">{d.candidat?.prenom} {d.candidat?.nom}</p>
+                  <p className="text-xs text-ardoise">{d.universite?.nom} · {d.formation?.intitule} · pré-admission le {formatDate(d.updatedAt)}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => toast.success("Aperçu généré")}><Eye className="mr-1.5 h-3.5 w-3.5" /> Aperçu</Button>
+                  <Button size="sm" className="bg-lapis text-blanc hover:bg-lapis/90" onClick={() => emettreAttestation(d.id, d.reference)}>
+                    <Stamp className="mr-1.5 h-3.5 w-3.5" /> Émettre
+                  </Button>
+                </div>
+              </li>
+            ))}
           </ul>
         )}
       </Card>
@@ -98,22 +167,29 @@ export default function AdminAttestationsPage() {
           <p className="eyebrow">Historique</p>
           <h2 className="font-display text-base font-bold text-encre">Attestations émises ({emises.length})</h2>
         </div>
-        <ul className="divide-y divide-ligne">
-          {emises.map((d) => {
-            const u = UNIVERSITES.find((x) => x.id === d.universiteId);
-            return (
-              <li key={d.id} className="flex flex-wrap items-center gap-3 px-6 py-3">
-                <div className="flex h-9 w-9 flex-none items-center justify-center rounded-md bg-vert/10 text-vert"><CheckCircle2 className="h-4 w-4" /></div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-encre">{d.candidatPrenom} {d.candidatNom}</p>
-                  <p className="font-mono text-xs text-ardoise">ATT-2026-0{d.reference.slice(-2)}-{u?.ecusson} · {u?.nom}</p>
-                </div>
-                <Badge className="bg-vert/10 font-mono text-[10px] uppercase text-vert">{d.etat === "cloture" ? "Récupérée" : "Disponible"}</Badge>
-                <Button variant="ghost" size="sm" onClick={() => toast.success("Téléchargement")}><Download className="h-3.5 w-3.5" /></Button>
-              </li>
-            );
-          })}
-        </ul>
+        {emises.length === 0 ? (
+          <div className="p-10 text-center">
+            <Stamp className="mx-auto h-8 w-8 text-ardoise/40" strokeWidth={1.5} />
+            <p className="mt-2 text-sm text-ardoise">Aucune attestation émise pour le moment.</p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-ligne">
+            {emises.map((d) => {
+              const ecusson = d.universite?.ecusson ?? "—";
+              return (
+                <li key={d.id} className="flex flex-wrap items-center gap-3 px-6 py-3">
+                  <div className="flex h-9 w-9 flex-none items-center justify-center rounded-md bg-vert/10 text-vert"><CheckCircle2 className="h-4 w-4" /></div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-encre">{d.candidat?.prenom} {d.candidat?.nom}</p>
+                    <p className="font-mono text-xs text-ardoise">ATT-{d.reference.slice(-6)}-{ecusson} · {d.universite?.nom}</p>
+                  </div>
+                  <Badge className="bg-vert/10 font-mono text-[10px] uppercase text-vert">{d.etat?.toLowerCase() === "cloture" ? "Récupérée" : "Disponible"}</Badge>
+                  <Button variant="ghost" size="sm" onClick={() => toast.success("Téléchargement")}><FileText className="h-3.5 w-3.5" /></Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </Card>
     </div>
   );

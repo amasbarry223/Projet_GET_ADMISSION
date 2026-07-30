@@ -13,11 +13,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { UTILISATEURS_INTERNES, type RoleInterne } from "@/lib/mock/utilisateurs";
 import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
-import { Plus, ShieldCheck, Headset, Wallet, Crown, UserCog, Eye, Mail, UserX, Trash2 } from "lucide-react";
+import { Plus, ShieldCheck, Headset, Wallet, Crown, UserCog, Eye, Mail, UserX, Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+type RoleInterne = "Conseiller" | "Financier" | "Admin" | "Super Admin";
+
+type UserApi = {
+  id: string;
+  email: string;
+  nom: string;
+  initiales: string;
+  role: string; // uppercase DB enum
+  actif: boolean;
+  date: string;
+  dossiers: number;
+};
 
 type Row = {
   id: string;
@@ -43,21 +55,50 @@ const ROLE_TONE: Record<RoleInterne, string> = {
   "Super Admin": "bg-or/15 text-or",
 };
 
+function mapRole(dbRole: string): RoleInterne {
+  switch (dbRole) {
+    case "CONSEILLER": return "Conseiller";
+    case "FINANCIER": return "Financier";
+    case "ADMIN": return "Admin";
+    case "SUPER_ADMIN": return "Super Admin";
+    default: return "Conseiller";
+  }
+}
+
 export default function AdminUtilisateursPage() {
   const [inviteOpen, setInviteOpen] = React.useState(false);
+  const [data, setData] = React.useState<Row[] | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const data: Row[] = React.useMemo(() => UTILISATEURS_INTERNES.map((u) => ({
-    id: u.id,
-    nom: `${u.prenom} ${u.nom}`,
-    initiales: u.initiales,
-    email: u.email,
-    role: u.role,
-    dossiers: u.dossiersAssignes,
-    date: u.dateCreation,
-    actif: u.actif,
-  })), []);
+  React.useEffect(() => {
+    fetch("/api/admin/users")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: UserApi[] | null) => {
+        if (!d) {
+          setError("Impossible de charger les utilisateurs.");
+          setLoading(false);
+          return;
+        }
+        const rows: Row[] = d.map((u) => ({
+          id: u.id,
+          nom: u.nom,
+          initiales: u.initiales,
+          email: u.email,
+          role: mapRole(u.role),
+          dossiers: u.dossiers,
+          date: u.date,
+          actif: u.actif,
+        }));
+        setData(rows);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError("Erreur réseau lors du chargement des utilisateurs.");
+        setLoading(false);
+      });
+  }, []);
 
-  // Actions cohérentes pour chaque membre
   const actions: ActionItem<Row>[] = React.useMemo(() => [
     {
       label: "Voir le profil",
@@ -136,13 +177,31 @@ export default function AdminUtilisateursPage() {
     toast.success("Invitation envoyée", { description: "Un e-mail d'invitation a été envoyé au nouveau membre." });
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <Alert className="border-carmin/40 bg-carmin/5">
+        <AlertTriangle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
+        <AlertTitle className="font-display text-sm font-bold text-encre">Erreur de chargement</AlertTitle>
+        <AlertDescription className="text-sm text-ardoise">{error ?? "Données indisponibles."}</AlertDescription>
+      </Alert>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="eyebrow">Utilisateurs</p>
           <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Personnel & rôles.</h1>
-          <p className="text-sm text-ardoise">{UTILISATEURS_INTERNES.length} membres · {UTILISATEURS_INTERNES.filter((u) => u.actif).length} actifs</p>
+          <p className="text-sm text-ardoise">{data.length} membres · {data.filter((u) => u.actif).length} actifs</p>
         </div>
         <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
           <DialogTrigger asChild>

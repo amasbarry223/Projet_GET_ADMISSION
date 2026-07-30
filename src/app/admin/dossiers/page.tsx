@@ -10,13 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DOSSIERS, type Dossier } from "@/lib/mock/dossiers";
-import { ETATS, etatParCode, COULEUR_BADGE, type EtatCode } from "@/lib/mock/etats";
-import { formationParId, nomUniversite } from "@/lib/mock/formations";
-import { UNIVERSITES } from "@/lib/mock/universites";
+import { ETATS, etatParCode, COULEUR_BADGE } from "@/lib/mock/etats";
 import { formatFCFA, formatDate } from "@/lib/format";
 import { toast } from "sonner";
-import { FolderOpen, Info, UserCog, Download, Eye, UserPlus, Send, FileText } from "lucide-react";
+import { FolderOpen, Info, UserCog, Download, Eye, UserPlus, Send, FileText, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Row = {
@@ -25,28 +22,70 @@ type Row = {
   candidat: string;
   universite: string;
   formation: string;
-  etat: EtatCode;
+  etat: string;
   conseiller: string;
   date: string;
   frais: number;
 };
 
+type DossierApi = {
+  id: string;
+  reference: string;
+  etat: string;
+  etapeActuelle: number;
+  fraisAgence: number;
+  updatedAt: string;
+  candidat: { prenom: string; nom: string };
+  universite: { nom: string };
+  formation: { intitule: string };
+  conseiller: { prenom: string; nom: string } | null;
+};
+
 export default function AdminDossiersPage() {
   const router = useRouter();
+  const [data, setData] = React.useState<Row[] | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const data: Row[] = React.useMemo(() => DOSSIERS.map((d) => ({
-    id: d.id,
-    reference: d.reference,
-    candidat: `${d.candidatPrenom} ${d.candidatNom}`,
-    universite: nomUniversite(d.universiteId),
-    formation: formationParId(d.formationId)?.intitule ?? "",
-    etat: d.etat,
-    conseiller: d.conseillerNom,
-    date: d.dateMaj,
-    frais: d.fraisAgence,
-  })), []);
+  React.useEffect(() => {
+    fetch("/api/dossiers")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: DossierApi[] | null) => {
+        if (!d) {
+          setError("Impossible de charger les dossiers.");
+          setLoading(false);
+          return;
+        }
+        const rows: Row[] = d.map((item) => ({
+          id: item.id,
+          reference: item.reference,
+          candidat: `${item.candidat?.prenom ?? ""} ${item.candidat?.nom ?? ""}`.trim(),
+          universite: item.universite?.nom ?? "—",
+          formation: item.formation?.intitule ?? "",
+          etat: (item.etat ?? "").toLowerCase(),
+          conseiller: item.conseiller ? `${item.conseiller.prenom} ${item.conseiller.nom}` : "Non affecté",
+          date: item.updatedAt,
+          frais: item.fraisAgence ?? 0,
+        }));
+        setData(rows);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError("Erreur réseau lors du chargement des dossiers.");
+        setLoading(false);
+      });
+  }, []);
 
-  // Actions cohérentes pour chaque ligne
+  const universiteOptions = React.useMemo(() => {
+    if (!data) return [];
+    return Array.from(new Set(data.map((r) => r.universite).filter((v) => v && v !== "—"))).sort();
+  }, [data]);
+
+  const conseillerOptions = React.useMemo(() => {
+    if (!data) return [];
+    return Array.from(new Set(data.map((r) => r.conseiller).filter((v) => v && v !== "Non affecté"))).sort();
+  }, [data]);
+
   const actions: ActionItem<Row>[] = React.useMemo(() => [
     {
       label: "Voir le dossier",
@@ -56,7 +95,7 @@ export default function AdminDossiersPage() {
     {
       label: "Affecter un conseiller",
       icon: UserPlus,
-      onClick: (row) => toast.success("Conseiller affecté", { description: `Dossier ${row.reference} réaffecté à Aïssatou Diallo.` }),
+      onClick: (row) => toast.success("Conseiller affecté", { description: `Dossier ${row.reference} réaffecté.` }),
     },
     {
       label: "Transmettre à l'université",
@@ -94,6 +133,7 @@ export default function AdminDossiersPage() {
       accessorKey: "universite",
       header: ({ column }) => <DataTableColumnHeader column={column} title="Université" />,
       cell: ({ row }) => <span className="text-sm text-encre">{row.original.universite}</span>,
+      filterFn: (row, _id, value: string) => value === "tous" ? true : row.original.universite === value,
     },
     {
       id: "formation",
@@ -134,13 +174,31 @@ export default function AdminDossiersPage() {
     createActionsColumn<Row>(actions, { ariaLabel: (row) => `Actions sur le dossier ${row.reference}` }),
   ], [actions]);
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <Alert className="border-carmin/40 bg-carmin/5">
+        <Info className="h-4 w-4 text-carmin" strokeWidth={1.5} />
+        <AlertTitle className="font-display text-sm font-bold text-encre">Erreur de chargement</AlertTitle>
+        <AlertDescription className="text-sm text-ardoise">{error ?? "Données indisponibles."}</AlertDescription>
+      </Alert>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="eyebrow">Dossiers</p>
           <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Tous les dossiers.</h1>
-          <p className="text-sm text-ardoise">{DOSSIERS.length} dossiers au total</p>
+          <p className="text-sm text-ardoise">{data.length} dossiers au total</p>
         </div>
       </div>
 
@@ -175,7 +233,7 @@ export default function AdminDossiersPage() {
               <SelectTrigger className="h-9 w-[170px]"><SelectValue placeholder="Université" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="tous">Toutes les universités</SelectItem>
-                {UNIVERSITES.map((u) => <SelectItem key={u.id} value={u.id}>{u.nom}</SelectItem>)}
+                {universiteOptions.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select
@@ -185,9 +243,8 @@ export default function AdminDossiersPage() {
               <SelectTrigger className="h-9 w-[170px]"><SelectValue placeholder="Conseiller" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="Tous">Tous les conseillers</SelectItem>
-                <SelectItem value="Aïssatou Diallo">Aïssatou Diallo</SelectItem>
-                <SelectItem value="Olivier Nguema">Olivier Nguema</SelectItem>
                 <SelectItem value="Non affecté">Non affecté</SelectItem>
+                {conseillerOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
               </SelectContent>
             </Select>
           </>
@@ -196,7 +253,7 @@ export default function AdminDossiersPage() {
           const count = table.getFilteredSelectedRowModel().rows.length;
           return (
             <>
-              <Button variant="outline" size="sm" className="h-8 border-ligne bg-blanc" onClick={() => toast.success("Conseiller affecté", { description: `${count} dossier${count > 1 ? "s" : ""} réaffecté${count > 1 ? "s" : ""} à Aïssatou Diallo.` })}>
+              <Button variant="outline" size="sm" className="h-8 border-ligne bg-blanc" onClick={() => toast.success("Conseiller affecté", { description: `${count} dossier${count > 1 ? "s" : ""} réaffecté${count > 1 ? "s" : ""}.` })}>
                 <UserCog className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Affecter un conseiller
               </Button>
               <Button variant="outline" size="sm" className="h-8 border-ligne bg-blanc" onClick={() => toast.success("Export généré", { description: `${count} dossier${count > 1 ? "s" : ""} exporté${count > 1 ? "s" : ""} en CSV.` })}>
@@ -217,3 +274,4 @@ export default function AdminDossiersPage() {
     </div>
   );
 }
+

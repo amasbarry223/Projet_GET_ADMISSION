@@ -11,10 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { TRANSACTIONS, FINANCE_KPIS } from "@/lib/mock/paiements";
 import { formatFCFA, formatFCFACompact, formatDate } from "@/lib/format";
 import { toast } from "sonner";
-import { Download, Wallet, TrendingUp, Clock, XCircle, Info, Eye, FileText, RefreshCw, Plus } from "lucide-react";
+import { Download, Wallet, TrendingUp, Clock, XCircle, Info, Eye, FileText, RefreshCw, Plus, Loader2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Row = {
@@ -28,27 +27,76 @@ type Row = {
   statut: "réussi" | "en_attente" | "échoué";
 };
 
+type TransactionApi = {
+  id: string;
+  reference: string;
+  candidat: string;
+  dossier: string;
+  date: string;
+  moyen: string;
+  montant: number;
+  statut: string;
+  tranche: string | null;
+};
+
+type FinanceKpis = {
+  encaisseMois: number;
+  enAttente: number;
+  impayes: number;
+  totalEncaisse: number;
+};
+
 const STATUT_TONE: Record<string, string> = {
   réussi: "bg-vert/10 text-vert border-vert",
   en_attente: "bg-ambre/10 text-ambre border-ambre",
   échoué: "bg-carmin/10 text-carmin border-carmin",
 };
 
+function normalizeStatut(s: string): Row["statut"] {
+  const v = s.toLowerCase();
+  if (v === "reussi" || v === "réussi") return "réussi";
+  if (v === "echoue" || v === "échoué") return "échoué";
+  return "en_attente";
+}
+
 export default function AdminFinancePage() {
   const [newOpen, setNewOpen] = React.useState(false);
+  const [rows, setRows] = React.useState<Row[] | null>(null);
+  const [kpis, setKpis] = React.useState<FinanceKpis | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const data: Row[] = React.useMemo(() => TRANSACTIONS.map((t) => ({
-    id: t.id,
-    reference: t.reference,
-    candidat: t.candidatNom,
-    dossier: t.dossierReference,
-    date: t.date,
-    moyen: t.moyen + (t.tranche ? ` · ${t.tranche}` : ""),
-    montant: t.montant,
-    statut: t.statut as Row["statut"],
-  })), []);
+  React.useEffect(() => {
+    Promise.all([
+      fetch("/api/admin/transactions").then((r) => (r.ok ? r.json() : null)),
+      fetch("/api/admin/stats").then((r) => (r.ok ? r.json() : null)),
+    ])
+      .then(([txData, statsData]: [TransactionApi[] | null, { financeKpis?: FinanceKpis } | null]) => {
+        if (!txData) {
+          setError("Impossible de charger les transactions.");
+          setLoading(false);
+          return;
+        }
+        const mapped: Row[] = txData.map((t) => ({
+          id: t.id,
+          reference: t.reference,
+          candidat: t.candidat,
+          dossier: t.dossier,
+          date: t.date,
+          moyen: t.moyen + (t.tranche ? ` · ${t.tranche}` : ""),
+          montant: t.montant,
+          statut: normalizeStatut(t.statut),
+        }));
+        setRows(mapped);
+        setKpis(statsData?.financeKpis ?? null);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError("Erreur réseau lors du chargement des transactions.");
+        setLoading(false);
+      });
+  }, []);
 
-  // Actions cohérentes pour chaque transaction
   const actions: ActionItem<Row>[] = React.useMemo(() => [
     {
       label: "Voir le reçu",
@@ -95,6 +143,26 @@ export default function AdminFinancePage() {
     setNewOpen(false);
     toast.success("Transaction enregistrée", { description: "La transaction manuelle a été ajoutée." });
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
+      </div>
+    );
+  }
+
+  if (error || !rows) {
+    return (
+      <Alert className="border-carmin/40 bg-carmin/5">
+        <AlertTriangle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
+        <AlertTitle className="font-display text-sm font-bold text-encre">Erreur de chargement</AlertTitle>
+        <AlertDescription className="text-sm text-ardoise">{error ?? "Données indisponibles."}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  const k = kpis ?? { encaisseMois: 0, enAttente: 0, impayes: 0, totalEncaisse: 0 };
 
   return (
     <div className="space-y-5">
@@ -145,26 +213,26 @@ export default function AdminFinancePage() {
               </form>
             </DialogContent>
           </Dialog>
-          <Button variant="outline" onClick={() => toast.success("Export CSV", { description: "transactions-fevrier-2026.csv" })}>
+          <Button variant="outline" onClick={() => toast.success("Export CSV", { description: "transactions-export.csv" })}>
             <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Export CSV
           </Button>
-          <Button variant="outline" onClick={() => toast.success("Export PDF", { description: "rapport-financier-fevrier-2026.pdf" })}>
+          <Button variant="outline" onClick={() => toast.success("Export PDF", { description: "rapport-financier.pdf" })}>
             <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Export PDF
           </Button>
         </div>
       </div>
 
-      {/* KPIs finance — pleine largeur */}
+      {/* KPIs finance */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <FinanceKpi icon={Wallet} label="Encaissé ce mois" value={formatFCFACompact(FINANCE_KPIS.encaisseMois)} tone="vert" />
-        <FinanceKpi icon={Clock} label="En attente" value={formatFCFACompact(FINANCE_KPIS.enAttente)} tone="ambre" />
-        <FinanceKpi icon={XCircle} label="Impayés" value={formatFCFACompact(FINANCE_KPIS.impayes)} tone="carmin" />
-        <FinanceKpi icon={TrendingUp} label="Total encaissé" value={formatFCFACompact(FINANCE_KPIS.totalEncaisse)} tone="lapis" />
+        <FinanceKpi icon={Wallet} label="Encaissé ce mois" value={formatFCFACompact(k.encaisseMois)} tone="vert" />
+        <FinanceKpi icon={Clock} label="En attente" value={formatFCFACompact(k.enAttente)} tone="ambre" />
+        <FinanceKpi icon={XCircle} label="Impayés" value={formatFCFACompact(k.impayes)} tone="carmin" />
+        <FinanceKpi icon={TrendingUp} label="Total encaissé" value={formatFCFACompact(k.totalEncaisse)} tone="lapis" />
       </div>
 
       <DataTable
         columns={columns}
-        data={data}
+        data={rows}
         searchKey="candidat"
         searchPlaceholder="Rechercher par candidat…"
         pageSize={8}
@@ -188,7 +256,9 @@ export default function AdminFinancePage() {
         <Info className="h-4 w-4 text-ambre" strokeWidth={1.5} />
         <AlertTitle className="font-display text-sm font-bold text-encre">Rapprochement bancaire</AlertTitle>
         <AlertDescription className="text-sm text-ardoise">
-          1 transaction en attente (425 000 FCFA — Wave) et 1 échec (320 000 FCFA — carte). Le rapprochement mensuel est prévu le 5 du mois suivant.
+          {k.enAttente > 0 && <> {formatFCFA(k.enAttente)} en attente. </>}
+          {k.impayes > 0 && <>{formatFCFA(k.impayes)} en impayés. </>}
+          Le rapprochement mensuel est prévu le 5 du mois suivant.
         </AlertDescription>
       </Alert>
     </div>

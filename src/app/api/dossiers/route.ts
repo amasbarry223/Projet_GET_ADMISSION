@@ -18,6 +18,7 @@ export async function GET() {
     dossiers = await db.dossier.findMany({
       where: { candidatId: userId },
       include: {
+        candidat: { select: { prenom: true, nom: true, email: true, nationalite: true, telephone: true } },
         universite: true,
         formation: true,
         conseiller: { select: { prenom: true, nom: true } },

@@ -9,12 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plane, User, Mail, Lock, Globe, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
-import { BoardingPass } from "@/components/getadm/boarding-pass";
-import { useAuth } from "@/lib/auth-context";
-import { DOSSIER_DEMO_CANDIDAT } from "@/lib/mock/dossiers";
-import { formationParId } from "@/lib/mock/formations";
-import { UNIVERSITES } from "@/lib/mock/universites";
+import { Plane, User, Mail, Lock, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +17,6 @@ const NATIONALITES = ["Sénégalaise", "Ivoirienne", "Malienne", "Burkinabè", "
 
 export default function InscriptionPage() {
   const router = useRouter();
-  const { signIn } = useAuth();
   const [form, setForm] = React.useState({ prenom: "", nom: "", email: "", password: "", confirm: "", nationalite: "", consent: false });
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [loading, setLoading] = React.useState(false);
@@ -91,10 +85,6 @@ export default function InscriptionPage() {
     setLoading(false);
   };
 
-  const d = DOSSIER_DEMO_CANDIDAT;
-  const univ = UNIVERSITES.find((u) => u.id === d.universiteId);
-  const fmt = formationParId(d.formationId);
-
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       {/* Left: editorial */}
@@ -128,20 +118,14 @@ export default function InscriptionPage() {
             ))}
           </ul>
 
-          <div className="mt-8">
-            <BoardingPass
-              variant="large"
-              animateOnMount
-              reference={d.reference}
-              universiteNom={univ?.nom ?? ""}
-              formationLabel={`${fmt?.niveau ?? ""} · ${fmt?.domaine ?? ""}`}
-              etat={d.etat}
-              etapeActuelle={d.etapeActuelle}
-              etapeTotal={12}
-              conseiller={d.conseillerNom}
-              fraisAgence={d.fraisAgence}
-              mrz={d.mrz}
-            />
+          <div className="mt-8 rounded-md border border-ligne bg-blanc p-4">
+            <p className="font-mono text-[10px] uppercase tracking-eyebrow text-lapis">Déjà un compte ?</p>
+            <p className="mt-1 text-sm text-encre">
+              Si vous avez déjà créé votre dossier, connectez-vous pour reprendre où vous en étiez.
+            </p>
+            <Button asChild variant="outline" size="sm" className="mt-3">
+              <Link href="/connexion">Se connecter <ArrowRight className="ml-1.5 h-3.5 w-3.5" strokeWidth={1.5} /></Link>
+            </Button>
           </div>
         </div>
 

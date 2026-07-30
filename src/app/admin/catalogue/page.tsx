@@ -12,12 +12,37 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UNIVERSITES, type Universite, PAYS_LIST, DOMAINES_LIST } from "@/lib/mock/universites";
-import { FORMATIONS, formationsParUniversite } from "@/lib/mock/formations";
 import { formatFCFA, formatFCFACompact } from "@/lib/format";
 import { toast } from "sonner";
-import { Plus, Building2, MapPin, Eye, Pencil, Trash2, GraduationCap, Info, Globe } from "lucide-react";
+import { Plus, MapPin, Eye, Pencil, Trash2, GraduationCap, Info, Loader2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+type FormationApi = {
+  id: string;
+  intitule: string;
+  niveau: string;
+  domaine: string;
+  duree: string;
+  fraisAgence: number;
+};
+
+type UniversiteApi = {
+  id: string;
+  slug: string;
+  nom: string;
+  pays: string;
+  drapeau: string;
+  ville: string;
+  ecusson: string;
+  domaines: string[];
+  description: string;
+  pointsForts: string[];
+  imageCouleur: string;
+  fraisMin: number;
+  fraisMax: number;
+  partenaire: boolean;
+  formations: FormationApi[];
+};
 
 type Row = {
   id: string;
@@ -35,21 +60,54 @@ type Row = {
 export default function AdminCataloguePage() {
   const [newOpen, setNewOpen] = React.useState(false);
   const [detailRow, setDetailRow] = React.useState<Row | null>(null);
+  const [universites, setUniversites] = React.useState<UniversiteApi[] | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const data: Row[] = React.useMemo(() => UNIVERSITES.map((u) => ({
-    id: u.id,
-    nom: u.nom,
-    ecusson: u.ecusson,
-    drapeau: u.drapeau,
-    ville: u.ville,
-    pays: u.pays,
-    domaines: u.domaines,
-    formations: formationsParUniversite(u.id).length,
-    fraisMin: u.fraisMin,
-    fraisMax: u.fraisMax,
-  })), []);
+  React.useEffect(() => {
+    fetch("/api/universites")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: UniversiteApi[] | null) => {
+        if (!d) {
+          setError("Impossible de charger le catalogue.");
+          setLoading(false);
+          return;
+        }
+        setUniversites(d);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError("Erreur réseau lors du chargement du catalogue.");
+        setLoading(false);
+      });
+  }, []);
 
-  // Actions cohérentes pour chaque université
+  const data: Row[] = React.useMemo(() => {
+    if (!universites) return [];
+    return universites.map((u) => ({
+      id: u.id,
+      nom: u.nom,
+      ecusson: u.ecusson,
+      drapeau: u.drapeau,
+      ville: u.ville,
+      pays: u.pays,
+      domaines: u.domaines ?? [],
+      formations: u.formations?.length ?? 0,
+      fraisMin: u.fraisMin,
+      fraisMax: u.fraisMax,
+    }));
+  }, [universites]);
+
+  const paysList = React.useMemo(() => {
+    if (!universites) return [];
+    return Array.from(new Set(universites.map((u) => u.pays).filter(Boolean))).sort();
+  }, [universites]);
+
+  const domainesList = React.useMemo(() => {
+    if (!universites) return [];
+    return Array.from(new Set(universites.flatMap((u) => u.domaines ?? []).filter(Boolean))).sort();
+  }, [universites]);
+
   const actions: ActionItem<Row>[] = React.useMemo(() => [
     {
       label: "Voir la fiche",
@@ -79,11 +137,14 @@ export default function AdminCataloguePage() {
     {
       id: "ecusson",
       header: () => <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Écusson</span>,
-      cell: ({ row }) => (
-        <div className={cn("flex h-9 w-9 items-center justify-center rounded-md font-mono text-[11px] font-bold text-blanc", `bg-gradient-to-br ${UNIVERSITES.find((u) => u.id === row.original.id)?.imageCouleur}`)}>
-          {row.original.ecusson}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const u = universites?.find((x) => x.id === row.original.id);
+        return (
+          <div className={cn("flex h-9 w-9 items-center justify-center rounded-md font-mono text-[11px] font-bold text-blanc", `bg-gradient-to-br ${u?.imageCouleur ?? "from-lapis to-lapis-clair"}`)}>
+            {row.original.ecusson}
+          </div>
+        );
+      },
       enableSorting: false,
     },
     {
@@ -139,7 +200,7 @@ export default function AdminCataloguePage() {
       cell: ({ row }) => <span className="font-mono text-xs text-encre">{formatFCFACompact(row.original.fraisMin)} – {formatFCFACompact(row.original.fraisMax)}</span>,
     },
     createActionsColumn<Row>(actions, { ariaLabel: (row) => `Actions sur ${row.nom}` }),
-  ], [actions]);
+  ], [actions, universites]);
 
   const handleNew = (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,7 +208,27 @@ export default function AdminCataloguePage() {
     toast.success("Université ajoutée", { description: "La nouvelle université a été ajoutée au catalogue." });
   };
 
-  const detailUniversite = detailRow ? UNIVERSITES.find((u) => u.id === detailRow.id) : null;
+  const detailUniversite = detailRow ? universites?.find((u) => u.id === detailRow.id) ?? null : null;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
+      </div>
+    );
+  }
+
+  if (error || !universites) {
+    return (
+      <Alert className="border-carmin/40 bg-carmin/5">
+        <AlertTriangle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
+        <AlertTitle className="font-display text-sm font-bold text-encre">Erreur de chargement</AlertTitle>
+        <AlertDescription className="text-sm text-ardoise">{error ?? "Données indisponibles."}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  const totalFormations = universites.reduce((acc, u) => acc + (u.formations?.length ?? 0), 0);
 
   return (
     <div className="space-y-5">
@@ -155,7 +236,7 @@ export default function AdminCataloguePage() {
         <div>
           <p className="eyebrow">Catalogue</p>
           <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Universités & formations.</h1>
-          <p className="text-sm text-ardoise">{UNIVERSITES.length} universités · {FORMATIONS.length} formations</p>
+          <p className="text-sm text-ardoise">{universites.length} universités · {totalFormations} formations</p>
         </div>
         <Dialog open={newOpen} onOpenChange={setNewOpen}>
           <DialogTrigger asChild>
@@ -187,7 +268,7 @@ export default function AdminCataloguePage() {
                   <Select>
                     <SelectTrigger><SelectValue placeholder="Sélectionner" /></SelectTrigger>
                     <SelectContent>
-                      {PAYS_LIST.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                      {paysList.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -224,7 +305,7 @@ export default function AdminCataloguePage() {
               <SelectTrigger className="h-9 w-[170px]"><SelectValue placeholder="Pays" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="tous">Tous les pays</SelectItem>
-                {PAYS_LIST.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                {paysList.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select
@@ -234,7 +315,7 @@ export default function AdminCataloguePage() {
               <SelectTrigger className="h-9 w-[170px]"><SelectValue placeholder="Domaine" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="tous">Tous les domaines</SelectItem>
-                {DOMAINES_LIST.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                {domainesList.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
               </SelectContent>
             </Select>
           </>
@@ -266,9 +347,9 @@ export default function AdminCataloguePage() {
                   <div><p className="font-mono text-[10px] uppercase text-ardoise">Frais max</p><p className="font-mono text-encre">{formatFCFA(detailUniversite.fraisMax)}</p></div>
                 </div>
                 <div>
-                  <p className="font-mono text-[10px] uppercase text-ardoise">Formations ({formationsParUniversite(detailUniversite.id).length})</p>
+                  <p className="font-mono text-[10px] uppercase text-ardoise">Formations ({detailUniversite.formations?.length ?? 0})</p>
                   <ul className="mt-2 space-y-1.5">
-                    {formationsParUniversite(detailUniversite.id).map((f) => (
+                    {(detailUniversite.formations ?? []).map((f) => (
                       <li key={f.id} className="flex items-center justify-between rounded-md border border-ligne px-3 py-2 text-sm">
                         <div>
                           <p className="font-medium text-encre">{f.intitule}</p>
@@ -277,6 +358,9 @@ export default function AdminCataloguePage() {
                         <span className="font-mono text-xs text-encre">{formatFCFA(f.fraisAgence)}</span>
                       </li>
                     ))}
+                    {(detailUniversite.formations?.length ?? 0) === 0 && (
+                      <li className="rounded-md border border-ligne px-3 py-2 text-sm text-ardoise">Aucune formation enregistrée.</li>
+                    )}
                   </ul>
                 </div>
                 <div className="flex gap-2">

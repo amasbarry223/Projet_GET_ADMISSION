@@ -1,34 +1,144 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { CONVERSATIONS, type Message } from "@/lib/mock/messages";
-import { formatHeure, formatDate } from "@/lib/format";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { formatHeure } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { Paperclip, Send, Mail, Phone, ArrowLeft } from "lucide-react";
+import { Paperclip, Send, Mail, Phone, ArrowLeft, Loader2, AlertCircle } from "lucide-react";
+
+type ConversationMessage = {
+  id: string;
+  auteurId: string;
+  texte: string;
+  pieceJointeNom: string | null;
+  pieceJointeTaille: string | null;
+  createdAt: string;
+  auteur: { prenom: string; nom: string; role: string };
+};
+
+type Conversation = {
+  candidat: { prenom: string; nom: string };
+  conseiller: { prenom: string; nom: string } | null;
+  nonLusCandidat: number;
+  messages: ConversationMessage[];
+} | null;
 
 export default function MessagesPage() {
-  const conv = CONVERSATIONS[0];
-  const [messages, setMessages] = React.useState<Message[]>(conv.messages);
+  const [dossierId, setDossierId] = React.useState<string | null>(null);
+  const [conversation, setConversation] = React.useState<Conversation>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const [input, setInput] = React.useState("");
+  const [sending, setSending] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+
+  // 1. Fetch le dossier du candidat
+  React.useEffect(() => {
+    fetch("/api/dossiers")
+      .then((r) => {
+        if (!r.ok) throw new Error();
+        return r.json();
+      })
+      .then((data: { id: string }[]) => {
+        if (data[0]?.id) {
+          setDossierId(data[0].id);
+        } else {
+          setError("Vous n'avez pas encore de dossier.");
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        setError("Impossible de charger votre dossier.");
+        setLoading(false);
+      });
+  }, []);
+
+  // 2. Fetch la conversation quand on a le dossierId
+  React.useEffect(() => {
+    if (!dossierId) return;
+    fetch(`/api/messages?dossierId=${encodeURIComponent(dossierId)}`)
+      .then((r) => {
+        if (!r.ok) throw new Error();
+        return r.json();
+      })
+      .then((data: Conversation) => {
+        setConversation(data);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError("Impossible de charger la conversation.");
+        setLoading(false);
+      });
+  }, [dossierId]);
 
   React.useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+  }, [conversation?.messages.length]);
 
-  const send = (e: React.FormEvent) => {
+  const send = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
-    if (!text) return;
-    setMessages((m) => [...m, { id: `m-${Date.now()}`, auteur: "candidat", texte: text, date: new Date().toISOString() }]);
-    setInput("");
+    if (!text || !dossierId) return;
+    setSending(true);
+    try {
+      const res = await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dossierId, texte: text }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur");
+      // Append localement
+      if (conversation) {
+        setConversation({
+          ...conversation,
+          messages: [...conversation.messages, data as ConversationMessage],
+        });
+      }
+      setInput("");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erreur";
+      // toast.error("Échec de l'envoi", { description: msg });
+      console.error(msg);
+    } finally {
+      setSending(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
+      </div>
+    );
+  }
+
+  if (error || !conversation) {
+    return (
+      <Alert className="border-ambre/40 bg-ambre/5">
+        <AlertCircle className="h-4 w-4 text-ambre" strokeWidth={1.5} />
+        <AlertTitle className="font-display text-sm font-bold text-encre">Messagerie indisponible</AlertTitle>
+        <AlertDescription className="text-sm text-ardoise">
+          {error || "Aucune conversation trouvée."}{" "}
+          <Link href="/espace/dossier" className="font-medium text-lapis-clair hover:underline">
+            Créer mon dossier
+          </Link>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  const messages = conversation.messages;
+  const lastMessage = messages[messages.length - 1];
+  const conseillerNom = conversation.conseiller
+    ? `${conversation.conseiller.prenom} ${conversation.conseiller.nom}`
+    : "Conseiller non affecté";
 
   return (
     <div className="space-y-6">
@@ -47,17 +157,21 @@ export default function MessagesPage() {
             <div className="flex-1 overflow-y-auto scroll-fine p-2">
               <button className="flex w-full items-start gap-3 rounded-md bg-lapis/5 p-3 text-left">
                 <div className="relative h-10 w-10 flex-none overflow-hidden rounded-full border border-ligne">
-                  <Image src="/images/advisor-portrait.png" alt={conv.conseillerNom} fill className="object-cover" sizes="40px" />
+                  <Image src="/images/advisor-portrait.png" alt={conseillerNom} fill className="object-cover" sizes="40px" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-sm font-semibold text-encre">{conv.conseillerNom}</p>
-                    <span className="font-mono text-[10px] text-ardoise">{formatHeure(conv.messages[conv.messages.length - 1].date)}</span>
+                    <p className="truncate text-sm font-semibold text-encre">{conseillerNom}</p>
+                    {lastMessage && (
+                      <span className="font-mono text-[10px] text-ardoise">{formatHeure(lastMessage.createdAt)}</span>
+                    )}
                   </div>
-                  <p className="truncate text-xs text-ardoise">{conv.messages[conv.messages.length - 1].texte}</p>
+                  <p className="truncate text-xs text-ardoise">{lastMessage?.texte ?? "Démarrez la conversation"}</p>
                 </div>
-                {conv.nonLusCandidat > 0 && (
-                  <Badge className="h-5 min-w-5 justify-center bg-ambre px-1.5 text-[10px] font-mono text-blanc">{conv.nonLusCandidat}</Badge>
+                {conversation.nonLusCandidat > 0 && (
+                  <Badge className="h-5 min-w-5 justify-center bg-ambre px-1.5 text-[10px] font-mono text-blanc">
+                    {conversation.nonLusCandidat}
+                  </Badge>
                 )}
               </button>
             </div>
@@ -79,20 +193,20 @@ export default function MessagesPage() {
             <div className="flex items-center gap-3 border-b border-ligne px-4 py-3 md:hidden">
               <Button variant="ghost" size="icon" aria-label="Retour"><ArrowLeft className="h-4 w-4" /></Button>
               <div className="relative h-8 w-8 flex-none overflow-hidden rounded-full border border-ligne">
-                <Image src="/images/advisor-portrait.png" alt={conv.conseillerNom} fill className="object-cover" sizes="32px" />
+                <Image src="/images/advisor-portrait.png" alt={conseillerNom} fill className="object-cover" sizes="32px" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-encre">{conv.conseillerNom}</p>
+                <p className="truncate text-sm font-semibold text-encre">{conseillerNom}</p>
                 <p className="text-xs text-vert">En ligne</p>
               </div>
             </div>
             {/* Desktop header */}
             <div className="hidden md:flex items-center gap-3 border-b border-ligne px-4 py-3">
               <div className="relative h-9 w-9 flex-none overflow-hidden rounded-full border border-ligne">
-                <Image src="/images/advisor-portrait.png" alt={conv.conseillerNom} fill className="object-cover" sizes="36px" />
+                <Image src="/images/advisor-portrait.png" alt={conseillerNom} fill className="object-cover" sizes="36px" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-encre">{conv.conseillerNom}</p>
+                <p className="text-sm font-semibold text-encre">{conseillerNom}</p>
                 <p className="text-xs text-ardoise">Conseillère · Répond généralement sous 24h</p>
               </div>
             </div>
@@ -106,19 +220,19 @@ export default function MessagesPage() {
                   </div>
                 ) : (
                   messages.map((m) => {
-                    const isCand = m.auteur === "candidat";
+                    const isCand = m.auteur.role === "CANDIDAT";
                     return (
                       <div key={m.id} className={cn("flex", isCand ? "justify-end" : "justify-start")}>
                         <div className={cn("max-w-[80%] rounded-lg px-3.5 py-2.5", isCand ? "bg-lapis text-blanc" : "border border-ligne bg-blanc text-encre")}>
-                          {m.pieceJointe && (
+                          {m.pieceJointeNom && (
                             <div className={cn("mb-1.5 flex items-center gap-2 rounded-md border px-2 py-1 text-xs", isCand ? "border-blanc/20" : "border-ligne")}>
                               <Paperclip className="h-3 w-3" strokeWidth={1.5} />
-                              <span className="font-mono">{m.pieceJointe.nom}</span>
-                              <span className="opacity-70">{m.pieceJointe.taille}</span>
+                              <span className="font-mono">{m.pieceJointeNom}</span>
+                              {m.pieceJointeTaille && <span className="opacity-70">{m.pieceJointeTaille}</span>}
                             </div>
                           )}
                           <p className="text-sm leading-relaxed">{m.texte}</p>
-                          <p className={cn("mt-1 font-mono text-[10px]", isCand ? "text-blanc/60" : "text-ardoise")}>{formatHeure(m.date)}</p>
+                          <p className={cn("mt-1 font-mono text-[10px]", isCand ? "text-blanc/60" : "text-ardoise")}>{formatHeure(m.createdAt)}</p>
                         </div>
                       </div>
                     );
@@ -139,8 +253,8 @@ export default function MessagesPage() {
                 className="flex-1"
                 aria-label="Votre message"
               />
-              <Button type="submit" size="icon" className="flex-none bg-lapis text-blanc hover:bg-lapis/90" aria-label="Envoyer" disabled={!input.trim()}>
-                <Send className="h-4 w-4" strokeWidth={1.5} />
+              <Button type="submit" size="icon" className="flex-none bg-lapis text-blanc hover:bg-lapis/90" aria-label="Envoyer" disabled={!input.trim() || sending}>
+                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" strokeWidth={1.5} />}
               </Button>
             </form>
           </section>

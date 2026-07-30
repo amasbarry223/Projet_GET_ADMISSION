@@ -13,30 +13,17 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { BoardingPass } from "@/components/getadm/boarding-pass";
 import { Reveal, RevealStagger, RevealItem, Eyebrow } from "@/components/site/reveal";
 import { UniversiteCard } from "@/components/site/universite-card";
 
-import { UNIVERSITES, universiteParSlug } from "@/lib/mock/universites";
-import { formationParId } from "@/lib/mock/formations";
-import { DOSSIER_DEMO_CANDIDAT } from "@/lib/mock/dossiers";
+import { db } from "@/lib/db";
 import { ETATS } from "@/lib/mock/etats";
 import { formatFCFA } from "@/lib/format";
 
+export const dynamic = "force-dynamic";
+
 /* ----------------------------- Données dérivées ---------------------------- */
-
-const dossierDemo = DOSSIER_DEMO_CANDIDAT;
-const universiteDemo = UNIVERSITES.find((u) => u.id === dossierDemo.universiteId);
-const formationDemo = formationParId(dossierDemo.formationId);
-const formationLabel = formationDemo
-  ? formationDemo.intitule
-  : dossierDemo.formationId;
-const universiteNom = universiteDemo?.nom ?? dossierDemo.universiteId;
-
-const universitesVedettes = UNIVERSITES.filter((u) => u.partenaires).slice(0, 6);
-
-const BANDEAU_UNIVERSITES = UNIVERSITES.slice(0, 6);
 
 const ETAPES = [
   {
@@ -102,7 +89,42 @@ const TEMOIGNAGES = [
 
 /* --------------------------------- Page ----------------------------------- */
 
-export default function AccueilPage() {
+export default async function AccueilPage() {
+  // Universités partenaires (vedettes) + bandeau de confiance — depuis la DB.
+  const univRows = await db.universite.findMany({
+    where: { partenaire: true },
+    take: 6,
+    orderBy: { nom: "asc" },
+  });
+  const universitesVedettes = univRows.map((u) => ({
+    ...u,
+    domaines: JSON.parse(u.domaines) as string[],
+    pointsForts: JSON.parse(u.pointsForts) as string[],
+    partenaires: u.partenaire, // miroir pour compat UniversiteCard
+  }));
+  const BANDEAU_UNIVERSITES = univRows.map((u) => ({
+    ...u,
+    domaines: JSON.parse(u.domaines) as string[],
+    pointsForts: JSON.parse(u.pointsForts) as string[],
+    partenaires: u.partenaire,
+  }));
+
+  // Dossier démo pour la boarding pass du hero — depuis la DB.
+  const dossierDemo = await db.dossier.findFirst({
+    where: { etat: "PRE_ADMISSION" },
+    include: {
+      universite: true,
+      formation: true,
+      conseiller: { select: { prenom: true, nom: true } },
+    },
+  });
+
+  const formationLabel = dossierDemo?.formation?.intitule ?? "Formation";
+  const universiteNom = dossierDemo?.universite?.nom ?? "Université partenaire";
+  const conseillerNom = dossierDemo?.conseiller
+    ? `${dossierDemo.conseiller.prenom} ${dossierDemo.conseiller.nom}`
+    : "Conseiller dédié";
+
   return (
     <>
       {/* ============================== Hero ============================== */}
@@ -145,20 +167,20 @@ export default function AccueilPage() {
           <line x1="594" y1="106" x2="106" y2="594" stroke="#B8902E" strokeWidth="0.4" />
         </svg>
         <div className="relative mx-auto max-w-content px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24">
-          <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className={dossierDemo ? "grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]" : "grid items-center gap-12"}>
             {/* Colonne gauche */}
             <div>
-              <Eyebrow>Votre passage vers l'international</Eyebrow>
+              <Eyebrow>Votre passage vers l&rsquo;international</Eyebrow>
 
               <h1
                 id="hero-title"
                 className="mt-6 font-display text-[2.5rem] font-extrabold leading-[1.05] tracking-tightest text-encre sm:text-5xl lg:text-[4.5rem]"
               >
-                L'admission à l'étranger, sans le parcours du combattant.
+                L&rsquo;admission à l&rsquo;étranger, sans le parcours du combattant.
               </h1>
 
               <p className="mt-6 max-w-xl text-lg leading-relaxed text-ardoise">
-                GET Admission accompagne les étudiants d'Afrique de l'Ouest vers leurs universités
+                GET Admission accompagne les étudiants d&rsquo;Afrique de l&rsquo;Ouest vers leurs universités
                 partenaires. Dossier vérifié, suivi en temps réel, attestation officielle — tout est
                 centralisé dans votre espace candidat.
               </p>
@@ -197,26 +219,28 @@ export default function AccueilPage() {
               </ul>
             </div>
 
-            {/* Colonne droite : boarding pass */}
-            <div className="relative">
-              <div className="absolute -inset-4 -z-10 rounded-xl bg-gradient-to-br from-or-pale/40 to-transparent blur-2xl" aria-hidden />
-              <BoardingPass
-                reference={dossierDemo.reference}
-                universiteNom={universiteNom}
-                formationLabel={formationLabel}
-                etat={dossierDemo.etat}
-                etapeActuelle={dossierDemo.etapeActuelle}
-                etapeTotal={ETATS.length}
-                conseiller={dossierDemo.conseillerNom}
-                fraisAgence={dossierDemo.fraisAgence}
-                mrz={dossierDemo.mrz}
-                variant="hero"
-                animateOnMount
-              />
-              <p className="mt-3 text-center font-mono text-[11px] uppercase tracking-eyebrow text-ardoise">
-                Aperçu d'un dossier candidat · étape pré-admission
-              </p>
-            </div>
+            {/* Colonne droite : boarding pass (uniquement si un dossier démo existe) */}
+            {dossierDemo && (
+              <div className="relative">
+                <div className="absolute -inset-4 -z-10 rounded-xl bg-gradient-to-br from-or-pale/40 to-transparent blur-2xl" aria-hidden />
+                <BoardingPass
+                  reference={dossierDemo.reference}
+                  universiteNom={universiteNom}
+                  formationLabel={formationLabel}
+                  etat={dossierDemo.etat}
+                  etapeActuelle={dossierDemo.etapeActuelle}
+                  etapeTotal={ETATS.length}
+                  conseiller={conseillerNom}
+                  fraisAgence={dossierDemo.fraisAgence}
+                  mrz={dossierDemo.mrz}
+                  variant="hero"
+                  animateOnMount
+                />
+                <p className="mt-3 text-center font-mono text-[11px] uppercase tracking-eyebrow text-ardoise">
+                  Aperçu d&rsquo;un dossier candidat · étape pré-admission
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </section>
