@@ -3,12 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plane, User, Mail, Lock, Globe, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Plane, User, Mail, Lock, Globe, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { BoardingPass } from "@/components/getadm/boarding-pass";
 import { useAuth } from "@/lib/auth-context";
 import { DOSSIER_DEMO_CANDIDAT } from "@/lib/mock/dossiers";
@@ -46,18 +47,48 @@ export default function InscriptionPage() {
     return Object.keys(e).length === 0;
   };
 
-  const onSubmit = (ev: React.FormEvent) => {
+  const onSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
     if (!validate()) {
       toast.error("Formulaire incomplet", { description: "Vérifiez les champs signalés." });
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      signIn("candidat");
-      toast.success("Compte créé", { description: "Votre dossier de démonstration est prêt." });
+    try {
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prenom: form.prenom,
+          nom: form.nom,
+          email: form.email,
+          password: form.password,
+          nationalite: form.nationalite,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error("Inscription échouée", { description: data.error || "Erreur lors de la création du compte." });
+        setLoading(false);
+        return;
+      }
+      // Auto-login après inscription
+      const signRes = await signIn("credentials", {
+        email: form.email,
+        password: form.password,
+        redirect: false,
+      });
+      if (signRes?.error) {
+        toast.error("Compte créé", { description: "Connectez-vous pour accéder à votre espace." });
+        router.push("/connexion");
+        return;
+      }
+      toast.success("Compte créé", { description: "Bienvenue dans votre espace candidat." });
       router.push("/espace");
-    }, 700);
+    } catch {
+      toast.error("Erreur", { description: "Une erreur est survenue. Réessayez." });
+    }
+    setLoading(false);
   };
 
   const d = DOSSIER_DEMO_CANDIDAT;
@@ -200,8 +231,7 @@ export default function InscriptionPage() {
             </div>
 
             <Button type="submit" className="w-full bg-lapis text-blanc hover:bg-lapis/90" disabled={loading}>
-              {loading ? "Création…" : "Créer mon dossier"}
-              {!loading && <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} />}
+              {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Création…</> : <>Créer mon dossier <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} /></>}
             </Button>
           </form>
 

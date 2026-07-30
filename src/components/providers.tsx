@@ -1,16 +1,20 @@
 "use client";
 
 import React from "react";
+import { SessionProvider } from "next-auth/react";
 import { AuthProvider } from "@/lib/auth-context";
-import { SmoothScrollProvider } from "@/lib/smooth-scroll";
 
 /**
  * Root providers:
- * - Auth (mock, role selector)
- * - Smooth scroll (Lenis) — active on the public vitrine only, mounted where needed
+ * - NextAuth SessionProvider (vraie auth JWT)
+ * - AuthProvider (legacy demo context — sera déprécié)
  */
 export function Providers({ children }: { children: React.ReactNode }) {
-  return <AuthProvider>{children}</AuthProvider>;
+  return (
+    <SessionProvider>
+      <AuthProvider>{children}</AuthProvider>
+    </SessionProvider>
+  );
 }
 
-export { SmoothScrollProvider };
+export { SmoothScrollProvider } from "@/lib/smooth-scroll";

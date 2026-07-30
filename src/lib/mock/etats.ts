@@ -37,8 +37,9 @@ export const ETATS: Etat[] = [
   { code: "cloture", ordre: 12, libelle: "Clôturé", description: "Dossier entièrement traité et archivé.", categorie: "valide", couleur: "vert" },
 ];
 
-export function etatParCode(code: EtatCode): Etat {
-  return ETATS.find((e) => e.code === code)!;
+export function etatParCode(code: EtatCode | string): Etat {
+  const normalized = code.toLowerCase() as EtatCode;
+  return ETATS.find((e) => e.code === normalized) ?? ETATS[0];
 }
 export function etatParOrdre(ordre: number): Etat {
   return ETATS.find((e) => e.ordre === ordre)!;

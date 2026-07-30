@@ -4,14 +4,13 @@ import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
-import { Plane, LayoutDashboard, FileText, CreditCard, MessageSquare, Stamp, User, LogOut, Bell, Menu } from "lucide-react";
+import { Plane, LayoutDashboard, FileText, CreditCard, MessageSquare, Stamp, User, LogOut, Bell, Menu, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { RoleSelector } from "@/components/site/role-selector";
-import { useAuth } from "@/lib/auth-context";
 
 const NAV = [
   { href: "/espace", label: "Tableau de bord", icon: LayoutDashboard, exact: true },
@@ -67,22 +66,31 @@ function Brand() {
 }
 
 function UserCard() {
-  const { user, signOut } = useAuth();
-  const u = user ?? { prenom: "Fatou", nom: "Diallo", initiales: "FD", email: "fatou.diallo@demo.getadm" };
+  const { data: session, status } = useSession();
+  const u = session?.user;
+  if (status === "loading") {
+    return (
+      <div className="border-t border-ligne p-3">
+        <div className="flex items-center gap-3 rounded-md p-2">
+          <Loader2 className="h-9 w-9 animate-spin text-ardoise" />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="border-t border-ligne p-3">
       <div className="flex items-center gap-3 rounded-md p-2">
-        <div className="relative h-9 w-9 flex-none overflow-hidden rounded-full border border-ligne">
-          <Image src="/images/candidate-portrait.png" alt={`${u.prenom} ${u.nom}`} fill className="object-cover" sizes="36px" />
+        <div className="relative h-9 w-9 flex-none overflow-hidden rounded-full border border-ligne bg-lapis/10">
+          {u ? (
+            <Image src="/images/candidate-portrait.png" alt={`${u.prenom} ${u.nom}`} fill className="object-cover" sizes="36px" />
+          ) : null}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-encre">{u.prenom} {u.nom}</p>
+          <p className="truncate text-sm font-medium text-encre">{u?.prenom} {u?.nom}</p>
           <p className="truncate text-xs text-ardoise">Candidat</p>
         </div>
-        <Button asChild variant="ghost" size="icon" className="h-8 w-8 text-ardoise hover:text-carmin" aria-label="Se déconnecter">
-          <Link href="/" onClick={() => signOut()}>
-            <LogOut className="h-4 w-4" strokeWidth={1.5} />
-          </Link>
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-ardoise hover:text-carmin" aria-label="Se déconnecter" onClick={() => signOut({ callbackUrl: "/" })}>
+          <LogOut className="h-4 w-4" strokeWidth={1.5} />
         </Button>
       </div>
     </div>
@@ -134,7 +142,6 @@ export function EspaceShell({ children }: { children: React.ReactNode }) {
               <Bell className="h-4 w-4" strokeWidth={1.5} />
               <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-ambre" />
             </Button>
-            <div className="hidden sm:block"><RoleSelector /></div>
           </div>
         </header>
 

@@ -3,63 +3,76 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Plane, Mail, Lock, ArrowRight, GraduationCap, Headset, Wallet, ShieldCheck, Crown } from "lucide-react";
-import { BoardingPass } from "@/components/getadm/boarding-pass";
-import { useAuth, type Role } from "@/lib/auth-context";
-import { DOSSIER_DEMO_CANDIDAT } from "@/lib/mock/dossiers";
-import { formationParId } from "@/lib/mock/formations";
-import { UNIVERSITES } from "@/lib/mock/universites";
+import { Plane, Mail, Lock, ArrowRight, Loader2, ShieldCheck, Headset, Wallet, Crown } from "lucide-react";
 import { toast } from "sonner";
-
-const DEMO_ROLES: { role: Role; label: string; href: string; icon: React.ElementType; desc: string }[] = [
-  { role: "candidat", label: "Candidat", href: "/espace", icon: GraduationCap, desc: "Suivi du dossier" },
-  { role: "conseiller", label: "Conseiller", href: "/admin/dossiers", icon: Headset, desc: "Gère les dossiers" },
-  { role: "financier", label: "Financier", href: "/admin/finance", icon: Wallet, desc: "Transactions" },
-  { role: "admin", label: "Admin", href: "/admin", icon: ShieldCheck, desc: "Pilotage" },
-  { role: "super-admin", label: "Super Admin", href: "/admin/parametres", icon: Crown, desc: "Configuration" },
-];
 
 export default function ConnexionPage() {
   const router = useRouter();
-  const { signIn } = useAuth();
-  const [email, setEmail] = React.useState("fatou.diallo@demo.getadm");
+  const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       toast.error("Champs requis", { description: "Renseignez votre e-mail et votre mot de passe." });
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      signIn("candidat");
-      toast.success("Connexion réussie", { description: "Bienvenue dans votre espace candidat." });
-      router.push("/espace");
-    }, 600);
+    const res = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+    });
+    setLoading(false);
+    if (res?.error) {
+      toast.error("Connexion échouée", { description: "E-mail ou mot de passe incorrect." });
+      return;
+    }
+    // Fetch session to determine role-based redirect
+    const sess = await fetch("/api/auth/session").then((r) => r.json());
+    const role = sess?.user?.role;
+    toast.success("Connexion réussie", { description: `Bienvenue, ${sess?.user?.name}.` });
+    if (role === "CANDIDAT") router.push("/espace");
+    else if (role === "FINANCIER") router.push("/admin/finance");
+    else if (role === "CONSEILLER") router.push("/admin/dossiers");
+    else if (role === "SUPER_ADMIN") router.push("/admin/parametres");
+    else router.push("/admin");
   };
 
-  const demo = (role: Role, href: string) => {
-    signIn(role);
-    toast.success("Mode démo activé", { description: `Vous explorez en tant que ${role.replace("-", " ")}.` });
+  const demoLogin = async (demoEmail: string, href: string, label: string) => {
+    setLoading(true);
+    const res = await signIn("credentials", {
+      email: demoEmail,
+      password: "demo1234",
+      redirect: false,
+    });
+    setLoading(false);
+    if (res?.error) {
+      toast.error("Erreur", { description: "Compte démo indisponible." });
+      return;
+    }
+    toast.success("Mode démo activé", { description: `Vous explorez en tant que ${label}.` });
     router.push(href);
   };
 
-  const d = DOSSIER_DEMO_CANDIDAT;
-  const univ = UNIVERSITES.find((u) => u.id === d.universiteId);
-  const form = formationParId(d.formationId);
+  const DEMO_ACCOUNTS = [
+    { email: "fatou.diallo@demo.getadm", label: "Candidat", href: "/espace", icon: ShieldCheck, desc: "Suivi du dossier" },
+    { email: "a.diallo@getadm.com", label: "Conseiller", href: "/admin/dossiers", icon: Headset, desc: "Gère les dossiers" },
+    { email: "m.kouassi@getadm.com", label: "Financier", href: "/admin/finance", icon: Wallet, desc: "Transactions" },
+    { email: "y.bensaid@getadm.com", label: "Admin", href: "/admin", icon: ShieldCheck, desc: "Pilotage" },
+    { email: "o.toure@getadm.com", label: "Super Admin", href: "/admin/parametres", icon: Crown, desc: "Configuration" },
+  ];
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
-      {/* Left: editorial + boarding pass */}
-      <div className="relative hidden flex-col justify-between bg-porcelaine p-10 lg:flex">
-        <div className="rule-or absolute inset-x-0 top-0" aria-hidden />
-        <Link href="/" className="flex items-center gap-2.5">
+    <div className="flex min-h-screen items-center justify-center bg-porcelaine p-6">
+      <div className="w-full max-w-md">
+        <Link href="/" className="mb-8 flex items-center justify-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-md bg-lapis text-blanc">
             <Plane className="h-4 w-4 -rotate-12" strokeWidth={1.75} />
           </span>
@@ -69,50 +82,10 @@ export default function ConnexionPage() {
           </span>
         </Link>
 
-        <div className="max-w-md">
-          <p className="eyebrow-or mb-4">Votre passage vers l'international</p>
-          <h1 className="font-display text-4xl font-bold leading-tight tracking-tight text-encre">
-            Reprenez votre dossier<br />là où vous l'avez laissé.
-          </h1>
-          <p className="mt-4 text-ardoise">
-            Suivi en temps réel, conseiller dédié, attestation officielle. Une seule plateforme, du premier document au tampon final.
-          </p>
-
-          <div className="mt-8">
-            <BoardingPass
-              variant="large"
-              animateOnMount
-              reference={d.reference}
-              universiteNom={univ?.nom ?? ""}
-              formationLabel={`${form?.niveau ?? ""} · ${form?.domaine ?? ""}`}
-              etat={d.etat}
-              etapeActuelle={d.etapeActuelle}
-              etapeTotal={12}
-              conseiller={d.conseillerNom}
-              fraisAgence={d.fraisAgence}
-              mrz={d.mrz}
-            />
-          </div>
-        </div>
-
-        <p className="font-mono text-[11px] uppercase tracking-eyebrow text-ardoise">
-          Confidentiel — GET Admission
-        </p>
-      </div>
-
-      {/* Right: form */}
-      <div className="flex items-center justify-center bg-blanc p-6 sm:p-10">
-        <div className="w-full max-w-sm">
-          <div className="lg:hidden mb-8 flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-lapis text-blanc">
-              <Plane className="h-4 w-4 -rotate-12" strokeWidth={1.75} />
-            </span>
-            <span className="font-display text-base font-bold text-encre">GET Admission</span>
-          </div>
-
+        <div className="rounded-lg border border-ligne bg-blanc p-8 shadow-md">
           <p className="eyebrow mb-2">Connexion</p>
-          <h2 className="font-display text-2xl font-bold text-encre">Bon retour parmi nous.</h2>
-          <p className="mt-1.5 text-sm text-ardoise">Connectez-vous pour accéder à votre espace candidat.</p>
+          <h1 className="font-display text-2xl font-bold text-encre">Bon retour parmi nous.</h1>
+          <p className="mt-1.5 text-sm text-ardoise">Connectez-vous pour accéder à votre espace.</p>
 
           <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
             <div className="space-y-1.5">
@@ -133,8 +106,7 @@ export default function ConnexionPage() {
               </div>
             </div>
             <Button type="submit" className="w-full bg-lapis text-blanc hover:bg-lapis/90" disabled={loading}>
-              {loading ? "Connexion…" : "Se connecter"}
-              {!loading && <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} />}
+              {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Connexion…</> : <>Se connecter <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} /></>}
             </Button>
           </form>
 
@@ -143,23 +115,24 @@ export default function ConnexionPage() {
             <Link href="/inscription" className="font-medium text-lapis-clair hover:underline">Créer mon dossier</Link>
           </p>
 
-          <div className="my-8 flex items-center gap-3">
+          <div className="my-6 flex items-center gap-3">
             <Separator className="flex-1 bg-ligne" />
-            <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Explorer en démo</span>
+            <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Comptes démo · mot de passe demo1234</span>
             <Separator className="flex-1 bg-ligne" />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            {DEMO_ROLES.map((r) => (
+            {DEMO_ACCOUNTS.map((acc) => (
               <button
-                key={r.role}
+                key={acc.email}
                 type="button"
-                onClick={() => demo(r.role, r.href)}
-                className="group flex flex-col items-start gap-1 rounded-md border border-ligne bg-blanc p-3 text-left transition-all hover:-translate-y-0.5 hover:border-lapis/40 hover:shadow-sm"
+                disabled={loading}
+                onClick={() => demoLogin(acc.email, acc.href, acc.label)}
+                className="group flex flex-col items-start gap-1 rounded-md border border-ligne bg-blanc p-3 text-left transition-all hover:-translate-y-0.5 hover:border-lapis/40 hover:shadow-sm disabled:opacity-50"
               >
-                <r.icon className="h-4 w-4 text-lapis" strokeWidth={1.5} />
-                <span className="text-sm font-medium text-encre">{r.label}</span>
-                <span className="text-[11px] text-ardoise">{r.desc}</span>
+                <acc.icon className="h-4 w-4 text-lapis" strokeWidth={1.5} />
+                <span className="text-sm font-medium text-encre">{acc.label}</span>
+                <span className="text-[11px] text-ardoise">{acc.desc}</span>
               </button>
             ))}
           </div>

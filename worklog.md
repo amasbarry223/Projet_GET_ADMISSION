@@ -459,3 +459,69 @@ Stage Summary:
 - Admin dashboard : 5 KPI + 4 charts + liste conseillers avatars + table dossiers récents + alert contextuelle.
 - Espace dashboard : 4 KPI + timeline 12 étapes + table paiements + cartes destination/conseillère/raccourcis.
 - Palette signature lapis/or conservée pour vitrine + accents ; couleurs vives pour dashboards (cohérence enterprise).
+
+---
+Task ID: 18
+Agent: Lead (main)
+Task: Application 100% dynamique — vraie base de données + RBAC NextAuth + API REST.
+
+Work Log:
+- Schéma Prisma complet (prisma/schema.prisma) :
+  * 10 modèles : User (avec Role enum RBAC), Universite, Formation, Dossier (avec EtatDossier enum), Piece, Historique, Paiement, Conversation, Message, Attestation.
+  * Relations complètes (candidat/conseiller dossiers, conversation candidat/conseiller, historique auteur, attestation émetteur).
+  * SQLite (limitations gérées : arrays en JSON string, enum en string).
+- Push schema + seed (prisma/seed.ts avec tsx) :
+  * 6 users démo (1 candidat Fatou, 2 conseillers Aïssatou+Olivier, 1 financier Marc, 1 admin Yasmine, 1 super admin Ousmane) — password hashé bcrypt (demo1234).
+  * 10 universités (France, Canada, Belgique, Maroc, Afrique du Sud, Sénégal, Tunisie, Liban, Cameroun).
+  * 13 formations rattachées.
+  * 1 dossier démo complet (GETADM-2026-0048, PRE_ADMISSION) avec 5 pièces, 7 historiques, 1 paiement (850 000 FCFA), 1 conversation (5 messages).
+- Authentification RBAC NextAuth v4 :
+  * src/lib/auth.ts : CredentialsProvider + bcrypt compare + JWT session avec rôle.
+  * src/types/next-auth.d.ts : étend Session/JWT avec id, role, prenom, nom.
+  * src/app/api/auth/[...nextauth]/route.ts : handler NextAuth.
+  * src/middleware.ts : withAuth — /espace* nécessite auth, /admin* nécessite rôle staff (CONSEILLER+). Candidat redirigé s'il tente /admin.
+  * src/lib/use-rbac.ts : hook useRBAC() pour vérifier permissions côté client.
+  * src/components/providers.tsx : SessionProvider NextAuth ajouté.
+- API REST (8 routes) :
+  * GET /api/universites (liste publique filtrable pays/domaine/q)
+  * GET /api/universites/[slug] (détail public avec formations)
+  * GET /api/dossiers (candidat: ses dossiers ; staff: tous)
+  * GET /api/dossiers/[id] (détail avec RBAC — candidat ne voit que son dossier)
+  * POST /api/dossiers/[id]/workflow (transition de statut, staff uniquement)
+  * POST /api/register (inscription candidat avec validation + bcrypt hash)
+  * GET/POST /api/messages (conversation par dossierId + envoi message avec RBAC)
+  * GET/POST /api/paiements (liste/enregistrement paiement avec RBAC)
+  * GET /api/admin/users (liste staff uniquement)
+  * GET /api/admin/transactions (liste transactions staff uniquement)
+- Refonte auth pages :
+  * /connexion : signIn NextAuth credentials + redirect basé sur rôle (candidat→/espace, conseiller→/admin/dossiers, financier→/admin/finance, admin→/admin, super-admin→/admin/parametres). 5 boutons démo (comptes réels seed).
+  * /inscription : POST /api/register + auto-login signIn + redirect /espace.
+- Refonte shells (EspaceShell + AdminShell) :
+  * Remplacement useAuth (fake) → useSession (NextAuth réel).
+  * UserCard affiche prenom/nom/rôle réels de la session.
+  * signOut NextAuth (callbackUrl: "/").
+  * RoleSelector retiré de l'espace (auth réelle — on ne change pas de rôle arbitrairement).
+- Refonte /espace/page.tsx (dashboard candidat) :
+  * Remplacement imports mock → fetch /api/dossiers (useEffect + loading state + error state).
+  * Données réelles : référence GETADM-2026-0048, Sorbonne, Master Droit, PRE_ADMISSION, 1 paiement, 7 historiques — tout depuis la DB.
+  * etatParCode mis à jour pour accepter codes majuscules (DB) ou minuscules (mock).
+  * BoardingPass + StampBadge acceptent etat: string (normalisation interne).
+- Vérification end-to-end (curl + browser) :
+  * Login curl (CSRF + credentials) → session JWT "Fatou Diallo | CANDIDAT". ✓
+  * /espace (authentifié) → 200, /admin (candidat) → 307 (bloqué par middleware RBAC). ✓
+  * /api/dossiers (authentifié) → 1 dossier GETADM-2026-0048 PRE_ADMISSION avec universite/formation/paiements/historiques. ✓
+  * Browser : click bouton "Candidat" démo → redirect /espace → dashboard affiche GETADM-2026-0048, Sorbonne, Master Droit, Pré-admission (données DB réelles). ✓
+  * Admin (Yasmine) : /admin → 200, /espace → 200 (staff peut accéder aux deux). ✓
+- Lint : 0 erreur, 0 warning. Routes publiques 200, protégées 307 (redirect login), API auth 401. 0 erreur dev.log.
+
+Stage Summary:
+- Application 100% dynamique : vraie base SQLite (Prisma), vraie auth RBAC (NextAuth JWT), API REST complète (10 routes).
+- Plus aucun import de données mock dans /espace/page.tsx — tout vient de /api/dossiers qui interroge la DB.
+- RBAC fonctionnel : middleware protège /espace (auth) et /admin (rôle staff). Candidat bloqué sur /admin.
+- 5 comptes démo seedés (mot de passe demo1234) : candidat, conseiller, financier, admin, super-admin.
+- Comptes démo (mot de passe demo1234) :
+  - candidat:    fatou.diallo@demo.getadm → /espace
+  - conseiller:  a.diallo@getadm.com → /admin/dossiers
+  - financier:   m.kouassi@getadm.com → /admin/finance
+  - admin:       y.bensaid@getadm.com → /admin
+  - super admin: o.toure@getadm.com → /admin/parametres

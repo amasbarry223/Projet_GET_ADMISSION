@@ -3,14 +3,14 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
-import { Plane, LayoutDashboard, FolderOpen, Building2, Wallet, Users, Stamp, Settings, LogOut, Menu, Search, Bell } from "lucide-react";
+import { Plane, LayoutDashboard, FolderOpen, Building2, Wallet, Users, Stamp, Settings, LogOut, Menu, Search, Bell, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { RoleSelector } from "@/components/site/role-selector";
-import { useAuth } from "@/lib/auth-context";
 
 const SECTIONS = [
   { title: "Pilotage", items: [{ href: "/admin", label: "Tableau de bord", icon: LayoutDashboard, exact: true }] },
@@ -82,20 +82,30 @@ function AdminBrand() {
 }
 
 function AdminUser() {
-  const { user, signOut } = useAuth();
-  const u = user ?? { prenom: "Yasmine", nom: "Bensaid", initiales: "YB", role: "admin" as const };
+  const { data: session, status } = useSession();
+  const u = session?.user;
+  if (status === "loading") {
+    return (
+      <div className="border-t border-ligne p-3">
+        <div className="flex items-center gap-2.5 rounded-md p-2">
+          <Loader2 className="h-8 w-8 animate-spin text-ardoise" />
+        </div>
+      </div>
+    );
+  }
+  const initiales = u ? `${u.prenom[0] ?? ""}${u.nom[0] ?? ""}` : "?";
   return (
     <div className="border-t border-ligne p-3">
       <div className="flex items-center gap-2.5 rounded-md p-2">
         <Avatar className="h-8 w-8 border border-ligne">
-          <AvatarFallback className="bg-lapis/10 font-mono text-xs font-semibold text-lapis">{u.initiales}</AvatarFallback>
+          <AvatarFallback className="bg-lapis/10 font-mono text-xs font-semibold text-lapis">{initiales}</AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-encre">{u.prenom} {u.nom}</p>
-          <p className="truncate text-xs capitalize text-ardoise">{u.role.replace("-", " ")}</p>
+          <p className="truncate text-sm font-medium text-encre">{u?.prenom} {u?.nom}</p>
+          <p className="truncate text-xs capitalize text-ardoise">{(u?.role ?? "").replace(/_/g, " ").toLowerCase()}</p>
         </div>
-        <Button asChild variant="ghost" size="icon" className="h-7 w-7 text-ardoise hover:text-carmin" aria-label="Se déconnecter">
-          <Link href="/" onClick={() => signOut()}><LogOut className="h-3.5 w-3.5" strokeWidth={1.5} /></Link>
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-ardoise hover:text-carmin" aria-label="Se déconnecter" onClick={() => signOut({ callbackUrl: "/" })}>
+          <LogOut className="h-3.5 w-3.5" strokeWidth={1.5} />
         </Button>
       </div>
     </div>

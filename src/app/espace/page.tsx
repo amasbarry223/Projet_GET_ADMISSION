@@ -9,29 +9,75 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BoardingPass } from "@/components/getadm/boarding-pass";
 import { KpiCard, ChartSectionHeader } from "@/components/admin/kpi-card";
-import { DOSSIER_DEMO_CANDIDAT } from "@/lib/mock/dossiers";
-import { formationParId } from "@/lib/mock/formations";
-import { UNIVERSITES } from "@/lib/mock/universites";
 import { ETATS, etatParCode } from "@/lib/mock/etats";
-import { CONVERSATIONS } from "@/lib/mock/messages";
 import { formatFCFA, formatFCFACompact, formatDate } from "@/lib/format";
-import { CreditCard, MessageSquare, Stamp, ArrowRight, CheckCircle2, Clock, MapPin, GraduationCap, FileText, Wallet, Sparkles, TrendingUp } from "lucide-react";
+import { CreditCard, MessageSquare, Stamp, ArrowRight, CheckCircle2, Clock, MapPin, GraduationCap, FileText, Wallet, Sparkles, TrendingUp, Loader2, AlertCircle } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { cn } from "@/lib/utils";
 
-export default function EspaceDashboard() {
-  const d = DOSSIER_DEMO_CANDIDAT;
-  const univ = UNIVERSITES.find((u) => u.id === d.universiteId);
-  const form = formationParId(d.formationId);
-  const nonLus = CONVERSATIONS.reduce((acc, c) => acc + c.nonLusCandidat, 0);
-  const dateParEtat = new Map(d.historique.map((h) => [h.etat, h.date]));
+type Dossier = {
+  id: string;
+  reference: string;
+  etat: string;
+  etapeActuelle: number;
+  fraisAgence: number;
+  mrz: string;
+  candidat: { prenom: string; nom: string; nationalite: string };
+  universite: { nom: string; pays: string; drapeau: string; ville: string; slug: string };
+  formation: { intitule: string; niveau: string; domaine: string };
+  conseiller: { prenom: string; nom: string } | null;
+  pieces: { id: string; libelle: string; statut: string }[];
+  paiements: { id: string; reference: string; date: string; montant: number; moyen: string; statut: string }[];
+  historiques: { id: string; date: string; etat: string; auteur: string; note: string }[];
+  conversation: { nonLusCandidat: number } | null;
+};
 
-  // Données d'avancement du dossier (12 étapes, étapes franchies)
-  const avancementData = ETATS.map((e) => ({
-    etape: `Ét. ${e.ordre}`,
-    progression: e.ordre <= d.etapeActuelle ? 1 : 0,
-    libelle: e.libelle,
-  }));
+export default function EspaceDashboard() {
+  const [dossier, setDossier] = React.useState<Dossier | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    fetch("/api/dossiers")
+      .then((r) => {
+        if (!r.ok) throw new Error("Erreur");
+        return r.json();
+      })
+      .then((data: Dossier[]) => {
+        setDossier(data[0] ?? null);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError("Impossible de charger votre dossier.");
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
+      </div>
+    );
+  }
+
+  if (error || !dossier) {
+    return (
+      <Alert className="border-ambre/40 bg-ambre/5">
+        <AlertCircle className="h-4 w-4 text-ambre" strokeWidth={1.5} />
+        <AlertTitle className="font-display text-sm font-bold text-encre">Aucun dossier</AlertTitle>
+        <AlertDescription className="text-sm text-ardoise">
+          Vous n'avez pas encore de dossier. <Link href="/espace/dossier" className="font-medium text-lapis-clair hover:underline">Créer mon dossier</Link>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  const d = dossier;
+  const univ = d.universite;
+  const form = d.formation;
+  const nonLus = d.conversation?.nonLusCandidat ?? 0;
+  const dateParEtat = new Map(d.historiques.map((h) => [h.etat.toLowerCase(), h.date]));
 
   return (
     <div className="space-y-6">
@@ -206,7 +252,7 @@ export default function EspaceDashboard() {
                 <span className="truncate">{form?.intitule}</span>
               </div>
               <Button asChild variant="ghost" size="sm" className="mt-2 -ml-2 text-bleu-vif hover:bg-bleu-pale">
-                <Link href="/universites/sorbonne-universite">Voir l'université <ArrowRight className="ml-1 h-3 w-3" strokeWidth={1.5} /></Link>
+                <Link href={`/universites/${univ.slug}`}>Voir l'université <ArrowRight className="ml-1 h-3 w-3" strokeWidth={1.5} /></Link>
               </Button>
             </div>
           </Card>
@@ -235,14 +281,14 @@ export default function EspaceDashboard() {
               <div className="relative h-12 w-12 flex-none overflow-hidden rounded-full border-2 border-or-pale">
                 <Image
                   src="/images/advisor-portrait.png"
-                  alt={d.conseillerNom}
+                  alt={d.conseiller ? `${d.conseiller.prenom} ${d.conseiller.nom}` : "Conseiller"}
                   fill
                   className="object-cover"
                   sizes="48px"
                 />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-encre">{d.conseillerNom}</p>
+                <p className="text-sm font-semibold text-encre">{d.conseiller ? `${d.conseiller.prenom} ${d.conseiller.nom}` : "Non affecté"}</p>
                 <p className="text-xs text-ardoise">Conseillère GET Admission</p>
               </div>
               <Button asChild variant="outline" size="sm">

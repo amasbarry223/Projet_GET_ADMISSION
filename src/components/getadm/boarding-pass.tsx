@@ -13,7 +13,7 @@ type Props = {
   reference: string;
   universiteNom: string;
   formationLabel: string; // ex. "Master · Droit international"
-  etat: EtatCode;
+  etat: EtatCode | string;
   etapeActuelle: number;
   etapeTotal: number;
   conseiller: string;
@@ -129,7 +129,7 @@ export function BoardingPass({
   );
 }
 
-export function StampBadge({ etat, animate = false }: { etat: EtatCode; animate?: boolean }) {
+export function StampBadge({ etat, animate = false }: { etat: EtatCode | string; animate?: boolean }) {
   const reduce = useReducedMotion();
   const e = etatParCode(etat);
   const couleur = COULEUR_BADGE[e.couleur];

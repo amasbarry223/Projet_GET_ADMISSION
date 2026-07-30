@@ -1,8 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// GET Admission — schéma complet (RBAC + dossiers + paiements + messages)
 
 generator client {
   provider = "prisma-client-js"
@@ -13,20 +9,210 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+/* ------------------------------- RBAC ------------------------------- */
+
+enum Role {
+  CANDIDAT
+  CONSEILLER
+  FINANCIER
+  ADMIN
+  SUPER_ADMIN
 }
 
-model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  prenom        String
+  nom           String
+  telephone     String?
+  nationalite   String?
+  dateNaissance String?
+  adresse       String?
+  photoUrl      String?
+  role          Role     @default(CANDIDAT)
+  actif         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  dossiersCandidat     Dossier[]      @relation("CandidatDossiers")
+  dossiersConseiller   Dossier[]      @relation("ConseillerDossiers")
+  messages             Message[]
+  paiements            Paiement[]
+  historiquesAuteur    Historique[]  @relation("HistoriqueAuteur")
+  attestationsEmises   Attestation[]  @relation("AttestationEmetteur")
+  conversationsCandidat   Conversation[] @relation("ConvCandidat")
+  conversationsConseiller Conversation[] @relation("ConvConseiller")
+}
+
+/* --------------------------- Catalogue --------------------------- */
+
+model Universite {
+  id          String      @id @default(cuid())
+  slug        String      @unique
+  nom         String
+  pays        String
+  drapeau     String
+  ville       String
+  ecusson     String
+  domaines    String // JSON array as string (SQLite limitation)
+  description String
+  pointsForts String // JSON array as string
+  imageCouleur String
+  fraisMin    Int
+  fraisMax    Int
+  partenaire  Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  formations  Formation[]
+  dossiers    Dossier[]
+}
+
+model Formation {
+  id             String      @id @default(cuid())
+  universiteId   String
+  intitule       String
+  niveau         String // Licence | Master | Doctorat
+  domaine        String
+  duree          String
+  fraisAgence    Int
+  prerequis      String // JSON array
+  piecesRequises String // JSON array
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  universite     Universite  @relation(fields: [universiteId], references: [id], onDelete: Cascade)
+  dossiers       Dossier[]
+}
+
+/* --------------------------- Dossiers --------------------------- */
+
+enum EtatDossier {
+  BROUILLON
+  SOUMIS
+  VERIFICATION
+  CORRECTION
+  PAIEMENT_ATTENTE
+  PAIEMENT_CONFIRME
+  TRANSMIS
+  ATTENTE_REPONSE
+  PRE_ADMISSION
+  REFUSE
+  ATTESTATION
+  CLOTURE
+}
+
+model Dossier {
+  id              String       @id @default(cuid())
+  reference       String       @unique
+  candidatId      String
+  universiteId    String
+  formationId     String
+  etat            EtatDossier  @default(BROUILLON)
+  etapeActuelle   Int          @default(1)
+  conseillerId    String?
+  fraisAgence     Int
+  paiementStatut  String       @default("aucun") // aucun | partiel | complet
+  mrz             String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  candidat        User         @relation("CandidatDossiers", fields: [candidatId], references: [id], onDelete: Cascade)
+  conseiller      User?        @relation("ConseillerDossiers", fields: [conseillerId], references: [id])
+  universite      Universite   @relation(fields: [universiteId], references: [id])
+  formation       Formation    @relation(fields: [formationId], references: [id])
+  pieces          Piece[]
+  paiements       Paiement[]
+  historiques     Historique[]
+  attestation     Attestation?
+  conversation    Conversation?
+}
+
+model Piece {
+  id           String    @id @default(cuid())
+  dossierId    String
+  libelle      String
+  statut       String    @default("manquante") // manquante | televersee | a_corriger | validee
+  type         String    @default("pdf") // pdf | image | autre
+  taille       String?
+  nomFichier   String?
+  televerseeLe DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  dossier      Dossier   @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+}
+
+model Historique {
+  id        String      @id @default(cuid())
+  dossierId String
+  date      DateTime    @default(now())
+  etat      EtatDossier
+  auteur    String
+  note      String
+  dossier   Dossier     @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  auteurUser User?      @relation("HistoriqueAuteur", fields: [auteurId], references: [id])
+  auteurId  String?
+
+  @@index([dossierId])
+}
+
+/* --------------------------- Finance --------------------------- */
+
+model Paiement {
+  id         String    @id @default(cuid())
+  reference  String    @unique
+  dossierId  String
+  candidatId String
+  date       DateTime  @default(now())
+  montant    Int
+  moyen      String // Orange Money | Moov Money | Wave | Carte bancaire | Espèces
+  statut     String    @default("en_attente") // en_attente | reussi | echoue
+  tranche    String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  dossier    Dossier   @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  candidat   User      @relation(fields: [candidatId], references: [id])
+}
+
+/* --------------------------- Messagerie --------------------------- */
+
+model Conversation {
+  id              String    @id @default(cuid())
+  dossierId       String    @unique
+  candidatId      String
+  conseillerId    String?
+  nonLusCandidat  Int       @default(0)
+  nonLusConseiller Int      @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  dossier         Dossier   @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  candidat        User      @relation("ConvCandidat", fields: [candidatId], references: [id])
+  conseiller      User?     @relation("ConvConseiller", fields: [conseillerId], references: [id])
+  messages        Message[]
+}
+
+model Message {
+  id              String    @id @default(cuid())
+  conversationId  String
+  auteurId        String
+  texte           String
+  pieceJointeNom  String?
+  pieceJointeTaille String?
+  createdAt       DateTime  @default(now())
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  auteur          User      @relation(fields: [auteurId], references: [id])
+}
+
+/* --------------------------- Attestations --------------------------- */
+
+model Attestation {
+  id            String    @id @default(cuid())
+  reference     String    @unique
+  dossierId     String    @unique
+  codeVerification String @unique
+  dateEmission  DateTime  @default(now())
+  modeRemise    String    @default("telechargement") // telechargement | agence
+  emetteurId    String
+  dossier       Dossier   @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  emetteur      User      @relation("AttestationEmetteur", fields: [emetteurId], references: [id])
 }
