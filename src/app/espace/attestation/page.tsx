@@ -263,7 +263,7 @@ export default function AttestationPage() {
           <div className="border-t border-ligne bg-porcelaine px-6 py-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-2">
-                <Button onClick={() => toast.success("Téléchargement", { description: `${referenceAtt.toLowerCase()}.pdf` })}>
+                <Button onClick={() => window.open(`/api/attestation-pdf/${dossier.id}`, "_blank")}>
                   <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Télécharger le PDF
                 </Button>
                 <div className="flex items-center gap-2 rounded-md border border-ligne bg-blanc px-3 py-1.5">

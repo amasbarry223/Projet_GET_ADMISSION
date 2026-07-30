@@ -185,7 +185,7 @@ export default function PaiementPage() {
           </div>
 
           <div className="mt-6 flex flex-wrap justify-center gap-2">
-            <Button variant="outline" onClick={() => toast.success("Reçu téléchargé", { description: `${receiptRef.toLowerCase()}.pdf` })}>
+            <Button variant="outline" onClick={() => window.open(`/api/recu/${lastPaiement?.id ?? ""}`, "_blank")}>
               <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Télécharger le reçu
             </Button>
             <Button variant="ghost" onClick={() => setStatus("idle")}>Nouveau paiement</Button>

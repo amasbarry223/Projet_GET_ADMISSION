@@ -24,6 +24,10 @@ export async function GET() {
       dateNaissance: true,
       adresse: true,
       photoUrl: true,
+      kycType: true,
+      kycNumero: true,
+      kycVerifie: true,
+      kycVerifieLe: true,
       role: true,
       createdAt: true,
     },
@@ -50,6 +54,9 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
   const { prenom, nom, telephone, nationalite, dateNaissance, adresse } = parsed.data;
+  // Champs KYC (optionnels)
+  const kycType = body.kycType;
+  const kycNumero = body.kycNumero;
 
   const updated = await db.user.update({
     where: { id: userId },
@@ -60,8 +67,10 @@ export async function PUT(request: Request) {
       ...(nationalite !== undefined && { nationalite }),
       ...(dateNaissance !== undefined && { dateNaissance }),
       ...(adresse !== undefined && { adresse }),
+      ...(kycType !== undefined && { kycType }),
+      ...(kycNumero !== undefined && { kycNumero }),
     },
-    select: { id: true, email: true, prenom: true, nom: true, telephone: true, nationalite: true, dateNaissance: true, adresse: true },
+    select: { id: true, email: true, prenom: true, nom: true, telephone: true, nationalite: true, dateNaissance: true, adresse: true, kycType: true, kycNumero: true, kycVerifie: true, kycVerifieLe: true },
   });
 
   return NextResponse.json(updated);

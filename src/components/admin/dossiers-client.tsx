@@ -87,7 +87,7 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
       {
         label: "Exporter le dossier",
         icon: FileText,
-        onClick: (row) => toast.success("Export généré", { description: `${row.reference}.pdf téléchargé.` }),
+        onClick: (row) => window.open(`/api/admin/export/dossiers`, "_blank"),
       },
     ],
     [router]
@@ -267,11 +267,7 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
                 variant="outline"
                 size="sm"
                 className="h-8 border-ligne bg-blanc"
-                onClick={() =>
-                  toast.success("Export généré", {
-                    description: `${count} dossier${count > 1 ? "s" : ""} exporté${count > 1 ? "s" : ""} en CSV.`,
-                  })
-                }
+                onClick={() => window.open("/api/admin/export/dossiers", "_blank")}
               >
                 <Download className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Exporter
               </Button>

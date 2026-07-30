@@ -22,6 +22,10 @@ type Profile = {
   nationalite: string | null;
   dateNaissance: string | null;
   adresse: string | null;
+  kycType: string | null;
+  kycNumero: string | null;
+  kycVerifie: boolean;
+  kycVerifieLe: string | null;
   role: string;
 };
 
@@ -183,7 +187,7 @@ export default function ProfilPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium text-encre">Type de pièce</Label>
-                  <Select value={kycType} onValueChange={setKycType}>
+                  <Select value={profile?.kycType ?? kycType} onValueChange={(v) => { setKycType(v); setProfile(profile ? { ...profile, kycType: v } : profile); }}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="passeport">Passeport</SelectItem>
@@ -193,20 +197,25 @@ export default function ProfilPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium text-encre">Numéro</Label>
-                  <Input defaultValue="SN1234567" className="font-mono" />
+                  <Input defaultValue={profile?.kycNumero ?? ""} className="font-mono" onChange={(e) => setProfile({ ...profile, kycNumero: e.target.value })} />
                 </div>
               </div>
 
               <div className="rounded-md border border-ligne bg-porcelaine p-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-vert/10">
-                    <CheckCircle2 className="h-5 w-5 text-vert" strokeWidth={1.5} />
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-md ${profile?.kycVerifie ? "bg-vert/10" : "bg-ambre/10"}`}>
+                    <CheckCircle2 className={`h-5 w-5 ${profile?.kycVerifie ? "text-vert" : "text-ambre"}`} strokeWidth={1.5} />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-encre">Pièce vérifiée</p>
-                    <p className="text-xs text-ardoise">Passeport · Vérifié le 14 janvier 2026</p>
+                    <p className="text-sm font-medium text-encre">{profile?.kycVerifie ? "Pièce vérifiée" : "Vérification en attente"}</p>
+                    <p className="text-xs text-ardoise">
+                      {profile?.kycType === "passeport" ? "Passeport" : profile?.kycType === "cni" ? "CNI" : "Aucune pièce"}
+                      {profile?.kycVerifie && profile?.kycVerifieLe ? ` · Vérifié le ${new Date(profile.kycVerifieLe).toLocaleDateString("fr-FR")}` : ""}
+                    </p>
                   </div>
-                  <Badge className="ml-auto bg-vert/10 font-mono text-[10px] uppercase text-vert">Vérifiée</Badge>
+                  <Badge className={`ml-auto font-mono text-[10px] uppercase ${profile?.kycVerifie ? "bg-vert/10 text-vert" : "bg-ambre/10 text-ambre"}`}>
+                    {profile?.kycVerifie ? "Vérifiée" : "En attente"}
+                  </Badge>
                 </div>
               </div>
 

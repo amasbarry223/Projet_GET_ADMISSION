@@ -233,7 +233,7 @@ export function AttestationsClient({
                   <Badge className="bg-vert/10 font-mono text-[10px] uppercase text-vert">
                     {d.etat?.toLowerCase() === "cloture" ? "Récupérée" : "Disponible"}
                   </Badge>
-                  <Button variant="ghost" size="sm" onClick={() => toast.success("Téléchargement")}>
+                  <Button variant="ghost" size="sm" onClick={() => window.open(`/api/attestation-pdf/${d.id}`, "_blank")}>
                     <FileText className="h-3.5 w-3.5" />
                   </Button>
                 </li>

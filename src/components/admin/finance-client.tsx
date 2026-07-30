@@ -92,12 +92,12 @@ export function FinanceClient({
       {
         label: "Voir le reçu",
         icon: Eye,
-        onClick: (row) => toast.success("Reçu ouvert", { description: `${row.reference} — ${row.candidat}.` }),
+        onClick: (row) => window.open(`/api/recu/${row.id}`, "_blank"),
       },
       {
         label: "Télécharger le reçu",
         icon: FileText,
-        onClick: (row) => toast.success("Reçu téléchargé", { description: `${row.reference}.pdf` }),
+        onClick: (row) => window.open(`/api/recu/${row.id}`, "_blank"),
       },
       {
         label: "Relancer la transaction",
@@ -284,10 +284,10 @@ export function FinanceClient({
               </form>
             </DialogContent>
           </Dialog>
-          <Button variant="outline" onClick={() => toast.success("Export CSV", { description: "transactions-export.csv" })}>
+          <Button variant="outline" onClick={() => window.open("/api/admin/export/transactions", "_blank")}>
             <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Export CSV
           </Button>
-          <Button variant="outline" onClick={() => toast.success("Export PDF", { description: "rapport-financier.pdf" })}>
+          <Button variant="outline" onClick={() => window.open("/api/admin/export/dossiers", "_blank")}>
             <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Export PDF
           </Button>
         </div>
