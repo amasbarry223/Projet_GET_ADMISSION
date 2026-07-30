@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { universiteSchema, validate } from "@/lib/validations";
+import { uniqueSlug } from "@/lib/utils";
 
 // GET /api/universites — liste publique (catalogue)
 export async function GET(request: Request) {
@@ -34,4 +38,78 @@ export async function GET(request: Request) {
   }));
 
   return NextResponse.json(result);
+}
+
+// POST /api/universites — créer une université (staff uniquement)
+//
+// Body: { nom, pays, drapeau, ville, ecusson, domaines[], description,
+//         pointsForts[], imageCouleur, fraisMin, fraisMax, partenaire? }
+// - Génère le slug depuis le nom (avec suffixe numérique si collision)
+export async function POST(request: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  }
+
+  const role = (session.user as any).role;
+  if (role === "CANDIDAT") {
+    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
+  }
+
+  const parsed = validate(universiteSchema, body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
+  const {
+    nom, pays, drapeau, ville, ecusson, domaines,
+    description, pointsForts, imageCouleur, fraisMin, fraisMax, partenaire,
+  } = parsed.data;
+
+  // Validation : fraisMax >= fraisMin
+  if (fraisMax < fraisMin) {
+    return NextResponse.json(
+      { error: "fraisMax doit être supérieur ou égal à fraisMin" },
+      { status: 400 }
+    );
+  }
+
+  // Génère un slug unique
+  const slug = await uniqueSlug(nom, async (s) => {
+    const found = await db.universite.findUnique({ where: { slug: s }, select: { id: true } });
+    return !!found;
+  });
+
+  const created = await db.universite.create({
+    data: {
+      slug,
+      nom: nom.trim(),
+      pays: pays.trim(),
+      drapeau,
+      ville: ville.trim(),
+      ecusson,
+      domaines: JSON.stringify(domaines),
+      description,
+      pointsForts: JSON.stringify(pointsForts),
+      imageCouleur,
+      fraisMin,
+      fraisMax,
+      partenaire: partenaire ?? true,
+    },
+  });
+
+  // Recharger avec formations pour cohérence avec GET
+  const result = {
+    ...created,
+    domaines: JSON.parse(created.domaines),
+    pointsForts: JSON.parse(created.pointsForts),
+  };
+
+  return NextResponse.json(result, { status: 201 });
 }

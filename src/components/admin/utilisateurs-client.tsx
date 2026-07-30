@@ -27,6 +27,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatDate } from "@/lib/format";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Plus,
@@ -39,6 +40,7 @@ import {
   Mail,
   UserX,
   Trash2,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -68,9 +70,91 @@ const ROLE_TONE: Record<RoleInterne, string> = {
   "Super Admin": "bg-or/15 text-or",
 };
 
+// Conversion entre les libellés français (UI) et les codes DB (API).
+const ROLE_FR_TO_DB: Record<RoleInterne, string> = {
+  Conseiller: "CONSEILLER",
+  Financier: "FINANCIER",
+  Admin: "ADMIN",
+  "Super Admin": "SUPER_ADMIN",
+};
+
 export function UtilisateursClient({ initialData }: { initialData: UserRow[] }) {
+  const router = useRouter();
   const [inviteOpen, setInviteOpen] = React.useState(false);
-  const [data] = React.useState<UserRow[]>(initialData);
+  // On lit directement la prop `initialData` (pas de useState) afin que
+  // `router.refresh()` (re-render du Server Component) se reflète dans l'UI.
+  const data = initialData;
+
+  // État du formulaire d'invitation
+  const [formPrenom, setFormPrenom] = React.useState("");
+  const [formNom, setFormNom] = React.useState("");
+  const [formEmail, setFormEmail] = React.useState("");
+  const [formRole, setFormRole] = React.useState<RoleInterne>("Conseiller");
+  const [inviting, setInviting] = React.useState(false);
+  // ID de l'utilisateur en cours de mise à jour (switch / suspend / delete)
+  const [updatingId, setUpdatingId] = React.useState<string | null>(null);
+
+  const toggleActif = async (id: string, currentActif: boolean, nom: string) => {
+    setUpdatingId(id);
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actif: !currentActif }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error("Mise à jour échouée", { description: (err as any)?.error ?? "Erreur serveur." });
+        return;
+      }
+      toast.success(!currentActif ? "Membre activé" : "Membre suspendu", { description: nom });
+      router.refresh();
+    } catch {
+      toast.error("Mise à jour échouée", { description: "Erreur réseau." });
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const suspendre = async (id: string, nom: string) => {
+    setUpdatingId(id);
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actif: false }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error("Suspension échouée", { description: (err as any)?.error ?? "Erreur serveur." });
+        return;
+      }
+      toast.success("Membre suspendu", { description: `${nom} — accès révoqué.` });
+      router.refresh();
+    } catch {
+      toast.error("Suspension échouée", { description: "Erreur réseau." });
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const supprimer = async (id: string, nom: string) => {
+    setUpdatingId(id);
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error("Suppression échouée", { description: (err as any)?.error ?? "Erreur serveur." });
+        return;
+      }
+      toast.success("Compte supprimé", { description: `${nom} — données archivées.` });
+      router.refresh();
+    } catch {
+      toast.error("Suppression échouée", { description: "Erreur réseau." });
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   const actions: ActionItem<UserRow>[] = React.useMemo(
     () => [
@@ -92,7 +176,7 @@ export function UtilisateursClient({ initialData }: { initialData: UserRow[] }) 
           description: (row) =>
             `${row.nom} ne pourra plus se connecter au back-office. L'accès peut être réactivé à tout moment.`,
           confirmLabel: "Suspendre",
-          onConfirm: (row) => toast.success("Membre suspendu", { description: `${row.nom} — accès révoqué.` }),
+          onConfirm: (row) => suspendre(row.id, row.nom),
         },
       },
       {
@@ -104,7 +188,7 @@ export function UtilisateursClient({ initialData }: { initialData: UserRow[] }) 
           description: (row) =>
             `Cette action est irréversible. Toutes les données de ${row.nom} seront archivées.`,
           confirmLabel: "Supprimer",
-          onConfirm: (row) => toast.success("Compte supprimé", { description: `${row.nom} — données archivées.` }),
+          onConfirm: (row) => supprimer(row.id, row.nom),
         },
       },
     ],
@@ -169,9 +253,8 @@ export function UtilisateursClient({ initialData }: { initialData: UserRow[] }) 
         cell: ({ row }) => (
           <Switch
             defaultChecked={row.original.actif}
-            onCheckedChange={(v) =>
-              toast.success(v ? "Membre activé" : "Membre suspendu", { description: row.original.nom })
-            }
+            disabled={updatingId === row.original.id}
+            onCheckedChange={(v) => toggleActif(row.original.id, row.original.actif, row.original.nom)}
             aria-label={`Activer ${row.original.nom}`}
           />
         ),
@@ -179,15 +262,46 @@ export function UtilisateursClient({ initialData }: { initialData: UserRow[] }) 
       },
       createActionsColumn<UserRow>(actions, { ariaLabel: (row) => `Actions sur ${row.nom}` }),
     ],
-    [actions]
+    [actions, updatingId]
   );
 
-  const handleInvite = (e: React.FormEvent) => {
+  const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    setInviteOpen(false);
-    toast.success("Invitation envoyée", {
-      description: "Un e-mail d'invitation a été envoyé au nouveau membre.",
-    });
+    setInviting(true);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prenom: formPrenom,
+          nom: formNom,
+          email: formEmail,
+          role: ROLE_FR_TO_DB[formRole],
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error("Invitation échouée", { description: (err as any)?.error ?? "Erreur serveur." });
+        return;
+      }
+      const result = await res.json().catch(() => ({}));
+      const defaultPwd = (result as any)?.defaultPassword;
+      toast.success("Invitation envoyée", {
+        description: defaultPwd
+          ? `${formPrenom} ${formNom} peut se connecter avec le mot de passe « ${defaultPwd} ».`
+          : `Un e-mail d'invitation a été envoyé au nouveau membre.`,
+      });
+      setInviteOpen(false);
+      setFormPrenom("");
+      setFormNom("");
+      setFormEmail("");
+      setFormRole("Conseiller");
+      router.refresh();
+    } catch {
+      toast.error("Invitation échouée", { description: "Erreur réseau." });
+    } finally {
+      setInviting(false);
+    }
   };
 
   return (
@@ -221,20 +335,36 @@ export function UtilisateursClient({ initialData }: { initialData: UserRow[] }) 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium text-encre">Prénom</Label>
-                  <Input placeholder="Aïssatou" />
+                  <Input
+                    value={formPrenom}
+                    onChange={(e) => setFormPrenom(e.target.value)}
+                    placeholder="Aïssatou"
+                    required
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium text-encre">Nom</Label>
-                  <Input placeholder="Diallo" />
+                  <Input
+                    value={formNom}
+                    onChange={(e) => setFormNom(e.target.value)}
+                    placeholder="Diallo"
+                    required
+                  />
                 </div>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-encre">E-mail professionnel</Label>
-                <Input type="email" placeholder="a.diallo@getadm.com" />
+                <Input
+                  type="email"
+                  value={formEmail}
+                  onChange={(e) => setFormEmail(e.target.value)}
+                  placeholder="a.diallo@getadm.com"
+                  required
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-encre">Rôle</Label>
-                <Select defaultValue="Conseiller">
+                <Select value={formRole} onValueChange={(v) => setFormRole(v as RoleInterne)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -247,11 +377,12 @@ export function UtilisateursClient({ initialData }: { initialData: UserRow[] }) 
                 </Select>
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setInviteOpen(false)}>
+                <Button type="button" variant="outline" onClick={() => setInviteOpen(false)} disabled={inviting}>
                   Annuler
                 </Button>
-                <Button type="submit" className="bg-lapis text-blanc hover:bg-lapis/90">
-                  Envoyer l'invitation
+                <Button type="submit" className="bg-lapis text-blanc hover:bg-lapis/90" disabled={inviting}>
+                  {inviting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
+                  Envoyer l&apos;invitation
                 </Button>
               </DialogFooter>
             </form>

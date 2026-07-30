@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import bcrypt from "bcryptjs";
+import { adminUserCreateSchema, validate } from "@/lib/validations";
+import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 
 // GET /api/admin/users — liste des utilisateurs (staff uniquement)
 //
@@ -63,4 +66,93 @@ export async function GET(request: Request) {
 
   const users = await db.user.findMany({ select, orderBy });
   return NextResponse.json(users.map(mapToRow));
+}
+
+// POST /api/admin/users — inviter un nouvel utilisateur (admin uniquement)
+//
+// Body: { prenom, nom, email, role }
+// - Mot de passe par défaut : "demo1234"
+// - Email doit être unique
+// - Rôle peut être CANDIDAT, CONSEILLER, FINANCIER, ADMIN, SUPER_ADMIN
+export async function POST(request: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  }
+
+  const role = (session.user as any).role;
+  if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
+    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  }
+
+  // Rate limiting (10 invitations / min / IP)
+  const rateLimited = checkRateLimit(getClientId(request), "/api/admin/users");
+  if (rateLimited) return rateLimited;
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
+  }
+
+  const parsed = validate(adminUserCreateSchema, body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
+  const { prenom, nom, email, role: newRole } = parsed.data;
+
+  // Un ADMIN non-SUPER_ADMIN ne peut pas créer de SUPER_ADMIN
+  if (newRole === "SUPER_ADMIN" && role !== "SUPER_ADMIN") {
+    return NextResponse.json(
+      { error: "Seul un super-administrateur peut créer un autre super-administrateur" },
+      { status: 403 }
+    );
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Vérifier que l'email n'existe pas déjà
+  const existing = await db.user.findUnique({
+    where: { email: normalizedEmail },
+    select: { id: true },
+  });
+  if (existing) {
+    return NextResponse.json(
+      { error: "Un compte existe déjà avec cet e-mail" },
+      { status: 409 }
+    );
+  }
+
+  // Hasher le mot de passe par défaut
+  const defaultPassword = "demo1234";
+  const passwordHash = await bcrypt.hash(defaultPassword, 10);
+
+  const user = await db.user.create({
+    data: {
+      email: normalizedEmail,
+      passwordHash,
+      prenom: prenom.trim(),
+      nom: nom.trim(),
+      role: newRole,
+      actif: true,
+    },
+    select: {
+      id: true,
+      email: true,
+      prenom: true,
+      nom: true,
+      role: true,
+      actif: true,
+      createdAt: true,
+    },
+  });
+
+  return NextResponse.json(
+    {
+      ...user,
+      defaultPassword, // retourné une seule fois pour communication à l'utilisateur
+    },
+    { status: 201 }
+  );
 }

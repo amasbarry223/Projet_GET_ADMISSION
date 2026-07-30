@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -72,6 +73,7 @@ function parseStringList(value: string[] | string | undefined | null): string[] 
 }
 
 export default function DossierPage() {
+  const router = useRouter();
   const [loadingDossier, setLoadingDossier] = React.useState(true);
   const [universites, setUniversites] = React.useState<Universite[]>([]);
   const [universitesLoading, setUniversitesLoading] = React.useState(true);
@@ -84,6 +86,9 @@ export default function DossierPage() {
   const [info, setInfo] = React.useState({ nom: "", prenom: "", naissance: "", nationalite: "", email: "", tel: "", adresse: "" });
   const [pieces, setPieces] = React.useState<Record<string, PieceState>>({});
   const [savedBadge, setSavedBadge] = React.useState(false);
+  const [creatingDossier, setCreatingDossier] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [togglingPiece, setTogglingPiece] = React.useState<string | null>(null);
 
   // Fetch universités (public, no auth needed) — pour les selectors step 1
   React.useEffect(() => {
@@ -175,21 +180,138 @@ export default function DossierPage() {
   const missing = allPieces.filter((p) => !pieces[p] || pieces[p] === "manquante");
   const canSubmit = missing.length === 0 && step === 5;
 
-  const togglePiece = (libelle: string) => {
-    setPieces((prev) => {
-      const cur = prev[libelle] ?? "manquante";
-      const next: PieceState = cur === "manquante" ? "televersee" : cur === "televersee" ? "validee" : "manquante";
-      return { ...prev, [libelle]: next };
-    });
-  };
-
-  const submit = () => {
-    if (!canSubmit) {
-      toast.error("Dossier incomplet", { description: `${missing.length} pièce(s) obligatoire(s) manquante(s).` });
+  const togglePiece = async (libelle: string) => {
+    const dossierId = existingDossier?.id;
+    if (!dossierId) {
+      toast.error("Dossier non créé", {
+        description: "Sélectionnez d'abord une université et une formation à l'étape 1.",
+      });
       return;
     }
-    toast.success("Dossier soumis", { description: "Votre conseiller va prendre en charge votre dossier." });
-    setStep(1);
+    const cur = pieces[libelle] ?? "manquante";
+    const next: PieceState = cur === "manquante" ? "televersee" : cur === "televersee" ? "validee" : "manquante";
+    // Optimistic update
+    setPieces((prev) => ({ ...prev, [libelle]: next }));
+    setTogglingPiece(libelle);
+    try {
+      const res = await fetch(`/api/dossiers/${dossierId}/pieces`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          libelle,
+          statut: next,
+          ...(next === "televersee" || next === "validee"
+            ? { nomFichier: "document.pdf", taille: "1,2 Mo" }
+            : {}),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Échec de la mise à jour de la pièce");
+      }
+    } catch (err: unknown) {
+      // Revert on error
+      setPieces((prev) => ({ ...prev, [libelle]: cur }));
+      const msg = err instanceof Error ? err.message : "Erreur";
+      toast.error("Pièce non mise à jour", { description: msg });
+    } finally {
+      setTogglingPiece(null);
+    }
+  };
+
+  // Étape suivante — crée le dossier via API si nécessaire (step 1, pas de dossier existant)
+  const goNext = async () => {
+    if (step === 1 && !existingDossier) {
+      if (!univId || !formId) {
+        toast.error("Sélection incomplète", {
+          description: "Choisissez une université et une formation.",
+        });
+        return;
+      }
+      setCreatingDossier(true);
+      try {
+        const res = await fetch("/api/dossiers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ universiteId: univId, formationId: formId }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Échec de la création du dossier");
+        }
+        const created = data as Dossier;
+        setExistingDossier(created);
+        // Synchronise les pièces locales avec celles créées côté serveur
+        const map: Record<string, PieceState> = {};
+        created.pieces.forEach((p) => {
+          const st = (["manquante", "televersee", "validee", "a_corriger"].includes(p.statut)
+            ? p.statut
+            : "manquante") as PieceState;
+          map[p.libelle] = st;
+        });
+        setPieces(map);
+        toast.success("Dossier créé", {
+          description: `Référence : ${created.reference}`,
+        });
+        setStep(2);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Erreur";
+        toast.error("Échec de la création", { description: msg });
+      } finally {
+        setCreatingDossier(false);
+      }
+    } else {
+      setStep((s) => Math.min(5, s + 1));
+    }
+  };
+
+  const submit = async () => {
+    if (!canSubmit) {
+      toast.error("Dossier incomplet", {
+        description: `${missing.length} pièce(s) obligatoire(s) manquante(s).`,
+      });
+      return;
+    }
+    const dossierId = existingDossier?.id;
+    if (!dossierId) {
+      toast.error("Dossier non créé", { description: "Recommencez à l'étape 1." });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const piecesArray = allPieces.map((libelle) => ({
+        libelle,
+        statut: pieces[libelle] ?? "manquante",
+      }));
+      const res = await fetch(`/api/dossiers/${dossierId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          info: {
+            prenom: info.prenom,
+            nom: info.nom,
+            telephone: info.tel,
+            nationalite: info.nationalite,
+            ...(info.naissance ? { dateNaissance: info.naissance } : {}),
+            ...(info.adresse ? { adresse: info.adresse } : {}),
+          },
+          pieces: piecesArray,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Échec de la soumission");
+      }
+      toast.success("Dossier soumis", {
+        description: "Votre conseiller va prendre en charge votre dossier.",
+      });
+      router.push("/espace");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erreur";
+      toast.error("Échec de la soumission", { description: msg });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loadingDossier || universitesLoading) {
@@ -368,7 +490,7 @@ export default function DossierPage() {
                 </p>
               ) : (
                 piecesRequises.map((libelle) => (
-                  <UploadZone key={libelle} libelle={libelle} state={pieces[libelle] ?? "manquante"} onToggle={() => togglePiece(libelle)} />
+                  <UploadZone key={libelle} libelle={libelle} state={pieces[libelle] ?? "manquante"} loading={togglingPiece === libelle} onToggle={() => togglePiece(libelle)} />
                 ))
               )}
             </div>
@@ -384,7 +506,7 @@ export default function DossierPage() {
             </div>
             <div className="space-y-3">
               {identityPieces.map((libelle) => (
-                <UploadZone key={libelle} libelle={libelle} state={pieces[libelle] ?? "manquante"} onToggle={() => togglePiece(libelle)} />
+                <UploadZone key={libelle} libelle={libelle} state={pieces[libelle] ?? "manquante"} loading={togglingPiece === libelle} onToggle={() => togglePiece(libelle)} />
               ))}
             </div>
           </div>
@@ -456,12 +578,22 @@ export default function DossierPage() {
             <ArrowLeft className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Étape précédente
           </Button>
           {step < 5 ? (
-            <Button className="bg-lapis text-blanc hover:bg-lapis/90" onClick={() => setStep((s) => Math.min(5, s + 1))}>
-              Étape suivante <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} />
+            <Button className="bg-lapis text-blanc hover:bg-lapis/90" onClick={goNext} disabled={creatingDossier}>
+              {creatingDossier ? (
+                <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} /> Création du dossier…</>
+              ) : (
+                <>Étape suivante <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} /></>
+              )}
             </Button>
           ) : (
-            <Button className="bg-lapis text-blanc hover:bg-lapis/90" onClick={submit} disabled={!canSubmit}>
-              {canSubmit ? <><Plane className="mr-1.5 h-4 w-4 -rotate-12" /> Soumettre mon dossier</> : <><Lock className="mr-1.5 h-4 w-4" /> Dossier incomplet</>}
+            <Button className="bg-lapis text-blanc hover:bg-lapis/90" onClick={submit} disabled={!canSubmit || submitting}>
+              {submitting ? (
+                <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} /> Soumission…</>
+              ) : canSubmit ? (
+                <><Plane className="mr-1.5 h-4 w-4 -rotate-12" /> Soumettre mon dossier</>
+              ) : (
+                <><Lock className="mr-1.5 h-4 w-4" /> Dossier incomplet</>
+              )}
             </Button>
           )}
         </div>
@@ -488,7 +620,7 @@ function RecapLine({ label, value }: { label: string; value: string }) {
   );
 }
 
-function UploadZone({ libelle, state, onToggle }: { libelle: string; state: PieceState; onToggle: () => void }) {
+function UploadZone({ libelle, state, loading, onToggle }: { libelle: string; state: PieceState; loading?: boolean; onToggle: () => void }) {
   const config = {
     manquante: { border: "border-ligne", icon: Upload, iconColor: "text-ardoise", label: "Glissez votre fichier ici ou cliquez pour parcourir", sub: "PDF, JPG, PNG · 10 Mo max", action: "Téléverser" },
     televersee: { border: "border-vert/40 bg-vert/5", icon: CheckCircle2, iconColor: "text-vert", label: "document.pdf · 1,2 Mo", sub: "Téléversé", action: "Marquer validé" },
@@ -507,11 +639,17 @@ function UploadZone({ libelle, state, onToggle }: { libelle: string; state: Piec
           <p className="truncate text-xs text-ardoise">{config.label}</p>
           <p className={cn("mt-0.5 font-mono text-[10px] uppercase", config.iconColor)}>{config.sub}</p>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={onToggle} className="flex-none">
-          {state === "manquante" && <Upload className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />}
-          {state === "televersee" && <Check className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />}
-          {state === "validee" && <X className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />}
-          {state === "a_corriger" && <Upload className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />}
+        <Button type="button" variant="outline" size="sm" onClick={onToggle} disabled={loading} className="flex-none">
+          {loading ? (
+            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+          ) : (
+            <>
+              {state === "manquante" && <Upload className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />}
+              {state === "televersee" && <Check className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />}
+              {state === "validee" && <X className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />}
+              {state === "a_corriger" && <Upload className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />}
+            </>
+          )}
           {config.action}
         </Button>
       </div>

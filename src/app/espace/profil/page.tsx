@@ -29,6 +29,8 @@ export default function ProfilPage() {
   const [profile, setProfile] = React.useState<Profile | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [kycType, setKycType] = React.useState("passeport");
+  const [password, setPassword] = React.useState({ current: "", next: "", confirm: "" });
+  const [savingPassword, setSavingPassword] = React.useState(false);
 
   React.useEffect(() => {
     fetch("/api/profile")
@@ -52,6 +54,40 @@ export default function ProfilPage() {
       }
     } catch {
       toast.error("Erreur", { description: "Échec de l'enregistrement." });
+    }
+  };
+
+  const changePassword = async () => {
+    if (!password.current || !password.next || !password.confirm) {
+      toast.error("Champs manquants", { description: "Renseignez les trois champs mot de passe." });
+      return;
+    }
+    if (password.next.length < 8) {
+      toast.error("Mot de passe trop court", { description: "Le nouveau mot de passe doit contenir au moins 8 caractères." });
+      return;
+    }
+    if (password.next !== password.confirm) {
+      toast.error("Confirmation incorrecte", { description: "Le nouveau mot de passe et sa confirmation ne correspondent pas." });
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      const res = await fetch("/api/profile/password", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: password.current, newPassword: password.next }),
+      });
+      if (res.ok) {
+        toast.success("Mot de passe modifié");
+        setPassword({ current: "", next: "", confirm: "" });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error("Erreur", { description: data.error || "Échec de la mise à jour." });
+      }
+    } catch {
+      toast.error("Erreur", { description: "Échec de la mise à jour." });
+    } finally {
+      setSavingPassword(false);
     }
   };
 
@@ -199,20 +235,20 @@ export default function ProfilPage() {
             <div className="grid gap-4 sm:max-w-md">
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-encre">Mot de passe actuel</Label>
-                <Input type="password" placeholder="••••••••" />
+                <Input type="password" placeholder="••••••••" value={password.current} onChange={(e) => setPassword((p) => ({ ...p, current: e.target.value }))} autoComplete="current-password" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-encre">Nouveau mot de passe</Label>
-                <Input type="password" placeholder="Minimum 8 caractères" />
+                <Input type="password" placeholder="Minimum 8 caractères" value={password.next} onChange={(e) => setPassword((p) => ({ ...p, next: e.target.value }))} autoComplete="new-password" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-encre">Confirmer le nouveau mot de passe</Label>
-                <Input type="password" placeholder="••••••••" />
+                <Input type="password" placeholder="••••••••" value={password.confirm} onChange={(e) => setPassword((p) => ({ ...p, confirm: e.target.value }))} autoComplete="new-password" />
               </div>
             </div>
             <div className="mt-5 flex justify-end">
-              <Button onClick={() => save("Sécurité")} className="bg-lapis text-blanc hover:bg-lapis/90">
-                <Lock className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Mettre à jour
+              <Button onClick={changePassword} disabled={savingPassword} className="bg-lapis text-blanc hover:bg-lapis/90">
+                {savingPassword ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} /> Mise à jour…</> : <><Lock className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Mettre à jour</>}
               </Button>
             </div>
           </Card>

@@ -26,6 +26,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatFCFA, formatFCFACompact, formatDate } from "@/lib/format";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Download,
@@ -38,6 +39,7 @@ import {
   FileText,
   RefreshCw,
   Plus,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -72,9 +74,18 @@ export function FinanceClient({
   initialTransactions: TransactionRow[];
   initialKpis: FinanceKpis;
 }) {
+  const router = useRouter();
   const [newOpen, setNewOpen] = React.useState(false);
-  const [rows] = React.useState<TransactionRow[]>(initialTransactions);
+  // On lit directement la prop `initialTransactions` (pas de useState) afin que
+  // `router.refresh()` (re-render du Server Component) se reflète dans l'UI.
+  const rows = initialTransactions;
   const kpis = initialKpis;
+
+  // État du formulaire de transaction manuelle
+  const [formDossierId, setFormDossierId] = React.useState("");
+  const [formMontant, setFormMontant] = React.useState("");
+  const [formMoyen, setFormMoyen] = React.useState("espece");
+  const [creating, setCreating] = React.useState(false);
 
   const actions: ActionItem<TransactionRow>[] = React.useMemo(
     () => [
@@ -167,10 +178,35 @@ export function FinanceClient({
     [actions]
   );
 
-  const handleNewTransaction = (e: React.FormEvent) => {
+  const handleNewTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
-    setNewOpen(false);
-    toast.success("Transaction enregistrée", { description: "La transaction manuelle a été ajoutée." });
+    setCreating(true);
+    try {
+      const res = await fetch("/api/admin/paiements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dossierId: formDossierId,
+          montant: Number(formMontant) || 0,
+          moyen: formMoyen,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error("Transaction échouée", { description: (err as any)?.error ?? "Erreur serveur." });
+        return;
+      }
+      toast.success("Transaction enregistrée", { description: "La transaction manuelle a été ajoutée." });
+      setNewOpen(false);
+      setFormDossierId("");
+      setFormMontant("");
+      setFormMoyen("espece");
+      router.refresh();
+    } catch {
+      toast.error("Transaction échouée", { description: "Erreur réseau." });
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -202,16 +238,29 @@ export function FinanceClient({
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-sm font-medium text-encre">Candidat</Label>
-                    <Input placeholder="Référence dossier" className="font-mono" />
+                    <Input
+                      value={formDossierId}
+                      onChange={(e) => setFormDossierId(e.target.value)}
+                      placeholder="Référence dossier"
+                      className="font-mono"
+                      required
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-sm font-medium text-encre">Montant (FCFA)</Label>
-                    <Input type="number" placeholder="850000" className="font-mono" />
+                    <Input
+                      type="number"
+                      value={formMontant}
+                      onChange={(e) => setFormMontant(e.target.value)}
+                      placeholder="850000"
+                      className="font-mono"
+                      required
+                    />
                   </div>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium text-encre">Moyen de paiement</Label>
-                  <Select defaultValue="espece">
+                  <Select value={formMoyen} onValueChange={setFormMoyen}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -224,10 +273,11 @@ export function FinanceClient({
                   </Select>
                 </div>
                 <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setNewOpen(false)}>
+                  <Button type="button" variant="outline" onClick={() => setNewOpen(false)} disabled={creating}>
                     Annuler
                   </Button>
-                  <Button type="submit" className="bg-lapis text-blanc hover:bg-lapis/90">
+                  <Button type="submit" className="bg-lapis text-blanc hover:bg-lapis/90" disabled={creating}>
+                    {creating && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
                     Enregistrer
                   </Button>
                 </DialogFooter>

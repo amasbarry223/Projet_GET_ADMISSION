@@ -916,3 +916,125 @@ Stage Summary:
 - recharts reste en import statique (Turbopack code-split par route automatiquement).
 - Memoization déjà présente (21 useMemo, 8 useCallback).
 - L'application est performante : rendu server-side pour les pages admin, code-splitting automatique Turbopack, cache 1h sur API publiques, rate limiting, Zod validation.
+
+---
+Task ID: API-CRUD
+Agent: CRUD API builder
+Task: Create all missing CRUD API routes.
+
+Work Log:
+- Schema : ajout des modèles `ContactMessage` (id, prenom, nom, email, telephone?, objet, message, createdAt, traite) et `Parametre` (id=1 singleton, fraisMin, fraisMax, paiementTranches) dans prisma/schema.prisma. `bun run db:push --accept-data-loss` → DB synchronisée, Prisma Client régénéré.
+- Validations : 10 nouveaux schémas Zod ajoutés à src/lib/validations.ts : passwordChangeSchema, dossierCreateSchema, dossierUpdateSchema, pieceSchema, universiteSchema, adminUserCreateSchema, adminUserUpdateSchema, contactSchema, markReadSchema, manualTransactionSchema, parametresSchema.
+- Utils : ajout slugify() (normalise accents en ASCII) + uniqueSlug() (collision-safe avec suffixe numérique) dans src/lib/utils.ts.
+- Rate-limit : 4 nouvelles limites ajoutées (contact 5/min, password 5/min, dossiers 10/min, admin/users 10/min, admin/paiements 10/min).
+- POST /api/dossiers : génération référence `GETADM-YYYY-NNNN` (incrémental par count), MRZ sur 2 lignes de 44 caractères (format TD1-like), création transactionnelle Dossier + Pieces (depuis formation.piecesRequises) + Historique (SOUMIS) + Conversation. 409 si dossier actif déjà existant pour la même formation. 403 si non-CANDIDAT.
+- PUT /api/dossiers/[id] : update transactionnelle etapeActuelle + infos candidat (prenom/nom/telephone/nationalite/dateNaissance/adresse via User lié) + pieces (updateMany par libellé) + historique résumé. RBAC: candidat propriétaire OU staff.
+- POST /api/dossiers/[id]/pieces : upsert piece par (dossierId, libelle). Statuts manquante|televersee|a_corriger|validee. GET liste les pièces du dossier. Historique automatique.
+- POST /api/universites : staff-only, slug auto-généré (unique), validation fraisMax >= fraisMin, JSON.stringify pour domaines/pointsForts (limitation SQLite).
+- PUT /api/universites/[id] : ré-génère le slug si le nom change. Accepte id OU slug en paramètre (findFirst OR).
+- DELETE /api/universites/[id] : bloque si dossiers liés (409), cascade formations sinon. Suppression du fichier [slug]/route.ts qui entrait en conflit avec [id] (Next.js n'accepte pas 2 noms de slugs dynamiques différents au même niveau).
+- POST /api/admin/users : admin-only (ADMIN ou SUPER_ADMIN), hashe "demo1234" par défaut, retourne le mot de passe une seule fois. 403 si ADMIN tente de créer SUPER_ADMIN. Rate-limité.
+- PUT /api/admin/users/[id] : toggle actif / change role. Protections : pas se désactiver soi-même, pas modifier SUPER_ADMIN si non-SUPER_ADMIN, pas rétrograder le dernier SUPER_ADMIN.
+- DELETE /api/admin/users/[id] : soft-delete (actif=false) si relations (dossiers, messages, paiements, etc.), hard delete sinon. Protections SUPER_ADMIN préservées.
+- POST /api/contact : public, Zod validé, rate-limité 5/min, persiste ContactMessage (traite=false). GET liste (staff-only, pagination optionnelle, filtre traite=true|false).
+- PUT /api/profile/password : vérifie currentPassword avec bcrypt.compare (400 si incorrect), refuse newPassword == currentPassword, hashe et update. Rate-limité 5/min.
+- Fix workflow attestation : dans /api/dossiers/[id]/workflow, quand nouvelEtat === "ATTESTATION", crée automatiquement une Attestation avec reference `ATT-YYYY-NNNN` (NNNN = 4 derniers de la référence dossier) et codeVerification `VRF-XXXX-YYYY-NNNN` (X/Y = 4 chars base36 aléatoires).
+- GET /api/attestations/[dossierId] : RBAC candidat propriétaire OU staff. Retourne attestation + emetteur + dossier (avec candidat, universite, formation).
+- PUT /api/messages/read : reset nonLusCandidat (si CANDIDAT) ou nonLusConseiller (si staff). RBAC: candidat propriétaire OU staff.
+- POST /api/admin/paiements : staff-only, transaction manuelle (espèces, reçu hors-ligne). Met à jour paiementStatut du dossier (partiel/complet selon cumul vs fraisAgence). Historique auto. Rate-limité.
+- GET/PUT /api/admin/parametres : GET staff-only (crée un enregistrement par défaut si inexistant), PUT super_admin-only. Validation fraisMax >= fraisMin.
+- Lint : `bun run lint` → 0 erreur, 0 warning.
+
+Stage Summary:
+- 11 nouveaux endpoints API + 5 handlers ajoutés à des routes existantes (PUT dossiers/[id], POST dossiers, POST universites, POST admin/users, POST admin/paiements).
+- 2 nouveaux modèles Prisma (ContactMessage, Parametre) avec indexes appropriés.
+- 10 nouveaux schémas Zod centralisés dans validations.ts — toutes les API mutables validées.
+- 5 nouveaux buckets de rate-limiting (contact, password, dossiers, admin/users, admin/paiements).
+- Helpers réutilisables : slugify/uniqueSlug (utils.ts), generateMrz (inline dossiers/route.ts).
+- RBAC strict respecté : CANDIDAT bloqué des routes admin (403), ADMIN non-SUPER bloqué du PUT parametres (403), auto-protection (ne pas se désactiver/supprimer soi-même, dernier SUPER_ADMIN protégé).
+- Workflow attestation corrigé : émission automatique de l'Attestation (reference + codeVerification) lors de la transition vers l'état ATTESTATION.
+- Conflit de routes dynamiques résolu : suppression de [slug]/route.ts qui entrait en conflit avec [id]/route.ts (Next.js n'accepte pas 2 noms de slugs différents au même niveau). La nouvelle route [id] accepte indifféremment un id ou un slug (findFirst OR).
+- Vérifications end-to-end (curl + sessions authentifiées) : tous les endpoints répondent avec les bons codes HTTP (200/201/400/401/403/404/409). Workflow ATTESTATION crée bien l'attestation, GET /api/attestations/[dossierId] la retourne avec emetteur+dossier+candidat.
+- Lint : 0 erreur. Runtime : 0 erreur dans dev.log après redémarrage du serveur (Prisma Client régénéré pour prendre en charge les nouveaux modèles).
+
+---
+Task ID: WIRE-ESPACE
+Agent: Wire espace pages
+Task: Wire all espace + public buttons to real APIs.
+
+Work Log:
+- /espace/dossier/page.tsx :
+  * Ajouté useRouter (next/navigation) pour redirection post-soumission.
+  * Ajouté 3 states : creatingDossier, submitting, togglingPiece.
+  * goNext() asynchrone : step 1 + pas de existingDossier → POST /api/dossiers avec {universiteId, formationId}, stocke le dossier créé dans existingDossier, sync les pièces locales depuis la réponse, toast avec référence, passage à step 2. Step 1 + existingDossier → step suivant sans création.
+  * togglePiece() asynchrone : update optimiste + POST /api/dossiers/[id]/pieces avec {libelle, statut, nomFichier, taille}. Revert + toast.error en cas d'échec.
+  * submit() asynchrone : PUT /api/dossiers/[id] avec {info, pieces}, toast succès, router.push("/espace").
+  * Bouton "Étape suivante" : disabled + Loader2 "Création du dossier…" pendant creatingDossier.
+  * Bouton "Soumettre" : disabled + Loader2 "Soumission…" pendant submitting.
+  * Composant UploadZone : nouvelle prop `loading` → Loader2 sur le bouton pendant l'opération asynchrone.
+- /espace/profil/page.tsx :
+  * Ajouté states password ({current, next, confirm}) + savingPassword.
+  * changePassword() asynchrone : validation client (3 champs renseignés, newPassword ≥ 8, newPassword === confirm), PUT /api/profile/password, toast succès + reset champs, toast.error avec data.error sinon.
+  * Les 3 inputs "Sécurité" sont contrôlés (value + onChange) avec autoComplete (current-password / new-password).
+  * Bouton "Mettre à jour" appelle changePassword() (pas save("Sécurité")), disabled + Loader2 "Mise à jour…" pendant savingPassword.
+- /espace/messages/page.tsx :
+  * Dans le useEffect qui fetch la conversation, si data.nonLusCandidat > 0 → PUT /api/messages/read avec {dossierId}. En cas de succès, setConversation met nonLusCandidat = 0 en local. Le badge "non lus" disparaît après ouverture de la conversation.
+- /(vitrine)/contact/page.tsx :
+  * onSubmit() asynchrone : remplace le setTimeout mock par POST /api/contact. Champ telephone supprimé du payload si vide (DB stocke null plutôt que ""). Toast succès + reset form si res.ok, toast.error avec data.error sinon.
+- /espace/attestation/page.tsx :
+  * Ajouté type Attestation + state attestation.
+  * Dans le useEffect initial, après setDossier(d), si d.id existe → fetch /api/attestations/[id]. Si 200, stocke l'attestation réelle. 404 ignoré (dossier pas en état ATTESTATION).
+  * referenceAtt et codeVerification utilisent attestation.reference / attestation.codeVerification de la DB si elles existent, fallback sur les valeurs générées localement (aperçu).
+  * emissionDate utilise attestation.dateEmission en priorité, puis historique ATTESTATION, puis date du jour.
+- Vérification :
+  * bun run lint → 0 erreur, 0 warning ✓
+  * /espace/dossier (authentifié) → 200 ✓
+  * /contact (public) → 200 ✓
+  * POST /api/contact → 201 {"success":true,"id":N} ✓
+  * dev.log : tous les endpoints câblés apparaissent avec codes de succès (201/200) — POST /api/dossiers, POST /api/dossiers/[id]/pieces, PUT /api/dossiers/[id], PUT /api/profile/password, PUT /api/messages/read, GET /api/attestations/[id], POST /api/contact ✓
+  * 0 erreur runtime, 0 erreur compilation ✓
+
+Stage Summary:
+- 5 pages câblées sur les API CRUD réelles (aucune route API modifiée — elles existaient déjà et fonctionnaient).
+- Toutes les opérations async ont des états de chargement (Loader2) et des gestionnaires d'erreur (toast.error avec description précise depuis le body de la réponse API).
+- UI 100% préservée : aucun changement de style, layout, copy ou structure. Seul le data-flow a changé.
+- Optimistic UI sur le toggle de pièce (update immédiate, revert si échec serveur).
+- Validation côté client sur le changement de mot de passe (longueur min 8, confirmation matching) avant l'appel API — feedback plus rapide pour l'utilisateur.
+- Contact form : payload nettoyé (telephone null si vide) pour cohérence DB.
+- Attestation : fallback local conservé pour l'aperçu si l'API retourne 404 — pas de régression sur l'UX existante.
+
+---
+Task ID: WIRE-ADMIN
+Agent: Wire admin pages
+Task: Wire all admin buttons to real APIs.
+
+Work Log:
+- Read previous agents' work records in `/agent-ctx/` (API-CRUD especially) to learn the exact API contracts (`POST /api/universites`, `PUT/DELETE /api/universites/[id]`, `POST/PUT/DELETE /api/admin/users/[id]`, `POST /api/admin/paiements`, `GET/PUT /api/admin/parametres`, `POST /api/dossiers/[id]/workflow`) and the Zod schemas in `src/lib/validations.ts`.
+- Inspected each client component's existing UI (Dialog, Sheet, Switch, actions dropdown) to map every toast-only handler to its real API call.
+- **catalogue-client.tsx**: added `useRouter` + `Loader2`; converted the "Ajouter" Dialog's 6 uncontrolled inputs (`nom`, `ecusson`, `ville`, `pays`, `fraisMin`, `fraisMax`) to controlled state; wired `handleNew` → `POST /api/universites` with the full `universiteSchema` body (defaults for `drapeau`, `domaines`, `description`, `pointsForts`, `imageCouleur`); wired `handleSave` → `PUT /api/universites/[id]` with the current universite fields; wired `handleDelete` → `DELETE /api/universites/[id]` (used by both the Sheet "Supprimer" button and the actions dropdown AlertDialog confirm); every handler shows Loader2 on the active button, toast.error on failure, toast.success + `router.refresh()` on success.
+- **utilisateurs-client.tsx**: added `useRouter` + `Loader2`; introduced `ROLE_FR_TO_DB` map to translate UI labels ("Conseiller", "Financier", "Admin", "Super Admin") → DB codes ("CONSEILLER", "FINANCIER", "ADMIN", "SUPER_ADMIN"); converted invite Dialog inputs to controlled state; wired `handleInvite` → `POST /api/admin/users` (toast now displays the returned `defaultPassword`); `toggleActif` → `PUT /api/admin/users/[id]` with `{ actif: !current }` (used by the Switch in the Actif column); `suspendre` → same PUT with `{ actif: false }` (AlertDialog "Suspendre l'accès"); `supprimer` → `DELETE /api/admin/users/[id]` (AlertDialog "Supprimer le compte"); added `updatingId` state to disable the Switch during the API call (and added `updatingId` to the columns useMemo deps to avoid stale closure on the `disabled` prop).
+- **finance-client.tsx**: added `useRouter` + `Loader2`; converted "Nouvelle transaction" Dialog inputs to controlled state (`formDossierId`, `formMontant`, `formMoyen`); wired `handleNewTransaction` → `POST /api/admin/paiements` with `{ dossierId, montant, moyen }`.
+- **parametres/page.tsx**: added `Loader2`; introduced controlled state (`fraisMin`, `fraisMax`, `paiementTranches`) + `loading`/`saving` flags; added `useEffect` on mount → `GET /api/admin/parametres` to populate the three form fields; replaced the static `defaultValue="350000"` / `"1750000"` / `defaultChecked` with the API-driven values; wired the "Enregistrer les modifications" button → `PUT /api/admin/parametres` with `{ fraisMin, fraisMax, paiementTranches }`; button is disabled for non-SUPER_ADMIN (PUT would 403 otherwise) and shows Loader2 while saving; left the other tab toggles (moyens de paiement, notifications, cache, reset) as toasts — they were not part of the schema.
+- **attestations-client.tsx**: added `useRouter` + `Loader2`; introduced `emittingId` state to disable the "Émettre" button and show a spinner during the workflow API call; added `router.refresh()` after successful `POST /api/dossiers/[id]/workflow { action: "emettre_attestation" }` so the server component re-fetches the attestation queue; added two `useEffect` hooks to sync `aEmettre`/`emises` state with `initialAEmettre`/`initialEmises` after `router.refresh()` (otherwise the optimistic UI would never be replaced by the server truth); left the "Télécharger" / "Aperçu" buttons as toasts (real PDF generation requires a library, out of scope).
+- **dossiers-client.tsx**: unchanged per spec — the selection-bar "Affecter un conseiller" and "Exporter" buttons remain toasts (documented as "démonstration" in the Alert below the table).
+- **Critical fix**: the four list client components (`catalogue`, `utilisateurs`, `finance`, `attestations`) all used `useState(initialData)` to capture the server prop. This pattern freezes the table at the initial render — `router.refresh()` re-renders the server component but does NOT reinitialize client `useState`, so mutations would never appear in the UI. Removed the `useState` wrapper in `catalogue`, `utilisateurs`, and `finance` (now read `initialData` / `initialTransactions` directly); kept the state in `attestations` (needed for optimistic UI) but added `useEffect` syncs.
+
+Stage Summary:
+- All admin mutations are now wired to real APIs: 4 POST/PUT/DELETE on universities, 1 POST + 1 PUT (toggle) + 1 PUT (suspend) + 1 DELETE on users, 1 POST on manual transactions, 1 GET + 1 PUT on parametres, and `router.refresh()` after every successful mutation.
+- Every async action shows a Loader2 spinner on its button, a success `toast.success` on 2xx, and a `toast.error` with the server's error message on 4xx/5xx or network failure.
+- All existing UI preserved exactly (Dialog/Sheet/Switch/AlertDialog layout, Tailwind classes, French labels) — only the data flow changed.
+- `bun run lint` → 0 errors, 0 warnings.
+- End-to-end verified via curl with an authenticated admin session:
+  - `POST /api/universites` → 201 (id `cms7wa96x…`) → `PUT` → 200 → `DELETE` → 200 ✓
+  - `POST /api/admin/users` → 201 (returned `defaultPassword: "demo1234"`) → `PUT { actif: false }` → 200 → `DELETE` → 200 ✓
+  - `GET /api/admin/parametres` → 200 (`fraisMin: 400000, fraisMax: 1800000`) ✓
+  - `POST /api/admin/paiements` → 201 (new `REC-2026-7950`, statut `reussi`) ✓
+- All `/admin/*` routes return 200 when authenticated (catalogue, utilisateurs, finance, parametres, attestations, dossiers).
+- Dev log: clean, no runtime errors after the changes.
+
+Files touched:
+- `src/components/admin/catalogue-client.tsx`
+- `src/components/admin/utilisateurs-client.tsx`
+- `src/components/admin/finance-client.tsx`
+- `src/components/admin/attestations-client.tsx`
+- `src/app/admin/parametres/page.tsx`

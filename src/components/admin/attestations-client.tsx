@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
-import { Stamp, FileText, Eye, Plus, CheckCircle2 } from "lucide-react";
+import { Stamp, FileText, Eye, Plus, CheckCircle2, Loader2 } from "lucide-react";
 
 export type AttestationDossier = {
   id: string;
@@ -41,8 +42,21 @@ export function AttestationsClient({
   const [aEmettre, setAEmettre] = React.useState<AttestationDossier[]>(initialAEmettre);
   const [emises, setEmises] = React.useState<AttestationDossier[]>(initialEmises);
   const [modeles] = React.useState<ModeleAttestation[]>(initialModeles);
+  const router = useRouter();
+  // ID du dossier en cours d'émission (pour le bouton Loader2).
+  const [emittingId, setEmittingId] = React.useState<string | null>(null);
+
+  // Synchronise l'état local avec les props serveur lorsque `router.refresh()`
+  // rapatrie des données fraîches (écrase l'optimistic UI par la source de vérité).
+  React.useEffect(() => {
+    setAEmettre(initialAEmettre);
+  }, [initialAEmettre]);
+  React.useEffect(() => {
+    setEmises(initialEmises);
+  }, [initialEmises]);
 
   const emettreAttestation = async (dossierId: string, reference: string) => {
+    setEmittingId(dossierId);
     try {
       const res = await fetch(`/api/dossiers/${dossierId}/workflow`, {
         method: "POST",
@@ -50,7 +64,8 @@ export function AttestationsClient({
         body: JSON.stringify({ action: "emettre_attestation" }),
       });
       if (!res.ok) {
-        toast.error("Émission échouée", { description: "Le serveur a refusé l'action." });
+        const err = await res.json().catch(() => ({}));
+        toast.error("Émission échouée", { description: (err as any)?.error ?? "Le serveur a refusé l'action." });
         return;
       }
       toast.success("Attestation émise", {
@@ -66,8 +81,12 @@ export function AttestationsClient({
           ...prev,
         ];
       });
+      // Re-fetch server data to sync with the database (new attestation record, updated état).
+      router.refresh();
     } catch {
       toast.error("Émission échouée", { description: "Erreur réseau." });
+    } finally {
+      setEmittingId(null);
     }
   };
 
@@ -165,8 +184,14 @@ export function AttestationsClient({
                     size="sm"
                     className="bg-lapis text-blanc hover:bg-lapis/90"
                     onClick={() => emettreAttestation(d.id, d.reference)}
+                    disabled={emittingId === d.id}
                   >
-                    <Stamp className="mr-1.5 h-3.5 w-3.5" /> Émettre
+                    {emittingId === d.id ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+                    ) : (
+                      <Stamp className="mr-1.5 h-3.5 w-3.5" />
+                    )}{" "}
+                    Émettre
                   </Button>
                 </div>
               </li>

@@ -12,11 +12,69 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { formatFCFA } from "@/lib/format";
-import { Lock, Save, ShieldCheck, CreditCard, Bell, GitBranch, Plane } from "lucide-react";
+import { Lock, Save, ShieldCheck, CreditCard, Bell, GitBranch, Plane, Loader2 } from "lucide-react";
 
 export default function AdminParametresPage() {
   const { data: session } = useSession();
   const isSuperAdmin = session?.user?.role === "SUPER_ADMIN";
+
+  // État du formulaire de paramètres (alimenté par GET /api/admin/parametres au mount).
+  const [fraisMin, setFraisMin] = React.useState("");
+  const [fraisMax, setFraisMax] = React.useState("");
+  const [paiementTranches, setPaiementTranches] = React.useState(false);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+
+  // Chargement initial des paramètres depuis l'API.
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/parametres");
+        if (!res.ok) {
+          if (!cancelled) toast.error("Chargement échoué", { description: "Impossible de charger les paramètres." });
+          return;
+        }
+        const data = await res.json();
+        if (cancelled) return;
+        setFraisMin(String(data.fraisMin ?? ""));
+        setFraisMax(String(data.fraisMax ?? ""));
+        setPaiementTranches(!!data.paiementTranches);
+      } catch {
+        if (!cancelled) toast.error("Chargement échoué", { description: "Erreur réseau." });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/parametres", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fraisMin: Number(fraisMin) || 0,
+          fraisMax: Number(fraisMax) || 0,
+          paiementTranches,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error("Enregistrement échoué", { description: (err as any)?.error ?? "Erreur serveur." });
+        return;
+      }
+      toast.success("Paramètres enregistrés");
+    } catch {
+      toast.error("Enregistrement échoué", { description: "Erreur réseau." });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -49,11 +107,23 @@ export default function AdminParametresPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label className="text-sm text-encre">Frais minimum (FCFA)</Label>
-                <Input defaultValue="350000" className="font-mono" disabled={!isSuperAdmin} />
+                <Input
+                  value={fraisMin}
+                  onChange={(e) => setFraisMin(e.target.value)}
+                  placeholder={loading ? "Chargement…" : "350000"}
+                  className="font-mono"
+                  disabled={!isSuperAdmin || loading}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm text-encre">Frais maximum (FCFA)</Label>
-                <Input defaultValue="1750000" className="font-mono" disabled={!isSuperAdmin} />
+                <Input
+                  value={fraisMax}
+                  onChange={(e) => setFraisMax(e.target.value)}
+                  placeholder={loading ? "Chargement…" : "1750000"}
+                  className="font-mono"
+                  disabled={!isSuperAdmin || loading}
+                />
               </div>
             </div>
           </Card>
@@ -79,7 +149,11 @@ export default function AdminParametresPage() {
                 <Label className="text-sm font-medium text-encre">Paiement en tranches</Label>
                 <p className="text-xs text-ardoise">Autoriser les candidats à payer en 2 fois.</p>
               </div>
-              <Switch defaultChecked disabled={!isSuperAdmin} />
+              <Switch
+                checked={paiementTranches}
+                onCheckedChange={setPaiementTranches}
+                disabled={!isSuperAdmin || loading}
+              />
             </div>
           </Card>
         </TabsContent>
@@ -140,7 +214,12 @@ export default function AdminParametresPage() {
       </Tabs>
 
       <div className="flex justify-end">
-        <Button className="bg-lapis text-blanc hover:bg-lapis/90" onClick={() => toast.success("Paramètres enregistrés")}>
+        <Button
+          className="bg-lapis text-blanc hover:bg-lapis/90"
+          onClick={handleSave}
+          disabled={saving || loading || !isSuperAdmin}
+        >
+          {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
           <Save className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Enregistrer les modifications
         </Button>
       </div>

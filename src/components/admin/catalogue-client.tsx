@@ -26,9 +26,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useRouter } from "next/navigation";
 import { formatFCFA, formatFCFACompact } from "@/lib/format";
 import { toast } from "sonner";
-import { Plus, MapPin, Eye, Pencil, Trash2, GraduationCap, Info } from "lucide-react";
+import { Plus, MapPin, Eye, Pencil, Trash2, GraduationCap, Info, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { normalizeUniversite } from "@/lib/types";
 
@@ -48,9 +49,32 @@ export type CatalogueRow = {
 };
 
 export function CatalogueClient({ initialData }: { initialData: UniversiteNormalized[] }) {
+  const router = useRouter();
   const [newOpen, setNewOpen] = React.useState(false);
   const [detailRow, setDetailRow] = React.useState<CatalogueRow | null>(null);
-  const [universites] = React.useState<UniversiteNormalized[]>(initialData);
+  // On lit directement la prop `initialData` (pas de useState) afin que
+  // `router.refresh()` (re-render du Server Component) se reflète dans l'UI.
+  const universites = initialData;
+
+  // État du formulaire d'ajout
+  const [formNom, setFormNom] = React.useState("");
+  const [formEcusson, setFormEcusson] = React.useState("");
+  const [formVille, setFormVille] = React.useState("");
+  const [formPays, setFormPays] = React.useState("");
+  const [formFraisMin, setFormFraisMin] = React.useState("");
+  const [formFraisMax, setFormFraisMax] = React.useState("");
+  const [creating, setCreating] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
+
+  const resetForm = () => {
+    setFormNom("");
+    setFormEcusson("");
+    setFormVille("");
+    setFormPays("");
+    setFormFraisMin("");
+    setFormFraisMax("");
+  };
 
   const data: CatalogueRow[] = React.useMemo(() => {
     return universites.map((u) => ({
@@ -99,7 +123,7 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
           description: (row) =>
             `Cette action est irréversible. L'université ${row.nom} et ses ${row.formations} formation(s) seront retirées du catalogue.`,
           confirmLabel: "Supprimer",
-          onConfirm: (row) => toast.success("Université supprimée", { description: `${row.nom} retirée du catalogue.` }),
+          onConfirm: (row) => handleDelete(row.id, row.nom),
         },
       },
     ],
@@ -204,12 +228,100 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
     [actions, universites]
   );
 
-  const handleNew = (e: React.FormEvent) => {
+  const handleNew = async (e: React.FormEvent) => {
     e.preventDefault();
-    setNewOpen(false);
-    toast.success("Université ajoutée", {
-      description: "La nouvelle université a été ajoutée au catalogue.",
-    });
+    setCreating(true);
+    try {
+      const res = await fetch("/api/universites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nom: formNom,
+          pays: formPays,
+          drapeau: "",
+          ville: formVille,
+          ecusson: formEcusson,
+          domaines: [],
+          description: "",
+          pointsForts: [],
+          imageCouleur: "",
+          fraisMin: Number(formFraisMin) || 0,
+          fraisMax: Number(formFraisMax) || 0,
+          partenaire: true,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error("Ajout échoué", { description: (err as any)?.error ?? "Erreur serveur." });
+        return;
+      }
+      toast.success("Université ajoutée", {
+        description: `${formNom} a été ajoutée au catalogue.`,
+      });
+      setNewOpen(false);
+      resetForm();
+      router.refresh();
+    } catch {
+      toast.error("Ajout échoué", { description: "Erreur réseau." });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!detailUniversite) return;
+    setSaving(true);
+    try {
+      const u = detailUniversite;
+      const res = await fetch(`/api/universites/${u.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nom: u.nom,
+          pays: u.pays,
+          drapeau: u.drapeau ?? "",
+          ville: u.ville,
+          ecusson: u.ecusson ?? "",
+          domaines: u.domaines ?? [],
+          description: u.description ?? "",
+          pointsForts: u.pointsForts ?? [],
+          imageCouleur: u.imageCouleur ?? "",
+          fraisMin: u.fraisMin,
+          fraisMax: u.fraisMax,
+          partenaire: u.partenaire,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error("Enregistrement échoué", { description: (err as any)?.error ?? "Erreur serveur." });
+        return;
+      }
+      toast.success("Modifications enregistrées", { description: u.nom });
+      router.refresh();
+    } catch {
+      toast.error("Enregistrement échoué", { description: "Erreur réseau." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string, nom: string) => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/universites/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error("Suppression échouée", { description: (err as any)?.error ?? "Erreur serveur." });
+        return;
+      }
+      toast.success("Université supprimée", { description: `${nom} retirée du catalogue.` });
+      setDetailRow(null);
+      router.refresh();
+    } catch {
+      toast.error("Suppression échouée", { description: "Erreur réseau." });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const detailUniversite = detailRow ? universites?.find((u) => u.id === detailRow.id) ?? null : null;
@@ -247,19 +359,35 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium text-encre">Nom</Label>
-                  <Input placeholder="Sorbonne Université" />
+                  <Input
+                    value={formNom}
+                    onChange={(e) => setFormNom(e.target.value)}
+                    placeholder="Sorbonne Université"
+                    required
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium text-encre">Écusson (abr.)</Label>
-                  <Input placeholder="SU" maxLength={4} className="font-mono uppercase" />
+                  <Input
+                    value={formEcusson}
+                    onChange={(e) => setFormEcusson(e.target.value)}
+                    placeholder="SU"
+                    maxLength={4}
+                    className="font-mono uppercase"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium text-encre">Ville</Label>
-                  <Input placeholder="Paris" />
+                  <Input
+                    value={formVille}
+                    onChange={(e) => setFormVille(e.target.value)}
+                    placeholder="Paris"
+                    required
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium text-encre">Pays</Label>
-                  <Select>
+                  <Select value={formPays} onValueChange={setFormPays}>
                     <SelectTrigger>
                       <SelectValue placeholder="Sélectionner" />
                     </SelectTrigger>
@@ -274,18 +402,31 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium text-encre">Frais min (FCFA)</Label>
-                  <Input type="number" placeholder="350000" className="font-mono" />
+                  <Input
+                    type="number"
+                    value={formFraisMin}
+                    onChange={(e) => setFormFraisMin(e.target.value)}
+                    placeholder="350000"
+                    className="font-mono"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium text-encre">Frais max (FCFA)</Label>
-                  <Input type="number" placeholder="1750000" className="font-mono" />
+                  <Input
+                    type="number"
+                    value={formFraisMax}
+                    onChange={(e) => setFormFraisMax(e.target.value)}
+                    placeholder="1750000"
+                    className="font-mono"
+                  />
                 </div>
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setNewOpen(false)}>
+                <Button type="button" variant="outline" onClick={() => setNewOpen(false)} disabled={creating}>
                   Annuler
                 </Button>
-                <Button type="submit" className="bg-lapis text-blanc hover:bg-lapis/90">
+                <Button type="submit" className="bg-lapis text-blanc hover:bg-lapis/90" disabled={creating}>
+                  {creating && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
                   Ajouter
                 </Button>
               </DialogFooter>
@@ -408,21 +549,19 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
                 <div className="flex gap-2">
                   <Button
                     className="flex-1 bg-lapis text-blanc hover:bg-lapis/90"
-                    onClick={() => toast.success("Modifications enregistrées", { description: detailUniversite.nom })}
+                    onClick={handleSave}
+                    disabled={saving || deleting}
                   >
+                    {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
                     Enregistrer
                   </Button>
                   <Button
                     variant="outline"
                     className="border-carmin/40 text-carmin hover:bg-carmin/5"
-                    onClick={() => {
-                      setDetailRow(null);
-                      toast.success("Université supprimée", {
-                        description: `${detailUniversite.nom} retirée du catalogue.`,
-                      });
-                    }}
+                    onClick={() => handleDelete(detailUniversite.id, detailUniversite.nom)}
+                    disabled={saving || deleting}
                   >
-                    <Trash2 className="h-4 w-4" strokeWidth={1.5} />
+                    {deleting ? <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} /> : <Trash2 className="h-4 w-4" strokeWidth={1.5} />}
                   </Button>
                 </div>
               </div>

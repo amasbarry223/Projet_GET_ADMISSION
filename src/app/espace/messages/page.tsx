@@ -80,6 +80,18 @@ export default function MessagesPage() {
       .then((data: Conversation) => {
         setConversation(data);
         setLoading(false);
+        // Marquer les messages comme lus côté serveur si besoin (rôle candidat)
+        if (data && data.nonLusCandidat > 0) {
+          fetch("/api/messages/read", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ dossierId }),
+          })
+            .then(() => {
+              setConversation((prev) => (prev ? { ...prev, nonLusCandidat: 0 } : prev));
+            })
+            .catch((e) => console.error("fetch error:", e));
+        }
       })
       .catch((e) => {
         console.error("fetch error:", e);

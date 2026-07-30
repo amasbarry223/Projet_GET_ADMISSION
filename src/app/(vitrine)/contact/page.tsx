@@ -100,7 +100,7 @@ export default function ContactPage() {
     return e;
   };
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const onSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const e = validate();
     setErrors(e);
@@ -112,15 +112,33 @@ export default function ContactPage() {
     }
 
     setSubmitting(true);
-    // Simule un envoi asynchrone (pas d'appel réseau).
-    window.setTimeout(() => {
-      setSubmitting(false);
-      setForm(INITIAL);
-      setErrors({});
-      toast.success("Message envoyé", {
-        description: "Un conseiller vous répondra sous 24h ouvrées.",
+    try {
+      const payload: FormState = { ...form };
+      if (!payload.telephone.trim()) delete (payload as Partial<FormState>).telephone;
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
-    }, 600);
+      if (res.ok) {
+        toast.success("Message envoyé", {
+          description: "Un conseiller vous répondra sous 24h ouvrées.",
+        });
+        setForm(INITIAL);
+        setErrors({});
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error("Erreur", {
+          description: data.error || "L'envoi a échoué. Réessayez.",
+        });
+      }
+    } catch {
+      toast.error("Erreur", {
+        description: "L'envoi a échoué. Réessayez.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (

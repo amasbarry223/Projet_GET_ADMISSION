@@ -22,8 +22,18 @@ type Dossier = {
   historiques: { id: string; date: string; etat: string; auteur: string; note: string }[];
 };
 
+type Attestation = {
+  id: string;
+  reference: string;
+  codeVerification: string;
+  dateEmission: string;
+  modeRemise: string;
+  emetteur: { prenom: string; nom: string; role: string };
+};
+
 export default function AttestationPage() {
   const [dossier, setDossier] = React.useState<Dossier | null>(null);
+  const [attestation, setAttestation] = React.useState<Attestation | null>(null);
   const [directrice, setDirectrice] = React.useState<{ nom: string; role: string } | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -35,10 +45,23 @@ export default function AttestationPage() {
       fetch("/api/dossiers").then((r) => (r.ok ? r.json() : [])),
       fetch("/api/public/equipe").then((r) => (r.ok ? r.json() : [])),
     ])
-      .then(([data, equipe]) => {
-        setDossier(data[0] ?? null);
+      .then(async ([data, equipe]) => {
+        const d = data[0] ?? null;
+        setDossier(d);
         const dir = equipe.find((m: { role: string }) => m.role.toLowerCase().includes("directrice") || m.role.toLowerCase().includes("directeur"));
         setDirectrice(dir ?? { nom: "GET Admission", role: "Direction" });
+        // Récupère l'attestation réelle si elle existe (dossier en état ATTESTATION/CLOTURE)
+        if (d?.id) {
+          try {
+            const attRes = await fetch(`/api/attestations/${d.id}`);
+            if (attRes.ok) {
+              const att = await attRes.json();
+              setAttestation(att as Attestation);
+            }
+          } catch (e) {
+            console.error("fetch error:", e);
+          }
+        }
         setLoading(false);
       })
       .catch((e) => {
@@ -75,15 +98,16 @@ export default function AttestationPage() {
   // Attestation disponible uniquement si l'état est ATTESTATION ou CLOTURE.
   const etatUpper = d.etat.toUpperCase();
   const isAvailable = etatUpper === "ATTESTATION" || etatUpper === "CLOTURE";
-  const referenceAtt = `ATT-${d.reference.slice(-4)}`;
-  const codeVerification = `VRF-${d.id.slice(0, 4).toUpperCase()}-${d.reference.slice(-4)}`;
+  // Si une attestation réelle existe en DB, on l'utilise ; sinon on génère localement (aperçu).
+  const referenceAtt = attestation?.reference ?? `ATT-${d.reference.slice(-4)}`;
+  const codeVerification = attestation?.codeVerification ?? `VRF-${d.id.slice(0, 4).toUpperCase()}-${d.reference.slice(-4)}`;
 
   // Date de pré-admission : chercher dans l'historique une entrée PRE_ADMISSION
   const preAdmissionEntry = d.historiques.find((h) => h.etat.toUpperCase() === "PRE_ADMISSION");
   const preAdmissionDate = preAdmissionEntry?.date;
-  // Date d'émission : la plus récente entrée ATTESTATION, sinon aujourd'hui
+  // Date d'émission : priorité à l'attestation DB, sinon historique ATTESTATION, sinon aujourd'hui
   const attestationEntry = d.historiques.find((h) => h.etat.toUpperCase() === "ATTESTATION");
-  const emissionDate = attestationEntry?.date ?? new Date().toISOString();
+  const emissionDate = attestation?.dateEmission ?? attestationEntry?.date ?? new Date().toISOString();
 
   return (
     <div className="space-y-6">

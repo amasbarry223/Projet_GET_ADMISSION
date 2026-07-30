@@ -300,3 +300,27 @@ model ObjetContact {
   ordre Int    @default(0)
   actif Boolean @default(true)
 }
+
+/* --------------------------- Contact & Parametres --------------------------- */
+
+model ContactMessage {
+  id        Int      @id @default(autoincrement())
+  prenom    String
+  nom       String
+  email     String
+  telephone String?
+  objet     String
+  message   String
+  createdAt DateTime @default(now())
+  traite    Boolean  @default(false)
+
+  @@index([traite])
+  @@index([createdAt])
+}
+
+model Parametre {
+  id               Int     @id @default(1)
+  fraisMin         Int     @default(350000)
+  fraisMax         Int     @default(1750000)
+  paiementTranches Boolean @default(true)
+}

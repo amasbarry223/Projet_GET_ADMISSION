@@ -65,6 +65,20 @@ export async function POST(
     },
   });
 
+  // Si transition vers ATTESTATION → émettre une attestation automatiquement
+  if (nouvelEtat === "ATTESTATION") {
+    const reference = `ATT-${new Date().getFullYear()}-${dossier.reference.slice(-4)}`;
+    const codeVerification = `VRF-${Math.random().toString(36).slice(2, 6).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}-${dossier.reference.slice(-4)}`;
+    await db.attestation.create({
+      data: {
+        reference,
+        codeVerification,
+        dossierId: id,
+        emetteurId: (session.user as any).id,
+      },
+    });
+  }
+
   await db.historique.create({
     data: {
       dossierId: id,
