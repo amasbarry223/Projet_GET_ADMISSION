@@ -8,14 +8,48 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Plane, Mail, Lock, ArrowRight, Loader2, ShieldCheck, Headset, Wallet, Crown } from "lucide-react";
+import { Plane, Mail, Lock, ArrowRight, Loader2, ShieldCheck, Headset, Wallet, Crown, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+type DemoAccount = {
+  email: string;
+  role: string;
+  label: string;
+  desc: string;
+  href: string;
+  prenom: string;
+  nom: string;
+};
+
+const ROLE_ICON: Record<string, React.ElementType> = {
+  CANDIDAT: GraduationCap,
+  CONSEILLER: Headset,
+  FINANCIER: Wallet,
+  ADMIN: ShieldCheck,
+  SUPER_ADMIN: Crown,
+};
 
 export default function ConnexionPage() {
   const router = useRouter();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  const [demoAccounts, setDemoAccounts] = React.useState<DemoAccount[]>([]);
+  const [demoPassword, setDemoPassword] = React.useState("");
+  const [loadingDemo, setLoadingDemo] = React.useState(true);
+
+  // Récupère dynamiquement les comptes démo depuis la DB
+  React.useEffect(() => {
+    fetch("/api/auth/demo-accounts")
+      .then((r) => r.json())
+      .then((data) => {
+        setDemoAccounts(data.accounts ?? []);
+        setDemoPassword(data.demoPassword ?? "");
+        setLoadingDemo(false);
+      })
+      .catch(() => setLoadingDemo(false));
+  }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,11 +79,11 @@ export default function ConnexionPage() {
     else router.push("/admin");
   };
 
-  const demoLogin = async (demoEmail: string, href: string, label: string) => {
+  const demoLogin = async (account: DemoAccount) => {
     setLoading(true);
     const res = await signIn("credentials", {
-      email: demoEmail,
-      password: "demo1234",
+      email: account.email,
+      password: demoPassword,
       redirect: false,
     });
     setLoading(false);
@@ -57,17 +91,9 @@ export default function ConnexionPage() {
       toast.error("Erreur", { description: "Compte démo indisponible." });
       return;
     }
-    toast.success("Mode démo activé", { description: `Vous explorez en tant que ${label}.` });
-    router.push(href);
+    toast.success("Mode démo activé", { description: `Vous explorez en tant que ${account.label}.` });
+    router.push(account.href);
   };
-
-  const DEMO_ACCOUNTS = [
-    { email: "fatou.diallo@demo.getadm", label: "Candidat", href: "/espace", icon: ShieldCheck, desc: "Suivi du dossier" },
-    { email: "a.diallo@getadm.com", label: "Conseiller", href: "/admin/dossiers", icon: Headset, desc: "Gère les dossiers" },
-    { email: "m.kouassi@getadm.com", label: "Financier", href: "/admin/finance", icon: Wallet, desc: "Transactions" },
-    { email: "y.bensaid@getadm.com", label: "Admin", href: "/admin", icon: ShieldCheck, desc: "Pilotage" },
-    { email: "o.toure@getadm.com", label: "Super Admin", href: "/admin/parametres", icon: Crown, desc: "Configuration" },
-  ];
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-porcelaine p-6">
@@ -115,27 +141,40 @@ export default function ConnexionPage() {
             <Link href="/inscription" className="font-medium text-lapis-clair hover:underline">Créer mon dossier</Link>
           </p>
 
-          <div className="my-6 flex items-center gap-3">
-            <Separator className="flex-1 bg-ligne" />
-            <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Comptes démo · mot de passe demo1234</span>
-            <Separator className="flex-1 bg-ligne" />
-          </div>
+          {!loadingDemo && demoAccounts.length > 0 && (
+            <>
+              <div className="my-6 flex items-center gap-3">
+                <Separator className="flex-1 bg-ligne" />
+                <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Comptes démo · mot de passe {demoPassword}</span>
+                <Separator className="flex-1 bg-ligne" />
+              </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            {DEMO_ACCOUNTS.map((acc) => (
-              <button
-                key={acc.email}
-                type="button"
-                disabled={loading}
-                onClick={() => demoLogin(acc.email, acc.href, acc.label)}
-                className="group flex flex-col items-start gap-1 rounded-md border border-ligne bg-blanc p-3 text-left transition-all hover:-translate-y-0.5 hover:border-lapis/40 hover:shadow-sm disabled:opacity-50"
-              >
-                <acc.icon className="h-4 w-4 text-lapis" strokeWidth={1.5} />
-                <span className="text-sm font-medium text-encre">{acc.label}</span>
-                <span className="text-[11px] text-ardoise">{acc.desc}</span>
-              </button>
-            ))}
-          </div>
+              <div className="grid grid-cols-2 gap-2">
+                {demoAccounts.map((acc) => {
+                  const Icon = ROLE_ICON[acc.role] ?? ShieldCheck;
+                  return (
+                    <button
+                      key={acc.email}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => demoLogin(acc)}
+                      className="group flex flex-col items-start gap-1 rounded-md border border-ligne bg-blanc p-3 text-left transition-all hover:-translate-y-0.5 hover:border-lapis/40 hover:shadow-sm disabled:opacity-50"
+                    >
+                      <Icon className="h-4 w-4 text-lapis" strokeWidth={1.5} />
+                      <span className="text-sm font-medium text-encre">{acc.label}</span>
+                      <span className="text-[11px] text-ardoise">{acc.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {loadingDemo && (
+            <div className="mt-6 flex items-center justify-center gap-2 text-sm text-ardoise">
+              <Loader2 className="h-4 w-4 animate-spin" /> Chargement des comptes démo…
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -9,14 +9,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/lib/auth-context";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { formatFCFA } from "@/lib/format";
 import { Lock, Save, ShieldCheck, CreditCard, Bell, GitBranch, Plane } from "lucide-react";
 
 export default function AdminParametresPage() {
-  const { user } = useAuth();
-  const isSuperAdmin = user?.role === "super-admin";
+  const { data: session } = useSession();
+  const isSuperAdmin = session?.user?.role === "SUPER_ADMIN";
 
   return (
     <div className="space-y-5">

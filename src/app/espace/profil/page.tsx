@@ -11,11 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { useAuth } from "@/lib/auth-context";
+import { useSession } from "next-auth/react";
 import { User, Upload, ShieldCheck, Lock, Camera, CheckCircle2, Save } from "lucide-react";
 
 export default function ProfilPage() {
-  const { user } = useAuth();
+  const { data: session } = useSession();
+  const user = session?.user;
   const [kycType, setKycType] = React.useState("passeport");
 
   const save = (section: string) => toast.success("Modifications enregistrées", { description: `${section} mis à jour.` });

@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { RoleSelector } from "@/components/site/role-selector";
 
 const SECTIONS = [
   { title: "Pilotage", items: [{ href: "/admin", label: "Tableau de bord", icon: LayoutDashboard, exact: true }] },
@@ -158,7 +157,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <Bell className="h-4 w-4" strokeWidth={1.5} />
               <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-ambre" />
             </Button>
-            <div className="hidden sm:block"><RoleSelector /></div>
           </div>
         </header>
 
