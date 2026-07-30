@@ -56,36 +56,7 @@ const ETAPES = [
   },
 ];
 
-const STATISTIQUES = [
-  { valeur: "1 248", libelle: "Dossiers traités" },
-  { valeur: "10", libelle: "Universités partenaires" },
-  { valeur: "6", libelle: "Pays couverts" },
-  { valeur: "78 %", libelle: "Taux d'acceptation" },
-];
-
-const TEMOIGNAGES = [
-  {
-    nom: "Marième F.",
-    parcours: "Master Transport · Hasselt",
-    pays: "🇧🇪 Belgique",
-    citation:
-      "J'ai déposé mon dossier en janvier. Trois semaines plus tard, j'avais ma pré-admission. Le suivi pas à pas m'a évité toutes les erreurs classiques.",
-  },
-  {
-    nom: "Awa T.",
-    parcours: "Master Droit · Mohammed V",
-    pays: "🇲🇦 Maroc",
-    citation:
-      "Mon conseiller répondait à chaque message sous 24 heures. J'ai pu suivre l'avancement comme on suit un colis, étape par étape.",
-  },
-  {
-    nom: "Paul N.",
-    parcours: "Master Commerce · UCT",
-    pays: "🇿🇦 Afrique du Sud",
-    citation:
-      "Tout était transparent : frais, délais, pièces attendues. J'ai récupéré mon attestation directement à l'agence, tamponnée et signée.",
-  },
-];
+const STATISTIQUES_PLACEHOLDER: { valeur: string; libelle: string }[] = [];
 
 /* --------------------------------- Page ----------------------------------- */
 
@@ -118,6 +89,14 @@ export default async function AccueilPage() {
       conseiller: { select: { prenom: true, nom: true } },
     },
   });
+
+  // Statistiques + témoignages — depuis la DB.
+  const [statistiquesRows, temoignagesRows] = await Promise.all([
+    db.statistique.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } }),
+    db.temoignage.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } }),
+  ]);
+  const STATISTIQUES = statistiquesRows.length > 0 ? statistiquesRows : STATISTIQUES_PLACEHOLDER;
+  const TEMOIGNAGES = temoignagesRows;
 
   const formationLabel = dossierDemo?.formation?.intitule ?? "Formation";
   const universiteNom = dossierDemo?.universite?.nom ?? "Université partenaire";

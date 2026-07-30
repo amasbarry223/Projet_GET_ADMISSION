@@ -89,7 +89,7 @@ export default function EspaceDashboard() {
               <span className="h-px w-6 bg-lapis opacity-60" /> Réf. {d.reference}
             </span>
             <h1 className="mt-3 font-display text-3xl font-bold tracking-tight text-encre sm:text-4xl">
-              Bonjour, Fatou.
+              Bonjour, {d.candidat.prenom}.
             </h1>
             <p className="mt-2 max-w-md text-ardoise">
               Voici l'avancement en temps réel de votre dossier vers <span className="font-medium text-encre">{univ?.nom}</span>.

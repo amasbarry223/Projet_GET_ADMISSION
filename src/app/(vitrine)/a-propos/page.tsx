@@ -5,6 +5,7 @@ import { ArrowRight, HeartHandshake, Eye, Network, Quote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Eyebrow, Reveal, RevealStagger, RevealItem } from "@/components/site/reveal";
 import { formatFCFA } from "@/lib/format";
+import { db } from "@/lib/db";
 
 const PILIERS = [
   {
@@ -27,20 +28,15 @@ const PILIERS = [
   },
 ];
 
-const STATISTIQUES = [
-  { valeur: "1 248", libelle: "Dossiers traités" },
-  { valeur: "10", libelle: "Universités partenaires" },
-  { valeur: "6", libelle: "Pays couverts" },
-  { valeur: "78 %", libelle: "Taux d'acceptation" },
-];
+/* --------------------------------- Page ----------------------------------- */
 
-const EQUIPE = [
-  { initiales: "AD", nom: "Aïssatou Diallo", role: "Conseillère pédagogique" },
-  { initiales: "ON", nom: "Olivier Nguema", role: "Conseiller partenariats" },
-  { initiales: "MK", nom: "Mariama Konaté", role: "Responsable finance" },
-];
+export default async function AProposPage() {
+  // Statistiques + équipe — depuis la DB.
+  const [STATISTIQUES, EQUIPE] = await Promise.all([
+    db.statistique.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } }),
+    db.membreEquipe.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } }),
+  ]);
 
-export default function AProposPage() {
   return (
     <>
       {/* Hero éditorial */}

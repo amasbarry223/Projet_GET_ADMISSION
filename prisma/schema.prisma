@@ -216,3 +216,32 @@ model Attestation {
   dossier       Dossier   @relation(fields: [dossierId], references: [id], onDelete: Cascade)
   emetteur      User      @relation("AttestationEmetteur", fields: [emetteurId], references: [id])
 }
+
+/* --------------------------- Contenu vitrine --------------------------- */
+
+model Statistique {
+  id       Int    @id @default(autoincrement())
+  valeur   String
+  libelle  String
+  ordre    Int    @default(0)
+  actif    Boolean @default(true)
+}
+
+model Temoignage {
+  id        Int    @id @default(autoincrement())
+  nom       String
+  parcours  String
+  pays      String
+  citation  String
+  ordre     Int    @default(0)
+  actif     Boolean @default(true)
+}
+
+model MembreEquipe {
+  id        Int    @id @default(autoincrement())
+  initiales String
+  nom       String
+  role      String
+  ordre     Int    @default(0)
+  actif     Boolean @default(true)
+}
