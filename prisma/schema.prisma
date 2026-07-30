@@ -34,6 +34,7 @@ model User {
   kycNumero     String?  // numéro de pièce
   kycVerifie    Boolean  @default(false)
   kycVerifieLe  DateTime?
+  isDemo        Boolean  @default(false) // marque les comptes démo officiels
   role          Role     @default(CANDIDAT)
   actif         Boolean  @default(true)
   createdAt     DateTime @default(now())

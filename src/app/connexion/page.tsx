@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import Image from "next/image";
 import { Plane, Mail, Lock, ArrowRight, Loader2, ShieldCheck, Headset, Wallet, Crown, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ type DemoAccount = {
   href: string;
   prenom: string;
   nom: string;
+  photoUrl: string | null;
 };
 
 const ROLE_ICON: Record<string, React.ElementType> = {
@@ -158,11 +160,21 @@ export default function ConnexionPage() {
                       type="button"
                       disabled={loading}
                       onClick={() => demoLogin(acc)}
-                      className="group flex flex-col items-start gap-1 rounded-md border border-ligne bg-blanc p-3 text-left transition-all hover:-translate-y-0.5 hover:border-lapis/40 hover:shadow-sm disabled:opacity-50"
+                      className="group flex items-start gap-2.5 rounded-md border border-ligne bg-blanc p-3 text-left transition-all hover:-translate-y-0.5 hover:border-lapis/40 hover:shadow-sm disabled:opacity-50"
                     >
-                      <Icon className="h-4 w-4 text-lapis" strokeWidth={1.5} />
-                      <span className="text-sm font-medium text-encre">{acc.label}</span>
-                      <span className="text-[11px] text-ardoise">{acc.desc}</span>
+                      <div className="relative h-9 w-9 flex-none overflow-hidden rounded-full border border-ligne bg-lapis/10">
+                        {acc.photoUrl ? (
+                          <Image src={acc.photoUrl} alt={`${acc.prenom} ${acc.nom}`} fill className="object-cover" sizes="36px" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <Icon className="h-4 w-4 text-lapis" strokeWidth={1.5} />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium text-encre">{acc.label}</span>
+                        <span className="block text-[11px] text-ardoise">{acc.desc}</span>
+                      </div>
                     </button>
                   );
                 })}
