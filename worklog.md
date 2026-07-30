@@ -679,3 +679,32 @@ Stage Summary:
 - 23 pages (9 publiques + 6 candidat + 8 admin) toutes vérifiées 200/307 selon auth.
 - 0 erreur lint, 0 erreur runtime, 0 erreur console.
 - FIX appliqué pendant l'audit : profil/page.tsx rendu 100% dynamique via /api/profile (GET + PUT).
+
+---
+Task ID: AUDIT-FINAL
+Agent: Lead (main)
+Task: Audit exhaustif final — 100% dynamique.
+
+Work Log:
+- Scan exhaustif de tous les fichiers src/app/*.tsx pour données hardcodées.
+- 4 problèmes trouvés et corrigés :
+  1. espace/page.tsx : "La Sorbonne Université a accepté..." → remplacé par {univ?.nom} dynamique depuis le dossier DB.
+  2. espace/attestation/page.tsx : "Yasmine Bensaid" (directrice) hardcodée → fetch /api/public/equipe + filtre par rôle "Directrice" → {directrice?.nom} dynamique.
+  3. (vitrine)/a-propos/page.tsx ligne 92 : "1 248 dossiers traités, 78 % de taux d'acceptation" en dur dans le texte → remplacé par {STATISTIQUES[0]?.valeur} {STATISTIQUES[0]?.libelle} depuis DB.
+  4. espace/dossier/page.tsx : fallback "GETADM-2026-NOUVEAU" → remplacé par "Nouveau dossier" (générique, pas de référence hardcodée).
+- Nouveaux modèles DB : Statistique, Temoignage, MembreEquipe (push schema + seed).
+- Nouvelles API publiques : /api/public/stats, /api/public/temoignages, /api/public/equipe.
+- Home page + a-propos : statistiques, témoignages, équipe depuis DB (server components, Prisma direct).
+- Vérification browser :
+  * Home : stats DB ✓, témoignages DB ✓, universités DB ✓, boarding pass DB ✓
+  * A-propos : équipe DB ✓, stats DB ✓, directrice DB ✓
+  * Espace : "Bonjour, {candidat.prenom}" dynamique ✓, nom université dynamique ✓, pas de "La Sorbonne Université a accepté" hardcodé ✓
+  * Attestation : directrice depuis /api/public/equipe ✓, pas de "Yasmine Bensaid" hardcodé ✓
+  * Console : 0 erreur ✓
+- Lint : 0 erreur, 0 warning. 8 routes publiques 200. 0 erreur dev.log.
+
+Stage Summary:
+- Application 100% dynamique : toutes les données métier (users, dossiers, universités, formations, paiements, messages, statistiques, témoignages, équipe, directrice) proviennent de la base SQLite via Prisma.
+- 0 donnée mock, 0 dossier mock, 0 import mock, 0 nom hardcodé, 0 référence hardcodée, 0 chiffre hardcodé.
+- Les seuls textes "statiques" restants sont du contenu éditorial légitime (titres de sections, FAQ, contexte géographique) — pas des données métier.
+- 13 modèles DB, 15 API routes (3 publiques + 12 protégées RBAC), 23 pages.

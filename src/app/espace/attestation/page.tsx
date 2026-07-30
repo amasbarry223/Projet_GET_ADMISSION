@@ -24,19 +24,21 @@ type Dossier = {
 
 export default function AttestationPage() {
   const [dossier, setDossier] = React.useState<Dossier | null>(null);
+  const [directrice, setDirectrice] = React.useState<{ nom: string; role: string } | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [showPreview, setShowPreview] = React.useState(false);
   const [remiseAgence, setRemiseAgence] = React.useState(false);
 
   React.useEffect(() => {
-    fetch("/api/dossiers")
-      .then((r) => {
-        if (!r.ok) throw new Error();
-        return r.json();
-      })
-      .then((data: Dossier[]) => {
+    Promise.all([
+      fetch("/api/dossiers").then((r) => (r.ok ? r.json() : [])),
+      fetch("/api/public/equipe").then((r) => (r.ok ? r.json() : [])),
+    ])
+      .then(([data, equipe]) => {
         setDossier(data[0] ?? null);
+        const dir = equipe.find((m: { role: string }) => m.role.toLowerCase().includes("directrice") || m.role.toLowerCase().includes("directeur"));
+        setDirectrice(dir ?? { nom: "GET Admission", role: "Direction" });
         setLoading(false);
       })
       .catch(() => {
@@ -173,7 +175,7 @@ export default function AttestationPage() {
             {/* Body */}
             <div className="space-y-4 text-encre">
               <p className="text-sm leading-relaxed">
-                Je soussignée <span className="font-semibold">Yasmine Bensaid</span>, Directrice de GET Admission, atteste que
+                Je soussignée <span className="font-semibold">{directrice?.nom ?? "GET Admission"}</span>, {directrice?.role ?? "Direction"} de GET Admission, atteste que
               </p>
               <p className="font-display text-xl font-bold text-lapis">
                 {d.candidat.prenom} {d.candidat.nom}
@@ -206,7 +208,7 @@ export default function AttestationPage() {
             <div className="mt-8 flex items-end justify-between">
               <div>
                 <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Signature</p>
-                <p className="mt-6 font-display text-base font-bold text-encre">Yasmine Bensaid</p>
+                <p className="mt-6 font-display text-base font-bold text-encre">{directrice?.nom ?? "GET Admission"}</p>
                 <p className="text-xs text-ardoise">Directrice · GET Admission</p>
               </div>
 

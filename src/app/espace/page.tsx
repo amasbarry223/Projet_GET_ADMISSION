@@ -267,7 +267,7 @@ export default function EspaceDashboard() {
               Pré-admission accordée — attestation en cours d'émission.
             </p>
             <p className="mt-1 text-sm text-ardoise">
-              La Sorbonne Université a accepté votre candidature. Votre attestation sera disponible sous 48h.
+              {univ?.nom} a accepté votre candidature. Votre attestation sera disponible sous 48h.
             </p>
             <Button asChild className="mt-4 w-full bg-bleu-vif text-blanc hover:bg-bleu-vif/90" size="sm">
               <Link href="/espace/attestation">Voir l'attestation <ArrowRight className="ml-1.5 h-3.5 w-3.5" strokeWidth={1.5} /></Link>

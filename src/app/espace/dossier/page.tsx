@@ -208,11 +208,12 @@ export default function DossierPage() {
     );
   }
 
-  // Helpers pour les champs récap
-  const boardingReference = existingDossier?.reference ?? "GETADM-2026-NOUVEAU";
+  // Helpers pour les champs récap — utilisent les données du dossier existant (DB)
+  // ou des valeurs génériques pour un nouveau dossier en cours de constitution.
+  const boardingReference = existingDossier?.reference ?? "Nouveau dossier";
   const boardingEtat = existingDossier?.etat ?? "brouillon";
   const boardingEtape = existingDossier?.etapeActuelle ?? 1;
-  const boardingMrz = existingDossier?.mrz ?? "GETADM<<NEW<<<<<<<<<<<<<<<<<<<<<<\n2026<<UNIV<<NIVEAU<<<<<<<<<<<<<<\nGETADM-2026-NOUVEAU<<<<<<<<<<<<";
+  const boardingMrz = existingDossier?.mrz ?? "GETADM<<NOUVEAU DOSSIER<<<<<<<<<<<<<<\n2026<<EN COURS DE CONSTITUTION<<<<\nREFERENCE A GENERER<<<<<<<<<<<<<<";
   const boardingConseiller = existingDossier?.conseiller ? `${existingDossier.conseiller.prenom} ${existingDossier.conseiller.nom}` : "Non affecté";
   const boardingFrais = formation?.fraisAgence ?? existingDossier?.fraisAgence ?? 0;
 

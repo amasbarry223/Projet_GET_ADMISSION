@@ -89,7 +89,7 @@ export default async function AProposPage() {
                   université est tracée.
                 </p>
                 <p>
-                  Le résultat : 1 248 dossiers traités, 78 % de taux d'acceptation, et des étudiants
+                  Le résultat : {STATISTIQUES[0]?.valeur ?? "—"} {STATISTIQUES[0]?.libelle.toLowerCase() ?? "dossiers traités"}, {STATISTIQUES[3]?.valeur ?? "—"} de {STATISTIQUES[3]?.libelle.toLowerCase() ?? "taux d'acceptation"}, et des étudiants
                   aujourd'hui inscrits de Paris au Cap.
                 </p>
               </div>
