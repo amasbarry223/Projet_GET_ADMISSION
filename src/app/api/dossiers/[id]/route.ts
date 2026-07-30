@@ -105,12 +105,20 @@ export async function PUT(
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
   const { etapeActuelle, info, pieces } = parsed.data;
+  const conseillerId = (body as any)?.conseillerId;
 
   const auteurLabel = `${(session.user as any).prenom} ${(session.user as any).nom}`;
 
   // Transaction : update dossier + update user + update pieces + historique
   const updated = await db.$transaction(async (tx) => {
     const notes: string[] = [];
+
+    // 0) Affectation d'un conseiller (staff uniquement)
+    if (conseillerId !== undefined && role !== "CANDIDAT") {
+      await tx.dossier.update({ where: { id }, data: { conseillerId: conseillerId || null } });
+      const cons = conseillerId ? await tx.user.findUnique({ where: { id: conseillerId }, select: { prenom: true, nom: true } }) : null;
+      notes.push(cons ? `Conseiller affecté : ${cons.prenom} ${cons.nom}` : "Conseiller désaffecté");
+    }
 
     // 1) Mise à jour des infos personnelles du candidat (sur le User lié)
     if (info) {

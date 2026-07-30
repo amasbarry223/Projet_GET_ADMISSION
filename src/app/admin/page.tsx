@@ -41,9 +41,12 @@ export default function AdminDashboard() {
   const [stats, setStats] = React.useState<Stats | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [periodeDossiers, setPeriodeDossiers] = React.useState("6s");
+  const [periodeFinance, setPeriodeFinance] = React.useState("6m");
 
-  React.useEffect(() => {
-    fetch("/api/admin/stats")
+  const loadStats = React.useCallback(() => {
+    setLoading(true);
+    fetch(`/api/admin/stats?periodeDossiers=${periodeDossiers}&periodeFinance=${periodeFinance}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!d) {
@@ -59,7 +62,11 @@ export default function AdminDashboard() {
         setError("Erreur réseau lors du chargement des statistiques.");
         setLoading(false);
       });
-  }, []);
+  }, [periodeDossiers, periodeFinance]);
+
+  React.useEffect(() => {
+    loadStats();
+  }, [loadStats]);
 
   if (loading) {
     return (
@@ -108,7 +115,7 @@ export default function AdminDashboard() {
         {/* Évolution dossiers */}
         <Card className="border-ligne bg-blanc p-5 lg:col-span-2 shadow-sm">
           <ChartSectionHeader eyebrow="Évolution" title="Dossiers & pré-admissions">
-            <Select defaultValue="6s">
+            <Select value={periodeDossiers} onValueChange={setPeriodeDossiers}>
               <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="6s">6 dernières semaines</SelectItem>
@@ -188,7 +195,7 @@ export default function AdminDashboard() {
         {/* Encaissements */}
         <Card className="border-ligne bg-blanc p-5 shadow-sm">
           <ChartSectionHeader eyebrow="Finance" title="Encaissements (FCFA)">
-            <Select defaultValue="6m">
+            <Select value={periodeFinance} onValueChange={setPeriodeFinance}>
               <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="6m">6 mois</SelectItem>

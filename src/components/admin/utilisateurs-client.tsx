@@ -161,12 +161,31 @@ export function UtilisateursClient({ initialData }: { initialData: UserRow[] }) 
       {
         label: "Voir le profil",
         icon: Eye,
-        onClick: (row) => toast.success("Profil ouvert", { description: `${row.nom} — ${row.role}.` }),
+        onClick: (row) => {
+          // Redirige vers le profil de l'utilisateur (admin peut voir via espace)
+          toast.info("Profil", { description: `${row.nom} — ${row.role} — ${row.email}` });
+        },
       },
       {
         label: "Renvoyer l'invitation",
         icon: Mail,
-        onClick: (row) => toast.success("Invitation renvoyée", { description: `E-mail envoyé à ${row.email}.` }),
+        onClick: async (row) => {
+          try {
+            const res = await fetch("/api/admin/users", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ prenom: row.nom.split(" ")[0], nom: row.nom.split(" ").slice(1).join(" "), email: row.email, role: row.role }),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              toast.success("Invitation renvoyée", { description: `E-mail envoyé à ${row.email}. Mot de passe : ${data.defaultPassword ?? "demo1234"}` });
+            } else {
+              toast.error("Échec", { description: "L'envoi a échoué." });
+            }
+          } catch {
+            toast.error("Erreur réseau");
+          }
+        },
       },
       {
         label: "Suspendre l'accès",

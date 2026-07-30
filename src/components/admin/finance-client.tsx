@@ -107,8 +107,28 @@ export function FinanceClient({
           description: (row) =>
             `Une nouvelle tentative de prélèvement sera effectuée pour ${row.reference}.`,
           confirmLabel: "Relancer",
-          onConfirm: (row) =>
-            toast.success("Transaction relancée", { description: `${row.reference} — nouvelle tentative en cours.` }),
+          onConfirm: async (row) => {
+            try {
+              const res = await fetch("/api/admin/paiements", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  dossierId: row.dossierId ?? row.id,
+                  montant: row.montant,
+                  moyen: row.moyen,
+                  tranche: "Relance",
+                }),
+              });
+              if (res.ok) {
+                toast.success("Transaction relancée", { description: `${row.reference} — nouvelle tentative enregistrée.` });
+                router.refresh();
+              } else {
+                toast.error("Échec", { description: "La relance a échoué." });
+              }
+            } catch {
+              toast.error("Erreur réseau");
+            }
+          },
         },
       },
     ],

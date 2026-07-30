@@ -101,7 +101,26 @@ export function AttestationsClient({
         </div>
         <Button
           className="bg-lapis text-blanc hover:bg-lapis/90"
-          onClick={() => toast.success("Nouveau modèle", { description: "Concepteur de modèle ouvert." })}
+          onClick={async () => {
+            const nom = window.prompt("Nom du modèle :");
+            if (!nom) return;
+            const description = window.prompt("Description :") ?? "";
+            try {
+              const res = await fetch("/api/public/modeles-attestation", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ nom, description }),
+              });
+              if (res.ok) {
+                toast.success("Modèle créé", { description: nom });
+                router.refresh();
+              } else {
+                toast.error("Échec", { description: "La création a échoué." });
+              }
+            } catch {
+              toast.error("Erreur réseau");
+            }
+          }}
         >
           <Plus className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Nouveau modèle
         </Button>

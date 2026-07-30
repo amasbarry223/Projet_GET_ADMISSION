@@ -69,8 +69,37 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
       {
         label: "Affecter un conseiller",
         icon: UserPlus,
-        onClick: (row) =>
-          toast.success("Conseiller affecté", { description: `Dossier ${row.reference} réaffecté.` }),
+        onClick: async (row) => {
+          // Récupère la liste des conseillers
+          try {
+            const usersRes = await fetch("/api/admin/users");
+            const users = usersRes.ok ? await usersRes.json() : [];
+            const conseillers = users.filter((u: any) => u.role === "CONSEILLER" && u.actif);
+            if (conseillers.length === 0) {
+              toast.error("Aucun conseiller", { description: "Aucun conseiller actif disponible." });
+              return;
+            }
+            const choix = window.prompt(
+              `Choisissez un conseiller :\n${conseillers.map((c: any, i: number) => `${i + 1}. ${c.nom}`).join("\n")}\n\nEntrez le numéro :`
+            );
+            const idx = parseInt(choix ?? "0", 10) - 1;
+            if (idx < 0 || idx >= conseillers.length) return;
+            const cons = conseillers[idx];
+            const res = await fetch(`/api/dossiers/${row.id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ conseillerId: cons.id }),
+            });
+            if (res.ok) {
+              toast.success("Conseiller affecté", { description: `${cons.nom} → ${row.reference}` });
+              router.refresh();
+            } else {
+              toast.error("Échec", { description: "L'affectation a échoué." });
+            }
+          } catch {
+            toast.error("Erreur réseau");
+          }
+        },
       },
       {
         label: "Transmettre à l'université",
@@ -255,11 +284,38 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
                 variant="outline"
                 size="sm"
                 className="h-8 border-ligne bg-blanc"
-                onClick={() =>
-                  toast.success("Conseiller affecté", {
-                    description: `${count} dossier${count > 1 ? "s" : ""} réaffecté${count > 1 ? "s" : ""}.`,
-                  })
-                }
+                onClick={async () => {
+                  const selected = table.getFilteredSelectedRowModel().rows;
+                  try {
+                    const usersRes = await fetch("/api/admin/users");
+                    const users = usersRes.ok ? await usersRes.json() : [];
+                    const conseillers = users.filter((u: any) => u.role === "CONSEILLER" && u.actif);
+                    if (conseillers.length === 0) {
+                      toast.error("Aucun conseiller disponible");
+                      return;
+                    }
+                    const choix = window.prompt(
+                      `Affecter un conseiller à ${count} dossier(s) :\n${conseillers.map((c: any, i: number) => `${i + 1}. ${c.nom}`).join("\n")}\n\nEntrez le numéro :`
+                    );
+                    const idx = parseInt(choix ?? "0", 10) - 1;
+                    if (idx < 0 || idx >= conseillers.length) return;
+                    const cons = conseillers[idx];
+                    await Promise.all(
+                      selected.map((r) =>
+                        fetch(`/api/dossiers/${r.original.id}`, {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ conseillerId: cons.id }),
+                        })
+                      )
+                    );
+                    toast.success("Conseiller affecté", { description: `${count} dossier(s) → ${cons.nom}` });
+                    table.resetRowSelection();
+                    router.refresh();
+                  } catch {
+                    toast.error("Erreur réseau");
+                  }
+                }}
               >
                 <UserCog className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Affecter un conseiller
               </Button>

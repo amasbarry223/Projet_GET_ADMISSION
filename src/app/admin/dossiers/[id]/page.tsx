@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -94,6 +94,7 @@ type ActionDef = {
 
 export default function AdminDossierDetail() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const [dossier, setDossier] = React.useState<DossierDetail | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -374,7 +375,7 @@ export default function AdminDossierDetail() {
                   })}
                 </div>
               )}
-              <Button variant="outline" className="mt-4" onClick={() => toast.success("Ouverture de la messagerie")}>
+              <Button variant="outline" className="mt-4" onClick={() => router.push("/espace/messages")}>
                 <MessageSquare className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Ouvrir la conversation
               </Button>
             </Card>
