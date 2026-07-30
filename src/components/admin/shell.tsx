@@ -5,10 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
-import { Plane, LayoutDashboard, FolderOpen, Building2, Wallet, Users, Stamp, Settings, LogOut, Menu, Search, Bell, Loader2 } from "lucide-react";
+import { Plane, LayoutDashboard, FolderOpen, Building2, Wallet, Users, Stamp, Settings, LogOut, Menu, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import { GlobalSearch } from "@/components/admin/global-search";
+import { NotificationsBell } from "@/components/admin/notifications-bell";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const SECTIONS = [
@@ -147,16 +148,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </SheetContent>
           </Sheet>
 
-          <div className="relative hidden sm:block flex-1 max-w-xl">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise" strokeWidth={1.5} />
-            <Input placeholder="Recherche globale — référence, candidat, université…" className="h-9 pl-9 bg-porcelaine" aria-label="Recherche globale" />
-          </div>
+          <GlobalSearch />
 
           <div className="ml-auto flex items-center gap-1.5">
-            <Button variant="ghost" size="icon" className="relative text-ardoise hover:text-lapis" aria-label="Notifications">
-              <Bell className="h-4 w-4" strokeWidth={1.5} />
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-ambre" />
-            </Button>
+            <NotificationsBell />
           </div>
         </header>
 

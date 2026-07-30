@@ -16,6 +16,7 @@ import {
 } from "@tanstack/react-table";
 import { ArrowUpDown, ChevronDown, ChevronUp, ChevronsUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, MoreHorizontal, AlertTriangle, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDebounce } from "@/lib/use-debounce";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -328,6 +329,17 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
+  const [searchInput, setSearchInput] = React.useState("");
+
+  // Debounce la recherche (300ms) — évite de filtrer à chaque frappe
+  const debouncedSearch = useDebounce(searchInput, 300);
+
+  // Appliquer la valeur debouncée au filtre de colonne
+  React.useEffect(() => {
+    if (searchKey) {
+      table.getColumn(searchKey)?.setFilterValue(debouncedSearch);
+    }
+  }, [debouncedSearch, searchKey, table]);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
@@ -357,8 +369,8 @@ export function DataTable<TData, TValue>({
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise" strokeWidth={1.5} />
             <Input
               placeholder={searchPlaceholder}
-              value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ""}
-              onChange={(e) => table.getColumn(searchKey)?.setFilterValue(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="h-9 pl-9"
             />
           </div>
