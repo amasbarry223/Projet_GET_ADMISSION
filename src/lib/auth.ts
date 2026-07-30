@@ -2,19 +2,29 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import type { Role } from "@prisma/client";
+
+// Type étendu pour l'utilisateur retourné par authorize()
+type AuthUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+  prenom: string;
+  nom: string;
+};
 
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60, // 24h (réduit depuis 30 jours pour limiter la fenêtre d'attaque)
+    maxAge: 24 * 60 * 60, // 24h
   },
   pages: {
     signIn: "/connexion",
   },
-  // Sécurisation des cookies de session
   cookies: {
     sessionToken: {
-      name: `next-auth.session-token`,
+      name: "next-auth.session-token",
       options: {
         httpOnly: true,
         sameSite: "lax",
@@ -23,7 +33,7 @@ export const authOptions: NextAuthOptions = {
       },
     },
     callbackUrl: {
-      name: `next-auth.callback-url`,
+      name: "next-auth.callback-url",
       options: {
         httpOnly: true,
         sameSite: "lax",
@@ -32,7 +42,7 @@ export const authOptions: NextAuthOptions = {
       },
     },
     csrfToken: {
-      name: `next-auth.csrf-token`,
+      name: "next-auth.csrf-token",
       options: {
         httpOnly: true,
         sameSite: "lax",
@@ -48,12 +58,11 @@ export const authOptions: NextAuthOptions = {
         email: { label: "E-mail", type: "email" },
         password: { label: "Mot de passe", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials): Promise<AuthUser | null> {
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
 
-        // Protection contre les emails malformés (injection potentielle)
         const email = credentials.email.toLowerCase().trim();
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
           return null;
@@ -79,26 +88,28 @@ export const authOptions: NextAuthOptions = {
           role: user.role,
           prenom: user.prenom,
           nom: user.nom,
-        } as any;
+        };
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = (user as any).id;
-        token.role = (user as any).role;
-        token.prenom = (user as any).prenom;
-        token.nom = (user as any).nom;
+        const u = user as AuthUser;
+        token.id = u.id;
+        token.role = u.role;
+        token.prenom = u.prenom;
+        token.nom = u.nom;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = token.id;
-        (session.user as any).role = token.role;
-        (session.user as any).prenom = token.prenom;
-        (session.user as any).nom = token.nom;
+        const u = session.user as Record<string, unknown>;
+        u.id = token.id;
+        u.role = token.role;
+        u.prenom = token.prenom;
+        u.nom = token.nom;
       }
       return session;
     },
