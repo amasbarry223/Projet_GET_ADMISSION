@@ -115,7 +115,7 @@ export default function ProfilPage() {
         <div className="flex flex-wrap items-center gap-4">
           <div className="relative">
             <div className="relative h-16 w-16 overflow-hidden rounded-full border-2 border-ligne">
-              <Image src="/images/candidate-portrait.png" alt="Fatou Diallo" fill className="object-cover" sizes="64px" />
+              <Image src={profile?.photoUrl ?? "/images/candidate-portrait.png"} alt={profile ? `${profile.prenom} ${profile.nom}` : "Photo de profil"} fill className="object-cover" sizes="64px" />
             </div>
             <button className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-lapis text-blanc shadow-sm hover:bg-lapis/90" aria-label="Changer la photo">
               <Camera className="h-3 w-3" strokeWidth={1.5} />

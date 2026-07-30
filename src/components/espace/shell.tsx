@@ -81,9 +81,13 @@ function UserCard() {
     <div className="border-t border-ligne p-3">
       <div className="flex items-center gap-3 rounded-md p-2">
         <div className="relative h-9 w-9 flex-none overflow-hidden rounded-full border border-ligne bg-lapis/10">
-          {u ? (
-            <Image src="/images/candidate-portrait.png" alt={`${u.prenom} ${u.nom}`} fill className="object-cover" sizes="36px" />
-          ) : null}
+          {u?.image ? (
+            <Image src={u.image} alt={`${u.prenom} ${u.nom}`} fill className="object-cover" sizes="36px" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center font-mono text-xs font-semibold text-lapis">
+              {u ? `${u.prenom[0] ?? ""}${u.nom[0] ?? ""}` : ""}
+            </div>
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-encre">{u?.prenom} {u?.nom}</p>

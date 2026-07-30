@@ -9,6 +9,7 @@ declare module "next-auth" {
       role: "CANDIDAT" | "CONSEILLER" | "FINANCIER" | "ADMIN" | "SUPER_ADMIN";
       prenom: string;
       nom: string;
+      image: string | null;
     } & DefaultSession["user"];
   }
 
@@ -16,6 +17,7 @@ declare module "next-auth" {
     role: "CANDIDAT" | "CONSEILLER" | "FINANCIER" | "ADMIN" | "SUPER_ADMIN";
     prenom: string;
     nom: string;
+    image: string | null;
   }
 }
 
@@ -25,5 +27,6 @@ declare module "next-auth/jwt" {
     role: "CANDIDAT" | "CONSEILLER" | "FINANCIER" | "ADMIN" | "SUPER_ADMIN";
     prenom: string;
     nom: string;
+    image: string | null;
   }
 }

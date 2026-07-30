@@ -281,7 +281,7 @@ export default function EspaceDashboard() {
             <div className="flex items-center gap-3">
               <div className="relative h-12 w-12 flex-none overflow-hidden rounded-full border-2 border-or-pale">
                 <Image
-                  src="/images/advisor-portrait.png"
+                  src={(d.conseiller as any)?.photoUrl ?? "/images/advisor-portrait.png"}
                   alt={d.conseiller ? `${d.conseiller.prenom} ${d.conseiller.nom}` : "Conseiller"}
                   fill
                   className="object-cover"

@@ -12,6 +12,7 @@ type AuthUser = {
   role: Role;
   prenom: string;
   nom: string;
+  image: string | null;
 };
 
 export const authOptions: NextAuthOptions = {
@@ -88,6 +89,7 @@ export const authOptions: NextAuthOptions = {
           role: user.role,
           prenom: user.prenom,
           nom: user.nom,
+          image: user.photoUrl,
         };
       },
     }),
@@ -100,6 +102,7 @@ export const authOptions: NextAuthOptions = {
         token.role = u.role;
         token.prenom = u.prenom;
         token.nom = u.nom;
+        token.image = u.image;
       }
       return token;
     },
@@ -110,6 +113,7 @@ export const authOptions: NextAuthOptions = {
         u.role = token.role;
         u.prenom = token.prenom;
         u.nom = token.nom;
+        u.image = token.image;
       }
       return session;
     },

@@ -24,7 +24,7 @@ export async function GET(
       candidat: { select: { id: true, prenom: true, nom: true, email: true, nationalite: true, telephone: true } },
       universite: true,
       formation: true,
-      conseiller: { select: { id: true, prenom: true, nom: true } },
+      conseiller: { select: { id: true, prenom: true, nom: true, photoUrl: true } },
       pieces: true,
       paiements: true,
       historiques: { orderBy: { date: "asc" } },

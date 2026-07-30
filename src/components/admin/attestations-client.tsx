@@ -153,11 +153,11 @@ export function AttestationsClient({
                     variant="outline"
                     size="sm"
                     className="flex-1"
-                    onClick={() => toast.success("Aperçu du modèle")}
+                    onClick={() => window.open(`/api/attestation-pdf/${emettreDossier?.id ?? modele.id}`, "_blank")}
                   >
                     <Eye className="mr-1.5 h-3.5 w-3.5" /> Aperçu
                   </Button>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={() => window.open(`/api/public/modeles-attestation`, "_blank")}>
                     <FileText className="h-3.5 w-3.5" />
                   </Button>
                 </div>

@@ -180,7 +180,7 @@ export default function MessagesPage() {
             <div className="flex-1 overflow-y-auto scroll-fine p-2">
               <button className="flex w-full items-start gap-3 rounded-md bg-lapis/5 p-3 text-left">
                 <div className="relative h-10 w-10 flex-none overflow-hidden rounded-full border border-ligne">
-                  <Image src="/images/advisor-portrait.png" alt={conseillerNom} fill className="object-cover" sizes="40px" />
+                  <Image src={conversation?.conseiller?.photoUrl ?? "/images/advisor-portrait.png"} alt={conseillerNom} fill className="object-cover" sizes="40px" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
@@ -216,7 +216,7 @@ export default function MessagesPage() {
             <div className="flex items-center gap-3 border-b border-ligne px-4 py-3 md:hidden">
               <Button variant="ghost" size="icon" aria-label="Retour"><ArrowLeft className="h-4 w-4" /></Button>
               <div className="relative h-8 w-8 flex-none overflow-hidden rounded-full border border-ligne">
-                <Image src="/images/advisor-portrait.png" alt={conseillerNom} fill className="object-cover" sizes="32px" />
+                <Image src={conversation?.conseiller?.photoUrl ?? "/images/advisor-portrait.png"} alt={conseillerNom} fill className="object-cover" sizes="32px" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-encre">{conseillerNom}</p>
@@ -226,7 +226,7 @@ export default function MessagesPage() {
             {/* Desktop header */}
             <div className="hidden md:flex items-center gap-3 border-b border-ligne px-4 py-3">
               <div className="relative h-9 w-9 flex-none overflow-hidden rounded-full border border-ligne">
-                <Image src="/images/advisor-portrait.png" alt={conseillerNom} fill className="object-cover" sizes="36px" />
+                <Image src={conversation?.conseiller?.photoUrl ?? "/images/advisor-portrait.png"} alt={conseillerNom} fill className="object-cover" sizes="36px" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-encre">{conseillerNom}</p>

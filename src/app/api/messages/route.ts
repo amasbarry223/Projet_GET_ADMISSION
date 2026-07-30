@@ -30,7 +30,7 @@ export async function GET(request: Request) {
         orderBy: { createdAt: "asc" },
       },
       candidat: { select: { prenom: true, nom: true } },
-      conseiller: { select: { prenom: true, nom: true } },
+      conseiller: { select: { prenom: true, nom: true, photoUrl: true } },
     },
   });
 
