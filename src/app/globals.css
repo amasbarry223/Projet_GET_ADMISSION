@@ -19,6 +19,20 @@
   --color-ambre: #C77A12;
   --color-carmin: #C0392B;
 
+  /* Couleurs sémantiques vives (inspiration enterprise dashboard) */
+  --color-cyan: #13C2C2;
+  --color-cyan-pale: #E6FFFB;
+  --color-bleu-vif: #1890FF;
+  --color-bleu-pale: #E6F7FF;
+  --color-vert-vif: #52C41A;
+  --color-vert-pale: #F6FFED;
+  --color-jaune: #FAAD14;
+  --color-jaune-pale: #FFFBE6;
+  --color-rouge: #FF4D4F;
+  --color-rouge-pale: #FFF1F0;
+  --color-violet: #722ED1;
+  --color-violet-pale: #F9F0FF;
+
   /* shadcn semantic aliases (résolues vers les vars :root) */
   --color-background: var(--background);
   --color-foreground: var(--foreground);

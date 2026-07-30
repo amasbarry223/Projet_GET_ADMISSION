@@ -26,8 +26,15 @@ export const KPI_ADMIN = {
   enCours: 5,
   tauxAcceptation: 75,
   encaissementsMois: 1390000,
+  attestationsEmises: 8,
   deltaNouveaux: 12,
   deltaEnCours: -8,
   deltaAcceptation: 4,
   deltaEncaissements: 22,
+  deltaAttestations: 18,
 };
+
+export const TOP_CONSEILLERS = [
+  { id: "u-cons-1", nom: "Aïssatou Diallo", initiales: "AD", dossiers: 4, acceptes: 3, avatar: "/images/advisor-portrait.png" },
+  { id: "u-cons-2", nom: "Olivier Nguema", initiales: "ON", dossiers: 3, acceptes: 2, avatar: "/images/avatar-conseiller-2.png" },
+];

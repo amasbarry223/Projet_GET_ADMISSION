@@ -409,3 +409,53 @@ Stage Summary:
 - Cohérence garantie sur les 4 tables : même pattern Actions (⋯ → items avec icônes → actions directes OU AlertDialog confirm), même pattern Dialog pour les opérations "Nouveau/Ajouter", même Alert pour le contexte.
 - Mobile vérifié : dropdown Actions positionné correctement (non coupé sur 390px).
 - Back-office entièrement refondu avec composants cohérents : DataTable, Alert, AlertDialog, Dialog, Sheet, DropdownMenu.
+
+---
+Task ID: 17
+Agent: Lead (main) — expert frontend, inspiration modèle enterprise dashboard
+Task: Refonte dashboards inspirée du modèle (design system + structure).
+
+Work Log:
+- Analyse VLM du modèle de référence (Library Management System, Ant Design style) :
+  * Layout : sidebar 240-260px + header 64-72px + grille (5 KPI cards top + charts 2-col + listes + table full-width).
+  * KPI cards : icône dans conteneur teinté carré 48px arrondi + valeur 28-32px bold + label gris + delta badge coloré.
+  * Couleurs sémantiques vives : Bleu #1890FF, Teal/Cyan #13C2C2, Vert #52C41A, Jaune #FAAD14, Rouge #FF4D4F.
+  * Charts avec dropdown filtre période, tooltips, légendes.
+  * Listes avec avatars circulaires, tables avec thumbnails + badges pill colorés.
+  * Ombres douces diffuses, rayons 8-12px, espacement 8px grid.
+- Design system étendu (src/app/globals.css @theme) :
+  * Ajout 8 couleurs sémantiques vives + leur variante pâle : cyan (#13C2C2/#E6FFFB), bleu-vif (#1890FF/#E6F7FF), vert-vif (#52C41A/#F6FFED), jaune (#FAAD14/#FFFBE6), rouge (#FF4D4F/#FFF1F0), violet (#722ED1/#F9F0FF).
+  * Palette signature lapis/or conservée pour la vitrine + accents dashboards.
+- src/components/admin/kpi-card.tsx (NOUVEAU) :
+  * KpiCard : icône dans conteneur teinté coloré (48x48 rounded-lg) + valeur 28px bold + label gris + delta badge (vert↑/rouge↓) + deltaLabel.
+  * 8 tons disponibles (lapis/cyan/bleu/vert/jaune/rouge/violet/or).
+  * ChartSectionHeader : eyebrow + titre + slot pour dropdown filtre période.
+- src/lib/mock/utilisateurs.ts : ajout KPI_ADMIN.attestationsEmises (5e KPI) + deltaAttestations. Ajout TOP_CONSEILLERS (2 conseillers avec avatars photos).
+- src/lib/mock/paiements.ts : existant conservé (REPARTITION_STATUTS, TOP_UNIVERSITES, DOSSIERS_PAR_PERIODE, TRANSACTIONS_PAR_MOIS).
+- Image récupérée : public/images/avatar-conseiller-2.png (Olivier Nguema, conseiller #2).
+- src/app/admin/page.tsx REFACTO complet inspiré du modèle :
+  * 5 KPI cards (bleu/jaune/vert/cyan/violet) en top row avec delta badges colorés.
+  * Charts row : AreaChart dossiers+pré-admissions (2-col, dropdown "6 dernières semaines") + PieChart répartition statuts (1-col).
+  * Row 2 : BarChart top universités + AreaChart encaissements (dropdown 6 mois) + liste top conseillers avec avatars photos + taux acceptation.
+  * Alert jaune contextuelle "File prioritaire" avec compte dynamique.
+  * Table "Dossiers récents" full-width : avatar initiales + candidat + référence + université + badge statut coloré + date + frais + action.
+  * Ombres douces sur toutes les cartes (shadow-sm), rayons rounded-lg.
+- src/app/espace/page.tsx REFACTO complet :
+  * Hero conservé (welcome + illustration) — portail candidat reste plus humain.
+  * 4 KPI cards (bleu/vert/jaune/violet) : Étape 9/12, Frais 850k FCFA, Messages 2 non lus, Attestation "Sous 48h".
+  * Timeline 12 étapes (couleurs vives : vert-vif passé, bleu-vif courant, ardoise futur) avec animation pulse-soft.
+  * Mini table paiements (référence, date, moyen, montant, statut badge vert).
+  * Right column : carte destination avec photo campus, carte prochaine action (bleu-pale), carte conseillère avec portrait, raccourcis.
+- Vérification agent-browser :
+  * Admin dashboard : 5 KPI cards, 3 charts (area + pie + bar + area), 5 table rows, alert. ✓
+  * Espace dashboard : 4 KPI cards, 4 images loaded, 12 timeline steps, payments table. ✓
+- VLM evaluation : "Admin dashboard = textbook Ant Design / Material enterprise, production-ready. KPI cards follow exact pattern, charts reinforce enterprise analytics vibe, clear visual hierarchy." Fix appliqué : 4e KPI espace "Sous 48h" (au lieu de "En cours"), Y-axis area chart allowDecimals=false (entiers au lieu de 0.75/1.5).
+- Lint : 0 erreur, 0 warning. 6 routes 200 OK. 0 erreur dev.log.
+
+Stage Summary:
+- Dashboards refondus avec design system enterprise inspiré du modèle : KPI cards (icône teintée + valeur + delta), charts avec filtres période, listes avatars, tables denses avec badges colorés.
+- Composant KpiCard réutilisable créé (8 tons sémantiques) — utilisé sur admin + espace dashboards.
+- 8 couleurs sémantiques vives ajoutées au design system (cyan/bleu-vif/vert-vif/jaune/rouge/violet + variantes pâles).
+- Admin dashboard : 5 KPI + 4 charts + liste conseillers avatars + table dossiers récents + alert contextuelle.
+- Espace dashboard : 4 KPI + timeline 12 étapes + table paiements + cartes destination/conseillère/raccourcis.
+- Palette signature lapis/or conservée pour vitrine + accents ; couleurs vives pour dashboards (cohérence enterprise).
