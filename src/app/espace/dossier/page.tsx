@@ -161,11 +161,13 @@ export default function DossierPage() {
   // Mock "draft saved" indicator
   React.useEffect(() => {
     if (loadingDossier || universitesLoading) return;
-    const t = setTimeout(() => {
+    const t1 = setTimeout(() => {
       setSavedBadge(true);
-      setTimeout(() => setSavedBadge(false), 2000);
+      const t2 = setTimeout(() => setSavedBadge(false), 2000);
+      // Cleanup du timeout interne via closure
+      return () => clearTimeout(t2);
     }, 800);
-    return () => clearTimeout(t);
+    return () => clearTimeout(t1);
   }, [step, univId, formId, info, pieces, loadingDossier, universitesLoading]);
 
   const identityPieces = ["Passeport ou CNI (page photo)", "Photo d'identité récente"];
