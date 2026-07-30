@@ -380,3 +380,32 @@ Stage Summary:
 - Modales Dialog pour les opérations "Nouveau" : transaction finance + invitation utilisateur (formulaires avec Select).
 - Alert contextuelle sur dashboard admin pour la file prioritaire.
 - Toutes les descriptions AlertDialog sont dynamiques (référencent le row concerné) — expérience utilisateur contextuelle et précise.
+
+---
+Task ID: 16
+Agent: Lead (main) — expert frontend
+Task: Continuité — catalogue en DataTable + Actions + vérification mobile.
+
+Work Log:
+- Vérification mobile (390px) du dropdown Actions : position x=173, right=365, viewport=390 → visibleOnScreen=true (non coupé). VLM confirme : "fully visible and readable, aligns well within the 390px viewport."
+- src/app/admin/catalogue/page.tsx — REFACTO complet :
+  * Avant : grille de cartes avec icône Pencil ouvrant un Sheet. Pas de recherche/filtres/pagination/tri.
+  * Après : DataTable avec 8 colonnes (Écusson gradient, Université+drapeau, Ville+MapPin, Pays, Domaines badges+count, Formations count, Frais range, Actions dropdown).
+  * Toolbar : recherche par nom + 2 filtres Select (Pays, Domaine) via render-prop.
+  * Actions dropdown (3 items) : Voir la fiche (Sheet détail), Modifier (Sheet édition), Supprimer l'université (AlertDialog danger avec description dynamique "L'université {nom} et ses {N} formation(s) seront retirées du catalogue").
+  * Bouton "Ajouter une université" → Dialog modal (formulaire : Nom, Écusson, Ville, Pays Select, Frais min/max) → Ajouter → toast "Université ajoutée".
+  * Sheet détail contrôlé par state (detailRow) au lieu d'un Sheet par carte.
+  * Alert info contextuelle pour expliquer le catalogue.
+- Vérification agent-browser :
+  * Catalogue DataTable : 10 universités affichées, colonnes triables, filtres Pays/Domaine. ✓
+  * Actions dropdown : 3 items (Voir la fiche, Modifier, Supprimer l'université). ✓
+  * "Voir la fiche" → Sheet s'ouvre avec description, frais, liste formations (3 formations Sorbonne avec frais). ✓
+  * "Supprimer l'université" → AlertDialog "Supprimer cette université ? Cette action est irréversible. L'université Sorbonne Université et ses 3 formation(s) seront retirées du catalogue." ✓
+  * "Ajouter une université" → Dialog modal avec formulaire complet (Nom, Écusson, Ville, Pays Select, Frais min/max) → Ajouter → toast "Université ajoutée — La nouvelle université a été ajoutée au catalogue." ✓
+- Lint : 0 erreur, 0 warning. 8 routes admin 200 OK.
+
+Stage Summary:
+- Catalogue maintenant aligné avec les 3 autres tables admin (dossiers, finance, utilisateurs) : DataTable + Actions dropdown + Dialog "Nouveau" + Alert contextuelle.
+- Cohérence garantie sur les 4 tables : même pattern Actions (⋯ → items avec icônes → actions directes OU AlertDialog confirm), même pattern Dialog pour les opérations "Nouveau/Ajouter", même Alert pour le contexte.
+- Mobile vérifié : dropdown Actions positionné correctement (non coupé sur 390px).
+- Back-office entièrement refondu avec composants cohérents : DataTable, Alert, AlertDialog, Dialog, Sheet, DropdownMenu.
