@@ -1038,3 +1038,19 @@ Files touched:
 - `src/components/admin/finance-client.tsx`
 - `src/components/admin/attestations-client.tsx`
 - `src/app/admin/parametres/page.tsx`
+
+---
+Task ID: IMPROVEMENTS
+Agent: Lead (main) — expert full-stack
+Task: Améliorations et ajustements (6 items implémentés).
+
+Work Log:
+- 1. Recherche globale admin fonctionnelle : GlobalSearch component (form → redirect /admin/dossiers?q=).
+- 2. Debounce sur DataTable : useDebounce(300ms) hook + appliqué sur searchInput dans DataTable.
+- 3. Notifications dynamiques : API /api/admin/notifications (dossiers en attente + paiements échoués + messages non lus) + NotificationsBell component (popover, polling 60s, badge compteur, click → navigate).
+- 4. Loading skeletons : skeleton-card.tsx (KpiSkeleton, ChartSkeleton, TableSkeleton, AdminDashboardSkeleton, EspaceDashboardSkeleton) — remplacent les spinner Loader2 sur admin + espace dashboards.
+- 5. Error boundaries par layout : espace/error.tsx + admin/error.tsx (bouton Réessayer + lien retour).
+- 6. SEO metadata : generateMetadata sur /universites/[slug] (title + description + openGraph dynamiques depuis DB).
+- 7. PWA manifest : manifest.ts (name, theme_color #173A7A, icons, lang fr).
+- Lint : 0 erreur, 0 warning. Routes : 200. Erreurs : 0. API : 36 routes.
+- Title SEO vérifié : "Sorbonne Université — Paris, France | GET Admission".

@@ -12,6 +12,7 @@ import { KpiCard, ChartSectionHeader } from "@/components/admin/kpi-card";
 import { formatFCFA, formatFCFACompact, formatDate } from "@/lib/format";
 import { etatParCode, COULEUR_BADGE } from "@/lib/etats";
 import { FolderOpen, CheckCircle2, Wallet, Stamp, AlertCircle, AlertTriangle, ArrowRight, Loader2 } from "lucide-react";
+import { AdminDashboardSkeleton } from "@/components/ui/skeleton-card";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, BarChart, Bar, Legend } from "recharts";
 import { cn } from "@/lib/utils";
 
@@ -69,11 +70,7 @@ export default function AdminDashboard() {
   }, [loadStats]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
-      </div>
-    );
+    return <AdminDashboardSkeleton />;
   }
 
   if (error || !stats) {

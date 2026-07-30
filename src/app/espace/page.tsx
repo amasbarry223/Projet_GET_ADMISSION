@@ -12,6 +12,7 @@ import { KpiCard, ChartSectionHeader } from "@/components/admin/kpi-card";
 import { ETATS, etatParCode } from "@/lib/etats";
 import { formatFCFA, formatFCFACompact, formatDate } from "@/lib/format";
 import { CreditCard, MessageSquare, Stamp, ArrowRight, CheckCircle2, Clock, MapPin, GraduationCap, FileText, Wallet, Sparkles, TrendingUp, Loader2, AlertCircle } from "lucide-react";
+import { EspaceDashboardSkeleton } from "@/components/ui/skeleton-card";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { cn } from "@/lib/utils";
 
@@ -55,11 +56,7 @@ export default function EspaceDashboard() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
-      </div>
-    );
+    return <EspaceDashboardSkeleton />;
   }
 
   if (error || !dossier) {

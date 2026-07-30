@@ -1,4 +1,5 @@
 import * as React from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -15,6 +16,21 @@ import {
 
 import { db } from "@/lib/db";
 import { formatFCFA, formatFCFACompact } from "@/lib/format";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const univ = await db.universite.findUnique({ where: { slug }, select: { nom: true, pays: true, ville: true, description: true } });
+  if (!univ) return { title: "Université non trouvée" };
+  return {
+    title: `${univ.nom} — ${univ.ville}, ${univ.pays} | GET Admission`,
+    description: univ.description.slice(0, 160),
+    openGraph: {
+      title: `${univ.nom} | GET Admission`,
+      description: univ.description.slice(0, 160),
+      type: "website",
+    },
+  };
+}
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
