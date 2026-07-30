@@ -126,6 +126,11 @@ model Dossier {
   historiques     Historique[]
   attestation     Attestation?
   conversation    Conversation?
+
+  @@index([candidatId])
+  @@index([conseillerId])
+  @@index([etat])
+  @@index([updatedAt])
 }
 
 model Piece {

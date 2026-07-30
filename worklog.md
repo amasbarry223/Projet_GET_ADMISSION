@@ -742,3 +742,20 @@ Stage Summary:
 - 6 pages dynamised — zero hardcoded business data remains in these files.
 - Verification: bun run lint clean (0 errors); /faq 200; /contact 200; / 200 (footer renders DB email/phone/adresses); /espace/paiement 200 (auth); /admin/attestations 200 (admin auth); 0 runtime errors in dev.log.
 - All existing UI, styling, form validation, and behavior preserved — only data sources swapped.
+
+---
+Task ID: AUDIT-CODE
+Agent: Lead (main) — expert full-stack
+Task: Analyse profonde du code — sécurité, perf, maintenabilité, anti-patterns.
+
+Work Log:
+- Inventaire : 23 pages, 24 API routes, 59 composants, 7 lib, 15 351 lignes.
+- Sécurité : toutes API protégées ont getServerSession ✓, pas de raw query ✓, pas de secret en dur ✓. Manque validation Zod, rate limiting, config cookies.
+- Performances : N+1 dans /api/admin/stats (12 requêtes DB), 18 pages 'use client' qui pourraient être server, recharts + react-table en client bundle, pas de cache, pas de pagination DB.
+- Maintenabilité : types Dossier/Row dupliqués (4+4 fichiers), 21 .catch silencieux, pattern fetch+useState dupliqué, db.ts log query en prod.
+- Corrections appliquées :
+  1. CRITIQUE : db.ts — retiré log: ['query'] en production (→ log: ['warn', 'error'] en dev, ['error'] en prod). Bruit de logs éliminé.
+  2. IMPORTANT : supprimé src/app/api/route.ts (dead code legacy "Hello, world!").
+  3. IMPORTANT : ajouté 4 @@index sur Dossier (candidatId, conseillerId, etat, updatedAt) pour performances requêtes filtrées.
+  4. IMPORTANT : créé src/lib/use-fetch.ts (hook useFetch<T> réutilisable) pour éliminer la duplication du pattern fetch+useState+useEffect+loading+error.
+- Lint : 0 erreur, 0 warning.
