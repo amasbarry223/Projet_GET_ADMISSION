@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { messageSchema, validate } from "@/lib/validations";
+import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 
 // GET /api/messages?dossierId=xxx — conversation d'un dossier
 export async function GET(request: Request) {
@@ -50,12 +52,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const body = await request.json();
-  const { dossierId, texte, pieceJointeNom, pieceJointeTaille } = body;
+  // Rate limiting (30 messages / min / IP)
+  const rateLimited = checkRateLimit(getClientId(request), "/api/messages");
+  if (rateLimited) return rateLimited;
 
-  if (!dossierId || !texte?.trim()) {
-    return NextResponse.json({ error: "dossierId et texte requis" }, { status: 400 });
+  const body = await request.json();
+  const parsed = validate(messageSchema, body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
+  const { dossierId, texte, pieceJointeNom, pieceJointeTaille } = parsed.data;
 
   const userId = (session.user as any).id;
   const role = (session.user as any).role;

@@ -4,7 +4,11 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 // GET /api/admin/users — liste des utilisateurs (staff uniquement)
-export async function GET() {
+//
+// Comportement de pagination (backward compatible) :
+// - Sans `?page=`      → renvoie un tableau plat (legacy).
+// - Avec `?page=N`      → renvoie { data, total, page, pageSize }.
+export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
@@ -15,25 +19,25 @@ export async function GET() {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
-  const users = await db.user.findMany({
-    select: {
-      id: true,
-      email: true,
-      prenom: true,
-      nom: true,
-      role: true,
-      actif: true,
-      createdAt: true,
-      _count: {
-        select: {
-          dossiersConseiller: true,
-        },
-      },
-    },
-    orderBy: { createdAt: "asc" },
-  });
+  // --- Params de pagination (optionnels) ---
+  const { searchParams } = new URL(request.url);
+  const hasPagination = searchParams.has("page");
+  const page = Math.max(1, Number(searchParams.get("page") ?? "1"));
+  const pageSize = Math.min(50, Math.max(1, Number(searchParams.get("pageSize") ?? "20")));
 
-  const result = users.map((u) => ({
+  const orderBy = { createdAt: "asc" as const };
+  const select = {
+    id: true,
+    email: true,
+    prenom: true,
+    nom: true,
+    role: true,
+    actif: true,
+    createdAt: true,
+    _count: { select: { dossiersConseiller: true } },
+  };
+
+  const mapToRow = (u: any) => ({
     id: u.id,
     email: u.email,
     nom: `${u.prenom} ${u.nom}`,
@@ -42,7 +46,21 @@ export async function GET() {
     actif: u.actif,
     date: u.createdAt.toISOString(),
     dossiers: u._count.dossiersConseiller,
-  }));
+  });
 
-  return NextResponse.json(result);
+  if (hasPagination) {
+    const [users, total] = await Promise.all([
+      db.user.findMany({
+        select,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy,
+      }),
+      db.user.count(),
+    ]);
+    return NextResponse.json({ data: users.map(mapToRow), total, page, pageSize });
+  }
+
+  const users = await db.user.findMany({ select, orderBy });
+  return NextResponse.json(users.map(mapToRow));
 }

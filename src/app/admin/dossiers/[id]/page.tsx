@@ -114,7 +114,8 @@ export default function AdminDossierDetail() {
         setDossier(d);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error("fetch error:", e);
         setError("Erreur réseau lors du chargement du dossier.");
         setLoading(false);
       });

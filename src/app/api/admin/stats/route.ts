@@ -72,12 +72,17 @@ export async function GET() {
     take: 8,
   });
 
-  const topUniversites = await Promise.all(
-    topUnivsRaw.map(async (u) => {
-      const univ = await db.universite.findUnique({ where: { id: u.universiteId }, select: { nom: true } });
-      return { universite: univ?.nom ?? "—", dossiers: u._count };
-    })
-  );
+  // FIX (N+1) : un seul findMany + Map lookup au lieu d'un findUnique par université.
+  const univIds = topUnivsRaw.map((u) => u.universiteId);
+  const univs = await db.universite.findMany({
+    where: { id: { in: univIds } },
+    select: { id: true, nom: true },
+  });
+  const univMap = new Map(univs.map((u) => [u.id, u.nom]));
+  const topUniversites = topUnivsRaw.map((u) => ({
+    universite: univMap.get(u.universiteId) ?? "—",
+    dossiers: u._count,
+  }));
 
   // --- Dossiers par période (6 dernières semaines) ---
   const sixWeeksAgo = new Date(now);
@@ -157,22 +162,25 @@ export async function GET() {
     },
   });
 
-  const topConseillers = await Promise.all(
-    conseillers.map(async (c) => {
-      const acceptes = await db.dossier.count({
-        where: { conseillerId: c.id, etat: { in: ["PRE_ADMISSION", "ATTESTATION", "CLOTURE"] } },
-      });
-      const total = c._count.dossiersConseiller;
-      return {
-        id: c.id,
-        nom: `${c.prenom} ${c.nom}`,
-        initiales: `${c.prenom[0] ?? ""}${c.nom[0] ?? ""}`,
-        dossiers: total,
-        acceptes,
-        avatar: "/images/advisor-portrait.png",
-      };
-    })
-  );
+  // FIX (N+1) : un seul groupBy pour les acceptés au lieu d'un count par conseiller.
+  const conseillerIds = conseillers.map((c) => c.id);
+  const acceptesByConseiller = await db.dossier.groupBy({
+    by: ["conseillerId"],
+    where: {
+      conseillerId: { in: conseillerIds },
+      etat: { in: ["PRE_ADMISSION", "ATTESTATION", "CLOTURE"] },
+    },
+    _count: true,
+  });
+  const acceptesMap = new Map(acceptesByConseiller.map((a) => [a.conseillerId, a._count]));
+  const topConseillers = conseillers.map((c) => ({
+    id: c.id,
+    nom: `${c.prenom} ${c.nom}`,
+    initiales: `${c.prenom[0] ?? ""}${c.nom[0] ?? ""}`,
+    dossiers: c._count.dossiersConseiller,
+    acceptes: acceptesMap.get(c.id) ?? 0,
+    avatar: "/images/advisor-portrait.png",
+  }));
 
   // --- Finance KPIs ---
   const totalEncaisse = await db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "reussi" } });

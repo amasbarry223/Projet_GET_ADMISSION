@@ -41,7 +41,8 @@ export default function AttestationPage() {
         setDirectrice(dir ?? { nom: "GET Admission", role: "Direction" });
         setLoading(false);
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error("fetch error:", e);
         setError("Impossible de charger votre dossier.");
         setLoading(false);
       });

@@ -65,7 +65,8 @@ export default function PaiementPage() {
         setError(null);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error("fetch error:", e);
         setError("Impossible de charger votre dossier.");
         setLoading(false);
       });
@@ -81,7 +82,7 @@ export default function PaiementPage() {
         if (list.length > 0) setMethod(list[0].nom);
         setMethodsLoading(false);
       })
-      .catch(() => setMethodsLoading(false));
+      .catch((e) => { console.error("fetch error:", e); setMethodsLoading(false); });
   }, [loadDossier]);
 
   if (loading) {

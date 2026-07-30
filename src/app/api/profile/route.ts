@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { profileSchema, validate } from "@/lib/validations";
 
 // GET /api/profile — profil complet de l'utilisateur connecté
 export async function GET() {
@@ -44,7 +45,11 @@ export async function PUT(request: Request) {
 
   const userId = (session.user as any).id;
   const body = await request.json();
-  const { prenom, nom, telephone, nationalite, dateNaissance, adresse } = body;
+  const parsed = validate(profileSchema, body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
+  const { prenom, nom, telephone, nationalite, dateNaissance, adresse } = parsed.data;
 
   const updated = await db.user.update({
     where: { id: userId },

@@ -48,7 +48,7 @@ export default function ConnexionPage() {
         setDemoPassword(data.demoPassword ?? "");
         setLoadingDemo(false);
       })
-      .catch(() => setLoadingDemo(false));
+      .catch((e) => { console.error("fetch error:", e); setLoadingDemo(false); });
   }, []);
 
   const onSubmit = async (e: React.FormEvent) => {

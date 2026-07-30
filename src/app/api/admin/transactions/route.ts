@@ -4,7 +4,11 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 // GET /api/admin/transactions — liste des transactions (staff uniquement)
-export async function GET() {
+//
+// Comportement de pagination (backward compatible) :
+// - Sans `?page=`      → renvoie un tableau plat (legacy).
+// - Avec `?page=N`      → renvoie { data, total, page, pageSize }.
+export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
@@ -15,15 +19,19 @@ export async function GET() {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
-  const transactions = await db.paiement.findMany({
-    include: {
-      candidat: { select: { prenom: true, nom: true } },
-      dossier: { select: { reference: true } },
-    },
-    orderBy: { date: "desc" },
-  });
+  // --- Params de pagination (optionnels) ---
+  const { searchParams } = new URL(request.url);
+  const hasPagination = searchParams.has("page");
+  const page = Math.max(1, Number(searchParams.get("page") ?? "1"));
+  const pageSize = Math.min(50, Math.max(1, Number(searchParams.get("pageSize") ?? "20")));
 
-  const result = transactions.map((t) => ({
+  const orderBy = { date: "desc" as const };
+  const include = {
+    candidat: { select: { prenom: true, nom: true } },
+    dossier: { select: { reference: true } },
+  };
+
+  const mapToRow = (t: any) => ({
     id: t.id,
     reference: t.reference,
     candidat: `${t.candidat.prenom} ${t.candidat.nom}`,
@@ -33,7 +41,21 @@ export async function GET() {
     montant: t.montant,
     statut: t.statut,
     tranche: t.tranche,
-  }));
+  });
 
-  return NextResponse.json(result);
+  if (hasPagination) {
+    const [transactions, total] = await Promise.all([
+      db.paiement.findMany({
+        include,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy,
+      }),
+      db.paiement.count(),
+    ]);
+    return NextResponse.json({ data: transactions.map(mapToRow), total, page, pageSize });
+  }
+
+  const transactions = await db.paiement.findMany({ include, orderBy });
+  return NextResponse.json(transactions.map(mapToRow));
 }

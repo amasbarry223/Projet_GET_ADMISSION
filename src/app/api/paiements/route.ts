@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { paiementSchema, validate } from "@/lib/validations";
+import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 
 // POST /api/paiements — enregistrer un paiement (mock — pas de vraie passerelle)
 export async function POST(request: Request) {
@@ -10,12 +12,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const body = await request.json();
-  const { dossierId, montant, moyen, tranche } = body;
+  // Rate limiting (10 paiements / min / IP)
+  const rateLimited = checkRateLimit(getClientId(request), "/api/paiements");
+  if (rateLimited) return rateLimited;
 
-  if (!dossierId || !montant || !moyen) {
-    return NextResponse.json({ error: "Champs requis manquants" }, { status: 400 });
+  const body = await request.json();
+  const parsed = validate(paiementSchema, body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
+  const { dossierId, montant, moyen, tranche } = parsed.data;
 
   const userId = (session.user as any).id;
   const role = (session.user as any).role;
@@ -38,7 +44,7 @@ export async function POST(request: Request) {
       reference: ref,
       dossierId,
       candidatId: dossier.candidatId,
-      montant: Number(montant),
+      montant,
       moyen,
       statut: "reussi",
       tranche: tranche || "Solde",

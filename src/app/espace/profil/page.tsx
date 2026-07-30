@@ -34,7 +34,7 @@ export default function ProfilPage() {
     fetch("/api/profile")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => { setProfile(data); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch((e) => { console.error("fetch error:", e); setLoading(false); });
   }, []);
 
   const save = async (section: string) => {

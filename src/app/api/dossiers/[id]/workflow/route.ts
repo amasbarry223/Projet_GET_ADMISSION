@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { EtatDossier } from "@prisma/client";
+import { workflowSchema, validate } from "@/lib/validations";
 
 // POST /api/dossiers/[id]/workflow — transition de statut (staff uniquement)
 export async function POST(
@@ -21,7 +22,11 @@ export async function POST(
 
   const { id } = await params;
   const body = await request.json();
-  const { action, note } = body;
+  const parsed = validate(workflowSchema, body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
+  const { action, note } = parsed.data;
 
   const dossier = await db.dossier.findUnique({ where: { id } });
   if (!dossier) {

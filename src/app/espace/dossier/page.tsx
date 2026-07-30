@@ -96,7 +96,8 @@ export default function DossierPage() {
         setUniversites(data);
         setUniversitesLoading(false);
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error("fetch error:", e);
         setUniversitesError(true);
         setUniversitesLoading(false);
       });
@@ -133,7 +134,8 @@ export default function DossierPage() {
         }
         setLoadingDossier(false);
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error("fetch error:", e);
         setLoadingDossier(false);
       });
   }, []);

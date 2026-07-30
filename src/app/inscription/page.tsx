@@ -28,7 +28,8 @@ export default function InscriptionPage() {
         setNationalites(Array.isArray(data) ? data : []);
         setLoadingNationalites(false);
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error("fetch error:", e);
         setNationalites([]);
         setLoadingNationalites(false);
       });

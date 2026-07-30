@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
+export const revalidate = 3600; // Cache 1 heure
+
 // GET /api/public/temoignages — témoignages vitrine (public)
 export async function GET() {
   const temoignages = await db.temoignage.findMany({

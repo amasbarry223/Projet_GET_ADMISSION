@@ -44,7 +44,7 @@ export default function MessagesPage() {
     fetch("/api/public/contact-info")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (d) setContactInfo({ email: d.email, telephone: d.telephone }); })
-      .catch(() => {});
+      .catch((e) => console.error("fetch error:", e));
   }, []);
 
   // 1. Fetch le dossier du candidat
@@ -62,7 +62,8 @@ export default function MessagesPage() {
           setLoading(false);
         }
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error("fetch error:", e);
         setError("Impossible de charger votre dossier.");
         setLoading(false);
       });
@@ -80,7 +81,8 @@ export default function MessagesPage() {
         setConversation(data);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error("fetch error:", e);
         setError("Impossible de charger la conversation.");
         setLoading(false);
       });

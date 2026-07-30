@@ -47,7 +47,8 @@ export default function EspaceDashboard() {
         setDossier(data[0] ?? null);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error("fetch error:", e);
         setError("Impossible de charger votre dossier.");
         setLoading(false);
       });

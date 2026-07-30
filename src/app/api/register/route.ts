@@ -1,23 +1,22 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { registerSchema, validate } from "@/lib/validations";
+import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 
 // POST /api/register — inscription candidat
 export async function POST(request: Request) {
+  // Rate limiting (3 inscriptions / min / IP)
+  const rateLimited = checkRateLimit(getClientId(request), "/api/register");
+  if (rateLimited) return rateLimited;
+
   try {
     const body = await request.json();
-    const { prenom, nom, email, password, nationalite } = body;
-
-    // Validation
-    if (!prenom || !nom || !email || !password) {
-      return NextResponse.json({ error: "Champs requis manquants" }, { status: 400 });
+    const parsed = validate(registerSchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
-    if (password.length < 8) {
-      return NextResponse.json({ error: "Le mot de passe doit contenir au moins 8 caractères" }, { status: 400 });
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return NextResponse.json({ error: "L'e-mail saisi n'est pas valide" }, { status: 400 });
-    }
+    const { prenom, nom, email, password, nationalite } = parsed.data;
 
     // Vérifier si l'email existe déjà
     const existing = await db.user.findUnique({ where: { email: email.toLowerCase() } });

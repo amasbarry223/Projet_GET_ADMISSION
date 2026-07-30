@@ -67,7 +67,8 @@ export default function ContactPage() {
         setObjets(Array.isArray(objs) ? objs : []);
         setLoadingInfo(false);
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error("fetch error:", e);
         setContactInfo({ email: "", telephone: "", adresses: "", horaires: "" });
         setObjets([]);
         setLoadingInfo(false);
