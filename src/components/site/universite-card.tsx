@@ -3,8 +3,25 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatFCFACompact } from "@/lib/format";
-import type { Universite } from "@/lib/mock/universites";
 import { Badge } from "@/components/ui/badge";
+
+/** Type local pour la carte université (compatible DB et API). */
+type Universite = {
+  id: string;
+  slug: string;
+  nom: string;
+  pays: string;
+  drapeau: string;
+  ville: string;
+  ecusson: string;
+  domaines: string[];
+  description: string;
+  pointsForts: string[];
+  imageCouleur: string;
+  fraisMin: number;
+  fraisMax: number;
+  partenaire?: boolean;
+};
 
 type Props = {
   universite: Universite;

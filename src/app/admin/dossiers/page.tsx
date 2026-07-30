@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ETATS, etatParCode, COULEUR_BADGE } from "@/lib/mock/etats";
+import { ETATS, etatParCode, COULEUR_BADGE } from "@/lib/etats";
 import { formatFCFA, formatDate } from "@/lib/format";
 import { toast } from "sonner";
 import { FolderOpen, Info, UserCog, Download, Eye, UserPlus, Send, FileText, Loader2 } from "lucide-react";

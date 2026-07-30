@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { COULEUR_BADGE, etatParCode, type EtatCode } from "@/lib/mock/etats";
+import { COULEUR_BADGE, etatParCode, type EtatCode } from "@/lib/etats";
 import { formatFCFA, formatFCFACompact } from "@/lib/format";
 import { motion, useReducedMotion } from "framer-motion";
 import { Plane, Stamp } from "lucide-react";

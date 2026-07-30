@@ -16,8 +16,8 @@ import {
 } from "@/components/ui/select";
 
 /* ----------------------------- Types locaux ----------------------------- */
-// Conformes à la forme attendue par <UniversiteCard /> (type Universite du mock).
-// Définis localement pour ne plus importer depuis @/lib/mock/*.
+// Conformes à la forme attendue par <UniversiteCard />.
+// Définis localement (aucune dépendance mock).
 
 export type Niveau = "Licence" | "Master" | "Doctorat";
 

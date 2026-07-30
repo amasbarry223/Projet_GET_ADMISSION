@@ -101,7 +101,7 @@ export default function AdminAttestationsPage() {
           <p className="eyebrow">Attestations</p>
           <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Modèles & émission.</h1>
         </div>
-        <Button className="bg-lapis text-blanc hover:bg-lapis/90" onClick={() => toast.success("Nouveau modèle", { description: "Concepteur de modèle ouvert (mock)." })}>
+        <Button className="bg-lapis text-blanc hover:bg-lapis/90" onClick={() => toast.success("Nouveau modèle", { description: "Concepteur de modèle ouvert." })}>
           <Plus className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Nouveau modèle
         </Button>
       </div>

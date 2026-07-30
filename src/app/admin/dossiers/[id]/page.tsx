@@ -23,7 +23,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { BoardingPass } from "@/components/getadm/boarding-pass";
-import { etatParCode, COULEUR_BADGE } from "@/lib/mock/etats";
+import { etatParCode, COULEUR_BADGE } from "@/lib/etats";
 import { formatFCFA, formatDate, formatDateTime } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";

@@ -18,7 +18,7 @@ import { Reveal, RevealStagger, RevealItem, Eyebrow } from "@/components/site/re
 import { UniversiteCard } from "@/components/site/universite-card";
 
 import { db } from "@/lib/db";
-import { ETATS } from "@/lib/mock/etats";
+import { ETATS } from "@/lib/etats";
 import { formatFCFA } from "@/lib/format";
 
 export const dynamic = "force-dynamic";

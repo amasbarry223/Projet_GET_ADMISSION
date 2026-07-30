@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BoardingPass } from "@/components/getadm/boarding-pass";
 import { KpiCard, ChartSectionHeader } from "@/components/admin/kpi-card";
-import { ETATS, etatParCode } from "@/lib/mock/etats";
+import { ETATS, etatParCode } from "@/lib/etats";
 import { formatFCFA, formatFCFACompact, formatDate } from "@/lib/format";
 import { CreditCard, MessageSquare, Stamp, ArrowRight, CheckCircle2, Clock, MapPin, GraduationCap, FileText, Wallet, Sparkles, TrendingUp, Loader2, AlertCircle } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BoardingPass } from "@/components/getadm/boarding-pass";
 import { KpiCard, ChartSectionHeader } from "@/components/admin/kpi-card";
 import { formatFCFA, formatFCFACompact, formatDate } from "@/lib/format";
-import { etatParCode, COULEUR_BADGE } from "@/lib/mock/etats";
+import { etatParCode, COULEUR_BADGE } from "@/lib/etats";
 import { FolderOpen, CheckCircle2, Wallet, Stamp, AlertCircle, AlertTriangle, ArrowRight, Loader2 } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, BarChart, Bar, Legend } from "recharts";
 import { cn } from "@/lib/utils";
