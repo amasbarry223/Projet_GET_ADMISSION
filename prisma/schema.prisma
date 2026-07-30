@@ -34,7 +34,9 @@ model User {
   kycNumero     String?  // numéro de pièce
   kycVerifie    Boolean  @default(false)
   kycVerifieLe  DateTime?
-  isDemo        Boolean  @default(false) // marque les comptes démo officiels
+  isDemo        Boolean  @default(false)
+  emailVerified DateTime? // date de vérification de l'e-mail (BF-06)
+  verifyToken   String?  // token de vérification e-mail
   role          Role     @default(CANDIDAT)
   actif         Boolean  @default(true)
   createdAt     DateTime @default(now())
@@ -328,4 +330,21 @@ model Parametre {
   fraisMin         Int     @default(350000)
   fraisMax         Int     @default(1750000)
   paiementTranches Boolean @default(true)
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  date      DateTime @default(now())
+  userId    String?
+  userEmail String
+  role      String
+  action    String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, WORKFLOW
+  resource  String   // dossier, user, universite, paiement, attestation, parametre
+  resourceId String?
+  details   String   // description de l'action
+  ip        String?
+
+  @@index([date])
+  @@index([userId])
+  @@index([resource])
 }

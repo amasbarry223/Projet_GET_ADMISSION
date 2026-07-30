@@ -80,7 +80,25 @@ export default function InscriptionPage() {
         setLoading(false);
         return;
       }
-      // Auto-login après inscription
+      // BF-06 : Vérification de l'e-mail requise
+      if (data.verifyUrl) {
+        toast.success("Compte créé", {
+          description: "Un e-mail de vérification a été envoyé. Cliquez sur le lien pour activer votre compte.",
+          duration: 8000,
+        });
+        // En démo : afficher le lien de vérification (en production, envoyé par e-mail)
+        toast.info("Lien de vérification (démo)", {
+          description: "Cliquez pour vérifier votre e-mail.",
+          action: {
+            label: "Vérifier",
+            onClick: () => window.open(data.verifyUrl, "_blank"),
+          },
+          duration: 15000,
+        });
+        router.push("/connexion");
+        return;
+      }
+      // Si pas de verifyUrl (comptes démo) : auto-login
       const signRes = await signIn("credentials", {
         email: form.email,
         password: form.password,

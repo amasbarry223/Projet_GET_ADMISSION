@@ -1054,3 +1054,8 @@ Work Log:
 - 7. PWA manifest : manifest.ts (name, theme_color #173A7A, icons, lang fr).
 - Lint : 0 erreur, 0 warning. Routes : 200. Erreurs : 0. API : 36 routes.
 - Title SEO vérifié : "Sorbonne Université — Paris, France | GET Admission".
+
+---
+Task ID: AUDIT-LOG
+Agent: Audit logging
+Task: Add logAudit to 7 API routes.

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { passwordChangeSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
+import { logAudit } from "@/lib/audit";
 
 // PUT /api/profile/password — changer son mot de passe
 //
@@ -69,6 +70,14 @@ export async function PUT(request: Request) {
   await db.user.update({
     where: { id: userId },
     data: { passwordHash: newPasswordHash },
+  });
+
+  await logAudit({
+    session,
+    action: "UPDATE",
+    resource: "user",
+    resourceId: userId,
+    details: "Mot de passe modifié",
   });
 
   return NextResponse.json({ success: true });

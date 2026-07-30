@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { manualTransactionSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
+import { logAudit } from "@/lib/audit";
 
 // POST /api/admin/paiements — transaction manuelle (staff uniquement)
 //
@@ -90,6 +91,14 @@ export async function POST(request: Request) {
     });
 
     return created;
+  });
+
+  await logAudit({
+    session,
+    action: "CREATE",
+    resource: "paiement",
+    resourceId: paiement.id,
+    details: `Transaction manuelle ${paiement.reference} : ${montant} FCFA`,
   });
 
   return NextResponse.json({ success: true, paiement }, { status: 201 });

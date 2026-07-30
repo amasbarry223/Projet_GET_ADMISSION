@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
-import { Plane, LayoutDashboard, FolderOpen, Building2, Wallet, Users, Stamp, Settings, LogOut, Menu, Loader2 } from "lucide-react";
+import { Plane, LayoutDashboard, FolderOpen, Building2, Wallet, Users, Stamp, Settings, LogOut, Menu, Loader2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { GlobalSearch } from "@/components/admin/global-search";
@@ -29,7 +29,10 @@ const SECTIONS = [
       { href: "/admin/attestations", label: "Attestations", icon: Stamp },
     ],
   },
-  { title: "Système", items: [{ href: "/admin/parametres", label: "Paramètres", icon: Settings }] },
+  { title: "Système", items: [
+    { href: "/admin/parametres", label: "Paramètres", icon: Settings },
+    { href: "/admin/audit", label: "Journaux d'audit", icon: ShieldAlert },
+  ] },
 ];
 
 function AdminNav({ onNavigate }: { onNavigate?: () => void }) {

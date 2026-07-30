@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { adminUserCreateSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
+import { logAudit } from "@/lib/audit";
 
 // GET /api/admin/users — liste des utilisateurs (staff uniquement)
 //
@@ -146,6 +147,14 @@ export async function POST(request: Request) {
       actif: true,
       createdAt: true,
     },
+  });
+
+  await logAudit({
+    session,
+    action: "CREATE",
+    resource: "user",
+    resourceId: user.id,
+    details: `Utilisateur créé : ${user.email} (${newRole})`,
   });
 
   return NextResponse.json(

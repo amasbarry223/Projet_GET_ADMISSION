@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { universiteSchema, validate } from "@/lib/validations";
 import { uniqueSlug } from "@/lib/utils";
+import { logAudit } from "@/lib/audit";
 
 // GET /api/universites — liste publique (catalogue)
 export async function GET(request: Request) {
@@ -102,6 +103,14 @@ export async function POST(request: Request) {
       fraisMax,
       partenaire: partenaire ?? true,
     },
+  });
+
+  await logAudit({
+    session,
+    action: "CREATE",
+    resource: "universite",
+    resourceId: created.id,
+    details: `Université créée : ${created.nom}`,
   });
 
   // Recharger avec formations pour cohérence avec GET

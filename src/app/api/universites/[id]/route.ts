@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { universiteSchema, validate } from "@/lib/validations";
 import { uniqueSlug } from "@/lib/utils";
+import { logAudit } from "@/lib/audit";
 
 // GET /api/universites/[id] — détail par ID (staff) — alias de la route /by-slug
 export async function GET(
@@ -163,6 +164,14 @@ export async function DELETE(
 
   // Cascade va supprimer les formations liées
   await db.universite.delete({ where: { id: existing.id } });
+
+  await logAudit({
+    session,
+    action: "DELETE",
+    resource: "universite",
+    resourceId: existing.id,
+    details: `Université supprimée : ${existing.nom}`,
+  });
 
   return NextResponse.json({ success: true, id: existing.id });
 }

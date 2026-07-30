@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { adminUserUpdateSchema, validate } from "@/lib/validations";
+import { logAudit } from "@/lib/audit";
 
 // PUT /api/admin/users/[id] — modifier un utilisateur (admin uniquement)
 //
@@ -107,6 +108,14 @@ export async function PUT(
     },
   });
 
+  await logAudit({
+    session,
+    action: "UPDATE",
+    resource: "user",
+    resourceId: id,
+    details: `Utilisateur modifié : ${updated.email} (actif=${updated.actif}, role=${updated.role})`,
+  });
+
   return NextResponse.json(updated);
 }
 
@@ -199,6 +208,15 @@ export async function DELETE(
       data: { actif: false },
       select: { id: true, actif: true },
     });
+
+    await logAudit({
+      session,
+      action: "DELETE",
+      resource: "user",
+      resourceId: id,
+      details: `Utilisateur désactivé (soft-delete) : ${target.role}`,
+    });
+
     return NextResponse.json({
       success: true,
       softDeleted: true,
@@ -209,5 +227,14 @@ export async function DELETE(
 
   // Hard delete
   await db.user.delete({ where: { id } });
+
+  await logAudit({
+    session,
+    action: "DELETE",
+    resource: "user",
+    resourceId: id,
+    details: `Utilisateur supprimé : ${target.role}`,
+  });
+
   return NextResponse.json({ success: true, softDeleted: false, id });
 }

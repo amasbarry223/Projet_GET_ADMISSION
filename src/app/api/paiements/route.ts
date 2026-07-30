@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { paiementSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
+import { logAudit } from "@/lib/audit";
 
 // POST /api/paiements — enregistrer un paiement (mock — pas de vraie passerelle)
 export async function POST(request: Request) {
@@ -49,6 +50,14 @@ export async function POST(request: Request) {
       statut: "reussi",
       tranche: tranche || "Solde",
     },
+  });
+
+  await logAudit({
+    session,
+    action: "CREATE",
+    resource: "paiement",
+    resourceId: paiement.id,
+    details: `Paiement ${paiement.reference} : ${montant} FCFA via ${moyen}`,
   });
 
   // Mettre à jour le statut du dossier

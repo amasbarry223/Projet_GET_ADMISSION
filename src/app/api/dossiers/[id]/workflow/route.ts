@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 import { EtatDossier } from "@prisma/client";
 import { workflowSchema, validate } from "@/lib/validations";
 
@@ -87,6 +88,15 @@ export async function POST(
       auteurId: (session.user as any).id,
       note: note || `Transition vers ${nouvelEtat.replace(/_/g, " ").toLowerCase()}`,
     },
+  });
+
+  // Journal d'audit (§4.7)
+  await logAudit({
+    session,
+    action: "WORKFLOW",
+    resource: "dossier",
+    resourceId: id,
+    details: `Transition ${dossier.reference} → ${nouvelEtat}${note ? ` (${note})` : ""}`,
   });
 
   return NextResponse.json({ success: true, dossier: updated });
