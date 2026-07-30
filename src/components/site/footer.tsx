@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Plane, Mail, Phone, MapPin } from "lucide-react";
+import { db } from "@/lib/db";
 
 const COLONNES = [
   {
@@ -31,7 +32,12 @@ const COLONNES = [
   },
 ];
 
-export function SiteFooter() {
+export async function SiteFooter() {
+  const info = await db.contactInfo.findUnique({ where: { id: 1 } });
+  const email = info?.email ?? "";
+  const telephone = info?.telephone ?? "";
+  const adresses = info?.adresses ?? "";
+
   return (
     <footer className="mt-auto border-t border-ligne bg-blanc">
       <div className="rule-or" aria-hidden />
@@ -53,15 +59,15 @@ export function SiteFooter() {
             <ul className="mt-5 space-y-2 text-sm text-ardoise">
               <li className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-lapis" strokeWidth={1.5} />
-                <span>contact@getadm.com</span>
+                <span>{email || "—"}</span>
               </li>
               <li className="flex items-center gap-2">
                 <Phone className="h-4 w-4 text-lapis" strokeWidth={1.5} />
-                <span>+221 33 800 00 00</span>
+                <span>{telephone || "—"}</span>
               </li>
               <li className="flex items-center gap-2">
                 <MapPin className="h-4 w-4 text-lapis" strokeWidth={1.5} />
-                <span>Dakar · Abidjan · Lomé</span>
+                <span>{adresses || "—"}</span>
               </li>
             </ul>
           </div>

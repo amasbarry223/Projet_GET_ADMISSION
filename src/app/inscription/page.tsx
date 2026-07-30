@@ -13,13 +13,26 @@ import { Plane, User, Mail, Lock, ArrowRight, CheckCircle2, Loader2 } from "luci
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const NATIONALITES = ["Sénégalaise", "Ivoirienne", "Malienne", "Burkinabè", "Guinéenne", "Béninoise", "Togolaise", "Nigérienne", "Camerounaise", "Marocaine", "Tunisienne", "Gabonaise", "Congolaise", "Autre"];
-
 export default function InscriptionPage() {
   const router = useRouter();
   const [form, setForm] = React.useState({ prenom: "", nom: "", email: "", password: "", confirm: "", nationalite: "", consent: false });
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [loading, setLoading] = React.useState(false);
+  const [nationalites, setNationalites] = React.useState<string[]>([]);
+  const [loadingNationalites, setLoadingNationalites] = React.useState(true);
+
+  React.useEffect(() => {
+    fetch("/api/public/nationalites")
+      .then((r) => r.json())
+      .then((data: string[]) => {
+        setNationalites(Array.isArray(data) ? data : []);
+        setLoadingNationalites(false);
+      })
+      .catch(() => {
+        setNationalites([]);
+        setLoadingNationalites(false);
+      });
+  }, []);
 
   const set = (k: string, v: string | boolean) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -176,10 +189,10 @@ export default function InscriptionPage() {
               <Label htmlFor="nationalite" className="text-sm font-medium text-encre">Nationalité</Label>
               <Select value={form.nationalite} onValueChange={(v) => set("nationalite", v)}>
                 <SelectTrigger id="nationalite" className={cn(errors.nationalite && "border-carmin")} aria-invalid={!!errors.nationalite}>
-                  <SelectValue placeholder="Sélectionnez votre nationalité" />
+                  <SelectValue placeholder={loadingNationalites ? "Chargement…" : "Sélectionnez votre nationalité"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {NATIONALITES.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                  {nationalites.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
                 </SelectContent>
               </Select>
               {errors.nationalite && <p className="text-xs text-carmin">{errors.nationalite}</p>}

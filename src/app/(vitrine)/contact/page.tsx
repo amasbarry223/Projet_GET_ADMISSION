@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { Mail, Phone, MapPin, Clock, Send, ArrowRight } from "lucide-react";
+import { Mail, Phone, MapPin, Clock, Send, ArrowRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -29,13 +29,12 @@ type FormState = {
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
 
-const OBJETS = [
-  { value: "question", label: "Question générale" },
-  { value: "dossier", label: "Demande de dossier" },
-  { value: "suivi", label: "Suivi de dossier" },
-  { value: "partenariat", label: "Partenariat" },
-  { value: "autre", label: "Autre" },
-];
+type ContactInfo = {
+  email: string;
+  telephone: string;
+  adresses: string;
+  horaires: string;
+};
 
 const INITIAL: FormState = {
   prenom: "",
@@ -48,10 +47,32 @@ const INITIAL: FormState = {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const telHref = (t: string) => `tel:${t.replace(/[^+0-9]/g, "")}`;
+
 export default function ContactPage() {
   const [form, setForm] = React.useState<FormState>(INITIAL);
   const [errors, setErrors] = React.useState<FormErrors>({});
   const [submitting, setSubmitting] = React.useState(false);
+  const [contactInfo, setContactInfo] = React.useState<ContactInfo | null>(null);
+  const [objets, setObjets] = React.useState<string[]>([]);
+  const [loadingInfo, setLoadingInfo] = React.useState(true);
+
+  React.useEffect(() => {
+    Promise.all([
+      fetch("/api/public/contact-info").then((r) => r.json()),
+      fetch("/api/public/objets-contact").then((r) => r.json()),
+    ])
+      .then(([info, objs]: [ContactInfo, string[]]) => {
+        setContactInfo(info);
+        setObjets(Array.isArray(objs) ? objs : []);
+        setLoadingInfo(false);
+      })
+      .catch(() => {
+        setContactInfo({ email: "", telephone: "", adresses: "", horaires: "" });
+        setObjets([]);
+        setLoadingInfo(false);
+      });
+  }, []);
 
   const update = (field: keyof FormState, value: string) => {
     setForm((s) => ({ ...s, [field]: value }));
@@ -220,12 +241,12 @@ export default function ContactPage() {
                     className="w-full bg-blanc"
                     aria-invalid={!!errors.objet}
                   >
-                    <SelectValue placeholder="Choisir un objet" />
+                    <SelectValue placeholder={loadingInfo ? "Chargement…" : "Choisir un objet"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {OBJETS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
+                    {objets.map((o) => (
+                      <SelectItem key={o} value={o}>
+                        {o}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -285,72 +306,79 @@ export default function ContactPage() {
             <aside className="space-y-4">
               <div className="rounded-lg border border-ligne bg-porcelaine p-6">
                 <p className="eyebrow">Coordonnées</p>
-                <ul className="mt-5 space-y-4 text-sm">
-                  <li className="flex items-start gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blanc text-lapis shadow-sm">
-                      <Mail className="h-4 w-4" strokeWidth={1.75} />
-                    </span>
-                    <div>
-                      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
-                        E-mail
-                      </p>
-                      <a
-                        href="mailto:contact@getadm.com"
-                        className="mt-0.5 inline-block font-medium text-encre hover:text-lapis"
-                      >
-                        contact@getadm.com
-                      </a>
-                    </div>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blanc text-lapis shadow-sm">
-                      <Phone className="h-4 w-4" strokeWidth={1.75} />
-                    </span>
-                    <div>
-                      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
-                        Téléphone
-                      </p>
-                      <a
-                        href="tel:+22133800000"
-                        className="mt-0.5 inline-block font-medium text-encre hover:text-lapis"
-                      >
-                        +221 33 800 00 00
-                      </a>
-                    </div>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blanc text-lapis shadow-sm">
-                      <MapPin className="h-4 w-4" strokeWidth={1.75} />
-                    </span>
-                    <div>
-                      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
-                        Agences
-                      </p>
-                      <p className="mt-0.5 font-medium text-encre">
-                        Dakar · Abidjan · Lomé
-                      </p>
-                      <p className="mt-1 text-xs text-ardoise">
-                        Plateau (Abidjan), Mermoz (Dakar), Bè (Lomé)
-                      </p>
-                    </div>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blanc text-lapis shadow-sm">
-                      <Clock className="h-4 w-4" strokeWidth={1.75} />
-                    </span>
-                    <div>
-                      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
-                        Horaires
-                      </p>
-                      <p className="mt-0.5 font-medium text-encre">
-                        Lun. – Ven. · 9h00 – 18h00
-                      </p>
-                      <p className="mt-1 text-xs text-ardoise">
-                        Sam. · 9h00 – 13h00 (sur rendez-vous)
-                      </p>
-                    </div>
-                  </li>
-                </ul>
+                {loadingInfo || !contactInfo ? (
+                  <div className="mt-6 flex items-center gap-2 text-sm text-ardoise">
+                    <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                    Chargement des coordonnées…
+                  </div>
+                ) : (
+                  <ul className="mt-5 space-y-4 text-sm">
+                    <li className="flex items-start gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blanc text-lapis shadow-sm">
+                        <Mail className="h-4 w-4" strokeWidth={1.75} />
+                      </span>
+                      <div>
+                        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                          E-mail
+                        </p>
+                        <a
+                          href={`mailto:${contactInfo.email}`}
+                          className="mt-0.5 inline-block font-medium text-encre hover:text-lapis"
+                        >
+                          {contactInfo.email || "—"}
+                        </a>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blanc text-lapis shadow-sm">
+                        <Phone className="h-4 w-4" strokeWidth={1.75} />
+                      </span>
+                      <div>
+                        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                          Téléphone
+                        </p>
+                        <a
+                          href={telHref(contactInfo.telephone)}
+                          className="mt-0.5 inline-block font-medium text-encre hover:text-lapis"
+                        >
+                          {contactInfo.telephone || "—"}
+                        </a>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blanc text-lapis shadow-sm">
+                        <MapPin className="h-4 w-4" strokeWidth={1.75} />
+                      </span>
+                      <div>
+                        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                          Agences
+                        </p>
+                        <p className="mt-0.5 font-medium text-encre">
+                          {contactInfo.adresses || "—"}
+                        </p>
+                        <p className="mt-1 text-xs text-ardoise">
+                          Plateau (Abidjan), Mermoz (Dakar), Bè (Lomé)
+                        </p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blanc text-lapis shadow-sm">
+                        <Clock className="h-4 w-4" strokeWidth={1.75} />
+                      </span>
+                      <div>
+                        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                          Horaires
+                        </p>
+                        <p className="mt-0.5 font-medium text-encre">
+                          {contactInfo.horaires || "—"}
+                        </p>
+                        <p className="mt-1 text-xs text-ardoise">
+                          Sam. · 9h00 – 13h00 (sur rendez-vous)
+                        </p>
+                      </div>
+                    </li>
+                  </ul>
+                )}
               </div>
 
               <div className="rounded-lg border border-ligne bg-or-pale/40 p-6">

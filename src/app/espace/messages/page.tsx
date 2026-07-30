@@ -36,7 +36,16 @@ export default function MessagesPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [input, setInput] = React.useState("");
   const [sending, setSending] = React.useState(false);
+  const [contactInfo, setContactInfo] = React.useState<{ email: string; telephone: string } | null>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+
+  // Fetch contact info depuis la DB
+  React.useEffect(() => {
+    fetch("/api/public/contact-info")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setContactInfo({ email: d.email, telephone: d.telephone }); })
+      .catch(() => {});
+  }, []);
 
   // 1. Fetch le dossier du candidat
   React.useEffect(() => {
@@ -178,11 +187,11 @@ export default function MessagesPage() {
             <div className="border-t border-ligne p-3">
               <div className="flex items-center gap-2 text-xs text-ardoise">
                 <Mail className="h-3.5 w-3.5" strokeWidth={1.5} />
-                <span>contact@getadm.com</span>
+                <span>{contactInfo?.email ?? "Chargement…"}</span>
               </div>
               <div className="mt-1 flex items-center gap-2 text-xs text-ardoise">
                 <Phone className="h-3.5 w-3.5" strokeWidth={1.5} />
-                <span>+221 33 800 00 00</span>
+                <span>{contactInfo?.telephone ?? "Chargement…"}</span>
               </div>
             </div>
           </aside>

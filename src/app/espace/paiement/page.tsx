@@ -28,18 +28,27 @@ type Dossier = {
   paiements: { id: string; reference: string; date: string; montant: number; moyen: string; statut: string; tranche?: string | null }[];
 };
 
-const METHODS = [
-  { id: "Orange Money", name: "Orange Money", color: "bg-orange-500", emoji: "🟠" },
-  { id: "Moov Money", name: "Moov Money", color: "bg-blue-600", emoji: "🔵" },
-  { id: "Wave", name: "Wave", color: "bg-cyan-500", emoji: "🌊" },
-  { id: "Carte bancaire", name: "Carte bancaire", color: "bg-lapis", emoji: "💳" },
-];
+type MoyenPaiement = {
+  id: number;
+  nom: string;
+  couleur: string;
+  icone: string;
+  actif: boolean;
+  ordre: number;
+};
+
+function iconForMoyen(name: string) {
+  if (name === "CreditCard") return <CreditCard className="h-4 w-4" strokeWidth={1.5} />;
+  return <Smartphone className="h-4 w-4" strokeWidth={1.5} />;
+}
 
 export default function PaiementPage() {
   const [dossier, setDossier] = React.useState<Dossier | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const [method, setMethod] = React.useState(METHODS[0].id);
+  const [methods, setMethods] = React.useState<MoyenPaiement[]>([]);
+  const [methodsLoading, setMethodsLoading] = React.useState(true);
+  const [method, setMethod] = React.useState("");
   const [tranches, setTranches] = React.useState(false);
   const [status, setStatus] = React.useState<"idle" | "loading" | "success">("idle");
   const [receiptRef, setReceiptRef] = React.useState<string>("");
@@ -64,6 +73,15 @@ export default function PaiementPage() {
 
   React.useEffect(() => {
     loadDossier();
+    fetch("/api/public/moyens-paiement")
+      .then((r) => r.json())
+      .then((data: MoyenPaiement[]) => {
+        const list = Array.isArray(data) ? data : [];
+        setMethods(list);
+        if (list.length > 0) setMethod(list[0].nom);
+        setMethodsLoading(false);
+      })
+      .catch(() => setMethodsLoading(false));
   }, [loadDossier]);
 
   if (loading) {
@@ -93,9 +111,10 @@ export default function PaiementPage() {
   const total = d.fraisAgence;
   const tranche1 = Math.round(total / 2);
   const tranche2 = total - tranche1;
-  const selectedMethod = METHODS.find((m) => m.id === method)!;
+  const selectedMethod = methods.find((m) => m.nom === method) ?? methods[0];
 
   const confirm = async () => {
+    if (!selectedMethod) return;
     setStatus("loading");
     try {
       const res = await fetch("/api/paiements", {
@@ -104,7 +123,7 @@ export default function PaiementPage() {
         body: JSON.stringify({
           dossierId: d.id,
           montant: tranches ? tranche1 : total,
-          moyen: selectedMethod.id,
+          moyen: selectedMethod.nom,
           tranche: tranches ? "Tranche 1" : "Solde",
         }),
       });
@@ -115,7 +134,7 @@ export default function PaiementPage() {
       setReceiptRef(data.paiement?.reference ?? `REC-${new Date().getFullYear()}-${Math.floor(Math.random() * 9999).toString().padStart(4, "0")}`);
       setStatus("success");
       toast.success("Paiement confirmé", {
-        description: `${formatFCFA(tranches ? tranche1 : total)} · ${selectedMethod.name}`,
+        description: `${formatFCFA(tranches ? tranche1 : total)} · ${selectedMethod.nom}`,
       });
       // Re-fetch le dossier pour mettre à jour l'historique
       loadDossier();
@@ -159,7 +178,7 @@ export default function PaiementPage() {
               <div className="flex justify-between"><dt className="text-ardoise">Candidat</dt><dd className="text-encre">{d.candidat.prenom} {d.candidat.nom}</dd></div>
               <div className="flex justify-between"><dt className="text-ardoise">Référence dossier</dt><dd className="font-mono text-encre">{d.reference}</dd></div>
               <div className="flex justify-between"><dt className="text-ardoise">Université</dt><dd className="text-encre">{d.universite.nom}</dd></div>
-              <div className="flex justify-between"><dt className="text-ardoise">Moyen</dt><dd className="text-encre">{selectedMethod.name}</dd></div>
+              <div className="flex justify-between"><dt className="text-ardoise">Moyen</dt><dd className="text-encre">{selectedMethod?.nom ?? "—"}</dd></div>
               <div className="flex justify-between border-t border-ligne pt-2 mt-2"><dt className="font-semibold text-encre">Montant</dt><dd className="font-mono text-lg font-bold text-lapis">{formatFCFA(tranches ? tranche1 : total)}</dd></div>
             </dl>
           </div>
@@ -177,25 +196,32 @@ export default function PaiementPage() {
           <div className="space-y-4">
             <Card className="border-ligne bg-blanc p-6">
               <p className="eyebrow">Moyen de paiement</p>
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                {METHODS.map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setMethod(m.id)}
-                    className={cn(
-                      "flex items-center gap-3 rounded-md border-2 p-3 text-left transition-all",
-                      method === m.id ? "border-lapis bg-lapis/5" : "border-ligne bg-blanc hover:border-lapis/30"
-                    )}
-                    aria-pressed={method === m.id}
-                  >
-                    <span className={cn("flex h-9 w-9 flex-none items-center justify-center rounded-md text-blanc", m.color)}>
-                      {m.id === "Carte bancaire" ? <CreditCard className="h-4 w-4" strokeWidth={1.5} /> : <Smartphone className="h-4 w-4" strokeWidth={1.5} />}
-                    </span>
-                    <span className="text-sm font-medium text-encre">{m.name}</span>
-                  </button>
-                ))}
-              </div>
+              {methodsLoading ? (
+                <div className="mt-4 flex items-center gap-2 text-sm text-ardoise">
+                  <Loader2 className="h-4 w-4 animate-spin text-lapis" strokeWidth={1.5} />
+                  Chargement des moyens de paiement…
+                </div>
+              ) : (
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  {methods.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setMethod(m.nom)}
+                      className={cn(
+                        "flex items-center gap-3 rounded-md border-2 p-3 text-left transition-all",
+                        method === m.nom ? "border-lapis bg-lapis/5" : "border-ligne bg-blanc hover:border-lapis/30"
+                      )}
+                      aria-pressed={method === m.nom}
+                    >
+                      <span className={cn("flex h-9 w-9 flex-none items-center justify-center rounded-md text-blanc", m.couleur)}>
+                        {iconForMoyen(m.icone)}
+                      </span>
+                      <span className="text-sm font-medium text-encre">{m.nom}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <div className="mt-5 flex items-center justify-between rounded-md border border-ligne bg-porcelaine p-3">
                 <div>
@@ -224,7 +250,7 @@ export default function PaiementPage() {
                 <ShieldCheck className="h-4 w-4 text-vert" strokeWidth={1.5} />
                 Paiement sécurisé · Vos données sont chiffrées.
               </div>
-              <Button className="mt-4 w-full bg-lapis text-blanc hover:bg-lapis/90" size="lg" onClick={confirm} disabled={status === "loading"}>
+              <Button className="mt-4 w-full bg-lapis text-blanc hover:bg-lapis/90" size="lg" onClick={confirm} disabled={status === "loading" || methodsLoading || !selectedMethod}>
                 {status === "loading" ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Traitement…</> : <><Lock className="mr-2 h-4 w-4" strokeWidth={1.5} /> Confirmer le paiement</>}
               </Button>
             </Card>

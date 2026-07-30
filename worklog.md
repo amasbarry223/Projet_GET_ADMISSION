@@ -708,3 +708,37 @@ Stage Summary:
 - 0 donnée mock, 0 dossier mock, 0 import mock, 0 nom hardcodé, 0 référence hardcodée, 0 chiffre hardcodé.
 - Les seuls textes "statiques" restants sont du contenu éditorial légitime (titres de sections, FAQ, contexte géographique) — pas des données métier.
 - 13 modèles DB, 15 API routes (3 publiques + 12 protégées RBAC), 23 pages.
+
+---
+Task ID: D
+Agent: Content dynamisation expert
+Task: Create API routes + dynamise 6 pages (FAQ, contact, footer, inscription, paiement, attestations).
+
+Work Log:
+- Created 6 public API routes (all GET, no auth, read-only DB queries):
+  * src/app/api/public/faq/route.ts — db.faq.findMany({ actif: true }, orderBy ordre)
+  * src/app/api/public/contact-info/route.ts — db.contactInfo.findUnique({ id: 1 }) with fallback {}
+  * src/app/api/public/modeles-attestation/route.ts — db.modeleAttestation.findMany({ actif: true })
+  * src/app/api/public/nationalites/route.ts — db.nationalite.findMany() → string[] of noms
+  * src/app/api/public/moyens-paiement/route.ts — db.moyenPaiement.findMany({ actif: true })
+  * src/app/api/public/objets-contact/route.ts — db.objetContact.findMany() → string[] of noms
+- Dynamised 6 pages (replaced all hardcoded data with DB/API fetches):
+  1. faq/page.tsx — async server component, db.faq.findMany(), removed hardcoded FAQ array (10 Q/A). Mapped item.question/reponse (was item.q/r). Keyed AccordionItems by item.id.
+  2. contact/page.tsx — client component, useEffect fetches /api/public/contact-info + /api/public/objets-contact. Replaced hardcoded email/phone/adresses/horaires + OBJETS array. Added Loader2 loading state for coordonnées card + "Chargement…" placeholder for objet Select. Added telHref() helper to sanitize phone for tel: link.
+  3. footer.tsx — async server component, db.contactInfo.findUnique({ id: 1 }). Replaced 3 hardcoded values (email, phone, adresses) with DB data, fallback to "—" if empty.
+  4. inscription/page.tsx — client component, useEffect fetches /api/public/nationalites. Replaced NATIONALITES array (14 entries). Added loadingNationalites state + "Chargement…" placeholder for Select.
+  5. espace/paiement/page.tsx — client component, useEffect fetches /api/public/moyens-paiement. Replaced METHODS array (4 entries). Added MoyenPaiement type + iconForMoyen() helper mapping "Smartphone"→Smartphone, "CreditCard"→CreditCard. methodsLoading state with Loader2 inline + disabled confirm button while loading. Updated selectedMethod lookup (m.nom instead of m.id), moyen field in POST body (selectedMethod.nom), receipt display (selectedMethod?.nom ?? "—").
+  6. admin/attestations/page.tsx — client component, Promise.all fetches /api/dossiers + /api/public/modeles-attestation. Replaced MODELES array (3 entries). Added ModeleAttestation type. Mapped m.used → m.nbUsages. Added empty-state Card with Loader2 when modeles.length === 0.
+- Infrastructure note: ran `bun run db:generate` to regenerate Prisma client with the 6 new models (Faq, ContactInfo, ModeleAttestation, Nationalite, MoyenPaiement, ObjetContact) — the running dev server had a stale cached PrismaClient instance that didn't know the new models (threw "Cannot read properties of undefined (reading 'findMany')"). After regeneration, restarted the dev server to pick up the fresh client.
+
+Stage Summary:
+- 6 new public API routes created, all returning 200 with real DB data (verified via curl):
+  * /api/public/faq → 10 FAQ items
+  * /api/public/contact-info → {email, telephone, adresses, horaires}
+  * /api/public/modeles-attestation → 3 models
+  * /api/public/nationalites → 14 nationality names
+  * /api/public/moyens-paiement → 4 payment methods (with icone field)
+  * /api/public/objets-contact → 5 contact object names
+- 6 pages dynamised — zero hardcoded business data remains in these files.
+- Verification: bun run lint clean (0 errors); /faq 200; /contact 200; / 200 (footer renders DB email/phone/adresses); /espace/paiement 200 (auth); /admin/attestations 200 (admin auth); 0 runtime errors in dev.log.
+- All existing UI, styling, form validation, and behavior preserved — only data sources swapped.

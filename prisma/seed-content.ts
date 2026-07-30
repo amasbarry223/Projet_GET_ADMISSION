@@ -1,0 +1,79 @@
+import { db } from "../src/lib/db";
+
+async function main() {
+  console.log("🌱 Seed contenu gérable...");
+
+  // --- FAQ ---
+  const faqs = [
+    { question: "Comment fonctionne GET Admission ?", reponse: "GET Admission est une agence d'admission universitaire. Vous créez un compte, choisissez une université partenaire, soumettez votre dossier en ligne, réglez les frais d'agence, puis suivez l'avancement en temps réel jusqu'à l'attestation de pré-inscription.", ordre: 1 },
+    { question: "Quels sont les frais d'agence ?", reponse: "Les frais d'agence varient selon l'université et la formation. Ils sont affichés transparentement sur chaque fiche formation. Ils couvrent l'accompagnement, la vérification du dossier, la transmission à l'université et l'émission de l'attestation.", ordre: 2 },
+    { question: "Quels documents dois-je préparer ?", reponse: "Les pièces requises dépendent de la formation choisie. En général : diplôme, relevé de notes, CV, lettre de motivation, test de langue. La liste exacte est affichée sur la fiche de chaque formation et dans votre espace dossier.", ordre: 3 },
+    { question: "Combien de temps prend une admission ?", reponse: "En moyenne 4 à 8 semaines : 1 semaine de vérification, 2 à 6 semaines de réponse de l'université, puis émission de l'attestation sous 48h. Vous suivez chaque étape en temps réel dans votre espace.", ordre: 4 },
+    { question: "Puis-je payer en plusieurs fois ?", reponse: "Oui, le paiement en deux tranches est disponible. Vous réglez 50% à la soumission et 50% après la décision de l'université. Les moyens acceptés sont Orange Money, Moov Money, Wave et carte bancaire.", ordre: 5 },
+    { question: "Que se passe-t-il en cas de refus ?", reponse: "En cas de refus, votre conseiller vous accompagne pour identifier une formation alternative dans une autre université partenaire. Les frais déjà réglés sont reportés sur le nouveau dossier.", ordre: 6 },
+    { question: "Dans quels pays proposez-vous des universités ?", reponse: "France, Canada, Belgique, Maroc, Tunisie, Sénégal, Afrique du Sud, Liban et Cameroun. Le catalogue est régulièrement enrichi de nouveaux partenariats.", ordre: 7 },
+    { question: "Comment suivre l'avancement de mon dossier ?", reponse: "Votre espace candidat affiche un suivi en temps réel : 12 étapes du brouillon à la clôture, historique horodaté, messagerie avec votre conseiller, et statut des pièces téléversées.", ordre: 8 },
+    { question: "L'attestation est-elle officielle ?", reponse: "Oui. L'attestation de pré-inscription est délivrée par l'université partenaire et porte son sceau. GET Admission vous la transmet telle quelle, sans modification. Elle est reconnue pour les démarches de visa étudiant.", ordre: 9 },
+    { question: "Puis-je récupérer mon attestation à l'agence ?", reponse: "Oui, vous pouvez choisir le mode de remise : téléchargement PDF ou retrait à l'agence. Dans ce cas, vous récupérez un document tamponné et signé.", ordre: 10 },
+  ];
+  for (const f of faqs) {
+    await db.faq.upsert({ where: { id: f.ordre }, update: f, create: f });
+  }
+  console.log("✓ FAQ créée");
+
+  // --- ContactInfo (singleton) ---
+  await db.contactInfo.upsert({
+    where: { id: 1 },
+    update: {},
+    create: {
+      id: 1,
+      email: "contact@getadm.com",
+      telephone: "+221 33 800 00 00",
+      adresses: "Dakar · Abidjan · Lomé",
+      horaires: "Lun – Ven : 9h – 18h",
+    },
+  });
+  console.log("✓ ContactInfo créée");
+
+  // --- ModeleAttestation ---
+  const modeles = [
+    { nom: "Attestation standard", description: "Attestation de pré-inscription générique, sceau doré.", nbUsages: 4, ordre: 1 },
+    { nom: "Attestation bilingue FR/EN", description: "Pour universités anglophones (LAU, UCT).", nbUsages: 1, ordre: 2 },
+    { nom: "Certificat de transmission", description: "Document officiel de transmission du dossier à l'université.", nbUsages: 8, ordre: 3 },
+  ];
+  for (const m of modeles) {
+    await db.modeleAttestation.upsert({ where: { id: m.ordre }, update: m, create: m });
+  }
+  console.log("✓ Modèles attestation créés");
+
+  // --- Nationalites ---
+  const nationalites = ["Sénégalaise", "Ivoirienne", "Malienne", "Burkinabè", "Guinéenne", "Béninoise", "Togolaise", "Nigérienne", "Camerounaise", "Marocaine", "Tunisienne", "Gabonaise", "Congolaise", "Autre"];
+  for (let i = 0; i < nationalites.length; i++) {
+    await db.nationalite.upsert({ where: { nom: nationalites[i] }, update: { ordre: i + 1 }, create: { nom: nationalites[i], ordre: i + 1 } });
+  }
+  console.log("✓ Nationalités créées");
+
+  // --- MoyenPaiement ---
+  const moyens = [
+    { nom: "Orange Money", couleur: "bg-orange-500", icone: "Smartphone", ordre: 1 },
+    { nom: "Moov Money", couleur: "bg-blue-600", icone: "Smartphone", ordre: 2 },
+    { nom: "Wave", couleur: "bg-cyan-500", icone: "Smartphone", ordre: 3 },
+    { nom: "Carte bancaire", couleur: "bg-lapis", icone: "CreditCard", ordre: 4 },
+  ];
+  for (const m of moyens) {
+    await db.moyenPaiement.upsert({ where: { id: m.ordre }, update: m, create: m });
+  }
+  console.log("✓ Moyens paiement créés");
+
+  // --- ObjetContact ---
+  const objets = ["Question générale", "Demande de dossier", "Suivi de dossier", "Partenariat", "Autre"];
+  for (let i = 0; i < objets.length; i++) {
+    await db.objetContact.upsert({ where: { id: i + 1 }, update: { nom: objets[i], ordre: i + 1 }, create: { nom: objets[i], ordre: i + 1 } });
+  }
+  console.log("✓ Objets contact créés");
+
+  console.log("🎉 Seed contenu gérable terminé !");
+  await db.$disconnect();
+}
+
+main().catch((e) => { console.error(e); process.exit(1); });

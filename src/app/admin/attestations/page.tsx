@@ -9,11 +9,14 @@ import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
 import { Stamp, FileText, Eye, Plus, CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
 
-const MODELES = [
-  { id: "m1", nom: "Attestation standard", description: "Attestation de pré-inscription générique, sceau doré.", used: 4 },
-  { id: "m2", nom: "Attestation bilingue FR/EN", description: "Pour universités anglophones (LAU, UCT).", used: 1 },
-  { id: "m3", nom: "Certificat de transmission", description: "Document officiel de transmission du dossier à l'université.", used: 8 },
-];
+type ModeleAttestation = {
+  id: number;
+  nom: string;
+  description: string;
+  nbUsages: number;
+  actif: boolean;
+  ordre: number;
+};
 
 type DossierApi = {
   id: string;
@@ -27,23 +30,27 @@ type DossierApi = {
 
 export default function AdminAttestationsPage() {
   const [dossiers, setDossiers] = React.useState<DossierApi[] | null>(null);
+  const [modeles, setModeles] = React.useState<ModeleAttestation[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    fetch("/api/dossiers")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: DossierApi[] | null) => {
+    Promise.all([
+      fetch("/api/dossiers").then((r) => (r.ok ? r.json() : null)),
+      fetch("/api/public/modeles-attestation").then((r) => (r.ok ? r.json() : [])),
+    ])
+      .then(([d, m]: [DossierApi[] | null, ModeleAttestation[] | null]) => {
         if (!d) {
           setError("Impossible de charger les dossiers.");
           setLoading(false);
           return;
         }
         setDossiers(d);
+        setModeles(Array.isArray(m) ? m : []);
         setLoading(false);
       })
       .catch(() => {
-        setError("Erreur réseau lors du chargement des dossiers.");
+        setError("Erreur réseau lors du chargement.");
         setLoading(false);
       });
   }, []);
@@ -109,24 +116,31 @@ export default function AdminAttestationsPage() {
       {/* Modèles */}
       <div>
         <p className="eyebrow mb-3">Modèles d'attestation</p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {MODELES.map((m) => (
-            <Card key={m.id} className="border-ligne bg-blanc p-5">
-              <div className="flex items-start justify-between">
-                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-or-pale text-or">
-                  <Stamp className="h-4 w-4" strokeWidth={1.5} />
+        {modeles.length === 0 ? (
+          <Card className="border-ligne bg-blanc p-8 text-center">
+            <Loader2 className="mx-auto h-6 w-6 animate-spin text-lapis" strokeWidth={1.5} />
+            <p className="mt-2 text-sm text-ardoise">Chargement des modèles…</p>
+          </Card>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {modeles.map((m) => (
+              <Card key={m.id} className="border-ligne bg-blanc p-5">
+                <div className="flex items-start justify-between">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-or-pale text-or">
+                    <Stamp className="h-4 w-4" strokeWidth={1.5} />
+                  </div>
+                  <Badge variant="outline" className="font-mono text-[10px] text-ardoise">{m.nbUsages} usage(s)</Badge>
                 </div>
-                <Badge variant="outline" className="font-mono text-[10px] text-ardoise">{m.used} usage(s)</Badge>
-              </div>
-              <h3 className="mt-3 font-display text-base font-bold text-encre">{m.nom}</h3>
-              <p className="mt-1 text-sm text-ardoise">{m.description}</p>
-              <div className="mt-4 flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1" onClick={() => toast.success("Aperçu du modèle")}><Eye className="mr-1.5 h-3.5 w-3.5" /> Aperçu</Button>
-                <Button variant="ghost" size="sm"><FileText className="h-3.5 w-3.5" /></Button>
-              </div>
-            </Card>
-          ))}
-        </div>
+                <h3 className="mt-3 font-display text-base font-bold text-encre">{m.nom}</h3>
+                <p className="mt-1 text-sm text-ardoise">{m.description}</p>
+                <div className="mt-4 flex gap-2">
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => toast.success("Aperçu du modèle")}><Eye className="mr-1.5 h-3.5 w-3.5" /> Aperçu</Button>
+                  <Button variant="ghost" size="sm"><FileText className="h-3.5 w-3.5" /></Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* À émettre */}

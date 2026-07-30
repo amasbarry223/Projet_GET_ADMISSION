@@ -245,3 +245,53 @@ model MembreEquipe {
   ordre     Int    @default(0)
   actif     Boolean @default(true)
 }
+
+/* --------------------------- Contenu gérable --------------------------- */
+
+model Faq {
+  id        Int    @id @default(autoincrement())
+  question  String
+  reponse   String
+  ordre     Int    @default(0)
+  actif     Boolean @default(true)
+}
+
+model ContactInfo {
+  id        Int    @id @default(1)
+  email     String
+  telephone String
+  adresses  String
+  horaires  String
+}
+
+model ModeleAttestation {
+  id          Int    @id @default(autoincrement())
+  nom         String
+  description String
+  nbUsages    Int    @default(0)
+  actif       Boolean @default(true)
+  ordre       Int    @default(0)
+}
+
+model Nationalite {
+  id    Int    @id @default(autoincrement())
+  nom   String @unique
+  ordre Int    @default(0)
+  actif Boolean @default(true)
+}
+
+model MoyenPaiement {
+  id      Int    @id @default(autoincrement())
+  nom     String
+  couleur String
+  icone   String
+  actif   Boolean @default(true)
+  ordre   Int    @default(0)
+}
+
+model ObjetContact {
+  id    Int    @id @default(autoincrement())
+  nom   String
+  ordre Int    @default(0)
+  actif Boolean @default(true)
+}
