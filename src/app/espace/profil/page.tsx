@@ -11,15 +11,57 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { useSession } from "next-auth/react";
-import { User, Upload, ShieldCheck, Lock, Camera, CheckCircle2, Save } from "lucide-react";
+import { User, Upload, ShieldCheck, Lock, Camera, CheckCircle2, Save, Loader2 } from "lucide-react";
+
+type Profile = {
+  id: string;
+  email: string;
+  prenom: string;
+  nom: string;
+  telephone: string | null;
+  nationalite: string | null;
+  dateNaissance: string | null;
+  adresse: string | null;
+  role: string;
+};
 
 export default function ProfilPage() {
-  const { data: session } = useSession();
-  const user = session?.user;
+  const [profile, setProfile] = React.useState<Profile | null>(null);
+  const [loading, setLoading] = React.useState(true);
   const [kycType, setKycType] = React.useState("passeport");
 
-  const save = (section: string) => toast.success("Modifications enregistrées", { description: `${section} mis à jour.` });
+  React.useEffect(() => {
+    fetch("/api/profile")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { setProfile(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const save = async (section: string) => {
+    if (!profile) return;
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profile),
+      });
+      if (res.ok) {
+        toast.success("Modifications enregistrées", { description: `${section} mis à jour.` });
+      } else {
+        toast.error("Erreur", { description: "Échec de l'enregistrement." });
+      }
+    } catch {
+      toast.error("Erreur", { description: "Échec de l'enregistrement." });
+    }
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-lapis" /></div>;
+  }
+
+  if (!profile) {
+    return <p className="text-sm text-ardoise">Impossible de charger votre profil.</p>;
+  }
 
   return (
     <div className="space-y-6">
@@ -40,8 +82,8 @@ export default function ProfilPage() {
             </button>
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="font-display text-xl font-bold text-encre">{user?.prenom ?? "Fatou"} {user?.nom ?? "Diallo"}</h2>
-            <p className="text-sm text-ardoise">{user?.email ?? "fatou.diallo@demo.getadm"}</p>
+            <h2 className="font-display text-xl font-bold text-encre">{`${profile.prenom} ${profile.nom}`}</h2>
+            <p className="text-sm text-ardoise">{profile.email}</p>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               <Badge className="bg-lapis/10 font-mono text-[10px] uppercase text-lapis">Candidat</Badge>
               <Badge className="bg-vert/10 font-mono text-[10px] uppercase text-vert">KYC vérifié</Badge>
@@ -63,31 +105,31 @@ export default function ProfilPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-encre">Prénom</Label>
-                <Input defaultValue="Fatou" />
+                <Input defaultValue={profile.prenom ?? ""} />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-encre">Nom</Label>
-                <Input defaultValue="Diallo" />
+                <Input defaultValue={profile.nom ?? ""} />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-encre">E-mail</Label>
-                <Input type="email" defaultValue="fatou.diallo@demo.getadm" />
+                <Input type="email" defaultValue={profile.email ?? ""} />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-encre">Téléphone</Label>
-                <Input defaultValue="+221 77 123 45 67" />
+                <Input defaultValue={profile.telephone ?? ""} />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-encre">Nationalité</Label>
-                <Input defaultValue="Sénégalaise" />
+                <Input defaultValue={profile.nationalite ?? ""} />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-encre">Date de naissance</Label>
-                <Input type="date" defaultValue="2002-04-12" />
+                <Input type="date" defaultValue={profile.dateNaissance ?? ""} />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label className="text-sm font-medium text-encre">Adresse</Label>
-                <Input defaultValue="Dakar, Sénégal" />
+                <Input defaultValue={profile.adresse ?? ""} />
               </div>
             </div>
             <div className="mt-5 flex justify-end">

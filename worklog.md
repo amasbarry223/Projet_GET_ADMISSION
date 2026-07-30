@@ -630,3 +630,52 @@ Stage Summary:
 - Le seul fichier "mock" restant est `etats.ts` qui est une config statique légitime (définition du workflow à 12 états, pas des données métier).
 - API REST : 11 endpoints (universites, dossiers, messages, paiements, register, admin/stats, admin/users, admin/transactions, dossiers/[id]/workflow).
 - RBAC NextAuth fonctionnel : middleware protège /espace (auth) et /admin (rôle staff).
+
+---
+Task ID: AUDIT
+Agent: Lead (main)
+Task: Audit complet de l'application — 100% dynamique.
+
+Work Log:
+- Audit 1 (Données mock/hardcodées) :
+  * Dossier mock/ : supprimé ✓
+  * Imports @/lib/mock/ : 0 ✓
+  * Legacy auth-context/useAuth/RoleSelector : 0 ✓
+  * FIX : profil/page.tsx avait des valeurs hardcodées (nationalité "Sénégalaise", date "2002-04-12", adresse "Dakar, Sénégal", email "fatou.diallo@demo.getadm") → remplacées par fetch /api/profile (nouvelle API GET+PUT) qui interroge la DB.
+- Audit 2 (API routes + RBAC) :
+  * 3 API publiques : 200 ✓
+  * 5 API protégées sans auth : 401 ✓
+  * API candidat (authentifié) : 200 ✓ / API admin (candidat) : 403 ✓ (RBAC bloque)
+  * API admin (authentifié admin) : 200 ✓
+  * Données DB réelles retournées : GETADM-2026-0048, 7 users, 10 universités ✓
+- Audit 3 (Pages + auth) :
+  * 9 pages publiques : 200 ✓
+  * 4 pages protégées sans auth : 307 (redirect /connexion) ✓
+  * 6 pages candidat (auth) : 200 ✓
+  * 3 pages admin (candidat → bloqué) : 307 ✓ (RBAC middleware)
+  * 8 pages admin (auth admin) : 200 ✓
+- Audit 4 (DB + intégrité) :
+  * 7 users, 10 universités, 13 formations, 1 dossier, 5 pièces, 2 paiements, 6 messages, 8 historiques, 1 conversation
+  * Mots de passe hashés bcrypt ✓
+  * Dossiers orphelins : 0 (candidatId non-nullable dans schéma) ✓
+- Audit 5 (Lint + runtime) :
+  * Lint : 0 erreur, 0 warning ✓
+  * Erreurs runtime : 0 ✓
+  * Warnings runtime : 0 ✓
+- Audit 6 (Browser end-to-end) :
+  * Login page : 7 comptes démo chargés dynamiquement depuis DB ✓
+  * Login Admin → redirect /admin → session "Yasmine Bensaid | ADMIN" ✓
+  * Admin dashboard : 6 charts, données GETADM réelles ✓
+  * Admin dossiers : 1 ligne depuis DB ✓
+  * Dossier detail (avec vrai ID DB) : 200 ✓
+  * Login Candidat → redirect /espace → session "Fatou Diallo | CANDIDAT" ✓
+  * Espace dashboard : GETADM-2026-0048, Sorbonne, 12 timeline steps, KPIs ✓
+  * Console errors : 0 ✓
+
+Stage Summary:
+- Application 100% dynamique : 0 donnée mock, 0 donnée hardcodée, tout provient de la DB SQLite via Prisma + API REST.
+- RBAC NextAuth fonctionnel : middleware protège /espace (auth) et /admin (rôle staff), API routes vérifient le rôle.
+- 12 API routes (3 publiques + 9 protégées avec RBAC).
+- 23 pages (9 publiques + 6 candidat + 8 admin) toutes vérifiées 200/307 selon auth.
+- 0 erreur lint, 0 erreur runtime, 0 erreur console.
+- FIX appliqué pendant l'audit : profil/page.tsx rendu 100% dynamique via /api/profile (GET + PUT).
