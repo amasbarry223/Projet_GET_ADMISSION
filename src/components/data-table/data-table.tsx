@@ -334,13 +334,6 @@ export function DataTable<TData, TValue>({
   // Debounce la recherche (300ms) — évite de filtrer à chaque frappe
   const debouncedSearch = useDebounce(searchInput, 300);
 
-  // Appliquer la valeur debouncée au filtre de colonne
-  React.useEffect(() => {
-    if (searchKey) {
-      table.getColumn(searchKey)?.setFilterValue(debouncedSearch);
-    }
-  }, [debouncedSearch, searchKey, table]);
-
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
@@ -357,6 +350,13 @@ export function DataTable<TData, TValue>({
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
+
+  // Appliquer la valeur debouncée au filtre de colonne (après déclaration de table)
+  React.useEffect(() => {
+    if (searchKey) {
+      table.getColumn(searchKey)?.setFilterValue(debouncedSearch);
+    }
+  }, [debouncedSearch, searchKey, table]);
 
   const selectedCount = table.getFilteredSelectedRowModel().rows.length;
 
