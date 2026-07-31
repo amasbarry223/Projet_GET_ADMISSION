@@ -97,13 +97,25 @@ function InscriptionInner() {
         return;
       }
       // BF-06 : Vérification de l'e-mail requise
+      const emailSent = data.emailSent !== false;
       const q = new URLSearchParams({
         status: "pending",
         email: form.email,
-        message: "Un e-mail de vérification vient d'être envoyé. Consultez votre boîte mail pour activer votre compte.",
+        message: emailSent
+          ? "Un e-mail de vérification vient d'être envoyé. Consultez votre boîte mail pour activer votre compte."
+          : (data.message as string) ||
+            "Compte créé, mais l'e-mail n'a pas pu être envoyé. Cliquez sur « Renvoyer l'e-mail » ou contactez le support.",
       });
+      if (!emailSent) q.set("emailFailed", "1");
       if (data.verifyUrl) q.set("verifyUrl", data.verifyUrl);
       if (callbackUrl) q.set("callbackUrl", callbackUrl);
+      if (!emailSent) {
+        toast.error("E-mail non envoyé", {
+          description: data.mailError || "Utilisez le bouton « Renvoyer l'e-mail » sur la page suivante.",
+        });
+      } else {
+        toast.success("Compte créé", { description: "Vérifiez votre boîte mail." });
+      }
       router.push(`/verification-email?${q.toString()}`);
       return;
     } catch {

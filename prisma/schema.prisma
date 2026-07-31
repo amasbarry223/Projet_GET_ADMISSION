@@ -388,7 +388,8 @@ model EmailLog {
   to        String
   subject   String
   body      String
-  status    String   @default("queued")
+  status    String   @default("queued") // queued | sent | failed | logged
+  error     String?
   createdAt DateTime @default(now())
 }
 

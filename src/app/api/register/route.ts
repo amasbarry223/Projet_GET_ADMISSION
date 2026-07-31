@@ -44,7 +44,7 @@ export async function POST(request: Request) {
 
     const verifyUrl = `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/auth/verify-email?token=${encodeURIComponent(verifyToken)}`;
 
-    await sendMail({
+    const mail = await sendMail({
       to: user.email,
       subject: "Vérifiez votre e-mail — GET Admission",
       html: verificationEmailHtml(user.prenom, verifyUrl),
@@ -54,9 +54,13 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         success: true,
+        emailSent: mail.ok,
         user: { id: user.id, email: user.email, prenom: user.prenom, nom: user.nom, role: user.role },
         ...(process.env.NODE_ENV !== "production" ? { verifyUrl } : {}),
-        message: "Compte créé. Un e-mail de vérification a été envoyé.",
+        message: mail.ok
+          ? "Compte créé. Un e-mail de vérification a été envoyé."
+          : "Compte créé, mais l'e-mail de vérification n'a pas pu être envoyé. Utilisez « Renvoyer l'e-mail » ou contactez le support.",
+        ...(mail.ok ? {} : { mailError: mail.error }),
       },
       { status: 201 }
     );

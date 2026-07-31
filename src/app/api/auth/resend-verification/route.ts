@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sendMail, verificationEmailHtml } from "@/lib/mail";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
-import { createVerifyToken, isVerifyTokenExpired } from "@/lib/verify-token";
+import { createVerifyToken } from "@/lib/verify-token";
 
 /**
  * POST /api/auth/resend-verification
@@ -44,6 +44,7 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({
       success: true,
+      emailSent: true,
       message: "Si un compte existe, un e-mail a été envoyé.",
     });
   }
@@ -67,14 +68,26 @@ export async function POST(request: Request) {
   });
 
   const verifyUrl = `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/auth/verify-email?token=${encodeURIComponent(verifyToken)}`;
-  await sendMail({
+  const mail = await sendMail({
     to: user.email,
     subject: "Vérifiez votre e-mail — GET Admission",
     html: verificationEmailHtml(user.prenom, verifyUrl),
+    text: `Bonjour ${user.prenom}, confirmez votre e-mail : ${verifyUrl}`,
   });
+
+  if (!mail.ok) {
+    return NextResponse.json(
+      {
+        error: mail.error || "Impossible d'envoyer l'e-mail de vérification. Réessayez plus tard.",
+        emailSent: false,
+      },
+      { status: 502 }
+    );
+  }
 
   return NextResponse.json({
     success: true,
+    emailSent: true,
     message: "E-mail de vérification renvoyé.",
     verifyUrl: process.env.NODE_ENV !== "production" ? verifyUrl : undefined,
   });

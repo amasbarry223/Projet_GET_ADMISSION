@@ -1,8 +1,7 @@
 /**
- * Service e-mail transactionnel.
- * - Si SMTP_HOST est défini : envoi via fetch vers un webhook SMTP simple (Resend-compatible)
- *   ou log structuré pour intégration ultérieure.
- * - Sinon : journalise en base (EmailLog) + console — adapté au développement local.
+ * Service e-mail transactionnel (Resend).
+ * - Production : RESEND_API_KEY + MAIL_FROM obligatoires.
+ * - Développement sans clé : journal console + EmailLog status=logged.
  */
 
 import { db } from "@/lib/db";
@@ -14,12 +13,64 @@ type SendMailInput = {
   text?: string;
 };
 
-export async function sendMail(input: SendMailInput): Promise<{ ok: boolean; previewUrl?: string }> {
-  const from = process.env.MAIL_FROM || "GET Admission <noreply@getadmission.local>";
+export type SendMailResult = {
+  ok: boolean;
+  previewUrl?: string;
+  error?: string;
+  logId?: number;
+};
 
-  // Persistance pour audit / debug
+const DEFAULT_DEV_FROM = "GET Admission <onboarding@resend.dev>";
+
+function resolveFrom(): { from: string; error?: string } {
+  const configured = process.env.MAIL_FROM?.trim();
+  const isProd = process.env.NODE_ENV === "production";
+
+  if (configured) {
+    if (/getadmission\.local/i.test(configured) && isProd) {
+      return {
+        from: configured,
+        error:
+          "MAIL_FROM utilise un domaine invalide (.local). Configurez un domaine vérifié dans Resend.",
+      };
+    }
+    return { from: configured };
+  }
+
+  if (isProd) {
+    return {
+      from: DEFAULT_DEV_FROM,
+      error:
+        "MAIL_FROM manquant. Définissez MAIL_FROM avec une adresse d'un domaine vérifié Resend.",
+    };
+  }
+
+  return { from: DEFAULT_DEV_FROM };
+}
+
+async function updateLog(
+  logId: number | undefined,
+  status: string,
+  error?: string | null,
+) {
+  if (!logId) return;
   try {
-    await db.emailLog.create({
+    await db.emailLog.update({
+      where: { id: logId },
+      data: { status, error: error ?? null },
+    });
+  } catch (e) {
+    console.error("[mail] EmailLog update failed", e);
+  }
+}
+
+export async function sendMail(input: SendMailInput): Promise<SendMailResult> {
+  const isProd = process.env.NODE_ENV === "production";
+  const { from, error: fromError } = resolveFrom();
+
+  let logId: number | undefined;
+  try {
+    const log = await db.emailLog.create({
       data: {
         to: input.to,
         subject: input.subject,
@@ -27,44 +78,82 @@ export async function sendMail(input: SendMailInput): Promise<{ ok: boolean; pre
         status: "queued",
       },
     });
+    logId = log.id;
   } catch {
     // schéma peut ne pas encore être poussé
   }
 
-  const resendKey = process.env.RESEND_API_KEY;
-  if (resendKey) {
-    try {
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${resendKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from,
-          to: input.to,
-          subject: input.subject,
-          html: input.html,
-          text: input.text,
-        }),
-      });
-      const ok = res.ok;
-      console.info(`[mail] Resend ${ok ? "OK" : "FAIL"} → ${input.to}: ${input.subject}`);
-      return { ok };
-    } catch (e) {
-      console.error("[mail] Resend error", e);
-      return { ok: false };
-    }
+  if (fromError && isProd) {
+    await updateLog(logId, "failed", fromError);
+    console.error(`[mail] ${fromError}`);
+    return { ok: false, error: fromError, logId };
   }
 
-  // Mode développement : log console avec contenu
-  console.info("────────── EMAIL (dev) ──────────");
-  console.info(`To: ${input.to}`);
-  console.info(`Subject: ${input.subject}`);
-  console.info(input.text || input.html);
-  console.info("──────────────────────────────────");
+  const resendKey = process.env.RESEND_API_KEY?.trim();
 
-  return { ok: true, previewUrl: undefined };
+  if (!resendKey) {
+    if (isProd) {
+      const err =
+        "RESEND_API_KEY manquant. Configurez la clé Resend sur Vercel pour envoyer les e-mails.";
+      await updateLog(logId, "failed", err);
+      console.error(`[mail] ${err}`);
+      return { ok: false, error: err, logId };
+    }
+
+    // Mode développement : log console (pas d'envoi réel)
+    console.info("────────── EMAIL (dev — non envoyé) ──────────");
+    console.info(`From: ${from}`);
+    console.info(`To: ${input.to}`);
+    console.info(`Subject: ${input.subject}`);
+    console.info(input.text || input.html);
+    console.info("──────────────────────────────────────────────");
+    await updateLog(logId, "logged", "Dev: RESEND_API_KEY absent — e-mail journalisé uniquement");
+    return { ok: true, previewUrl: undefined, logId };
+  }
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: input.to,
+        subject: input.subject,
+        html: input.html,
+        text: input.text,
+      }),
+    });
+
+    const body = (await res.json().catch(() => ({}))) as {
+      id?: string;
+      message?: string;
+      name?: string;
+      error?: string | { message?: string };
+    };
+
+    if (!res.ok) {
+      const errMsg =
+        (typeof body.error === "object" && body.error?.message) ||
+        body.message ||
+        (typeof body.error === "string" ? body.error : null) ||
+        `Resend HTTP ${res.status}`;
+      console.error(`[mail] Resend FAIL → ${input.to}: ${errMsg}`);
+      await updateLog(logId, "failed", errMsg);
+      return { ok: false, error: errMsg, logId };
+    }
+
+    console.info(`[mail] Resend OK → ${input.to}: ${input.subject} (${body.id ?? "ok"})`);
+    await updateLog(logId, "sent");
+    return { ok: true, logId };
+  } catch (e) {
+    const errMsg = e instanceof Error ? e.message : "Erreur réseau Resend";
+    console.error("[mail] Resend error", e);
+    await updateLog(logId, "failed", errMsg);
+    return { ok: false, error: errMsg, logId };
+  }
 }
 
 export function verificationEmailHtml(prenom: string, verifyUrl: string) {

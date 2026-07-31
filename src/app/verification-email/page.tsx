@@ -5,22 +5,25 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, Info, Loader2, Mail } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { CheckCircle2, XCircle, Info, Loader2, Mail, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
 
 function Content() {
   const params = useSearchParams();
   const status = params.get("status") || "error";
+  const emailFailed = params.get("emailFailed") === "1";
   const message =
     params.get("message") ||
     (status === "pending"
       ? "Consultez votre boîte mail pour activer votre compte."
       : "Une erreur est survenue.");
   const email = params.get("email") || "";
-  const verifyUrl = params.get("verifyUrl") || "";
+  const [verifyUrl, setVerifyUrl] = React.useState(params.get("verifyUrl") || "");
   const callbackUrl = params.get("callbackUrl") || "";
   const [resending, setResending] = React.useState(false);
+  const [lastSendFailed, setLastSendFailed] = React.useState(emailFailed);
 
   const cfg =
     status === "ok"
@@ -50,11 +53,18 @@ function Content() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error("Envoi impossible", { description: data.error || "Réessayez." });
+        setLastSendFailed(true);
+        toast.error("Envoi impossible", {
+          description: data.error || "Le service e-mail est indisponible. Réessayez plus tard.",
+        });
         return;
       }
+      setLastSendFailed(false);
+      if (data.verifyUrl) setVerifyUrl(data.verifyUrl);
       toast.success("E-mail renvoyé", {
-        description: data.verifyUrl ? "Lien de vérification disponible (environnement de développement)." : "Consultez votre boîte mail.",
+        description: data.verifyUrl
+          ? "Lien de vérification disponible (environnement de développement)."
+          : "Consultez votre boîte mail (et les indésirables).",
         action: data.verifyUrl
           ? { label: "Vérifier", onClick: () => window.open(data.verifyUrl, "_blank") }
           : undefined,
@@ -75,6 +85,18 @@ function Content() {
       {email && status === "pending" && (
         <p className="mt-1 font-mono text-xs text-lapis">{email}</p>
       )}
+
+      {status === "pending" && lastSendFailed && (
+        <Alert className="mt-4 border-carmin/40 bg-carmin/5 text-left">
+          <AlertCircle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
+          <AlertTitle className="font-display text-sm font-bold text-encre">E-mail non délivré</AlertTitle>
+          <AlertDescription className="text-sm text-ardoise">
+            Votre compte existe, mais le message de validation n&apos;a pas pu partir. Cliquez sur
+            «&nbsp;Renvoyer l&apos;e-mail&nbsp;». Si le problème continue, contactez le support.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
         {status === "pending" && verifyUrl && (
           <Button asChild className="bg-lapis text-blanc hover:bg-lapis/90">
