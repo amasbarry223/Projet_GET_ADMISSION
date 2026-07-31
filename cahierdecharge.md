@@ -12,11 +12,109 @@ Intermédiation entre étudiants étrangers et universités partenaires
 | **Version du document** | 1.0 |
 | **Date** | Juin 2026 |
 | **Statut** | Pour validation |
+| **Dernier audit conformité** | 31 juillet 2026 — Lot A/B livrés ; BF-19 gateway en attente |
+
+---
+
+## 0. Audit de conformité (implémentation)
+
+*Revue code vs exigences du présent cahier — 31 juillet 2026. Légende : **Fait** · **Partiel** · **Manquant** · **Hors V1**.*
+
+### 0.1. Synthèse
+
+| Indicateur | Valeur |
+|---|---|
+| BF faits (qualité OK) | ~27 / 32 |
+| BF partiels | BF-19, BF-23 (+ CMS / factures admin) |
+| BF manquant V1 | Gateway paiement réel (BF-19) |
+| Back-office §4 | 4.1–4.3 / 4.5 **Fait** ; 4.4, 4.6, 4.7 **Partiel** |
+| Portail université | **Hors V1** (Phase 2) |
+
+**Verdict :** parcours V1 opérationnel après durcissement (complétude pièces, reçu, plafonds, vérif e-mail, affectation auto). Écart produit restant = **paiement en ligne réel (BF-19)**.
+
+### 0.1bis. Correctifs Lot A/B (31 juil. 2026)
+
+- Pièces : pas de `televersee`/`validee` sans fichier ; soumission exige `cheminFichier`.
+- Reçu : uniquement si paiement `reussi`.
+- Reste dû : `reussi` + `en_attente` ; conseillerId = CONSEILLER actif.
+- E-mail vérifié exigé par défaut ; login sans dryRun énumérateur.
+- Magic-bytes upload ; UI paiement = déclaration / validation agence.
+- Affectation auto round-robin ; `lastLoginAt` + charge dossiers ouverts.
+- Audit via `/api/admin/audit` ; `notifInApp` / `workflowStrict` effectifs.
+
+### 0.2. Besoins fonctionnels BF-01 → BF-32
+
+| Code | Exigence (résumé) | Statut | Preuve / écart |
+|---|---|---|---|
+| BF-01 | Accueil / chiffres clés | **Fait** | Vitrine + contenus dynamiques |
+| BF-02 | Catalogue filtrable | **Fait** | Pays / domaine / niveau |
+| BF-03 | Fiche université | **Fait** | `/universites/[slug]` |
+| BF-04 | Pages institutionnelles | **Fait** | À propos, FAQ, contact, mentions |
+| BF-05 | CTA inscription / dossier | **Fait** | Header + accueil |
+| BF-06 | Inscription + vérif e-mail | **Fait** | `exigerEmailVerifie` défaut true |
+| BF-07 | Connexion / session | **Fait** | Portails séparés (sans retry cross-portal) |
+| BF-08 | Reset mot de passe | **Fait** | Forgot + reset + rate-limit |
+| BF-09 | Profil candidat | **Fait** | `/espace/profil` |
+| BF-10 | KYC pièce d'identité | **Fait** | Upload + `/admin/kyc` |
+| BF-11 | Choix univ. / formation | **Fait** | Wizard dossier |
+| BF-12 | Formulaire multi-étapes | **Fait** | Brouillon autosave |
+| BF-13 | Upload pièces | **Fait** | ≤ 10 Mo + magic-bytes |
+| BF-14 | Contrôle complétude | **Fait** | Serveur exige fichier à la soumission |
+| BF-15 | Soumission dossier | **Fait** | SOUMIS + affectation auto conseiller |
+| BF-16 | Corrections candidat | **Fait** | État CORRECTION |
+| BF-17 | Historique dossier | **Fait** | Historique + audit |
+| BF-18 | Affichage frais d'agence | **Fait** | `fraisAgence` |
+| BF-19 | Paiement Mobile Money / carte | **Partiel** | Déclaration manuelle ; **pas de gateway** |
+| BF-20 | Reçu téléchargeable | **Fait** | Uniquement si `statut === reussi` |
+| BF-21 | Statuts paiement | **Fait** | en_attente / réussi / échoué / remboursé |
+| BF-22 | Rapprochement dossier | **Fait** | Plafond = confirmés + en_attente |
+| BF-23 | Paiement en tranches | **Partiel** | UI 50/50 ; pas de plan échéances serveur |
+| BF-24 | Dashboard candidat | **Fait** | Polling (pas WebSocket) |
+| BF-25 | Timeline étapes | **Fait** | Frise horodatée |
+| BF-26 | Notifs e-mail + in-app | **Fait** | Respecte `notifEmail` / `notifInApp` |
+| BF-27 | Messagerie interne | **Fait** | `/espace/messages` |
+| BF-28 | Alertes action requise | **Fait** | Dashboard candidat |
+| BF-29 | Attestation modèle | **Fait** | Admin + génération PDF |
+| BF-30 | PDF espace candidat | **Fait** | `/espace/attestation` |
+| BF-31 | Remise à l'agence | **Fait** | `modeRemise` |
+| BF-32 | Code vérification | **Fait** | `/verifier` + rate-limit |
+
+### 0.3. Back-office (§4)
+
+| Section | Statut | Écart |
+|---|---|---|
+| 4.1 Tableau de bord | **Fait** | KPI, graphiques, file prioritaire |
+| 4.2 Gestion des dossiers | **Fait** | Workflow + affectation manuelle et auto |
+| 4.3 Catalogue | **Fait** | Universités, formations, médias |
+| 4.4 Finance | **Partiel** | Transactions + CSV ; factures PDF limitées |
+| 4.5 Utilisateurs internes | **Fait** | Invite / rôles + last login + charge |
+| 4.6 Paramétrage & contenus | **Partiel** | Params branchés ; CMS actualités faible |
+| 4.7 Supervision & sécurité | **Partiel** | Audit API paginée ; pas d’UI sauvegardes / RBAC |
+
+### 0.4. RBAC, cycle de vie, NFR
+
+| Bloc | Statut | Note |
+|---|---|---|
+| §5 RBAC | **Partiel** | Matrice code + middleware ; pas d’UI édition dynamique |
+| §6 Cycle de vie | **Partiel** | `workflowStrict` bloque raccourcis accepter/refuser depuis TRANSMIS |
+| §7 Sécurité / NFR | **Partiel** | Magic-bytes, rate-limit verifier ; Redis prod à prévoir |
+| Portail université | **Hors V1** | Phase 2 |
+
+### 0.5. Priorités restantes
+
+| Prio | Écart | Impact |
+|---|---|---|
+| P0 | Gateway paiement + webhooks | BF-19 |
+| P1 | Rate-limit distribué (Redis) | §7 |
+| P2 | CMS FAQ / actualités + factures PDF | §4.4 · §4.6 |
+| P2 | Plan échéances serveur (BF-23) | BF-23 |
+| P3 | Portail université partenaire | Phase 2 |
 
 ---
 
 ## Sommaire
 
+0. Audit de conformité (implémentation)
 1. Présentation du projet
    - 1.1. Contexte
    - 1.2. Objectifs

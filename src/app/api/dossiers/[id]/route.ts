@@ -83,7 +83,7 @@ export async function PUT(
 
   const dossier = await db.dossier.findUnique({
     where: { id },
-    select: { id: true, candidatId: true, reference: true, etat: true },
+    select: { id: true, candidatId: true, reference: true, etat: true, conseillerId: true },
   });
   if (!dossier) {
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
@@ -129,46 +129,65 @@ export async function PUT(
 
   const auteurLabel = `${(session.user as { prenom: string }).prenom} ${(session.user as { nom: string }).nom}`;
 
-  // Validation soumission / resoumission
+  // Validation soumission / resoumission — pièces avec fichier réel requis
+  async function assertPiecesCompletes() {
+    const piecesDb = await db.piece.findMany({ where: { dossierId: id } });
+    if (piecesDb.length === 0) {
+      return NextResponse.json({ error: "Aucune pièce obligatoire n'est associée au dossier" }, { status: 400 });
+    }
+    const incompletes = piecesDb.filter(
+      (p) =>
+        !p.cheminFichier ||
+        p.statut === "manquante" ||
+        p.statut === "a_corriger"
+    );
+    if (incompletes.length > 0) {
+      return NextResponse.json(
+        {
+          error: `${incompletes.length} pièce(s) obligatoire(s) manquante(s), à corriger ou sans fichier`,
+        },
+        { status: 400 }
+      );
+    }
+    return null;
+  }
+
   if (action === "soumettre") {
     if (dossier.etat !== "BROUILLON") {
       return NextResponse.json({ error: "Seuls les brouillons peuvent être soumis" }, { status: 400 });
     }
-    const manquantes = await db.piece.count({
-      where: { dossierId: id, statut: { in: ["manquante", "a_corriger"] } },
-    });
-    if (manquantes > 0) {
-      return NextResponse.json(
-        { error: `${manquantes} pièce(s) obligatoire(s) manquante(s) ou à corriger` },
-        { status: 400 }
-      );
-    }
+    const errPieces = await assertPiecesCompletes();
+    if (errPieces) return errPieces;
   }
   if (action === "resoumettre") {
     if (dossier.etat !== "CORRECTION") {
       return NextResponse.json({ error: "Resoumission réservée aux dossiers « À corriger »" }, { status: 400 });
     }
-    const manquantes = await db.piece.count({
-      where: { dossierId: id, statut: { in: ["manquante", "a_corriger"] } },
-    });
-    if (manquantes > 0) {
-      return NextResponse.json(
-        { error: `${manquantes} pièce(s) encore à corriger ou manquante(s)` },
-        { status: 400 }
-      );
-    }
+    const errPieces = await assertPiecesCompletes();
+    if (errPieces) return errPieces;
   }
 
-  const updated = await db.$transaction(async (tx) => {
+  let updated;
+  try {
+    updated = await db.$transaction(async (tx) => {
     const notes: string[] = [];
     let nouvelEtat = dossier.etat;
 
     if (conseillerId !== undefined && role !== "CANDIDAT") {
-      await tx.dossier.update({ where: { id }, data: { conseillerId: conseillerId || null } });
-      const cons = conseillerId
-        ? await tx.user.findUnique({ where: { id: conseillerId }, select: { prenom: true, nom: true } })
-        : null;
-      notes.push(cons ? `Conseiller affecté : ${cons.prenom} ${cons.nom}` : "Conseiller désaffecté");
+      if (conseillerId) {
+        const cons = await tx.user.findUnique({
+          where: { id: conseillerId },
+          select: { prenom: true, nom: true, role: true, actif: true },
+        });
+        if (!cons || cons.role !== "CONSEILLER" || !cons.actif) {
+          throw new Error("CONSEILLER_INVALIDE");
+        }
+        await tx.dossier.update({ where: { id }, data: { conseillerId } });
+        notes.push(`Conseiller affecté : ${cons.prenom} ${cons.nom}`);
+      } else {
+        await tx.dossier.update({ where: { id }, data: { conseillerId: null } });
+        notes.push("Conseiller désaffecté");
+      }
     }
 
     if (info) {
@@ -187,22 +206,36 @@ export async function PUT(
 
     if (pieces && pieces.length > 0) {
       for (const p of pieces) {
+        // Candidat : interdiction de poser televersee/validee/a_corriger via PUT (upload multipart uniquement)
+        let statut = p.statut;
+        if (role === "CANDIDAT") {
+          if (statut === "validee" || statut === "a_corriger" || statut === "televersee") {
+            statut = "manquante";
+          }
+        }
         const existing = await tx.piece.findFirst({ where: { dossierId: id, libelle: p.libelle } });
         if (existing) {
+          // Ne pas écraser un fichier existant en « televersee » sans chemin
+          if (statut === "televersee" && !existing.cheminFichier) {
+            continue;
+          }
+          if (statut === "validee" && !existing.cheminFichier) {
+            continue;
+          }
           await tx.piece.update({
             where: { id: existing.id },
             data: {
-              statut: p.statut,
-              ...(p.statut === "televersee" ? { televerseeLe: new Date() } : {}),
+              statut,
+              ...(statut === "televersee" || statut === "validee" ? { televerseeLe: new Date() } : {}),
             },
           });
-        } else {
+        } else if (statut === "manquante") {
           await tx.piece.create({
             data: {
               dossierId: id,
               libelle: p.libelle,
-              statut: p.statut,
-              televerseeLe: p.statut === "televersee" ? new Date() : null,
+              statut: "manquante",
+              televerseeLe: null,
             },
           });
         }
@@ -212,9 +245,32 @@ export async function PUT(
 
     if (action === "soumettre") {
       nouvelEtat = "SOUMIS";
+      // Affectation auto : conseiller actif avec le moins de dossiers ouverts
+      let autoConseillerId: string | null = dossier.conseillerId;
+      if (!autoConseillerId) {
+        const conseillers = await tx.user.findMany({
+          where: { role: "CONSEILLER", actif: true },
+          select: {
+            id: true,
+            dossiersConseiller: {
+              where: { etat: { notIn: ["CLOTURE", "REFUSE"] } },
+              select: { id: true },
+            },
+          },
+        });
+        if (conseillers.length > 0) {
+          conseillers.sort((a, b) => a.dossiersConseiller.length - b.dossiersConseiller.length);
+          autoConseillerId = conseillers[0]!.id;
+          notes.push("Conseiller affecté automatiquement");
+        }
+      }
       await tx.dossier.update({
         where: { id },
-        data: { etat: "SOUMIS", etapeActuelle: 2 },
+        data: {
+          etat: "SOUMIS",
+          etapeActuelle: 2,
+          ...(autoConseillerId ? { conseillerId: autoConseillerId } : {}),
+        },
       });
       notes.push("Dossier soumis — entrée en file de traitement");
     } else if (action === "resoumettre") {
@@ -267,7 +323,16 @@ export async function PUT(
         historiques: { orderBy: { date: "asc" } },
       },
     });
-  });
+    });
+  } catch (e) {
+    if (e instanceof Error && e.message === "CONSEILLER_INVALIDE") {
+      return NextResponse.json(
+        { error: "Conseiller invalide : rôle CONSEILLER actif requis" },
+        { status: 400 }
+      );
+    }
+    throw e;
+  }
 
   if (action === "soumettre" || action === "resoumettre") {
     try {

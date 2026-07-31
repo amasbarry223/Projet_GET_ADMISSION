@@ -147,8 +147,8 @@
   --sidebar-foreground: #1A1A1A;
   --sidebar-primary: #3CA936;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #E8F5E7;
-  --sidebar-accent-foreground: #2E8329;
+  --sidebar-accent: #E2F3E1; /* léger boost vs or-pale pour active state */
+  --sidebar-accent-foreground: #1F6B1B;
   --sidebar-border: #E5E7EB;
   --sidebar-ring: #5BC455;
 }

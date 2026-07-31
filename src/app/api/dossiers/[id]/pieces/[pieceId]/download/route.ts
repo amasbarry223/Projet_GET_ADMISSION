@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { resolveUploadPath } from "@/lib/storage";
+import { requirePermission } from "@/lib/rbac";
 import { readFile } from "fs/promises";
 import path from "path";
 
@@ -29,8 +30,13 @@ export async function GET(
     return NextResponse.json({ error: "Fichier introuvable" }, { status: 404 });
   }
 
-  if (role === "CANDIDAT" && piece.dossier.candidatId !== userId) {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  if (role === "CANDIDAT") {
+    if (piece.dossier.candidatId !== userId) {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+  } else {
+    const gate = requirePermission(role, "dossiers.read");
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
   try {

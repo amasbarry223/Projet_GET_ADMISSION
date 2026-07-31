@@ -53,7 +53,9 @@ export type UserRow = {
   email: string;
   role: RoleInterne;
   dossiers: number;
+  dossiersOuverts: number;
   date: string;
+  lastLoginAt: string | null;
   actif: boolean;
 };
 
@@ -253,7 +255,22 @@ export function UtilisateursClient({ initialData }: { initialData: UserRow[] }) 
         id: "dossiers",
         accessorKey: "dossiers",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Dossiers" />,
-        cell: ({ row }) => <span className="font-mono text-sm text-encre">{row.original.dossiers}</span>,
+        cell: ({ row }) => (
+          <div className="text-sm">
+            <span className="font-mono font-semibold text-encre">{row.original.dossiers}</span>
+            <span className="ml-1 text-xs text-ardoise">({row.original.dossiersOuverts} ouverts)</span>
+          </div>
+        ),
+      },
+      {
+        id: "lastLoginAt",
+        accessorKey: "lastLoginAt",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Dernière connexion" />,
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-ardoise">
+            {row.original.lastLoginAt ? formatDate(row.original.lastLoginAt) : "—"}
+          </span>
+        ),
       },
       {
         id: "date",

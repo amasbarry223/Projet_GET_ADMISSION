@@ -14,7 +14,16 @@ export default async function AdminUtilisateursPage() {
       role: true,
       actif: true,
       createdAt: true,
-      _count: { select: { dossiersConseiller: true } },
+      lastLoginAt: true,
+      _count: {
+        select: {
+          dossiersConseiller: true,
+        },
+      },
+      dossiersConseiller: {
+        where: { etat: { notIn: ["CLOTURE", "REFUSE"] } },
+        select: { id: true },
+      },
     },
     orderBy: { createdAt: "asc" },
   });
@@ -41,7 +50,9 @@ export default async function AdminUtilisateursPage() {
     initiales: `${u.prenom[0] ?? ""}${u.nom[0] ?? ""}`,
     role: mapRole(u.role),
     dossiers: u._count.dossiersConseiller,
+    dossiersOuverts: u.dossiersConseiller.length,
     date: u.createdAt.toISOString(),
+    lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
     actif: u.actif,
   }));
 

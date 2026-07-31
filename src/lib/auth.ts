@@ -3,6 +3,8 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import type { Role } from "@prisma/client";
+import { isStaff } from "@/lib/rbac";
+import { isRateLimited } from "@/lib/rate-limit";
 
 // Type étendu pour l'utilisateur retourné par authorize()
 type AuthUser = {
@@ -15,6 +17,26 @@ type AuthUser = {
   image: string | null;
 };
 
+type Portal = "staff" | "candidat";
+
+function parsePortal(raw: unknown): Portal | null {
+  if (raw === "staff") return "staff";
+  if (raw === "candidat" || raw === "etudiant") return "candidat";
+  return null;
+}
+
+const isProd = process.env.NODE_ENV === "production";
+const cookieSecure = isProd;
+const sessionCookieName = isProd
+  ? "__Secure-next-auth.session-token"
+  : "next-auth.session-token";
+const callbackCookieName = isProd
+  ? "__Secure-next-auth.callback-url"
+  : "next-auth.callback-url";
+const csrfCookieName = isProd
+  ? "__Host-next-auth.csrf-token"
+  : "next-auth.csrf-token";
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
@@ -25,30 +47,30 @@ export const authOptions: NextAuthOptions = {
   },
   cookies: {
     sessionToken: {
-      name: "next-auth.session-token",
+      name: sessionCookieName,
       options: {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
-        secure: process.env.NODE_ENV === "production",
+        secure: cookieSecure,
       },
     },
     callbackUrl: {
-      name: "next-auth.callback-url",
+      name: callbackCookieName,
       options: {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
-        secure: process.env.NODE_ENV === "production",
+        secure: cookieSecure,
       },
     },
     csrfToken: {
-      name: "next-auth.csrf-token",
+      name: csrfCookieName,
       options: {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
-        secure: process.env.NODE_ENV === "production",
+        secure: cookieSecure,
       },
     },
   },
@@ -58,14 +80,25 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "E-mail", type: "email" },
         password: { label: "Mot de passe", type: "password" },
+        portal: { label: "Portail", type: "text" },
       },
       async authorize(credentials): Promise<AuthUser | null> {
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
 
+        const portal = parsePortal(credentials.portal);
+        if (!portal) {
+          return null;
+        }
+
         const email = credentials.email.toLowerCase().trim();
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return null;
+        }
+
+        // Rate-limit par e-mail (5 / min) — même clé que le callback credentials
+        if (isRateLimited(email, "/api/auth/callback/credentials")) {
           return null;
         }
 
@@ -82,17 +115,30 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        // BF-06 : optionnellement exiger la vérification e-mail (paramètre agence)
+        // Intention portail : refus silencieux si rôle incompatible (pas d’énumération)
+        if (portal === "candidat" && user.role !== "CANDIDAT") {
+          return null;
+        }
+        if (portal === "staff" && !isStaff(user.role)) {
+          return null;
+        }
+
+        // BF-06 : exiger la vérification e-mail (défaut ON si paramètre absent / erreur)
+        let exigerVerif = true;
         try {
           const params = await db.parametre.findUnique({ where: { id: 1 } });
-          if (params?.exigerEmailVerifie && user.role === "CANDIDAT" && !user.emailVerified) {
-            throw new Error("EMAIL_NOT_VERIFIED");
-          }
-        } catch (e) {
-          if (e instanceof Error && e.message === "EMAIL_NOT_VERIFIED") {
-            throw e;
-          }
+          if (params) exigerVerif = params.exigerEmailVerifie;
+        } catch {
+          exigerVerif = process.env.NODE_ENV === "production";
         }
+        if (exigerVerif && user.role === "CANDIDAT" && !user.emailVerified) {
+          throw new Error("EMAIL_NOT_VERIFIED");
+        }
+
+        // Trace dernière connexion (best-effort)
+        void db.user
+          .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+          .catch(() => undefined);
 
         return {
           id: user.id,

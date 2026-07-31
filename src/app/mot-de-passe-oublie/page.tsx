@@ -104,7 +104,7 @@ export default function MotDePasseOubliePage() {
           )}
 
           <div className="mt-6 border-t border-ligne pt-4">
-            <Link href="/connexion" className="inline-flex items-center gap-1.5 text-sm font-medium text-lapis-clair hover:underline">
+            <Link href="/connexion?portal=etudiant" className="inline-flex items-center gap-1.5 text-sm font-medium text-lapis-clair hover:underline">
               <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.5} />
               Retour à la connexion
             </Link>

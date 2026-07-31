@@ -94,7 +94,7 @@ export function SiteHeader() {
                   : "text-encre hover:text-lapis"
               )}
             >
-              <Link href="/connexion">Se connecter</Link>
+              <Link href="/connexion?portal=etudiant">Se connecter</Link>
             </Button>
           )}
           <Button asChild size="sm" className="bg-lapis text-blanc hover:bg-lapis/90">
@@ -140,7 +140,7 @@ export function SiteHeader() {
                 {status !== "authenticated" && (
                   <SheetClose asChild>
                     <Button asChild variant="outline" className="w-full">
-                      <Link href="/connexion">Se connecter</Link>
+                      <Link href="/connexion?portal=etudiant">Se connecter</Link>
                     </Button>
                   </SheetClose>
                 )}

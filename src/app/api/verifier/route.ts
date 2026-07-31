@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
+import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 
 // GET /api/verifier?code=VRF-XXXX — vérification authenticité attestation (BF-32)
 export async function GET(request: Request) {
+  const rateLimited = checkRateLimit(getClientId(request), "/api/verifier");
+  if (rateLimited) return rateLimited;
+
   const { searchParams } = new URL(request.url);
   const code = (searchParams.get("code") || "").trim().toUpperCase();
 

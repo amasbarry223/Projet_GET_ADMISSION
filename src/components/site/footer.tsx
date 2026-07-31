@@ -9,7 +9,7 @@ const COLONNES = [
     liens: [
       { href: "/universites", label: "Universités partenaires" },
       { href: "/inscription", label: "Créer mon dossier" },
-      { href: "/connexion", label: "Espace candidat" },
+      { href: "/connexion?portal=etudiant", label: "Espace candidat" },
       { href: "/faq", label: "Questions fréquentes" },
     ],
   },

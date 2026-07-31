@@ -1,5 +1,8 @@
--- Migration initiale GET Admission (SQLite)
--- Appliquée via `prisma db push` / `prisma migrate dev`
--- Schéma : RBAC, dossiers 12 états, paiements, messagerie, attestations, CMS vitrine, notifications, KYC fichiers
+# Migrations Prisma (Postgres / Supabase)
 
--- Cette migration est documentaire : le schéma source de vérité est prisma/schema.prisma
+Source de vérité du schéma : `prisma/schema.prisma` (provider `postgresql`).
+
+- `20260731142000_init_postgres` — baseline tables + enums + indexes + FKs
+- Appliquer sur une DB vide : `npx prisma migrate deploy` (nécessite `DATABASE_URL` + `DIRECT_URL`)
+
+L’ancienne note SQLite / `db push` est obsolète.

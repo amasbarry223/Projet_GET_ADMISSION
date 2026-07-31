@@ -7,7 +7,8 @@ import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { logAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notifications";
 import { sendMail } from "@/lib/mail";
-import { hasPermission } from "@/lib/rbac";
+import { hasPermission, requirePermission } from "@/lib/rbac";
+import { randomBytes } from "node:crypto";
 
 const ETAPE_MAP = {
   PAIEMENT_CONFIRME: 6,
@@ -108,6 +109,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
+  if (role !== "CANDIDAT") {
+    const gate = requirePermission(role, "finance.write");
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  }
+
   if (role === "CANDIDAT") {
     const etatOk =
       dossier.etat === "PAIEMENT_ATTENTE" || dossier.paiementStatut === "partiel";
@@ -117,23 +123,48 @@ export async function POST(request: Request) {
         { status: 403 }
       );
     }
+
+    const [totalConfirme, totalPending] = await Promise.all([
+      db.paiement.aggregate({
+        where: { dossierId: dossier.id, statut: "reussi" },
+        _sum: { montant: true },
+      }),
+      db.paiement.aggregate({
+        where: { dossierId: dossier.id, statut: "en_attente" },
+        _sum: { montant: true },
+      }),
+    ]);
+    const engage = (totalConfirme._sum.montant ?? 0) + (totalPending._sum.montant ?? 0);
+    const reste = Math.max(0, dossier.fraisAgence - engage);
+    if (montant <= 0) {
+      return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
+    }
+    if (reste <= 0) {
+      return NextResponse.json(
+        { error: "Aucun reste dû (paiements confirmés ou déjà en attente)" },
+        { status: 400 }
+      );
+    }
+    if (montant > reste) {
+      return NextResponse.json(
+        { error: `Montant supérieur au reste dû (${reste} FCFA)` },
+        { status: 400 }
+      );
+    }
   }
 
-  // Candidat : toujours en_attente (validation finance). Staff : peut forcer un statut.
+  // Candidat : toujours en_attente (validation finance). Staff finance : peut forcer un statut.
   let statut = "en_attente";
   if (forceStatut && ["en_attente", "reussi", "echoue", "rembourse"].includes(forceStatut)) {
     if (role === "CANDIDAT") {
       return NextResponse.json({ error: "Statut non autorisé" }, { status: 403 });
     }
-    if (!hasPermission(role, "finance.write")) {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
-    }
     statut = forceStatut;
-  } else if (role !== "CANDIDAT" && hasPermission(role, "finance.write")) {
+  } else if (role !== "CANDIDAT") {
     statut = "reussi";
   }
 
-  const ref = `REC-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9999)).padStart(4, "0")}`;
+  const ref = `REC-${new Date().getFullYear()}-${randomBytes(3).toString("hex").toUpperCase()}`;
 
   const paiement = await db.paiement.create({
     data: {
@@ -226,6 +257,11 @@ export async function PATCH(request: Request) {
   const existing = await db.paiement.findUnique({ where: { id } });
   if (!existing) {
     return NextResponse.json({ error: "Paiement non trouvé" }, { status: 404 });
+  }
+
+  // Idempotence : déjà réussi → no-op (évite double notifs / e-mails)
+  if (statut === "reussi" && existing.statut === "reussi") {
+    return NextResponse.json({ success: true, paiement: existing, idempotent: true });
   }
 
   const paiement = await db.paiement.update({

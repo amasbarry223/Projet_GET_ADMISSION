@@ -92,6 +92,7 @@ export function requirePermission(
 export function permissionForAdminPath(pathname: string): Permission | null {
   if (pathname === "/admin" || pathname === "/admin/") return "dashboard";
   if (pathname.startsWith("/admin/dossiers")) return "dossiers.read";
+  if (pathname.startsWith("/admin/kyc")) return "dossiers.read";
   if (pathname.startsWith("/admin/catalogue")) return "catalogue.write";
   if (pathname.startsWith("/admin/finance")) return "finance.read";
   if (pathname.startsWith("/admin/utilisateurs")) return "users.write";

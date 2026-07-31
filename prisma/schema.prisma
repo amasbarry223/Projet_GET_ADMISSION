@@ -5,8 +5,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 /* ------------------------------- RBAC ------------------------------- */
@@ -38,6 +39,7 @@ model User {
   kycVerifieLe  DateTime?
   isDemo        Boolean  @default(false)
   emailVerified DateTime? // date de vérification de l'e-mail (BF-06)
+  lastLoginAt   DateTime?
   verifyToken   String?  // token de vérification e-mail
   resetToken    String?  // token reset MDP (BF-08)
   resetTokenExpires DateTime?
@@ -343,7 +345,7 @@ model Parametre {
   notifEmail       Boolean @default(true)
   notifInApp       Boolean @default(true)
   workflowStrict   Boolean @default(true)
-  exigerEmailVerifie Boolean @default(false)
+  exigerEmailVerifie Boolean @default(true)
   mentionsLegales  String  @default("")
   politiqueConfidentialite String @default("")
 }

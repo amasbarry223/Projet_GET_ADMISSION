@@ -7,9 +7,8 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
-  // Inclure la DB SQLite seedée dans le bundle serverless
   outputFileTracingIncludes: {
-    "/**": ["./db/**", "./prisma/**"],
+    "/**": ["./prisma/**"],
   },
 };
 

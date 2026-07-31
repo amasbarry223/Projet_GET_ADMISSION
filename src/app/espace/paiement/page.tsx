@@ -216,7 +216,10 @@ export default function PaiementPage() {
       <div>
         <p className="eyebrow">Paiement & reçus</p>
         <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Réglez les frais d'agence.</h1>
-        <p className="text-ardoise">Sécurisé · Mobile Money & carte bancaire.</p>
+        <p className="text-ardoise">
+          Déclaration de paiement (Mobile Money, Wave, carte…) — validation manuelle par l&apos;agence.
+          Le reçu est disponible après confirmation.
+        </p>
       </div>
 
       {status === "pending" ? (
@@ -334,7 +337,10 @@ export default function PaiementPage() {
                       <span className={cn("flex h-9 w-9 flex-none items-center justify-center rounded-md text-blanc", m.couleur)}>
                         {iconForMoyen(m.icone)}
                       </span>
-                      <span className="text-sm font-medium text-encre">{m.nom}</span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-encre">{m.nom}</span>
+                        <span className="block text-[10px] text-ardoise">Déclaration · validation agence</span>
+                      </span>
                     </button>
                   ))}
                 </div>

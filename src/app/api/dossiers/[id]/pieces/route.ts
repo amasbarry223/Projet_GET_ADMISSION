@@ -115,12 +115,31 @@ export async function POST(
   }
   const { libelle, statut, type, nomFichier, taille } = parsed.data;
 
+  // Candidat : JSON ne peut que réinitialiser à « manquante » (upload = multipart uniquement)
+  if (role === "CANDIDAT") {
+    if (statut !== "manquante") {
+      return NextResponse.json(
+        { error: "Pour marquer une pièce comme téléversée, utilisez l'upload de fichier" },
+        { status: 400 }
+      );
+    }
+  }
+
   // Seul le staff peut marquer validee / a_corriger
   if ((statut === "validee" || statut === "a_corriger") && !hasPermission(role, "dossiers.write")) {
     return NextResponse.json({ error: "Seul un conseiller peut valider ou renvoyer une pièce" }, { status: 403 });
   }
 
   const existing = await db.piece.findFirst({ where: { dossierId: id, libelle } });
+
+  // televersee / validee exige un fichier déjà stocké
+  if ((statut === "televersee" || statut === "validee") && !existing?.cheminFichier) {
+    return NextResponse.json(
+      { error: "Impossible de valider ou marquer téléversée une pièce sans fichier" },
+      { status: 400 }
+    );
+  }
+
   const televerseeLe = statut === "televersee" || statut === "validee" ? new Date() : undefined;
 
   let piece;
@@ -133,18 +152,27 @@ export async function POST(
         ...(nomFichier !== undefined ? { nomFichier } : {}),
         ...(taille !== undefined ? { taille } : {}),
         ...(televerseeLe ? { televerseeLe } : {}),
+        ...(statut === "manquante"
+          ? { cheminFichier: null, nomFichier: null, taille: null, televerseeLe: null }
+          : {}),
       },
     });
   } else {
+    if (statut !== "manquante") {
+      return NextResponse.json(
+        { error: "Créez d'abord la pièce via l'upload de fichier" },
+        { status: 400 }
+      );
+    }
     piece = await db.piece.create({
       data: {
         dossierId: id,
         libelle,
-        statut,
+        statut: "manquante",
         type: type ?? "pdf",
-        nomFichier: nomFichier ?? null,
-        taille: taille ?? null,
-        televerseeLe: televerseeLe ?? null,
+        nomFichier: null,
+        taille: null,
+        televerseeLe: null,
       },
     });
   }

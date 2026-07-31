@@ -9,8 +9,16 @@ type CreateNotifInput = {
   dossierId?: string | null;
 };
 
-/** Crée une notification in-app pour un utilisateur */
+/** Crée une notification in-app pour un utilisateur (respecte notifInApp) */
 export async function createNotification(input: CreateNotifInput) {
+  try {
+    const params = await db.parametre.findUnique({ where: { id: 1 }, select: { notifInApp: true } });
+    if (params && params.notifInApp === false) {
+      return null;
+    }
+  } catch {
+    /* continue — défaut = créer */
+  }
   return db.notification.create({
     data: {
       userId: input.userId,

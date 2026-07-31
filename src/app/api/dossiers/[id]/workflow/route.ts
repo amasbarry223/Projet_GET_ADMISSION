@@ -38,7 +38,7 @@ const TRANSITIONS: Record<
   verifier: { from: ["SOUMIS", "VERIFICATION"], to: "PAIEMENT_ATTENTE", permission: "dossiers.write" },
   correction: { from: ["SOUMIS", "VERIFICATION"], to: "CORRECTION", permission: "dossiers.write" },
   verifier_corrections: { from: ["CORRECTION"], to: "VERIFICATION", permission: "dossiers.write" },
-  confirmer_paiement: { from: ["PAIEMENT_ATTENTE"], to: "PAIEMENT_CONFIRME" }, // finance.write OU dossiers.write
+  confirmer_paiement: { from: ["PAIEMENT_ATTENTE"], to: "PAIEMENT_CONFIRME", permission: "finance.write" },
   transmettre: { from: ["PAIEMENT_CONFIRME"], to: "TRANSMIS", permission: "dossiers.transmettre" },
   attendre_reponse: { from: ["TRANSMIS"], to: "ATTENTE_REPONSE", permission: "dossiers.write" },
   accepter: { from: ["ATTENTE_REPONSE", "TRANSMIS"], to: "PRE_ADMISSION", permission: "dossiers.write" },
@@ -74,9 +74,9 @@ export async function POST(
     return NextResponse.json({ error: "Action inconnue" }, { status: 400 });
   }
 
-  // Financier OU conseiller/admin peut confirmer le paiement
+  // Financier uniquement pour confirmer le paiement
   if (action === "confirmer_paiement") {
-    if (!hasPermission(role, "finance.write") && !hasPermission(role, "dossiers.write")) {
+    if (!hasPermission(role, "finance.write")) {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }
   } else if (rule.permission && !hasPermission(role, rule.permission)) {
@@ -109,6 +109,23 @@ export async function POST(
       { error: `Transition impossible : état actuel ${dossier.etat}` },
       { status: 400 }
     );
+  }
+
+  // workflowStrict : interdire les raccourcis accepter/refuser depuis TRANSMIS
+  if (action === "accepter" || action === "refuser") {
+    const paramsAgence = await db.parametre.findUnique({
+      where: { id: 1 },
+      select: { workflowStrict: true },
+    });
+    if (paramsAgence?.workflowStrict !== false && dossier.etat === "TRANSMIS") {
+      return NextResponse.json(
+        {
+          error:
+            "Workflow strict : passez d'abord par « En attente de réponse » avant d'accepter ou refuser",
+        },
+        { status: 400 }
+      );
+    }
   }
 
   // Règle §6 : confirmer_paiement exige un solde réel encaissé
@@ -166,8 +183,8 @@ export async function POST(
   if (nouvelEtat === "ATTESTATION") {
     const existing = await db.attestation.findUnique({ where: { dossierId: id } });
     if (!existing) {
-      const reference = `ATT-${new Date().getFullYear()}-${dossier.reference.slice(-4)}`;
-      const codeVerification = `VRF-${crypto.randomBytes(3).toString("hex").toUpperCase()}-${crypto.randomBytes(3).toString("hex").toUpperCase()}-${dossier.reference.slice(-4)}`;
+      const reference = `ATT-${new Date().getFullYear()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+      const codeVerification = `VRF-${crypto.randomBytes(4).toString("hex").toUpperCase()}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
       await db.attestation.create({
         data: {
           reference,

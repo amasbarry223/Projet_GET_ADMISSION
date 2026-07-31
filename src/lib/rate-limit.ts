@@ -16,6 +16,10 @@ type Limit = {
 // Limites par endpoint
 const LIMITS: Record<string, Limit> = {
   "/api/auth/callback/credentials": { limit: 5, windowMs: WINDOW_MS },   // 5 login/min
+  "/api/auth/forgot-password": { limit: 3, windowMs: WINDOW_MS },       // 3 demandes reset/min
+  "/api/auth/reset-password": { limit: 5, windowMs: WINDOW_MS },        // 5 resets/min
+  "/api/auth/resend-verification": { limit: 3, windowMs: WINDOW_MS },   // 3 renvois vérif/min
+  "/api/verifier": { limit: 20, windowMs: WINDOW_MS },                  // anti brute-force codes
   "/api/register": { limit: 3, windowMs: WINDOW_MS },                    // 3 inscriptions/min
   "/api/messages": { limit: 30, windowMs: WINDOW_MS },                   // 30 messages/min
   "/api/paiements": { limit: 10, windowMs: WINDOW_MS },                  // 10 paiements/min
@@ -63,6 +67,11 @@ export function checkRateLimit(
   }
 
   return null;
+}
+
+/** Variante booléenne pour authorize() / code hors Route Handler. */
+export function isRateLimited(identifier: string, pathname: string): boolean {
+  return checkRateLimit(identifier, pathname) !== null;
 }
 
 /** Nettoie périodiquement les buckets expirés (toutes les 5 min). */

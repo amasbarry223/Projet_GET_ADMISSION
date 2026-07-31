@@ -22,12 +22,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
-import { formatFCFA, formatFCFACompact } from "@/lib/format";
+import { formatFCFACompact } from "@/lib/format";
 import { toast } from "sonner";
 import { Plus, MapPin, Eye, Pencil, Trash2, GraduationCap, Info, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -51,7 +50,6 @@ export type CatalogueRow = {
 export function CatalogueClient({ initialData }: { initialData: UniversiteNormalized[] }) {
   const router = useRouter();
   const [newOpen, setNewOpen] = React.useState(false);
-  const [detailRow, setDetailRow] = React.useState<CatalogueRow | null>(null);
   // On lit directement la prop `initialData` (pas de useState) afin que
   // `router.refresh()` (re-render du Server Component) se reflète dans l'UI.
   const universites = initialData;
@@ -64,22 +62,6 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
   const [formFraisMin, setFormFraisMin] = React.useState("");
   const [formFraisMax, setFormFraisMax] = React.useState("");
   const [creating, setCreating] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [deleting, setDeleting] = React.useState(false);
-  const [editSiteUrl, setEditSiteUrl] = React.useState("");
-  const [editCoverUrl, setEditCoverUrl] = React.useState("");
-  const [editLogoUrl, setEditLogoUrl] = React.useState("");
-  const [editGallery, setEditGallery] = React.useState("");
-
-  React.useEffect(() => {
-    if (!detailRow) return;
-    const u = universites.find((x) => x.id === detailRow.id);
-    if (!u) return;
-    setEditSiteUrl(u.siteUrl ?? "");
-    setEditCoverUrl(u.coverUrl ?? "");
-    setEditLogoUrl(u.logoUrl ?? "");
-    setEditGallery((u.galleryUrls ?? []).join("\n"));
-  }, [detailRow, universites]);
 
   const resetForm = () => {
     setFormNom("");
@@ -118,15 +100,12 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
       {
         label: "Voir la fiche",
         icon: Eye,
-        onClick: (row) => setDetailRow(row),
+        onClick: (row) => router.push(`/admin/catalogue/${row.id}`),
       },
       {
         label: "Modifier",
         icon: Pencil,
-        onClick: (row) => {
-          setDetailRow(row);
-          toast.info("Mode édition", { description: `Fiche ${row.nom} ouverte en édition.` });
-        },
+        onClick: (row) => router.push(`/admin/catalogue/${row.id}`),
       },
       {
         label: "Supprimer l'université",
@@ -141,7 +120,8 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
         },
       },
     ],
-    []
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleDelete stable enough via refresh
+    [router],
   );
 
   const columns: ColumnDef<CatalogueRow>[] = React.useMemo(
@@ -282,52 +262,7 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
     }
   };
 
-  const handleSave = async () => {
-    if (!detailUniversite) return;
-    setSaving(true);
-    try {
-      const u = detailUniversite;
-      const res = await fetch(`/api/universites/${u.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nom: u.nom,
-          pays: u.pays,
-          drapeau: u.drapeau ?? "",
-          ville: u.ville,
-          ecusson: u.ecusson ?? "",
-          domaines: u.domaines ?? [],
-          description: u.description ?? "",
-          pointsForts: u.pointsForts ?? [],
-          imageCouleur: u.imageCouleur ?? "",
-          siteUrl: editSiteUrl.trim() || "",
-          coverUrl: editCoverUrl.trim() || null,
-          logoUrl: editLogoUrl.trim() || null,
-          galleryUrls: editGallery
-            .split("\n")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          fraisMin: u.fraisMin,
-          fraisMax: u.fraisMax,
-          partenaire: u.partenaire,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error("Enregistrement échoué", { description: (err as any)?.error ?? "Erreur serveur." });
-        return;
-      }
-      toast.success("Modifications enregistrées", { description: u.nom });
-      router.refresh();
-    } catch {
-      toast.error("Enregistrement échoué", { description: "Erreur réseau." });
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleDelete = async (id: string, nom: string) => {
-    setDeleting(true);
     try {
       const res = await fetch(`/api/universites/${id}`, { method: "DELETE" });
       if (!res.ok) {
@@ -336,16 +271,11 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
         return;
       }
       toast.success("Université supprimée", { description: `${nom} retirée du catalogue.` });
-      setDetailRow(null);
       router.refresh();
     } catch {
       toast.error("Suppression échouée", { description: "Erreur réseau." });
-    } finally {
-      setDeleting(false);
     }
   };
-
-  const detailUniversite = detailRow ? universites?.find((u) => u.id === detailRow.id) ?? null : null;
 
   const totalFormations = universites.reduce((acc, u) => acc + (u.formations?.length ?? 0), 0);
 
@@ -506,135 +436,10 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
           Catalogue des universités partenaires
         </AlertTitle>
         <AlertDescription className="text-sm text-ardoise">
-          Chaque université peut être éditée (fiche détaillée avec formations) ou supprimée (retrait du
-          catalogue). L'ajout d'une nouvelle université se fait via le bouton « Ajouter une université ».
+          Ouvrez une fiche pour éditer les médias, frais et formations. L&apos;ajout se fait via « Ajouter
+          une université ».
         </AlertDescription>
       </Alert>
-
-      {/* Sheet détail / édition */}
-      <Sheet open={!!detailRow} onOpenChange={(open) => { if (!open) setDetailRow(null); }}>
-        <SheetContent className="w-full sm:max-w-md bg-blanc overflow-y-auto">
-          {detailUniversite && (
-            <>
-              <SheetHeader>
-                <SheetTitle className="font-display text-lg font-bold text-encre">
-                  {detailUniversite.nom}
-                </SheetTitle>
-              </SheetHeader>
-              <div className="px-4 pb-6 space-y-4">
-                <p className="text-sm text-ardoise">{detailUniversite.description}</p>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="font-mono text-[10px] uppercase text-ardoise">Ville</p>
-                    <p className="text-encre">{detailUniversite.ville}</p>
-                  </div>
-                  <div>
-                    <p className="font-mono text-[10px] uppercase text-ardoise">Pays</p>
-                    <p className="text-encre">{detailUniversite.pays}</p>
-                  </div>
-                  <div>
-                    <p className="font-mono text-[10px] uppercase text-ardoise">Frais min</p>
-                    <p className="font-mono text-encre">{formatFCFA(detailUniversite.fraisMin)}</p>
-                  </div>
-                  <div>
-                    <p className="font-mono text-[10px] uppercase text-ardoise">Frais max</p>
-                    <p className="font-mono text-encre">{formatFCFA(detailUniversite.fraisMax)}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3 border-t border-ligne pt-4">
-                  <p className="font-mono text-[10px] uppercase tracking-eyebrow text-or">Médias Le Passage</p>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="siteUrl" className="text-xs text-ardoise">Site officiel</Label>
-                    <Input
-                      id="siteUrl"
-                      value={editSiteUrl}
-                      onChange={(e) => setEditSiteUrl(e.target.value)}
-                      placeholder="https://"
-                      className="font-mono text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="coverUrl" className="text-xs text-ardoise">Cover URL</Label>
-                    <Input
-                      id="coverUrl"
-                      value={editCoverUrl}
-                      onChange={(e) => setEditCoverUrl(e.target.value)}
-                      placeholder="/images/partenaires/.../cover.webp"
-                      className="font-mono text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="logoUrl" className="text-xs text-ardoise">Logo URL</Label>
-                    <Input
-                      id="logoUrl"
-                      value={editLogoUrl}
-                      onChange={(e) => setEditLogoUrl(e.target.value)}
-                      placeholder="/images/partenaires/.../logo.png"
-                      className="font-mono text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="gallery" className="text-xs text-ardoise">Galerie (1 chemin / ligne)</Label>
-                    <textarea
-                      id="gallery"
-                      value={editGallery}
-                      onChange={(e) => setEditGallery(e.target.value)}
-                      rows={3}
-                      className="w-full rounded-md border border-ligne bg-blanc px-3 py-2 font-mono text-xs text-encre"
-                      placeholder="/images/.../gallery-1.webp"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <p className="font-mono text-[10px] uppercase text-ardoise">
-                    Formations ({detailUniversite.formations?.length ?? 0})
-                  </p>
-                  <ul className="mt-2 space-y-1.5">
-                    {(detailUniversite.formations ?? []).map((f) => (
-                      <li
-                        key={f.id}
-                        className="flex items-center justify-between rounded-md border border-ligne px-3 py-2 text-sm"
-                      >
-                        <div>
-                          <p className="font-medium text-encre">{f.intitule}</p>
-                          <p className="text-xs text-ardoise">
-                            {f.niveau} · {f.domaine} · {f.duree}
-                          </p>
-                        </div>
-                        <span className="font-mono text-xs text-encre">{formatFCFA(f.fraisAgence)}</span>
-                      </li>
-                    ))}
-                    {(detailUniversite.formations?.length ?? 0) === 0 && (
-                      <li className="rounded-md border border-ligne px-3 py-2 text-sm text-ardoise">
-                        Aucune formation enregistrée.
-                      </li>
-                    )}
-                  </ul>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    className="flex-1 bg-lapis text-blanc hover:bg-lapis/90"
-                    onClick={handleSave}
-                    disabled={saving || deleting}
-                  >
-                    {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
-                    Enregistrer
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="border-carmin/40 text-carmin hover:bg-carmin/5"
-                    onClick={() => handleDelete(detailUniversite.id, detailUniversite.nom)}
-                    disabled={saving || deleting}
-                  >
-                    {deleting ? <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} /> : <Trash2 className="h-4 w-4" strokeWidth={1.5} />}
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

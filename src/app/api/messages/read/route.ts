@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { markReadSchema, validate } from "@/lib/validations";
+import { requirePermission } from "@/lib/rbac";
 
 // PUT /api/messages/read — marquer les messages d'une conversation comme lus
 //
@@ -30,8 +31,8 @@ export async function PUT(request: Request) {
   }
   const { dossierId } = parsed.data;
 
-  const role = (session.user as any).role;
-  const userId = (session.user as any).id;
+  const role = (session.user as { role?: string }).role;
+  const userId = (session.user as { id: string }).id;
 
   const conversation = await db.conversation.findUnique({
     where: { dossierId },
@@ -44,9 +45,13 @@ export async function PUT(request: Request) {
     );
   }
 
-  // RBAC : candidat ne marque que sa conversation
-  if (role === "CANDIDAT" && conversation.candidatId !== userId) {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  if (role === "CANDIDAT") {
+    if (conversation.candidatId !== userId) {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+  } else {
+    const gate = requirePermission(role, "dossiers.read");
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
   const updated = await db.conversation.update({

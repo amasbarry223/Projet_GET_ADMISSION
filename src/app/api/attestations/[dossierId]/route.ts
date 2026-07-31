@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { isStaff } from "@/lib/rbac";
+import { isStaff, requirePermission } from "@/lib/rbac";
 import { logAudit } from "@/lib/audit";
 
 // GET /api/attestations/[dossierId] — attestation d'un dossier (auth requis)
@@ -27,8 +27,13 @@ export async function GET(
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
   }
 
-  if (role === "CANDIDAT" && dossier.candidatId !== userId) {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  if (role === "CANDIDAT") {
+    if (dossier.candidatId !== userId) {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+  } else {
+    const gate = requirePermission(role, "attestations.read");
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
   const attestation = await db.attestation.findUnique({
@@ -97,11 +102,15 @@ export async function PATCH(
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
   }
 
-  if (role === "CANDIDAT" && dossier.candidatId !== userId) {
+  if (role === "CANDIDAT") {
+    if (dossier.candidatId !== userId) {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+  } else if (!isStaff(role)) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
-  }
-  if (role !== "CANDIDAT" && !isStaff(role)) {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  } else {
+    const gate = requirePermission(role, "attestations.read");
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
   const existing = await db.attestation.findUnique({ where: { dossierId } });

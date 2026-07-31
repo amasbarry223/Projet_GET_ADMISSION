@@ -60,3 +60,9 @@ server.log
 # uploads locaux (pièces / KYC)
 /upload/
 !/upload/.gitkeep
+
+# exports temporaires migration SQLite → Postgres
+/seed-export.sql
+/seed-chunks/
+/prisma_migrate_diff.sql
+

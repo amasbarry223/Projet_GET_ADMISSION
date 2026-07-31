@@ -5,15 +5,41 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, FolderOpen, Building2, Wallet, Users, Stamp, Settings, LogOut, Menu, Loader2, ShieldAlert } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import {
+  LayoutDashboard,
+  FolderOpen,
+  Building2,
+  Wallet,
+  Users,
+  Stamp,
+  Settings,
+  LogOut,
+  Loader2,
+  ShieldAlert,
+  IdCard,
+} from "lucide-react";
 import { GlobalSearch } from "@/components/admin/global-search";
 import { NotificationsBell } from "@/components/admin/notifications-bell";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { BrandLogo } from "@/components/brand-logo";
 import { hasPermission, type Permission } from "@/lib/rbac";
 import type { Role } from "@prisma/client";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarSeparator,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 
 type NavItem = {
   href: string;
@@ -32,6 +58,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     title: "Dossiers",
     items: [
       { href: "/admin/dossiers", label: "Tous les dossiers", icon: FolderOpen, permission: "dossiers.read" },
+      { href: "/admin/kyc", label: "Pièces d'identité (KYC)", icon: IdCard, permission: "dossiers.read" },
       { href: "/admin/catalogue", label: "Catalogue", icon: Building2, permission: "catalogue.write" },
     ],
   },
@@ -63,140 +90,152 @@ function useFilteredSections() {
   }, [role]);
 }
 
-function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
+function AdminNav() {
   const pathname = usePathname();
   const sections = useFilteredSections();
+
   return (
-    <nav className="flex flex-col gap-5 px-3 py-4" aria-label="Navigation administration">
+    <>
       {sections.map((section) => (
-        <div key={section.title}>
-          <p className="px-3 font-mono text-[10px] uppercase tracking-eyebrow text-ardoise/80">{section.title}</p>
-          <ul className="mt-1.5 space-y-0.5">
-            {section.items.map((item) => {
-              const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
-              const Icon = item.icon;
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={onNavigate}
-                    className={cn(
-                      "group relative flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium transition-colors",
-                      active
-                        ? "bg-lapis/8 text-lapis shadow-[inset_0_0_0_1px_rgba(60,169,54,0.15)]"
-                        : "text-encre/75 hover:bg-porcelaine hover:text-lapis hover:shadow-[0_2px_8px_rgba(60,169,54,0.12)]"
-                    )}
-                  >
-                    {active && <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-or" aria-hidden />}
-                    <Icon className="h-4 w-4 flex-none" strokeWidth={1.5} />
-                    <span className="flex-1 truncate">{item.label}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+        <SidebarGroup key={section.title}>
+          <SidebarGroupLabel className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise/80">
+            {section.title}
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {section.items.map((item) => {
+                const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+                const Icon = item.icon;
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={active}
+                      tooltip={item.label}
+                      className={cn(
+                        "relative transition-colors duration-200 ease-out motion-reduce:transition-none",
+                        active &&
+                          "bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_3px_0_0_0_var(--color-or)]",
+                      )}
+                    >
+                      <Link href={item.href}>
+                        <Icon strokeWidth={1.5} />
+                        <span>{item.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       ))}
-    </nav>
+    </>
   );
 }
 
 function AdminBrand() {
   return (
-    <Link href="/admin" className="flex flex-col gap-1 px-4 py-4" aria-label="Tableau de bord admin">
-      <BrandLogo height={32} />
-      <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Back-office</span>
-    </Link>
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton size="lg" asChild tooltip="Back-office">
+          <Link href="/admin" aria-label="Tableau de bord admin">
+            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-lapis font-display text-[11px] font-bold tracking-tight text-blanc shadow-sm">
+              GA
+            </div>
+            <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+              <span className="truncate font-display font-semibold text-encre">GET Admission</span>
+              <span className="truncate font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                Back-office
+              </span>
+            </div>
+          </Link>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }
 
 function AdminUser() {
   const { data: session, status } = useSession();
   const u = session?.user;
+
   if (status === "loading") {
     return (
-      <div className="border-t border-ligne p-3">
-        <div className="flex items-center gap-2.5 rounded-md p-2">
-          <Loader2 className="h-8 w-8 animate-spin text-ardoise" />
-        </div>
+      <div className="flex items-center gap-2 px-2 py-1.5">
+        <Loader2 className="h-8 w-8 animate-spin text-ardoise" />
       </div>
     );
   }
+
   const initiales = u ? `${u.prenom?.[0] ?? ""}${u.nom?.[0] ?? ""}` : "?";
+  const roleLabel = (u?.role ?? "").replace(/_/g, " ").toLowerCase();
+
   return (
-    <div className="border-t border-ligne p-3 space-y-1">
-      <div className="flex items-center gap-2.5 rounded-md p-2">
-        <Avatar className="h-8 w-8 border border-ligne">
-          <AvatarFallback className="bg-lapis/10 font-mono text-xs font-semibold text-lapis">{initiales}</AvatarFallback>
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2.5 rounded-lg bg-or-pale/40 px-2 py-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:px-0">
+        <Avatar className="h-8 w-8 border border-sidebar-border">
+          <AvatarFallback className="bg-lapis/10 font-mono text-xs font-semibold text-lapis">
+            {initiales}
+          </AvatarFallback>
         </Avatar>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-encre">{u?.prenom} {u?.nom}</p>
-          <p className="truncate text-xs capitalize text-ardoise">{(u?.role ?? "").replace(/_/g, " ").toLowerCase()}</p>
+        <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+          <p className="truncate text-sm font-medium text-encre">
+            {u?.prenom} {u?.nom}
+          </p>
+          <p className="truncate font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">{roleLabel}</p>
         </div>
       </div>
-      <Button
-        variant="ghost"
-        className="h-9 w-full justify-start gap-2 px-3 text-ardoise hover:bg-carmin/5 hover:text-carmin"
-        onClick={() => signOut({ callbackUrl: "/connexion" })}
-      >
-        <LogOut className="h-4 w-4" strokeWidth={1.5} />
-        Déconnexion
-      </Button>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            tooltip="Déconnexion"
+            className="text-ardoise hover:bg-carmin/5 hover:text-carmin"
+            onClick={() => signOut({ callbackUrl: "/connexion?portal=staff" })}
+          >
+            <LogOut strokeWidth={1.5} />
+            <span>Déconnexion</span>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
     </div>
   );
 }
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = React.useState(false);
   const pathname = usePathname();
   const sections = useFilteredSections();
-
-  React.useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
-
-  const current = sections.flatMap((s) => s.items).find((i) => (i.exact ? pathname === i.href : pathname.startsWith(i.href)));
+  const current = sections
+    .flatMap((s) => s.items)
+    .find((i) => (i.exact ? pathname === i.href : pathname.startsWith(i.href)));
 
   return (
-    <div className="flex h-screen overflow-hidden bg-porcelaine">
-      <aside className="hidden lg:flex w-60 flex-none flex-col border-r border-ligne bg-blanc">
-        <div className="flex-none">
+    <SidebarProvider className="bg-porcelaine has-data-[variant=inset]:bg-porcelaine">
+      <Sidebar collapsible="icon" variant="inset" className="border-none">
+        <SidebarHeader className="pb-0">
           <AdminBrand />
-        </div>
-        <div className="flex-1 overflow-y-auto scroll-fine">
+        </SidebarHeader>
+        <SidebarSeparator className="mx-0" />
+        <SidebarContent className="scroll-fine gap-0">
           <AdminNav />
-        </div>
-        <div className="flex-none">
+        </SidebarContent>
+        <SidebarFooter>
           <AdminUser />
-        </div>
-      </aside>
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
 
-      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-        <header className="flex flex-none h-14 items-center gap-3 border-b border-ligne bg-blanc/90 px-4 backdrop-blur sm:px-6">
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Ouvrir le menu">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-72 bg-blanc p-0 flex flex-col">
-              <SheetTitle className="sr-only">Menu administration</SheetTitle>
-              <AdminBrand />
-              <div className="flex-1 overflow-y-auto">
-                <AdminNav onNavigate={() => setOpen(false)} />
-              </div>
-              <AdminUser />
-            </SheetContent>
-          </Sheet>
-
+      <SidebarInset className="min-h-svh overflow-hidden bg-blanc md:max-h-[calc(100svh-1rem)]">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-ligne bg-blanc/90 px-4 backdrop-blur-md sm:px-6">
+          <SidebarTrigger className="-ml-1 text-ardoise hover:text-encre" />
+          <div className="h-4 w-px bg-ligne" aria-hidden />
           <GlobalSearch />
-
           <div className="ml-auto flex items-center gap-1.5">
             <NotificationsBell />
           </div>
         </header>
 
-        <div className="flex flex-none items-center h-10 border-b border-ligne bg-blanc px-4 sm:px-6">
+        <div className="flex h-10 shrink-0 items-center border-b border-ligne bg-blanc px-4 sm:px-6">
           <nav className="flex items-center gap-1.5 text-sm" aria-label="Fil d'Ariane">
             <Link href="/admin" className="text-ardoise hover:text-lapis">
               Admin
@@ -206,10 +245,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
 
-        <main className="flex-1 overflow-y-auto scroll-fine">
+        <div className="flex-1 overflow-y-auto scroll-fine">
           <div className="w-full p-4 sm:p-6 lg:p-8">{children}</div>
-        </main>
-      </div>
-    </div>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatFCFA, formatDate } from "@/lib/format";
+import { requirePermission } from "@/lib/rbac";
 
 // GET /api/recu/[id] — Reçu de paiement (HTML imprimable)
 export async function GET(
@@ -27,11 +28,22 @@ export async function GET(
     return NextResponse.json({ error: "Paiement non trouvé" }, { status: 404 });
   }
 
-  // RBAC: candidat ne voit que ses propres paiements
-  const role = (session.user as any).role;
-  const userId = (session.user as any).id;
-  if (role === "CANDIDAT" && paiement.candidatId !== userId) {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  const role = (session.user as { role?: string }).role;
+  const userId = (session.user as { id: string }).id;
+  if (role === "CANDIDAT") {
+    if (paiement.candidatId !== userId) {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+  } else {
+    const gate = requirePermission(role, "finance.read");
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  }
+
+  if (paiement.statut !== "reussi") {
+    return NextResponse.json(
+      { error: "Le reçu n'est disponible qu'après confirmation du paiement" },
+      { status: 403 }
+    );
   }
 
   const html = `<!DOCTYPE html>

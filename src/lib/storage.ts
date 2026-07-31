@@ -13,6 +13,40 @@ const ALLOWED_MIME: Record<string, string> = {
   "image/webp": "webp",
 };
 
+/** Signatures magiques (magic bytes) pour les formats autorisés */
+function detectExtFromMagic(buffer: Buffer): string | null {
+  if (buffer.length >= 4 && buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) {
+    return "pdf"; // %PDF
+  }
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "jpg";
+  }
+  if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47
+  ) {
+    return "png";
+  }
+  // RIFF....WEBP
+  if (
+    buffer.length >= 12 &&
+    buffer[0] === 0x52 &&
+    buffer[1] === 0x49 &&
+    buffer[2] === 0x46 &&
+    buffer[3] === 0x46 &&
+    buffer[8] === 0x57 &&
+    buffer[9] === 0x45 &&
+    buffer[10] === 0x42 &&
+    buffer[11] === 0x50
+  ) {
+    return "webp";
+  }
+  return null;
+}
+
 export function getUploadRoot() {
   return UPLOAD_ROOT;
 }
@@ -31,20 +65,29 @@ export async function saveUpload(
     throw new Error("Fichier trop volumineux (max 10 Mo)");
   }
 
-  const ext = ALLOWED_MIME[file.type];
-  if (!ext) {
+  const claimedExt = ALLOWED_MIME[file.type];
+  if (!claimedExt) {
     throw new Error("Format non autorisé (PDF, JPG, PNG, WEBP)");
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const magicExt = detectExtFromMagic(buffer);
+  if (!magicExt) {
+    throw new Error("Contenu fichier non reconnu (signature invalide)");
+  }
+  // Le type déclaré client doit coller au contenu (jpg/jpeg → jpg)
+  if (magicExt !== claimedExt) {
+    throw new Error("Type MIME incohérent avec le contenu du fichier");
   }
 
   const dir = path.join(UPLOAD_ROOT, subdir);
   await mkdir(dir, { recursive: true });
 
-  const safeName = `${Date.now()}-${randomBytes(6).toString("hex")}.${ext}`;
+  const safeName = `${Date.now()}-${randomBytes(6).toString("hex")}.${magicExt}`;
   const abs = path.join(dir, safeName);
-  const buffer = Buffer.from(await file.arrayBuffer());
   await writeFile(abs, buffer);
 
-  const type: "pdf" | "image" | "autre" = ext === "pdf" ? "pdf" : "image";
+  const type: "pdf" | "image" | "autre" = magicExt === "pdf" ? "pdf" : "image";
   return {
     cheminRelatif: path.join(subdir, safeName).replace(/\\/g, "/"),
     nomFichier: file.name || safeName,
