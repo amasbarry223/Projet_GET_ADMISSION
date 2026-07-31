@@ -389,6 +389,13 @@ export function FinanceClient({
         searchKey="candidat"
         searchPlaceholder="Rechercher par candidat…"
         pageSize={8}
+        emptyState={
+          <div className="flex flex-col items-center gap-3 py-2">
+            <Wallet className="h-8 w-8 text-ardoise/40" strokeWidth={1.5} />
+            <p className="text-sm font-medium text-encre">Aucune transaction</p>
+            <p className="text-xs text-ardoise">Aucun paiement ne correspond à ces filtres.</p>
+          </div>
+        }
         toolbar={(table: Table<TransactionRow>) => (
           <Select
             value={(table.getColumn("statut")?.getFilterValue() as string) ?? "tous"}

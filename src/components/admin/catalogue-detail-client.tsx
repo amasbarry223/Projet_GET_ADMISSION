@@ -8,9 +8,11 @@ import {
   ArrowLeft,
   ExternalLink,
   GraduationCap,
+  ImagePlus,
   Loader2,
   MapPin,
   Trash2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -33,6 +35,8 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export type UniversiteNormalized = ReturnType<typeof normalizeUniversite>;
+
+type MediaKind = "cover" | "logo" | "gallery";
 
 function MediaPreview({
   src,
@@ -74,6 +78,12 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
   const router = useRouter();
   const [saving, setSaving] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+  const [uploadingKind, setUploadingKind] = React.useState<MediaKind | null>(null);
+  const [removingMedia, setRemovingMedia] = React.useState(false);
+
+  const coverInputRef = React.useRef<HTMLInputElement>(null);
+  const logoInputRef = React.useRef<HTMLInputElement>(null);
+  const galleryInputRef = React.useRef<HTMLInputElement>(null);
 
   const [description, setDescription] = React.useState(universite.description ?? "");
   const [ville, setVille] = React.useState(universite.ville ?? "");
@@ -83,7 +93,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
   const [siteUrl, setSiteUrl] = React.useState(universite.siteUrl ?? "");
   const [coverUrl, setCoverUrl] = React.useState(universite.coverUrl ?? "");
   const [logoUrl, setLogoUrl] = React.useState(universite.logoUrl ?? "");
-  const [gallery, setGallery] = React.useState((universite.galleryUrls ?? []).join("\n"));
+  const [galleryList, setGalleryList] = React.useState<string[]>(universite.galleryUrls ?? []);
 
   React.useEffect(() => {
     setDescription(universite.description ?? "");
@@ -94,13 +104,78 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
     setSiteUrl(universite.siteUrl ?? "");
     setCoverUrl(universite.coverUrl ?? "");
     setLogoUrl(universite.logoUrl ?? "");
-    setGallery((universite.galleryUrls ?? []).join("\n"));
+    setGalleryList(universite.galleryUrls ?? []);
   }, [universite]);
 
-  const galleryList = gallery
-    .split("\n")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const mediaBusy = uploadingKind !== null || removingMedia;
+
+  const uploadMedia = async (kind: MediaKind, file: File) => {
+    setUploadingKind(kind);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("kind", kind);
+      const res = await fetch(`/api/universites/${universite.id}/media`, {
+        method: "POST",
+        body: form,
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        url?: string;
+        galleryUrls?: string[];
+      };
+      if (!res.ok) {
+        toast.error("Upload échoué", { description: data.error ?? "Erreur serveur." });
+        return;
+      }
+      if (kind === "cover" && data.url) setCoverUrl(data.url);
+      if (kind === "logo" && data.url) setLogoUrl(data.url);
+      if (kind === "gallery" && data.galleryUrls) setGalleryList(data.galleryUrls);
+      toast.success(
+        kind === "cover" ? "Cover mis à jour" : kind === "logo" ? "Logo mis à jour" : "Image ajoutée",
+      );
+      router.refresh();
+    } catch {
+      toast.error("Upload échoué", { description: "Erreur réseau." });
+    } finally {
+      setUploadingKind(null);
+    }
+  };
+
+  const removeMedia = async (kind: MediaKind, url?: string) => {
+    setRemovingMedia(true);
+    try {
+      const res = await fetch(`/api/universites/${universite.id}/media`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, url }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        galleryUrls?: string[];
+      };
+      if (!res.ok) {
+        toast.error("Suppression échouée", { description: data.error ?? "Erreur serveur." });
+        return;
+      }
+      if (kind === "cover") setCoverUrl("");
+      if (kind === "logo") setLogoUrl("");
+      if (kind === "gallery" && data.galleryUrls) setGalleryList(data.galleryUrls);
+      toast.success("Média retiré");
+      router.refresh();
+    } catch {
+      toast.error("Suppression échouée", { description: "Erreur réseau." });
+    } finally {
+      setRemovingMedia(false);
+    }
+  };
+
+  const handleGalleryFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
+    for (const file of Array.from(files)) {
+      await uploadMedia("gallery", file);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -296,8 +371,8 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
             <p className="eyebrow">Médias Le Passage</p>
             <h2 className="mt-2 font-display text-lg font-bold text-encre">Visuels &amp; site</h2>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5 sm:col-span-2">
+            <div className="mt-5 space-y-5">
+              <div className="space-y-1.5">
                 <Label htmlFor="siteUrl" className="text-xs text-ardoise">
                   Site officiel
                 </Label>
@@ -309,63 +384,210 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                   className="font-mono text-xs"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="coverUrl" className="text-xs text-ardoise">
-                  Cover URL
-                </Label>
-                <Input
-                  id="coverUrl"
-                  value={coverUrl}
-                  onChange={(e) => setCoverUrl(e.target.value)}
-                  placeholder="/images/partenaires/.../cover.webp"
-                  className="font-mono text-xs"
-                />
-                <MediaPreview
-                  src={coverUrl}
-                  alt="Cover"
-                  className="mt-2 aspect-[16/9] w-full rounded-lg border border-ligne"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="logoUrl" className="text-xs text-ardoise">
-                  Logo URL
-                </Label>
-                <Input
-                  id="logoUrl"
-                  value={logoUrl}
-                  onChange={(e) => setLogoUrl(e.target.value)}
-                  placeholder="/images/partenaires/.../logo.png"
-                  className="font-mono text-xs"
-                />
-                <MediaPreview
-                  src={logoUrl}
-                  alt="Logo"
-                  className="mt-2 aspect-square w-28 rounded-lg border border-ligne"
-                />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="gallery" className="text-xs text-ardoise">
-                  Galerie (1 chemin / ligne)
-                </Label>
-                <textarea
-                  id="gallery"
-                  value={gallery}
-                  onChange={(e) => setGallery(e.target.value)}
-                  rows={4}
-                  className="w-full rounded-md border border-ligne bg-blanc px-3 py-2 font-mono text-xs text-encre"
-                  placeholder="/images/.../gallery-1.webp"
-                />
-                {galleryList.length > 0 && (
-                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                    {galleryList.map((src) => (
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                {/* Cover */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-ardoise">Cover</Label>
+                  <input
+                    ref={coverInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void uploadMedia("cover", f);
+                      e.target.value = "";
+                    }}
+                  />
+                  <div className="relative overflow-hidden rounded-lg border border-ligne">
+                    {coverUrl.trim() ? (
                       <MediaPreview
-                        key={src}
-                        src={src}
-                        alt="Galerie"
-                        className="aspect-[16/10] rounded-lg border border-ligne"
+                        src={coverUrl}
+                        alt="Cover"
+                        className="aspect-[16/9] w-full"
                       />
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={mediaBusy}
+                        onClick={() => coverInputRef.current?.click()}
+                        className="flex aspect-[16/9] w-full flex-col items-center justify-center gap-2 bg-porcelaine text-ardoise transition-colors hover:bg-porcelaine/80 disabled:opacity-50"
+                      >
+                        {uploadingKind === "cover" ? (
+                          <Loader2 className="h-5 w-5 animate-spin" strokeWidth={1.5} />
+                        ) : (
+                          <ImagePlus className="h-5 w-5" strokeWidth={1.5} />
+                        )}
+                        <span className="text-xs">Choisir une cover</span>
+                      </button>
+                    )}
+                    {uploadingKind === "cover" && coverUrl.trim() ? (
+                      <div className="absolute inset-0 flex items-center justify-center bg-encre/40">
+                        <Loader2 className="h-6 w-6 animate-spin text-blanc" strokeWidth={1.5} />
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-ligne"
+                      disabled={mediaBusy}
+                      onClick={() => coverInputRef.current?.click()}
+                    >
+                      {coverUrl.trim() ? "Remplacer" : "Uploader"}
+                    </Button>
+                    {coverUrl.trim() ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="border-carmin/40 text-carmin hover:bg-carmin/5"
+                        disabled={mediaBusy}
+                        onClick={() => void removeMedia("cover")}
+                      >
+                        Supprimer
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Logo */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-ardoise">Logo</Label>
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void uploadMedia("logo", f);
+                      e.target.value = "";
+                    }}
+                  />
+                  <div className="relative w-28 overflow-hidden rounded-lg border border-ligne">
+                    {logoUrl.trim() ? (
+                      <MediaPreview
+                        src={logoUrl}
+                        alt="Logo"
+                        className="aspect-square w-28"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={mediaBusy}
+                        onClick={() => logoInputRef.current?.click()}
+                        className="flex aspect-square w-28 flex-col items-center justify-center gap-1 bg-porcelaine text-ardoise transition-colors hover:bg-porcelaine/80 disabled:opacity-50"
+                      >
+                        {uploadingKind === "logo" ? (
+                          <Loader2 className="h-5 w-5 animate-spin" strokeWidth={1.5} />
+                        ) : (
+                          <ImagePlus className="h-5 w-5" strokeWidth={1.5} />
+                        )}
+                        <span className="text-[10px]">Logo</span>
+                      </button>
+                    )}
+                    {uploadingKind === "logo" && logoUrl.trim() ? (
+                      <div className="absolute inset-0 flex items-center justify-center bg-encre/40">
+                        <Loader2 className="h-5 w-5 animate-spin text-blanc" strokeWidth={1.5} />
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-ligne"
+                      disabled={mediaBusy}
+                      onClick={() => logoInputRef.current?.click()}
+                    >
+                      {logoUrl.trim() ? "Remplacer" : "Uploader"}
+                    </Button>
+                    {logoUrl.trim() ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="border-carmin/40 text-carmin hover:bg-carmin/5"
+                        disabled={mediaBusy}
+                        onClick={() => void removeMedia("logo")}
+                      >
+                        Supprimer
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+
+              {/* Galerie */}
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label className="text-xs text-ardoise">Galerie</Label>
+                  <input
+                    ref={galleryInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    className="sr-only"
+                    onChange={(e) => {
+                      void handleGalleryFiles(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-ligne gap-1.5"
+                    disabled={mediaBusy}
+                    onClick={() => galleryInputRef.current?.click()}
+                  >
+                    {uploadingKind === "gallery" ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+                    ) : (
+                      <ImagePlus className="h-3.5 w-3.5" strokeWidth={1.5} />
+                    )}
+                    Ajouter
+                  </Button>
+                </div>
+                {galleryList.length > 0 ? (
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {galleryList.map((src) => (
+                      <div
+                        key={src}
+                        className="group relative overflow-hidden rounded-lg border border-ligne"
+                      >
+                        <MediaPreview
+                          src={src}
+                          alt="Galerie"
+                          className="aspect-[16/10]"
+                        />
+                        <button
+                          type="button"
+                          disabled={mediaBusy}
+                          onClick={() => void removeMedia("gallery", src)}
+                          className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-encre/75 text-blanc opacity-100 transition-opacity hover:bg-encre disabled:opacity-50 sm:opacity-0 sm:group-hover:opacity-100"
+                          aria-label="Retirer de la galerie"
+                        >
+                          <X className="h-3.5 w-3.5" strokeWidth={1.5} />
+                        </button>
+                      </div>
                     ))}
                   </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={mediaBusy}
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-ligne bg-porcelaine px-4 py-8 text-ardoise transition-colors hover:bg-porcelaine/80 disabled:opacity-50"
+                  >
+                    <ImagePlus className="h-5 w-5" strokeWidth={1.5} />
+                    <span className="text-xs">Ajouter des images à la galerie</span>
+                  </button>
                 )}
               </div>
             </div>
@@ -442,7 +664,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
             <Button
               variant="outline"
               className="border-carmin/40 text-carmin hover:bg-carmin/5"
-              disabled={saving || deleting}
+              disabled={saving || deleting || mediaBusy}
             >
               {deleting ? (
                 <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
@@ -476,7 +698,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
         <Button
           className="min-w-36 bg-lapis text-blanc hover:bg-lapis/90"
           onClick={handleSave}
-          disabled={saving || deleting}
+          disabled={saving || deleting || mediaBusy}
         >
           {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
           Enregistrer

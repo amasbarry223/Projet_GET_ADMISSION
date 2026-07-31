@@ -9,7 +9,10 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
-import { Stamp, Download, Eye, EyeOff, MapPin, ShieldCheck, CheckCircle2, Clock, Loader2, AlertCircle } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FormPageSkeleton } from "@/components/ui/skeleton-card";
+import { getApiErrorMessageSync } from "@/lib/api-error";
+import { Stamp, Download, Eye, EyeOff, MapPin, ShieldCheck, CheckCircle2, Clock, Loader2, AlertCircle, FolderOpen } from "lucide-react";
 
 type Dossier = {
   id: string;
@@ -67,7 +70,7 @@ export default function AttestationPage() {
       })
       .catch((e) => {
         console.error("fetch error:", e);
-        setError("Impossible de charger votre dossier.");
+        setError(getApiErrorMessageSync(e, undefined, "Impossible de charger votre dossier."));
         setLoading(false);
       });
   }, []);
@@ -97,18 +100,14 @@ export default function AttestationPage() {
       });
     } catch (e) {
       setRemiseAgence(!agence);
-      toast.error(e instanceof Error ? e.message : "Impossible d'enregistrer le mode de remise");
+      toast.error(getApiErrorMessageSync(e, undefined, "Impossible d'enregistrer le mode de remise"));
     } finally {
       setSavingRemise(false);
     }
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
-      </div>
-    );
+    return <FormPageSkeleton />;
   }
 
   if (error) {
@@ -128,16 +127,16 @@ export default function AttestationPage() {
 
   if (!dossier) {
     return (
-      <Alert className="border-ambre/40 bg-ambre/5">
-        <AlertCircle className="h-4 w-4 text-ambre" strokeWidth={1.5} />
-        <AlertTitle className="font-display text-sm font-bold text-encre">Aucun dossier</AlertTitle>
-        <AlertDescription className="text-sm text-ardoise">
-          Vous n&apos;avez pas encore de dossier.{" "}
-          <Link href="/espace/dossier" className="font-medium text-lapis-clair hover:underline">
-            Composer mon dossier
-          </Link>
-        </AlertDescription>
-      </Alert>
+      <EmptyState
+        icon={<FolderOpen className="h-5 w-5" strokeWidth={1.5} />}
+        title="Aucun dossier"
+        description="Vous n'avez pas encore de dossier. Composez-le pour suivre votre attestation."
+        action={
+          <Button asChild className="bg-lapis text-blanc hover:bg-lapis/90">
+            <Link href="/espace/dossier">Composer mon dossier</Link>
+          </Button>
+        }
+      />
     );
   }
 

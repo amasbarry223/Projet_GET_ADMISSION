@@ -392,6 +392,13 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
         searchKey="nom"
         searchPlaceholder="Rechercher par nom…"
         pageSize={8}
+        emptyState={
+          <div className="flex flex-col items-center gap-3 py-2">
+            <GraduationCap className="h-8 w-8 text-ardoise/40" strokeWidth={1.5} />
+            <p className="text-sm font-medium text-encre">Aucune université</p>
+            <p className="text-xs text-ardoise">Aucun établissement ne correspond à ces filtres.</p>
+          </div>
+        }
         toolbar={(table: Table<CatalogueRow>) => (
           <>
             <Select

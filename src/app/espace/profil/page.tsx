@@ -9,8 +9,12 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { FieldError } from "@/components/ui/field-error";
+import { FormPageSkeleton } from "@/components/ui/skeleton-card";
+import { getApiErrorMessageSync, messageFromBody } from "@/lib/api-error";
 import { toast } from "sonner";
-import { Upload, ShieldCheck, Camera, CheckCircle2, Save, Loader2 } from "lucide-react";
+import { Upload, ShieldCheck, Camera, CheckCircle2, Save, Loader2, AlertCircle } from "lucide-react";
 
 type Profile = {
   id: string;
@@ -31,31 +35,63 @@ type Profile = {
   role: string;
 };
 
+type ProfileErrors = Partial<Record<"prenom" | "nom", string>>;
+type PasswordErrors = Partial<Record<"current" | "next" | "confirm", string>>;
+
 export default function ProfilPage() {
   const [profile, setProfile] = React.useState<Profile | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [uploadingPhoto, setUploadingPhoto] = React.useState(false);
   const [password, setPassword] = React.useState({ current: "", next: "", confirm: "" });
   const [savingPassword, setSavingPassword] = React.useState(false);
+  const [profileErrors, setProfileErrors] = React.useState<ProfileErrors>({});
+  const [passwordErrors, setPasswordErrors] = React.useState<PasswordErrors>({});
   const photoRef = React.useRef<HTMLInputElement>(null);
 
-  React.useEffect(() => {
+  const loadProfile = React.useCallback(() => {
+    setLoading(true);
+    setLoadError(null);
     fetch("/api/profile")
-      .then((r) => (r.ok ? r.json() : null))
+      .then(async (r) => {
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}));
+          throw new Error(messageFromBody(body) ?? getApiErrorMessageSync(r.status));
+        }
+        return r.json() as Promise<Profile>;
+      })
       .then((data) => {
         setProfile(data);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((e) => {
+        setLoadError(getApiErrorMessageSync(e));
+        setLoading(false);
+      });
   }, []);
+
+  React.useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
   const setField = <K extends keyof Profile>(key: K, value: Profile[K]) => {
     setProfile((p) => (p ? { ...p, [key]: value } : p));
+    if (key === "prenom" || key === "nom") {
+      setProfileErrors((prev) => ({ ...prev, [key]: undefined }));
+    }
   };
 
   const save = async () => {
     if (!profile) return;
+    const errs: ProfileErrors = {};
+    if (!profile.prenom.trim()) errs.prenom = "Le prénom est requis.";
+    if (!profile.nom.trim()) errs.nom = "Le nom est requis.";
+    setProfileErrors(errs);
+    if (Object.keys(errs).length) {
+      toast.error("Champs incomplets", { description: "Corrigez les champs indiqués." });
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/profile", {
@@ -72,15 +108,14 @@ export default function ProfilPage() {
           kycNumero: profile.kycNumero,
         }),
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Échec");
+        throw new Error(messageFromBody(data) ?? getApiErrorMessageSync(res.status));
       }
-      const updated = await res.json();
-      setProfile((p) => (p ? { ...p, ...updated } : p));
-      toast.success("Profil enregistré");
+      setProfile((p) => (p ? { ...p, ...data } : p));
+      toast.success("Profil enregistré", { description: "Vos informations ont été mises à jour." });
     } catch (e) {
-      toast.error("Erreur", { description: e instanceof Error ? e.message : "Échec" });
+      toast.error("Enregistrement échoué", { description: getApiErrorMessageSync(e) });
     } finally {
       setSaving(false);
     }
@@ -93,27 +128,28 @@ export default function ProfilPage() {
       fd.append("file", file);
       const res = await fetch("/api/profile/photo", { method: "POST", body: fd });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Upload échoué");
+      if (!res.ok) throw new Error(messageFromBody(data) ?? getApiErrorMessageSync(res.status));
       setProfile((p) => (p ? { ...p, photoUrl: data.photoUrl } : p));
       toast.success("Photo mise à jour");
     } catch (e) {
-      toast.error("Photo", { description: e instanceof Error ? e.message : "Erreur" });
+      toast.error("Photo", { description: getApiErrorMessageSync(e) });
     } finally {
       setUploadingPhoto(false);
     }
   };
 
   const changePassword = async () => {
-    if (!password.current || !password.next || !password.confirm) {
-      toast.error("Champs manquants");
-      return;
+    const errs: PasswordErrors = {};
+    if (!password.current) errs.current = "Indiquez votre mot de passe actuel.";
+    if (!password.next) errs.next = "Indiquez le nouveau mot de passe.";
+    else if (password.next.length < 8) errs.next = "Minimum 8 caractères.";
+    if (!password.confirm) errs.confirm = "Confirmez le nouveau mot de passe.";
+    else if (password.next && password.next !== password.confirm) {
+      errs.confirm = "La confirmation ne correspond pas.";
     }
-    if (password.next.length < 8) {
-      toast.error("Mot de passe trop court", { description: "Minimum 8 caractères." });
-      return;
-    }
-    if (password.next !== password.confirm) {
-      toast.error("Confirmation incorrecte");
+    setPasswordErrors(errs);
+    if (Object.keys(errs).length) {
+      toast.error("Mot de passe", { description: "Corrigez les champs indiqués." });
       return;
     }
     setSavingPassword(true);
@@ -121,31 +157,40 @@ export default function ProfilPage() {
       const res = await fetch("/api/profile/password", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword: password.current, newPassword: password.next }),
+        body: JSON.stringify({
+          currentPassword: password.current,
+          newPassword: password.next,
+        }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Échec");
-      }
-      toast.success("Mot de passe modifié");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(messageFromBody(data) ?? getApiErrorMessageSync(res.status));
       setPassword({ current: "", next: "", confirm: "" });
+      setPasswordErrors({});
+      toast.success("Mot de passe modifié");
     } catch (e) {
-      toast.error("Erreur", { description: e instanceof Error ? e.message : "Échec" });
+      toast.error("Échec", { description: getApiErrorMessageSync(e) });
     } finally {
       setSavingPassword(false);
     }
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
-      </div>
-    );
+    return <FormPageSkeleton />;
   }
 
-  if (!profile) {
-    return <p className="text-sm text-ardoise">Impossible de charger votre profil.</p>;
+  if (loadError || !profile) {
+    return (
+      <Alert className="border-carmin/40 bg-carmin/5">
+        <AlertCircle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
+        <AlertTitle className="font-display text-sm font-bold text-encre">Chargement impossible</AlertTitle>
+        <AlertDescription className="text-sm text-ardoise">
+          {loadError ?? "Impossible de charger votre profil."}{" "}
+          <button type="button" className="font-medium text-lapis underline" onClick={loadProfile}>
+            Réessayer
+          </button>
+        </AlertDescription>
+      </Alert>
+    );
   }
 
   return (
@@ -217,32 +262,46 @@ export default function ProfilPage() {
           <Card className="border-ligne bg-blanc p-6">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Prénom</Label>
-                <Input value={profile.prenom} onChange={(e) => setField("prenom", e.target.value)} />
+                <Label htmlFor="profil-prenom">Prénom</Label>
+                <Input
+                  id="profil-prenom"
+                  value={profile.prenom}
+                  onChange={(e) => setField("prenom", e.target.value)}
+                  aria-invalid={!!profileErrors.prenom}
+                  aria-describedby={profileErrors.prenom ? "err-prenom" : undefined}
+                />
+                <FieldError id="err-prenom" message={profileErrors.prenom} />
               </div>
               <div className="space-y-1.5">
-                <Label>Nom</Label>
-                <Input value={profile.nom} onChange={(e) => setField("nom", e.target.value)} />
+                <Label htmlFor="profil-nom">Nom</Label>
+                <Input
+                  id="profil-nom"
+                  value={profile.nom}
+                  onChange={(e) => setField("nom", e.target.value)}
+                  aria-invalid={!!profileErrors.nom}
+                  aria-describedby={profileErrors.nom ? "err-nom" : undefined}
+                />
+                <FieldError id="err-nom" message={profileErrors.nom} />
               </div>
               <div className="space-y-1.5">
-                <Label>E-mail</Label>
-                <Input type="email" value={profile.email} disabled />
+                <Label htmlFor="profil-email">E-mail</Label>
+                <Input id="profil-email" type="email" value={profile.email} disabled />
               </div>
               <div className="space-y-1.5">
-                <Label>Téléphone</Label>
-                <Input value={profile.telephone ?? ""} onChange={(e) => setField("telephone", e.target.value)} />
+                <Label htmlFor="profil-tel">Téléphone</Label>
+                <Input id="profil-tel" value={profile.telephone ?? ""} onChange={(e) => setField("telephone", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>Nationalité</Label>
-                <Input value={profile.nationalite ?? ""} onChange={(e) => setField("nationalite", e.target.value)} />
+                <Label htmlFor="profil-nat">Nationalité</Label>
+                <Input id="profil-nat" value={profile.nationalite ?? ""} onChange={(e) => setField("nationalite", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>Date de naissance</Label>
-                <Input type="date" value={profile.dateNaissance ?? ""} onChange={(e) => setField("dateNaissance", e.target.value)} />
+                <Label htmlFor="profil-naissance">Date de naissance</Label>
+                <Input id="profil-naissance" type="date" value={profile.dateNaissance ?? ""} onChange={(e) => setField("dateNaissance", e.target.value)} />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
-                <Label>Adresse</Label>
-                <Input value={profile.adresse ?? ""} onChange={(e) => setField("adresse", e.target.value)} />
+                <Label htmlFor="profil-adresse">Adresse</Label>
+                <Input id="profil-adresse" value={profile.adresse ?? ""} onChange={(e) => setField("adresse", e.target.value)} />
               </div>
             </div>
             <div className="mt-5 flex justify-end">
@@ -259,12 +318,9 @@ export default function ProfilPage() {
             <div className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label>Type de pièce</Label>
-                  <Select
-                    value={profile.kycType ?? "passeport"}
-                    onValueChange={(v) => setField("kycType", v)}
-                  >
-                    <SelectTrigger>
+                  <Label htmlFor="profil-kyc-type">Type de pièce</Label>
+                  <Select value={profile.kycType ?? "passeport"} onValueChange={(v) => setField("kycType", v)}>
+                    <SelectTrigger id="profil-kyc-type">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -274,8 +330,9 @@ export default function ProfilPage() {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Numéro</Label>
+                  <Label htmlFor="profil-kyc-numero">Numéro</Label>
                   <Input
+                    id="profil-kyc-numero"
                     className="font-mono"
                     value={profile.kycNumero ?? ""}
                     onChange={(e) => setField("kycNumero", e.target.value)}
@@ -324,6 +381,7 @@ export default function ProfilPage() {
                         type="file"
                         accept=".pdf,.jpg,.jpeg,.png,.webp"
                         className="sr-only"
+                        aria-label={`Téléverser le ${side} de la pièce d'identité`}
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
@@ -333,12 +391,13 @@ export default function ProfilPage() {
                           if (profile.kycType) fd.append("kycType", profile.kycType);
                           if (profile.kycNumero) fd.append("kycNumero", profile.kycNumero);
                           const res = await fetch("/api/profile/kyc", { method: "POST", body: fd });
+                          const data = await res.json().catch(() => ({}));
                           if (!res.ok) {
-                            const data = await res.json().catch(() => ({}));
-                            toast.error("Upload KYC échoué", { description: data.error });
+                            toast.error("Upload KYC échoué", {
+                              description: messageFromBody(data) ?? getApiErrorMessageSync(res.status),
+                            });
                             return;
                           }
-                          const data = await res.json();
                           setProfile((p) => (p ? { ...p, ...data.user } : p));
                           toast.success(`${side === "recto" ? "Recto" : "Verso"} téléversé`);
                           e.target.value = "";
@@ -368,16 +427,52 @@ export default function ProfilPage() {
           <Card className="border-ligne bg-blanc p-6">
             <div className="grid gap-4 sm:max-w-md">
               <div className="space-y-1.5">
-                <Label>Mot de passe actuel</Label>
-                <Input type="password" value={password.current} onChange={(e) => setPassword((p) => ({ ...p, current: e.target.value }))} autoComplete="current-password" />
+                <Label htmlFor="pwd-current">Mot de passe actuel</Label>
+                <Input
+                  id="pwd-current"
+                  type="password"
+                  value={password.current}
+                  onChange={(e) => {
+                    setPassword((p) => ({ ...p, current: e.target.value }));
+                    setPasswordErrors((prev) => ({ ...prev, current: undefined }));
+                  }}
+                  autoComplete="current-password"
+                  aria-invalid={!!passwordErrors.current}
+                  aria-describedby={passwordErrors.current ? "err-pwd-current" : undefined}
+                />
+                <FieldError id="err-pwd-current" message={passwordErrors.current} />
               </div>
               <div className="space-y-1.5">
-                <Label>Nouveau mot de passe</Label>
-                <Input type="password" value={password.next} onChange={(e) => setPassword((p) => ({ ...p, next: e.target.value }))} autoComplete="new-password" />
+                <Label htmlFor="pwd-next">Nouveau mot de passe</Label>
+                <Input
+                  id="pwd-next"
+                  type="password"
+                  value={password.next}
+                  onChange={(e) => {
+                    setPassword((p) => ({ ...p, next: e.target.value }));
+                    setPasswordErrors((prev) => ({ ...prev, next: undefined }));
+                  }}
+                  autoComplete="new-password"
+                  aria-invalid={!!passwordErrors.next}
+                  aria-describedby={passwordErrors.next ? "err-pwd-next" : undefined}
+                />
+                <FieldError id="err-pwd-next" message={passwordErrors.next} />
               </div>
               <div className="space-y-1.5">
-                <Label>Confirmer</Label>
-                <Input type="password" value={password.confirm} onChange={(e) => setPassword((p) => ({ ...p, confirm: e.target.value }))} autoComplete="new-password" />
+                <Label htmlFor="pwd-confirm">Confirmer</Label>
+                <Input
+                  id="pwd-confirm"
+                  type="password"
+                  value={password.confirm}
+                  onChange={(e) => {
+                    setPassword((p) => ({ ...p, confirm: e.target.value }));
+                    setPasswordErrors((prev) => ({ ...prev, confirm: undefined }));
+                  }}
+                  autoComplete="new-password"
+                  aria-invalid={!!passwordErrors.confirm}
+                  aria-describedby={passwordErrors.confirm ? "err-pwd-confirm" : undefined}
+                />
+                <FieldError id="err-pwd-confirm" message={passwordErrors.confirm} />
               </div>
             </div>
             <div className="mt-5 flex justify-end">

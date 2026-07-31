@@ -450,7 +450,7 @@ export default function DossierDetailClient() {
                   window.location.reload();
                 }}
               >
-                <Input name="msg" placeholder="Écrire au candidat…" className="flex-1" />
+                <Input name="msg" placeholder="Écrire au candidat…" className="flex-1" aria-label="Message au candidat" />
                 <Button type="submit" className="bg-lapis text-blanc hover:bg-lapis/90">
                   <MessageSquare className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Envoyer
                 </Button>

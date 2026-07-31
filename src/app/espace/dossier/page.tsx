@@ -16,6 +16,7 @@ import { formatFCFA } from "@/lib/format";
 import { etatParCode } from "@/lib/etats";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { FormPageSkeleton } from "@/components/ui/skeleton-card";
 import { Upload, CheckCircle2, AlertCircle, ArrowLeft, ArrowRight, Save, Check, Lock, Plane, Loader2 } from "lucide-react";
 
 const STEPS = [
@@ -76,7 +77,7 @@ function parseStringList(value: string[] | string | undefined | null): string[] 
 
 export default function DossierPage() {
   return (
-    <Suspense fallback={<div className="flex justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-lapis" /></div>}>
+    <Suspense fallback={<FormPageSkeleton />}>
       <DossierWizard />
     </Suspense>
   );
@@ -372,20 +373,19 @@ function DossierWizard() {
   };
 
   if (loadingDossier || universitesLoading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
-      </div>
-    );
+    return <FormPageSkeleton />;
   }
 
   if (universitesError) {
     return (
-      <Alert className="border-ambre/40 bg-ambre/5">
-        <AlertCircle className="h-4 w-4 text-ambre" strokeWidth={1.5} />
+      <Alert className="border-carmin/40 bg-carmin/5">
+        <AlertCircle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
         <AlertTitle className="font-display text-sm font-bold text-encre">Catalogue indisponible</AlertTitle>
         <AlertDescription className="text-sm text-ardoise">
-          Impossible de charger les universités partenaires. Réessayez dans un instant.
+          Impossible de charger les universités partenaires.{" "}
+          <button type="button" className="font-medium text-lapis underline" onClick={() => window.location.reload()}>
+            Réessayer
+          </button>
         </AlertDescription>
       </Alert>
     );

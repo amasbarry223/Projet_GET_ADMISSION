@@ -13,7 +13,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatFCFA, formatDate, formatDateTime } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, Download, Loader2, Lock, CreditCard, Smartphone, ShieldCheck, AlertCircle, Clock } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FormPageSkeleton } from "@/components/ui/skeleton-card";
+import { getApiErrorMessageSync } from "@/lib/api-error";
+import { CheckCircle2, Download, Loader2, Lock, CreditCard, Smartphone, ShieldCheck, AlertCircle, Clock, FolderOpen } from "lucide-react";
 
 type Dossier = {
   id: string;
@@ -71,7 +74,7 @@ export default function PaiementPage() {
       })
       .catch((e) => {
         console.error("fetch error:", e);
-        setError("Impossible de charger votre dossier.");
+        setError(getApiErrorMessageSync(e, undefined, "Impossible de charger votre dossier."));
         setLoading(false);
       });
   }, []);
@@ -99,11 +102,7 @@ export default function PaiementPage() {
   }, [loadDossier]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
-      </div>
-    );
+    return <FormPageSkeleton />;
   }
 
   if (error) {
@@ -113,7 +112,7 @@ export default function PaiementPage() {
         <AlertTitle className="font-display text-sm font-bold text-encre">Chargement impossible</AlertTitle>
         <AlertDescription className="text-sm text-ardoise">
           {error}{" "}
-          <button type="button" className="font-medium text-lapis underline" onClick={() => window.location.reload()}>
+          <button type="button" className="font-medium text-lapis underline" onClick={loadDossier}>
             Réessayer
           </button>
         </AlertDescription>
@@ -123,16 +122,16 @@ export default function PaiementPage() {
 
   if (!dossier) {
     return (
-      <Alert className="border-ambre/40 bg-ambre/5">
-        <AlertCircle className="h-4 w-4 text-ambre" strokeWidth={1.5} />
-        <AlertTitle className="font-display text-sm font-bold text-encre">Aucun dossier</AlertTitle>
-        <AlertDescription className="text-sm text-ardoise">
-          Vous n&apos;avez pas encore de dossier.{" "}
-          <Link href="/espace/dossier" className="font-medium text-lapis-clair hover:underline">
-            Composer mon dossier
-          </Link>
-        </AlertDescription>
-      </Alert>
+      <EmptyState
+        icon={<FolderOpen className="h-5 w-5" strokeWidth={1.5} />}
+        title="Aucun dossier"
+        description="Vous n'avez pas encore de dossier. Composez-le pour accéder au paiement."
+        action={
+          <Button asChild className="bg-lapis text-blanc hover:bg-lapis/90">
+            <Link href="/espace/dossier">Composer mon dossier</Link>
+          </Button>
+        }
+      />
     );
   }
 

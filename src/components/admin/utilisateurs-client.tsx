@@ -370,8 +370,9 @@ export function UtilisateursClient({ initialData }: { initialData: UserRow[] }) 
             <form onSubmit={handleInvite} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-encre">Prénom</Label>
+                  <Label htmlFor="invite-prenom" className="text-sm font-medium text-encre">Prénom</Label>
                   <Input
+                    id="invite-prenom"
                     value={formPrenom}
                     onChange={(e) => setFormPrenom(e.target.value)}
                     placeholder="Aïssatou"
@@ -379,8 +380,9 @@ export function UtilisateursClient({ initialData }: { initialData: UserRow[] }) 
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-encre">Nom</Label>
+                  <Label htmlFor="invite-nom" className="text-sm font-medium text-encre">Nom</Label>
                   <Input
+                    id="invite-nom"
                     value={formNom}
                     onChange={(e) => setFormNom(e.target.value)}
                     placeholder="Diallo"
@@ -389,8 +391,9 @@ export function UtilisateursClient({ initialData }: { initialData: UserRow[] }) 
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">E-mail professionnel</Label>
+                <Label htmlFor="invite-email" className="text-sm font-medium text-encre">E-mail professionnel</Label>
                 <Input
+                  id="invite-email"
                   type="email"
                   value={formEmail}
                   onChange={(e) => setFormEmail(e.target.value)}
@@ -399,9 +402,9 @@ export function UtilisateursClient({ initialData }: { initialData: UserRow[] }) 
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">Rôle</Label>
+                <Label htmlFor="invite-role" className="text-sm font-medium text-encre">Rôle</Label>
                 <Select value={formRole} onValueChange={(v) => setFormRole(v as RoleInterne)}>
-                  <SelectTrigger>
+                  <SelectTrigger id="invite-role">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -432,6 +435,13 @@ export function UtilisateursClient({ initialData }: { initialData: UserRow[] }) 
         searchKey="nom"
         searchPlaceholder="Rechercher un membre…"
         pageSize={8}
+        emptyState={
+          <div className="flex flex-col items-center gap-3 py-2">
+            <UserCog className="h-8 w-8 text-ardoise/40" strokeWidth={1.5} />
+            <p className="text-sm font-medium text-encre">Aucun membre</p>
+            <p className="text-xs text-ardoise">Aucun utilisateur ne correspond à ces filtres.</p>
+          </div>
+        }
         toolbar={(table: Table<UserRow>) => (
           <Select
             value={(table.getColumn("role")?.getFilterValue() as string) ?? "tous"}

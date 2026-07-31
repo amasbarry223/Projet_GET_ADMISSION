@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Mail, Lock, ArrowRight, Loader2, GraduationCap, Briefcase } from "lucide-react";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
+import { FieldError } from "@/components/ui/field-error";
 import { defaultAdminRoute, isStaff } from "@/lib/rbac";
 
 type PortalTab = "etudiant" | "staff";
@@ -74,6 +75,7 @@ function ConnexionInner() {
   const [loading, setLoading] = React.useState(false);
   const [unverifiedHint, setUnverifiedHint] = React.useState(false);
   const [suggestStudentPortal, setSuggestStudentPortal] = React.useState(false);
+  const [fieldErrors, setFieldErrors] = React.useState<{ email?: string; password?: string }>({});
 
   const isStudent = portalTab === "etudiant";
   const authPortal = isStudent ? "candidat" : "staff";
@@ -99,8 +101,15 @@ function ConnexionInner() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      toast.error("Champs requis", { description: "Renseignez votre e-mail et votre mot de passe." });
+    const errs: { email?: string; password?: string } = {};
+    if (!email.trim()) errs.email = "L'e-mail est requis.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      errs.email = "Indiquez une adresse e-mail valide.";
+    }
+    if (!password) errs.password = "Le mot de passe est requis.";
+    setFieldErrors(errs);
+    if (Object.keys(errs).length) {
+      toast.error("Champs requis", { description: "Corrigez les champs indiqués." });
       return;
     }
     setLoading(true);
@@ -257,12 +266,18 @@ function ConnexionInner() {
               id="email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, email: undefined }));
+              }}
               className="pl-9"
               placeholder={isStudent ? "vous@exemple.com" : "prenom.nom@getadm.com"}
               autoComplete="email"
+              aria-invalid={!!fieldErrors.email}
+              aria-describedby={fieldErrors.email ? "err-login-email" : undefined}
             />
           </div>
+          <FieldError id="err-login-email" message={fieldErrors.email} />
         </div>
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
@@ -285,12 +300,18 @@ function ConnexionInner() {
               id="password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, password: undefined }));
+              }}
               className="pl-9"
               placeholder="••••••••"
               autoComplete="current-password"
+              aria-invalid={!!fieldErrors.password}
+              aria-describedby={fieldErrors.password ? "err-login-password" : undefined}
             />
           </div>
+          <FieldError id="err-login-password" message={fieldErrors.password} />
         </div>
         <Button type="submit" className="w-full bg-lapis text-blanc hover:bg-lapis/90" disabled={loading}>
           {loading ? (

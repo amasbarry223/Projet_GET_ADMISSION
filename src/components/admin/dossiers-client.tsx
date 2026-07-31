@@ -107,10 +107,32 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
         confirm: {
           title: "Transmettre à l'université ?",
           description: (row) =>
-            `Le dossier ${row.reference} sera envoyé à ${row.universite}. Cette action est irréversible.`,
+            `Le dossier ${row.reference} sera envoyé à ${row.universite}. Réservé aux dossiers avec paiement confirmé.`,
           confirmLabel: "Transmettre",
-          onConfirm: (row) =>
-            toast.success("Dossier transmis", { description: `${row.reference} envoyé à ${row.universite}.` }),
+          onConfirm: async (row) => {
+            try {
+              const res = await fetch(`/api/dossiers/${row.id}/workflow`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "transmettre" }),
+              });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                toast.error("Transmission impossible", {
+                  description: (data as { error?: string }).error ?? "Vérifiez l'état et le paiement du dossier.",
+                });
+                return;
+              }
+              toast.success("Dossier transmis", {
+                description: `${row.reference} envoyé à ${row.universite}.`,
+              });
+              router.refresh();
+            } catch {
+              toast.error("Erreur réseau", {
+                description: "Connexion impossible. Vérifiez votre réseau et réessayez.",
+              });
+            }
+          },
         },
       },
       {

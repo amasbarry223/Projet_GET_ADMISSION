@@ -11,7 +11,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { formatHeure } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Paperclip, Send, Mail, Phone, ArrowLeft, Loader2, AlertCircle } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { MessagesSkeleton } from "@/components/ui/skeleton-card";
+import { getApiErrorMessageSync, messageFromBody } from "@/lib/api-error";
+import { Paperclip, Send, Mail, Phone, ArrowLeft, Loader2, AlertCircle, MessageSquare } from "lucide-react";
 
 type ConversationMessage = {
   id: string;
@@ -65,7 +68,7 @@ export default function MessagesPage() {
       })
       .catch((e) => {
         console.error("fetch error:", e);
-        setError("Impossible de charger votre dossier.");
+        setError(getApiErrorMessageSync(e, undefined, "Impossible de charger votre dossier."));
         setLoading(false);
       });
   }, []);
@@ -74,8 +77,11 @@ export default function MessagesPage() {
   React.useEffect(() => {
     if (!dossierId) return;
     fetch(`/api/messages?dossierId=${encodeURIComponent(dossierId)}`)
-      .then((r) => {
-        if (!r.ok) throw new Error();
+      .then(async (r) => {
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}));
+          throw new Error(messageFromBody(body) ?? getApiErrorMessageSync(r.status));
+        }
         return r.json();
       })
       .then((data: Conversation) => {
@@ -91,12 +97,16 @@ export default function MessagesPage() {
             .then(() => {
               setConversation((prev) => (prev ? { ...prev, nonLusCandidat: 0 } : prev));
             })
-            .catch((e) => console.error("fetch error:", e));
+            .catch(() => {
+              toast.error("Lecture", {
+                description: "Impossible de marquer les messages comme lus.",
+              });
+            });
         }
       })
       .catch((e) => {
         console.error("fetch error:", e);
-        setError("Impossible de charger la conversation.");
+        setError(getApiErrorMessageSync(e, undefined, "Impossible de charger la conversation."));
         setLoading(false);
       });
   }, [dossierId]);
@@ -117,7 +127,7 @@ export default function MessagesPage() {
         body: JSON.stringify({ dossierId, texte: text }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erreur");
+      if (!res.ok) throw new Error(messageFromBody(data) ?? getApiErrorMessageSync(res.status));
       // Append ou bootstrap conversation locale
       setConversation((prev) => {
         if (prev) {
@@ -131,23 +141,19 @@ export default function MessagesPage() {
         };
       });
       setInput("");
+      toast.success("Message envoyé");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erreur";
-      toast.error("Échec de l'envoi", { description: msg });
+      toast.error("Échec de l'envoi", { description: getApiErrorMessageSync(err) });
     } finally {
       setSending(false);
     }
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
-      </div>
-    );
+    return <MessagesSkeleton />;
   }
 
-  if (error) {
+  if (error && !dossierId) {
     return (
       <Alert className="border-carmin/40 bg-carmin/5">
         <AlertCircle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
@@ -164,14 +170,29 @@ export default function MessagesPage() {
 
   if (!dossierId) {
     return (
-      <Alert className="border-ambre/40 bg-ambre/5">
-        <AlertCircle className="h-4 w-4 text-ambre" strokeWidth={1.5} />
-        <AlertTitle className="font-display text-sm font-bold text-encre">Aucun dossier</AlertTitle>
+      <EmptyState
+        icon={<MessageSquare className="h-5 w-5" strokeWidth={1.5} />}
+        title="Aucun dossier"
+        description="Créez d'abord un dossier pour écrire à votre conseiller."
+        action={
+          <Button asChild className="bg-lapis text-blanc hover:bg-lapis/90">
+            <Link href="/espace/dossier">Composer mon dossier</Link>
+          </Button>
+        }
+      />
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert className="border-carmin/40 bg-carmin/5">
+        <AlertCircle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
+        <AlertTitle className="font-display text-sm font-bold text-encre">Chargement impossible</AlertTitle>
         <AlertDescription className="text-sm text-ardoise">
-          Créez d&apos;abord un dossier pour écrire à votre conseiller.{" "}
-          <Link href="/espace/dossier" className="font-medium text-lapis-clair hover:underline">
-            Composer mon dossier
-          </Link>
+          {error}{" "}
+          <button type="button" className="font-medium text-lapis underline" onClick={() => window.location.reload()}>
+            Réessayer
+          </button>
         </AlertDescription>
       </Alert>
     );

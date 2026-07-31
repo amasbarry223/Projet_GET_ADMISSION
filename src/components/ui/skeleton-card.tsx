@@ -128,6 +128,67 @@ export function AdminDashboardSkeleton() {
   );
 }
 
+/** Skeleton page formulaire (profil, auth) */
+export function FormPageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <Skeleton className="h-3 w-16" />
+        <Skeleton className="h-8 w-56" />
+      </div>
+      <div className="rounded-lg border border-ligne bg-blanc p-6 space-y-4">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-16 w-16 rounded-full" />
+          <div className="space-y-2 flex-1">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-3 w-56" />
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="space-y-1.5">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-10 w-full rounded-md" />
+            </div>
+          ))}
+        </div>
+        <Skeleton className="h-10 w-36 rounded-md" />
+      </div>
+    </div>
+  );
+}
+
+/** Skeleton page messages */
+export function MessagesSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <Skeleton className="h-3 w-20" />
+        <Skeleton className="h-8 w-40" />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+        <div className="rounded-lg border border-ligne bg-blanc p-3 space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex gap-3 p-2">
+              <Skeleton className="h-10 w-10 rounded-full" />
+              <div className="flex-1 space-y-1.5">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-2 w-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="rounded-lg border border-ligne bg-blanc p-5 space-y-4 min-h-[320px]">
+          <Skeleton className="h-4 w-48" />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className={cn("h-12 rounded-lg", i % 2 === 0 ? "w-3/4 ml-auto" : "w-2/3")} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Skeleton du dashboard candidat */
 export function EspaceDashboardSkeleton() {
   return (

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers";
 
@@ -64,7 +63,6 @@ export default function RootLayout({
         className={`${bricolage.variable} ${generalSans.variable} ${geistMono.variable} antialiased bg-porcelaine text-encre`}
       >
         <Providers>{children}</Providers>
-        <Toaster />
         <SonnerToaster position="top-right" richColors closeButton />
       </body>
     </html>

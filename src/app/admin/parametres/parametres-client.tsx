@@ -293,13 +293,25 @@ function ToggleRow({
   onChange: (v: boolean) => void;
   disabled?: boolean;
 }) {
+  const labelId = React.useId();
+  const descId = React.useId();
   return (
     <div className="flex items-center justify-between rounded-md border border-ligne px-3 py-3">
       <div>
-        <p className="text-sm font-medium text-encre">{label}</p>
-        <p className="text-xs text-ardoise">{desc}</p>
+        <p id={labelId} className="text-sm font-medium text-encre">
+          {label}
+        </p>
+        <p id={descId} className="text-xs text-ardoise">
+          {desc}
+        </p>
       </div>
-      <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
+      <Switch
+        checked={checked}
+        onCheckedChange={onChange}
+        disabled={disabled}
+        aria-labelledby={labelId}
+        aria-describedby={descId}
+      />
     </div>
   );
 }

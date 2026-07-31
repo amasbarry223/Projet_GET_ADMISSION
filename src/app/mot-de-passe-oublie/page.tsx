@@ -8,19 +8,28 @@ import { Label } from "@/components/ui/label";
 import { Mail, ArrowLeft, CheckCircle2, ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
+import { FieldError } from "@/components/ui/field-error";
 
 export default function MotDePasseOubliePage() {
   const [email, setEmail] = React.useState("");
   const [sent, setSent] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [demoUrl, setDemoUrl] = React.useState<string | null>(null);
+  const [emailError, setEmailError] = React.useState<string | null>(null);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast.error("E-mail invalide", { description: "L'e-mail saisi n'est pas valide." });
+    if (!email.trim()) {
+      setEmailError("L'e-mail est requis.");
+      toast.error("E-mail requis");
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailError("L'e-mail saisi n'est pas valide.");
+      toast.error("E-mail invalide", { description: "Corrigez l'adresse indiquée." });
+      return;
+    }
+    setEmailError(null);
     setLoading(true);
     try {
       const res = await fetch("/api/auth/forgot-password", {
@@ -69,12 +78,18 @@ export default function MotDePasseOubliePage() {
                       id="email"
                       type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        setEmailError(null);
+                      }}
                       className="pl-9"
                       placeholder="vous@exemple.com"
                       autoComplete="email"
+                      aria-invalid={!!emailError}
+                      aria-describedby={emailError ? "err-forgot-email" : undefined}
                     />
                   </div>
+                  <FieldError id="err-forgot-email" message={emailError} />
                 </div>
                 <Button type="submit" disabled={loading} className="w-full bg-lapis text-blanc hover:bg-lapis/90">
                   {loading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
