@@ -281,7 +281,7 @@ Agent: Lead (main) — expert UX/UI
 Task: Refonte visuelle avec images — donner vie au portail Candidat.
 
 Work Log:
-- Images générées (image-generation skill, z-ai CLI) :
+- Images générées (image-generation skill) :
   * public/images/hero-dashboard.png (1344x768) — illustration éditoriale premium : passeport ouvert avec tampon doré, carte d'embarquement, vue aérienne douce d'un campus européen. Palette lapis/or/porcelaine, sans texte, sans personne.
   * public/images/advisor-portrait.png (864x1152) — portrait professionnel d'une femme ouest-africaine ~30 ans, blazer navy, sourire chaleureux, éclairage doux.
   * public/images/candidate-portrait.png (864x1152) — portrait d'une jeune étudiante ouest-africaine ~20 ans, sourire naturel, top clair, éclairage doux.

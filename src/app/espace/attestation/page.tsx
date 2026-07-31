@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { formatDate } from "@/lib/format";
 import { toast } from "sonner";
-import { Stamp, Lock, Download, Eye, EyeOff, MapPin, ShieldCheck, CheckCircle2, Clock, Loader2, AlertCircle } from "lucide-react";
+import { Stamp, Download, Eye, EyeOff, MapPin, ShieldCheck, CheckCircle2, Clock, Loader2, AlertCircle } from "lucide-react";
 
 type Dossier = {
   id: string;
@@ -39,6 +39,7 @@ export default function AttestationPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [showPreview, setShowPreview] = React.useState(false);
   const [remiseAgence, setRemiseAgence] = React.useState(false);
+  const [savingRemise, setSavingRemise] = React.useState(false);
 
   React.useEffect(() => {
     Promise.all([
@@ -50,13 +51,13 @@ export default function AttestationPage() {
         setDossier(d);
         const dir = equipe.find((m: { role: string }) => m.role.toLowerCase().includes("directrice") || m.role.toLowerCase().includes("directeur"));
         setDirectrice(dir ?? { nom: "GET Admission", role: "Direction" });
-        // Récupère l'attestation réelle si elle existe (dossier en état ATTESTATION/CLOTURE)
         if (d?.id) {
           try {
             const attRes = await fetch(`/api/attestations/${d.id}`);
             if (attRes.ok) {
-              const att = await attRes.json();
-              setAttestation(att as Attestation);
+              const att = (await attRes.json()) as Attestation;
+              setAttestation(att);
+              setRemiseAgence(att.modeRemise === "agence");
             }
           } catch (e) {
             console.error("fetch error:", e);
@@ -71,6 +72,37 @@ export default function AttestationPage() {
       });
   }, []);
 
+  async function persistModeRemise(agence: boolean) {
+    if (!dossier?.id || !attestation) {
+      toast.error("Attestation non encore émise");
+      return;
+    }
+    setRemiseAgence(agence);
+    setSavingRemise(true);
+    try {
+      const modeRemise = agence ? "agence" : "telechargement";
+      const res = await fetch(`/api/attestations/${dossier.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modeRemise }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Échec de l'enregistrement");
+      }
+      const updated = (await res.json()) as Attestation;
+      setAttestation((prev) => (prev ? { ...prev, modeRemise: updated.modeRemise } : prev));
+      toast.success(agence ? "Retrait à l'agence enregistré" : "Téléchargement sélectionné", {
+        description: agence ? "Présentez-vous à l'agence — Dakar." : undefined,
+      });
+    } catch (e) {
+      setRemiseAgence(!agence);
+      toast.error(e instanceof Error ? e.message : "Impossible d'enregistrer le mode de remise");
+    } finally {
+      setSavingRemise(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -79,15 +111,30 @@ export default function AttestationPage() {
     );
   }
 
-  if (error || !dossier) {
+  if (error) {
+    return (
+      <Alert className="border-carmin/40 bg-carmin/5">
+        <AlertCircle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
+        <AlertTitle className="font-display text-sm font-bold text-encre">Chargement impossible</AlertTitle>
+        <AlertDescription className="text-sm text-ardoise">
+          {error}{" "}
+          <button type="button" className="font-medium text-lapis underline" onClick={() => window.location.reload()}>
+            Réessayer
+          </button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (!dossier) {
     return (
       <Alert className="border-ambre/40 bg-ambre/5">
         <AlertCircle className="h-4 w-4 text-ambre" strokeWidth={1.5} />
         <AlertTitle className="font-display text-sm font-bold text-encre">Aucun dossier</AlertTitle>
         <AlertDescription className="text-sm text-ardoise">
-          Vous n'avez pas encore de dossier.{" "}
+          Vous n&apos;avez pas encore de dossier.{" "}
           <Link href="/espace/dossier" className="font-medium text-lapis-clair hover:underline">
-            Créer mon dossier
+            Composer mon dossier
           </Link>
         </AlertDescription>
       </Alert>
@@ -121,30 +168,29 @@ export default function AttestationPage() {
           <CheckCircle2 className="h-5 w-5 text-vert" strokeWidth={1.5} />
           <AlertTitle className="font-display text-xl font-bold text-encre">Attestation disponible.</AlertTitle>
           <AlertDescription className="mt-1 text-sm text-ardoise">
-            Votre attestation est prête. Téléchargez-la ou récupérez-la à l'agence.
+            Votre attestation est prête. Téléchargez-la ou récupérez-la à l&apos;agence.
           </AlertDescription>
         </Alert>
       ) : (
         <Alert className="border-ligne bg-blanc p-6">
           <Clock className="h-5 w-5 text-ambre" strokeWidth={1.5} />
-          <AlertTitle className="font-display text-xl font-bold text-encre">Attestation en cours d'émission.</AlertTitle>
+          <AlertTitle className="font-display text-xl font-bold text-encre">Attestation pas encore disponible.</AlertTitle>
           <AlertDescription className="mt-1 text-sm text-ardoise">
-            Votre attestation sera disponible après la décision de l'université partenaire.
+            Elle sera accessible ici dès que l&apos;université aura validé votre pré-admission.
           </AlertDescription>
         </Alert>
       )}
 
+      {isAvailable && (
       <Card className="border-ligne bg-blanc p-8 text-center">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-ardoise/10">
-          <Lock className="h-7 w-7 text-ardoise" strokeWidth={1.5} />
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-vert/10">
+          <Stamp className="h-7 w-7 text-vert" strokeWidth={1.5} />
         </div>
         <h2 className="font-display text-xl font-bold text-encre">
-          {isAvailable ? "Attestation prête à être récupérée." : "Attestation en cours d'émission."}
+          Attestation prête à être récupérée.
         </h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-ardoise">
-          {isAvailable
-            ? "Téléchargez votre attestation officielle ci-dessous ou activez le retrait à l'agence."
-            : "Votre attestation sera disponible après la décision de l'université partenaire."}
+          Téléchargez votre attestation officielle ci-dessous ou activez le retrait à l&apos;agence.
         </p>
 
         <div className="mx-auto mt-5 max-w-sm rounded-md border border-vert/30 bg-vert/5 p-4 text-left">
@@ -153,25 +199,21 @@ export default function AttestationPage() {
             <p className="text-sm font-medium text-encre">
               {preAdmissionDate
                 ? `Pré-admission accordée le ${formatDate(preAdmissionDate)}`
-                : "Pré-admission en cours"}
+                : "Pré-admission confirmée"}
             </p>
           </div>
-          <p className="mt-1 text-xs text-ardoise">
-            {isAvailable
-              ? "Attestation émise et disponible. Votre conseiller vous notifiera dès qu'elle sera prête."
-              : "Attestation disponible sous 48h ouvrées. Votre conseiller vous notifiera dès qu'elle sera prête."}
-          </p>
         </div>
 
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <Button variant="outline" onClick={() => setShowPreview((s) => !s)}>
-            {showPreview ? <><EyeOff className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Masquer l'aperçu</> : <><Eye className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Aperçu de l'attestation</>}
+            {showPreview ? <><EyeOff className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Masquer l&apos;aperçu</> : <><Eye className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Aperçu de l&apos;attestation</>}
           </Button>
         </div>
       </Card>
+      )}
 
       {/* Preview */}
-      {showPreview && (
+      {isAvailable && showPreview && (
         <Card className="border-ligne bg-blanc p-0 overflow-hidden">
           <div className="border-b border-ligne bg-porcelaine px-6 py-3">
             <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Aperçu — non officiel</p>
@@ -267,7 +309,12 @@ export default function AttestationPage() {
                   <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Télécharger le PDF
                 </Button>
                 <div className="flex items-center gap-2 rounded-md border border-ligne bg-blanc px-3 py-1.5">
-                  <Switch id="remise" checked={remiseAgence} onCheckedChange={(v) => { setRemiseAgence(v); toast.success(v ? "Mode de remise enregistré" : "Mode de remise réinitialisé", { description: v ? "Retrait à l'agence — Dakar." : undefined }); }} />
+                  <Switch
+                    id="remise"
+                    checked={remiseAgence}
+                    disabled={savingRemise || !attestation}
+                    onCheckedChange={(v) => void persistModeRemise(v)}
+                  />
                   <Label htmlFor="remise" className="flex items-center gap-1.5 text-sm text-encre cursor-pointer">
                     <MapPin className="h-3.5 w-3.5 text-lapis" strokeWidth={1.5} /> Je viendrai la récupérer à l'agence
                   </Label>

@@ -3,10 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dossierUpdateSchema, validate } from "@/lib/validations";
+import { notifyDossierTransition } from "@/lib/notifications";
+import { requirePermission } from "@/lib/rbac";
 
-// GET /api/dossiers/[id] — détail (candidat propriétaire ou staff)
+// GET /api/dossiers/[id] — détail (candidat propriétaire ou staff avec dossiers.read)
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
@@ -15,8 +17,8 @@ export async function GET(
   }
 
   const { id } = await params;
-  const role = (session.user as any).role;
-  const userId = (session.user as any).id;
+  const role = (session.user as { role?: string }).role;
+  const userId = (session.user as { id: string }).id;
 
   const dossier = await db.dossier.findUnique({
     where: { id },
@@ -36,12 +38,15 @@ export async function GET(
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
   }
 
-  // RBAC : candidat ne voit que son dossier
-  if (role === "CANDIDAT" && dossier.candidatId !== userId) {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  if (role === "CANDIDAT") {
+    if (dossier.candidatId !== userId) {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+  } else {
+    const gate = requirePermission(role, "dossiers.read");
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
-  // Parse JSON fields
   const result = {
     ...dossier,
     universite: {
@@ -59,14 +64,10 @@ export async function GET(
   return NextResponse.json(result);
 }
 
-// PUT /api/dossiers/[id] — mettre à jour un dossier
-//
-// Body (tous champs optionnels) :
-// - etapeActuelle?: number (1-12)
-// - info?: { prenom, nom, telephone, nationalite, dateNaissance, adresse }  → met à jour le candidat
-// - pieces?: [{ libelle, statut }]  → met à jour le statut des pièces existantes (par libellé)
-//
-// RBAC : candidat propriétaire du dossier OU staff (non CANDIDAT)
+// PUT /api/dossiers/[id]
+// - Sauvegarde brouillon (info, pieces, etapeActuelle)
+// - action=soumettre : BROUILLON → SOUMIS (BF-15)
+// - action=resoumettre : CORRECTION → VERIFICATION (BF-16)
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -77,20 +78,35 @@ export async function PUT(
   }
 
   const { id } = await params;
-  const role = (session.user as any).role;
-  const userId = (session.user as any).id;
+  const role = (session.user as { role?: string }).role;
+  const userId = (session.user as { id: string }).id;
 
   const dossier = await db.dossier.findUnique({
     where: { id },
-    select: { id: true, candidatId: true, reference: true },
+    select: { id: true, candidatId: true, reference: true, etat: true },
   });
   if (!dossier) {
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
   }
 
-  // RBAC : candidat ne modifie que son dossier
-  if (role === "CANDIDAT" && dossier.candidatId !== userId) {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  if (role === "CANDIDAT") {
+    if (dossier.candidatId !== userId) {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+  } else {
+    const gate = requirePermission(role, "dossiers.write");
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  }
+
+  // Candidat ne peut éditer qu'en BROUILLON ou CORRECTION
+  if (
+    role === "CANDIDAT" &&
+    !["BROUILLON", "CORRECTION"].includes(dossier.etat)
+  ) {
+    return NextResponse.json(
+      { error: "Ce dossier ne peut plus être modifié dans son état actuel" },
+      { status: 400 }
+    );
   }
 
   let body: unknown;
@@ -104,23 +120,57 @@ export async function PUT(
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
-  const { etapeActuelle, info, pieces } = parsed.data;
-  const conseillerId = (body as any)?.conseillerId;
+  const { etapeActuelle, info, pieces, action } = parsed.data;
+  const conseillerId = (body as { conseillerId?: string | null })?.conseillerId;
 
-  const auteurLabel = `${(session.user as any).prenom} ${(session.user as any).nom}`;
+  if (conseillerId !== undefined && role === "CANDIDAT") {
+    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  }
 
-  // Transaction : update dossier + update user + update pieces + historique
+  const auteurLabel = `${(session.user as { prenom: string }).prenom} ${(session.user as { nom: string }).nom}`;
+
+  // Validation soumission / resoumission
+  if (action === "soumettre") {
+    if (dossier.etat !== "BROUILLON") {
+      return NextResponse.json({ error: "Seuls les brouillons peuvent être soumis" }, { status: 400 });
+    }
+    const manquantes = await db.piece.count({
+      where: { dossierId: id, statut: { in: ["manquante", "a_corriger"] } },
+    });
+    if (manquantes > 0) {
+      return NextResponse.json(
+        { error: `${manquantes} pièce(s) obligatoire(s) manquante(s) ou à corriger` },
+        { status: 400 }
+      );
+    }
+  }
+  if (action === "resoumettre") {
+    if (dossier.etat !== "CORRECTION") {
+      return NextResponse.json({ error: "Resoumission réservée aux dossiers « À corriger »" }, { status: 400 });
+    }
+    const manquantes = await db.piece.count({
+      where: { dossierId: id, statut: { in: ["manquante", "a_corriger"] } },
+    });
+    if (manquantes > 0) {
+      return NextResponse.json(
+        { error: `${manquantes} pièce(s) encore à corriger ou manquante(s)` },
+        { status: 400 }
+      );
+    }
+  }
+
   const updated = await db.$transaction(async (tx) => {
     const notes: string[] = [];
+    let nouvelEtat = dossier.etat;
 
-    // 0) Affectation d'un conseiller (staff uniquement)
     if (conseillerId !== undefined && role !== "CANDIDAT") {
       await tx.dossier.update({ where: { id }, data: { conseillerId: conseillerId || null } });
-      const cons = conseillerId ? await tx.user.findUnique({ where: { id: conseillerId }, select: { prenom: true, nom: true } }) : null;
+      const cons = conseillerId
+        ? await tx.user.findUnique({ where: { id: conseillerId }, select: { prenom: true, nom: true } })
+        : null;
       notes.push(cons ? `Conseiller affecté : ${cons.prenom} ${cons.nom}` : "Conseiller désaffecté");
     }
 
-    // 1) Mise à jour des infos personnelles du candidat (sur le User lié)
     if (info) {
       const data: Record<string, string> = {};
       if (info.prenom !== undefined) data.prenom = info.prenom;
@@ -135,35 +185,60 @@ export async function PUT(
       }
     }
 
-    // 2) Mise à jour des pièces (par libellé)
     if (pieces && pieces.length > 0) {
       for (const p of pieces) {
-        await tx.piece.updateMany({
-          where: { dossierId: id, libelle: p.libelle },
-          data: {
-            statut: p.statut,
-            ...(p.statut === "televersee" ? { televerseeLe: new Date() } : {}),
-          },
-        });
+        const existing = await tx.piece.findFirst({ where: { dossierId: id, libelle: p.libelle } });
+        if (existing) {
+          await tx.piece.update({
+            where: { id: existing.id },
+            data: {
+              statut: p.statut,
+              ...(p.statut === "televersee" ? { televerseeLe: new Date() } : {}),
+            },
+          });
+        } else {
+          await tx.piece.create({
+            data: {
+              dossierId: id,
+              libelle: p.libelle,
+              statut: p.statut,
+              televerseeLe: p.statut === "televersee" ? new Date() : null,
+            },
+          });
+        }
       }
       notes.push(`${pieces.length} pièce(s) mise(s) à jour`);
     }
 
-    // 3) Mise à jour de l'étape courante
-    if (etapeActuelle !== undefined) {
+    if (action === "soumettre") {
+      nouvelEtat = "SOUMIS";
       await tx.dossier.update({
         where: { id },
-        data: { etapeActuelle },
+        data: { etat: "SOUMIS", etapeActuelle: 2 },
       });
-      notes.push(`Étape passée à ${etapeActuelle}`);
+      notes.push("Dossier soumis — entrée en file de traitement");
+    } else if (action === "resoumettre") {
+      nouvelEtat = "VERIFICATION";
+      await tx.dossier.update({
+        where: { id },
+        data: { etat: "VERIFICATION", etapeActuelle: 3 },
+      });
+      notes.push("Corrections resoumises — retour en vérification");
+    } else if (etapeActuelle !== undefined) {
+      // Candidat : progression wizard 1–5 uniquement (ne pas écraser l'ordre workflow 1–12)
+      const stepToSave = role === "CANDIDAT" ? Math.min(5, Math.max(1, etapeActuelle)) : etapeActuelle;
+      await tx.dossier.update({
+        where: { id },
+        data: { etapeActuelle: stepToSave },
+      });
+      notes.push(`Étape passée à ${stepToSave}`);
     }
 
-    // 4) Historique (seulement s'il y a eu des changements)
     if (notes.length > 0) {
       await tx.historique.create({
         data: {
           dossierId: id,
-          etat: "SOUMIS", // l'état courant réel est conservé, on log juste l'update
+          etat: nouvelEtat as "BROUILLON" | "SOUMIS" | "VERIFICATION" | "CORRECTION",
           auteur: auteurLabel,
           auteurId: userId,
           note: notes.join(" · "),
@@ -174,7 +249,18 @@ export async function PUT(
     return tx.dossier.findUnique({
       where: { id },
       include: {
-        candidat: { select: { id: true, prenom: true, nom: true, email: true, nationalite: true, telephone: true, dateNaissance: true, adresse: true } },
+        candidat: {
+          select: {
+            id: true,
+            prenom: true,
+            nom: true,
+            email: true,
+            nationalite: true,
+            telephone: true,
+            dateNaissance: true,
+            adresse: true,
+          },
+        },
         universite: true,
         formation: true,
         pieces: true,
@@ -182,6 +268,20 @@ export async function PUT(
       },
     });
   });
+
+  if (action === "soumettre" || action === "resoumettre") {
+    try {
+      await notifyDossierTransition({
+        candidatId: dossier.candidatId,
+        dossierId: id,
+        reference: dossier.reference,
+        nouvelEtat: action === "soumettre" ? "SOUMIS" : "VERIFICATION",
+        note: action === "soumettre" ? "Votre dossier a été soumis." : "Vos corrections ont été renvoyées.",
+      });
+    } catch {
+      // ignore
+    }
+  }
 
   return NextResponse.json(updated);
 }

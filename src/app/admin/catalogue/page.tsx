@@ -1,16 +1,10 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { redirect } from "next/navigation";
 import { normalizeUniversite } from "@/lib/types";
 import { CatalogueClient } from "@/components/admin/catalogue-client";
+import { requireAdminPage } from "@/lib/admin-page-auth";
 
-// Server component — fetches the full catalogue (universités + formations) via Prisma
-// and parses JSON string fields via normalizeUniversite. No client waterfall.
-// Auth: any staff member (not CANDIDAT).
 export default async function AdminCataloguePage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || (session.user as any).role === "CANDIDAT") redirect("/connexion");
+  await requireAdminPage("catalogue.write");
 
   const universites = await db.universite.findMany({
     include: { formations: true },

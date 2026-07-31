@@ -3,14 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pieceSchema, validate } from "@/lib/validations";
+import { saveUpload, deleteUpload } from "@/lib/storage";
+import { hasPermission, requirePermission } from "@/lib/rbac";
 
-// POST /api/dossiers/[id]/pieces — créer ou mettre à jour une pièce
-//
-// Body: { libelle, statut, type?, nomFichier?, taille? }
-// - Si une pièce avec ce libellé existe déjà pour ce dossier → update
-// - Sinon → create
-//
-// RBAC : candidat propriétaire du dossier OU staff
+// POST /api/dossiers/[id]/pieces
+// - multipart/form-data : file + libelle (+ statut optionnel) → upload réel
+// - application/json : toggle métadonnées (staff validation)
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -21,22 +19,89 @@ export async function POST(
   }
 
   const { id } = await params;
-  const role = (session.user as any).role;
-  const userId = (session.user as any).id;
+  const role = (session.user as { role?: string }).role;
+  const userId = (session.user as { id: string }).id;
 
   const dossier = await db.dossier.findUnique({
     where: { id },
-    select: { id: true, candidatId: true, reference: true },
+    select: { id: true, candidatId: true, reference: true, etat: true },
   });
   if (!dossier) {
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
   }
 
-  // RBAC : candidat ne modifie que son dossier
-  if (role === "CANDIDAT" && dossier.candidatId !== userId) {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  if (role === "CANDIDAT") {
+    if (dossier.candidatId !== userId) {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+  } else {
+    const gate = requirePermission(role, "dossiers.write");
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
+  const contentType = request.headers.get("content-type") || "";
+
+  // ── Upload multipart ──
+  if (contentType.includes("multipart/form-data")) {
+    if (role === "CANDIDAT" && !["BROUILLON", "CORRECTION"].includes(dossier.etat)) {
+      return NextResponse.json(
+        { error: "Upload impossible dans l'état actuel du dossier" },
+        { status: 400 }
+      );
+    }
+
+    const form = await request.formData();
+    const file = form.get("file");
+    const libelle = String(form.get("libelle") || "").trim();
+    if (!libelle) {
+      return NextResponse.json({ error: "Libellé requis" }, { status: 400 });
+    }
+    if (!(file instanceof File) || file.size === 0) {
+      return NextResponse.json({ error: "Fichier requis" }, { status: 400 });
+    }
+
+    let uploaded;
+    try {
+      uploaded = await saveUpload(file, `pieces/${id}`);
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Upload échoué" },
+        { status: 400 }
+      );
+    }
+
+    const existing = await db.piece.findFirst({ where: { dossierId: id, libelle } });
+    if (existing?.cheminFichier) {
+      await deleteUpload(existing.cheminFichier);
+    }
+
+    const data = {
+      statut: "televersee" as const,
+      type: uploaded.type,
+      nomFichier: uploaded.nomFichier,
+      taille: uploaded.taille,
+      cheminFichier: uploaded.cheminRelatif,
+      televerseeLe: new Date(),
+    };
+
+    const piece = existing
+      ? await db.piece.update({ where: { id: existing.id }, data })
+      : await db.piece.create({ data: { dossierId: id, libelle, ...data } });
+
+    await db.historique.create({
+      data: {
+        dossierId: id,
+        etat: dossier.etat,
+        auteur: `${(session.user as { prenom: string }).prenom} ${(session.user as { nom: string }).nom}`,
+        auteurId: userId,
+        note: `Pièce « ${libelle} » téléversée (${uploaded.nomFichier}, ${uploaded.taille})`,
+      },
+    });
+
+    return NextResponse.json(piece, { status: existing ? 200 : 201 });
+  }
+
+  // ── JSON (validation staff / toggle) ──
   let body: unknown;
   try {
     body = await request.json();
@@ -50,11 +115,12 @@ export async function POST(
   }
   const { libelle, statut, type, nomFichier, taille } = parsed.data;
 
-  // Cherche une pièce existante avec ce libellé
-  const existing = await db.piece.findFirst({
-    where: { dossierId: id, libelle },
-  });
+  // Seul le staff peut marquer validee / a_corriger
+  if ((statut === "validee" || statut === "a_corriger") && !hasPermission(role, "dossiers.write")) {
+    return NextResponse.json({ error: "Seul un conseiller peut valider ou renvoyer une pièce" }, { status: 403 });
+  }
 
+  const existing = await db.piece.findFirst({ where: { dossierId: id, libelle } });
   const televerseeLe = statut === "televersee" || statut === "validee" ? new Date() : undefined;
 
   let piece;
@@ -83,12 +149,11 @@ export async function POST(
     });
   }
 
-  // Historique
   await db.historique.create({
     data: {
       dossierId: id,
-      etat: "VERIFICATION",
-      auteur: `${(session.user as any).prenom} ${(session.user as any).nom}`,
+      etat: dossier.etat,
+      auteur: `${(session.user as { prenom: string }).prenom} ${(session.user as { nom: string }).nom}`,
       auteurId: userId,
       note: `Pièce « ${libelle} » → ${statut.replace(/_/g, " ").toLowerCase()}`,
     },
@@ -97,9 +162,8 @@ export async function POST(
   return NextResponse.json(piece, { status: existing ? 200 : 201 });
 }
 
-// GET /api/dossiers/[id]/pieces — liste des pièces d'un dossier
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
@@ -108,8 +172,8 @@ export async function GET(
   }
 
   const { id } = await params;
-  const role = (session.user as any).role;
-  const userId = (session.user as any).id;
+  const role = (session.user as { role?: string }).role;
+  const userId = (session.user as { id: string }).id;
 
   const dossier = await db.dossier.findUnique({
     where: { id },
@@ -121,6 +185,10 @@ export async function GET(
 
   if (role === "CANDIDAT" && dossier.candidatId !== userId) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  }
+  if (role !== "CANDIDAT") {
+    const gate = requirePermission(role, "dossiers.read");
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
   const pieces = await db.piece.findMany({

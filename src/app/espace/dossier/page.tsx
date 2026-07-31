@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
+import { MotionButton } from "@/components/site/motion-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,9 +13,10 @@ import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BoardingPass } from "@/components/getadm/boarding-pass";
 import { formatFCFA } from "@/lib/format";
+import { etatParCode } from "@/lib/etats";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Upload, CheckCircle2, AlertCircle, X, ArrowLeft, ArrowRight, Save, Check, Lock, Plane, Loader2 } from "lucide-react";
+import { Upload, CheckCircle2, AlertCircle, ArrowLeft, ArrowRight, Save, Check, Lock, Plane, Loader2 } from "lucide-react";
 
 const STEPS = [
   { n: 1, label: "Université & formation" },
@@ -73,7 +75,18 @@ function parseStringList(value: string[] | string | undefined | null): string[] 
 }
 
 export default function DossierPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-lapis" /></div>}>
+      <DossierWizard />
+    </Suspense>
+  );
+}
+
+function DossierWizard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const prefUniv = searchParams.get("universite") || "";
+  const prefForm = searchParams.get("formation") || "";
   const [loadingDossier, setLoadingDossier] = React.useState(true);
   const [universites, setUniversites] = React.useState<Universite[]>([]);
   const [universitesLoading, setUniversitesLoading] = React.useState(true);
@@ -136,6 +149,14 @@ export default function DossierPage() {
             map[p.libelle] = st;
           });
           setPieces(map);
+          // etapeActuelle en brouillon = progression wizard 1–5 ; sinon ne pas restaurer le workflow 1–12
+          const etat = (d.etat || "").toUpperCase();
+          if (etat === "BROUILLON" || etat === "CORRECTION") {
+            const restored = Math.min(5, Math.max(1, d.etapeActuelle || 1));
+            setStep(etat === "CORRECTION" && restored < 3 ? 3 : restored);
+          } else {
+            setStep(5);
+          }
         }
         setLoadingDossier(false);
       })
@@ -145,16 +166,27 @@ export default function DossierPage() {
       });
   }, []);
 
-  // Sélection par défaut : première université + première formation
+  // Pré-remplir depuis le catalogue (query) — jamais auto-sélectionner la 1ʳᵉ univ
   React.useEffect(() => {
-    if (!universitesLoading && universites.length > 0 && !univId) {
-      const first = universites[0];
-      setUnivId(first.id);
-      if (first.formations[0]) {
-        setFormId(first.formations[0].id);
+    if (loadingDossier || universitesLoading || existingDossier) return;
+    if (prefUniv && universites.some((u) => u.id === prefUniv)) {
+      setUnivId(prefUniv);
+      const u = universites.find((x) => x.id === prefUniv);
+      if (prefForm && u?.formations.some((f) => f.id === prefForm)) {
+        setFormId(prefForm);
+      }
+      return;
+    }
+    if (prefForm) {
+      for (const u of universites) {
+        if (u.formations.some((f) => f.id === prefForm)) {
+          setUnivId(u.id);
+          setFormId(prefForm);
+          break;
+        }
       }
     }
-  }, [universitesLoading, universites, univId]);
+  }, [loadingDossier, universitesLoading, universites, prefUniv, prefForm, existingDossier]);
 
   const universite = universites.find((u) => u.id === univId);
   const formationsForUniv = universite?.formations ?? [];
@@ -163,24 +195,52 @@ export default function DossierPage() {
   const prerequisList = parseStringList(formation?.prerequis);
   const piecesRequises = parseStringList(formation?.piecesRequises);
 
-  // Mock "draft saved" indicator
+  // Auto-sauvegarde brouillon réelle (debounce)
   React.useEffect(() => {
-    if (loadingDossier || universitesLoading) return;
-    const t1 = setTimeout(() => {
-      setSavedBadge(true);
-      const t2 = setTimeout(() => setSavedBadge(false), 2000);
-      // Cleanup du timeout interne via closure
-      return () => clearTimeout(t2);
-    }, 800);
-    return () => clearTimeout(t1);
-  }, [step, univId, formId, info, pieces, loadingDossier, universitesLoading]);
+    if (loadingDossier || universitesLoading || !existingDossier?.id) return;
+    const etat = (existingDossier.etat || "").toUpperCase();
+    if (etat !== "BROUILLON" && etat !== "CORRECTION") return;
+
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/dossiers/${existingDossier.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            etapeActuelle: step,
+            info: {
+              prenom: info.prenom,
+              nom: info.nom,
+              telephone: info.tel,
+              nationalite: info.nationalite,
+              ...(info.naissance ? { dateNaissance: info.naissance } : {}),
+              ...(info.adresse ? { adresse: info.adresse } : {}),
+            },
+          }),
+        });
+        if (res.ok) {
+          setSavedBadge(true);
+          setTimeout(() => setSavedBadge(false), 2000);
+        } else {
+          toast.error("Sauvegarde impossible", { description: "Vos modifications n'ont pas été enregistrées." });
+        }
+      } catch {
+        toast.error("Sauvegarde impossible", { description: "Vérifiez votre connexion." });
+      }
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [step, info, existingDossier?.id, existingDossier?.etat, loadingDossier, universitesLoading]);
 
   const identityPieces = ["Passeport ou CNI (page photo)", "Photo d'identité récente"];
   const allPieces = [...piecesRequises, ...identityPieces];
-  const missing = allPieces.filter((p) => !pieces[p] || pieces[p] === "manquante");
-  const canSubmit = missing.length === 0 && step === 5;
+  const missing = allPieces.filter((p) => !pieces[p] || pieces[p] === "manquante" || pieces[p] === "a_corriger");
+  const etatUpper = (existingDossier?.etat || "BROUILLON").toUpperCase();
+  const isEditable = etatUpper === "BROUILLON" || etatUpper === "CORRECTION";
+  const canSubmit = missing.length === 0 && step === 5 && isEditable;
+  const isResubmit = etatUpper === "CORRECTION";
+  const etatBadge = etatParCode(etatUpper);
 
-  const togglePiece = async (libelle: string) => {
+  const uploadPiece = async (libelle: string, file: File) => {
     const dossierId = existingDossier?.id;
     if (!dossierId) {
       toast.error("Dossier non créé", {
@@ -189,31 +249,25 @@ export default function DossierPage() {
       return;
     }
     const cur = pieces[libelle] ?? "manquante";
-    const next: PieceState = cur === "manquante" ? "televersee" : cur === "televersee" ? "validee" : "manquante";
-    // Optimistic update
-    setPieces((prev) => ({ ...prev, [libelle]: next }));
+    setPieces((prev) => ({ ...prev, [libelle]: "televersee" }));
     setTogglingPiece(libelle);
     try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("libelle", libelle);
       const res = await fetch(`/api/dossiers/${dossierId}/pieces`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          libelle,
-          statut: next,
-          ...(next === "televersee" || next === "validee"
-            ? { nomFichier: "document.pdf", taille: "1,2 Mo" }
-            : {}),
-        }),
+        body: fd,
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Échec de la mise à jour de la pièce");
+        throw new Error(data.error || "Échec de l'upload");
       }
+      toast.success("Pièce téléversée", { description: file.name });
     } catch (err: unknown) {
-      // Revert on error
       setPieces((prev) => ({ ...prev, [libelle]: cur }));
       const msg = err instanceof Error ? err.message : "Erreur";
-      toast.error("Pièce non mise à jour", { description: msg });
+      toast.error("Upload échoué", { description: msg });
     } finally {
       setTogglingPiece(null);
     }
@@ -268,7 +322,7 @@ export default function DossierPage() {
   const submit = async () => {
     if (!canSubmit) {
       toast.error("Dossier incomplet", {
-        description: `${missing.length} pièce(s) obligatoire(s) manquante(s).`,
+        description: `${missing.length} pièce(s) obligatoire(s) manquante(s) ou à corriger.`,
       });
       return;
     }
@@ -287,6 +341,7 @@ export default function DossierPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          action: isResubmit ? "resoumettre" : "soumettre",
           info: {
             prenom: info.prenom,
             nom: info.nom,
@@ -302,8 +357,10 @@ export default function DossierPage() {
       if (!res.ok) {
         throw new Error(data.error || "Échec de la soumission");
       }
-      toast.success("Dossier soumis", {
-        description: "Votre conseiller va prendre en charge votre dossier.",
+      toast.success(isResubmit ? "Corrections renvoyées" : "Dossier soumis", {
+        description: isResubmit
+          ? "Votre dossier est de nouveau en vérification."
+          : "Votre conseiller va prendre en charge votre dossier.",
       });
       router.push("/espace");
     } catch (err: unknown) {
@@ -338,26 +395,39 @@ export default function DossierPage() {
   // ou des valeurs génériques pour un nouveau dossier en cours de constitution.
   const boardingReference = existingDossier?.reference ?? "Nouveau dossier";
   const boardingEtat = existingDossier?.etat ?? "brouillon";
-  const boardingEtape = existingDossier?.etapeActuelle ?? 1;
+  const boardingEtape = etatParCode(existingDossier?.etat || "BROUILLON").ordre;
   const boardingMrz = existingDossier?.mrz ?? "GETADM<<NOUVEAU DOSSIER<<<<<<<<<<<<<<\n2026<<EN COURS DE CONSTITUTION<<<<\nREFERENCE A GENERER<<<<<<<<<<<<<<";
   const boardingConseiller = existingDossier?.conseiller ? `${existingDossier.conseiller.prenom} ${existingDossier.conseiller.nom}` : "Non affecté";
   const boardingFrais = formation?.fraisAgence ?? existingDossier?.fraisAgence ?? 0;
 
   return (
     <div className="space-y-6">
+      {isResubmit && (
+        <Alert className="border-ambre/40 bg-ambre/5">
+          <AlertCircle className="h-4 w-4 text-ambre" strokeWidth={1.5} />
+          <AlertTitle className="font-display text-sm font-bold text-encre">Corrections demandées</AlertTitle>
+          <AlertDescription className="text-sm text-ardoise">
+            Votre conseiller a renvoyé le dossier. Corrigez les pièces marquées « À corriger », puis renvoyez le dossier.
+          </AlertDescription>
+        </Alert>
+      )}
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow">Formulaire de dossier</p>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Constituez votre dossier.</h1>
+          <p className="eyebrow text-primary">Formulaire de dossier</p>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            {isResubmit ? "Corrigez votre dossier." : "Constituez votre dossier."}
+          </h1>
         </div>
         <div className="flex items-center gap-2">
           {savedBadge && (
-            <Badge className="bg-vert/10 font-mono text-[10px] uppercase text-vert">
+            <Badge className="bg-vert-vif/10 font-mono text-[10px] uppercase text-vert-vif">
               <Save className="mr-1 h-3 w-3" /> Brouillon enregistré
             </Badge>
           )}
-          <Badge variant="outline" className="font-mono text-[10px] uppercase text-ardoise">Brouillon</Badge>
+          <Badge variant="outline" className="font-mono text-[10px] uppercase text-muted-foreground">
+            {etatBadge.libelle}
+          </Badge>
         </div>
       </div>
 
@@ -369,40 +439,44 @@ export default function DossierPage() {
             const active = step === s.n;
             return (
               <li key={s.n} className="flex items-center">
-                <div className={cn("flex items-center gap-2 rounded-md px-3 py-2", active && "bg-lapis/8")}>
+                <div className={cn("flex items-center gap-2 rounded-md px-3 py-2", active && "bg-primary/10")}>
                   <span className={cn(
                     "flex h-7 w-7 flex-none items-center justify-center rounded-full border-2 font-mono text-[11px] font-semibold",
-                    done && "border-vert bg-vert text-blanc",
-                    active && "border-lapis bg-lapis text-blanc",
-                    !done && !active && "border-ligne text-ardoise"
+                    done && "border-vert-vif bg-vert-vif text-primary-foreground",
+                    active && "border-primary bg-primary text-primary-foreground",
+                    !done && !active && "border-border text-muted-foreground"
                   )}>
                     {done ? <Check className="h-3.5 w-3.5" strokeWidth={2.5} /> : String(s.n).padStart(2, "0")}
                   </span>
-                  <span className={cn("text-xs font-medium", active ? "text-lapis" : done ? "text-encre" : "text-ardoise")}>{s.label}</span>
+                  <span className={cn("text-xs font-medium", active ? "text-primary" : done ? "text-foreground" : "text-muted-foreground")}>{s.label}</span>
                 </div>
-                {i < STEPS.length - 1 && <span className="mx-1 h-px w-6 bg-ligne sm:w-10" aria-hidden />}
+                {i < STEPS.length - 1 && <span className="mx-1 h-px w-6 bg-border sm:w-10" aria-hidden />}
               </li>
             );
           })}
         </ol>
       </nav>
 
-      <Card className="border-ligne bg-blanc p-6 sm:p-8">
+      <Card className="border-border bg-card/60 backdrop-blur-md p-6 sm:p-8">
         {/* Step 1 */}
         {step === 1 && (
           <div className="space-y-5">
             <div>
-              <h2 className="font-display text-lg font-bold text-encre">Université & formation</h2>
-              <p className="text-sm text-ardoise">Choisissez votre destination et votre cursus.</p>
+              <h2 className="font-display text-lg font-bold text-foreground">Université & formation</h2>
+              <p className="text-sm text-muted-foreground">Choisissez votre destination et votre cursus.</p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">Université partenaire</Label>
-                <Select value={univId} onValueChange={(v) => {
-                  setUnivId(v);
-                  const u = universites.find((x) => x.id === v);
-                  if (u?.formations[0]) setFormId(u.formations[0].id);
-                }}>
+                <Label className="text-sm font-medium text-foreground">Université partenaire</Label>
+                <Select
+                  value={univId}
+                  disabled={!isEditable || !!existingDossier}
+                  onValueChange={(v) => {
+                    setUnivId(v);
+                    const u = universites.find((x) => x.id === v);
+                    if (u?.formations[0]) setFormId(u.formations[0].id);
+                  }}
+                >
                   <SelectTrigger><SelectValue placeholder="Sélectionnez une université" /></SelectTrigger>
                   <SelectContent>
                     {universites.map((u) => <SelectItem key={u.id} value={u.id}>{u.drapeau} {u.nom} — {u.ville}</SelectItem>)}
@@ -410,8 +484,8 @@ export default function DossierPage() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">Formation</Label>
-                <Select value={formId} onValueChange={setFormId}>
+                <Label className="text-sm font-medium text-foreground">Formation</Label>
+                <Select value={formId} onValueChange={setFormId} disabled={!isEditable || !!existingDossier}>
                   <SelectTrigger><SelectValue placeholder="Sélectionnez une formation" /></SelectTrigger>
                   <SelectContent>
                     {formationsForUniv.map((f) => <SelectItem key={f.id} value={f.id}>{f.intitule} ({f.niveau})</SelectItem>)}
@@ -420,16 +494,16 @@ export default function DossierPage() {
               </div>
             </div>
             {formation && (
-              <div className="rounded-md border border-ligne bg-porcelaine p-4">
+              <div className="rounded-md border border-border bg-muted p-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <Field label="Niveau" value={formation.niveau} />
                   <Field label="Domaine" value={formation.domaine} />
                   <Field label="Durée" value={formation.duree} />
                   <Field label="Frais d'agence" value={formatFCFA(formation.fraisAgence)} mono />
                 </div>
-                <div className="mt-3 border-t border-ligne pt-3">
-                  <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Prérequis</p>
-                  <p className="mt-1 text-sm text-encre">{prerequisList.length > 0 ? prerequisList.join(" · ") : "—"}</p>
+                <div className="mt-3 border-t border-border pt-3">
+                  <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">Prérequis</p>
+                  <p className="mt-1 text-sm text-foreground">{prerequisList.length > 0 ? prerequisList.join(" · ") : "—"}</p>
                 </div>
               </div>
             )}
@@ -440,37 +514,37 @@ export default function DossierPage() {
         {step === 2 && (
           <div className="space-y-5">
             <div>
-              <h2 className="font-display text-lg font-bold text-encre">Informations personnelles</h2>
-              <p className="text-sm text-ardoise">Vos coordonnées telles qu'elles figureront sur le dossier.</p>
+              <h2 className="font-display text-lg font-bold text-foreground">Informations personnelles</h2>
+              <p className="text-sm text-muted-foreground">Vos coordonnées telles qu'elles figureront sur le dossier.</p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">Prénom</Label>
-                <Input value={info.prenom} onChange={(e) => setInfo({ ...info, prenom: e.target.value })} />
+                <Label className="text-sm font-medium text-foreground">Prénom</Label>
+                <Input value={info.prenom} onChange={(e) => setInfo({ ...info, prenom: e.target.value })} disabled={!isEditable} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">Nom</Label>
-                <Input value={info.nom} onChange={(e) => setInfo({ ...info, nom: e.target.value })} />
+                <Label className="text-sm font-medium text-foreground">Nom</Label>
+                <Input value={info.nom} onChange={(e) => setInfo({ ...info, nom: e.target.value })} disabled={!isEditable} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">Date de naissance</Label>
-                <Input type="date" value={info.naissance} onChange={(e) => setInfo({ ...info, naissance: e.target.value })} />
+                <Label className="text-sm font-medium text-foreground">Date de naissance</Label>
+                <Input type="date" value={info.naissance} onChange={(e) => setInfo({ ...info, naissance: e.target.value })} disabled={!isEditable} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">Nationalité</Label>
-                <Input value={info.nationalite} onChange={(e) => setInfo({ ...info, nationalite: e.target.value })} />
+                <Label className="text-sm font-medium text-foreground">Nationalité</Label>
+                <Input value={info.nationalite} onChange={(e) => setInfo({ ...info, nationalite: e.target.value })} disabled={!isEditable} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">E-mail</Label>
-                <Input type="email" value={info.email} onChange={(e) => setInfo({ ...info, email: e.target.value })} />
+                <Label className="text-sm font-medium text-foreground">E-mail</Label>
+                <Input type="email" value={info.email} onChange={(e) => setInfo({ ...info, email: e.target.value })} disabled={!isEditable} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">Téléphone</Label>
-                <Input value={info.tel} onChange={(e) => setInfo({ ...info, tel: e.target.value })} />
+                <Label className="text-sm font-medium text-foreground">Téléphone</Label>
+                <Input value={info.tel} onChange={(e) => setInfo({ ...info, tel: e.target.value })} disabled={!isEditable} />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
-                <Label className="text-sm font-medium text-encre">Adresse</Label>
-                <Input value={info.adresse} onChange={(e) => setInfo({ ...info, adresse: e.target.value })} />
+                <Label className="text-sm font-medium text-foreground">Adresse</Label>
+                <Input value={info.adresse} onChange={(e) => setInfo({ ...info, adresse: e.target.value })} disabled={!isEditable} />
               </div>
             </div>
           </div>
@@ -480,17 +554,17 @@ export default function DossierPage() {
         {step === 3 && (
           <div className="space-y-5">
             <div>
-              <h2 className="font-display text-lg font-bold text-encre">Documents académiques</h2>
-              <p className="text-sm text-ardoise">Téléversez vos pièces au format PDF, JPG ou PNG (10 Mo max).</p>
+              <h2 className="font-display text-lg font-bold text-foreground">Documents académiques</h2>
+              <p className="text-sm text-muted-foreground">Téléversez vos pièces au format PDF, JPG ou PNG (10 Mo max).</p>
             </div>
             <div className="space-y-3">
               {piecesRequises.length === 0 ? (
-                <p className="rounded-md border border-ligne bg-porcelaine p-4 text-sm text-ardoise">
+                <p className="rounded-md border border-border bg-muted p-4 text-sm text-muted-foreground">
                   Sélectionnez d'abord une formation à l'étape 1 pour voir la liste des pièces requises.
                 </p>
               ) : (
                 piecesRequises.map((libelle) => (
-                  <UploadZone key={libelle} libelle={libelle} state={pieces[libelle] ?? "manquante"} loading={togglingPiece === libelle} onToggle={() => togglePiece(libelle)} />
+                  <UploadZone key={libelle} libelle={libelle} state={pieces[libelle] ?? "manquante"} loading={togglingPiece === libelle} disabled={!isEditable} onUpload={(f) => uploadPiece(libelle, f)} />
                 ))
               )}
             </div>
@@ -501,12 +575,12 @@ export default function DossierPage() {
         {step === 4 && (
           <div className="space-y-5">
             <div>
-              <h2 className="font-display text-lg font-bold text-encre">Pièces d'identité</h2>
-              <p className="text-sm text-ardoise">Passeport ou CNI, et photo d'identité.</p>
+              <h2 className="font-display text-lg font-bold text-foreground">Pièces d'identité</h2>
+              <p className="text-sm text-muted-foreground">Passeport ou CNI, et photo d'identité.</p>
             </div>
             <div className="space-y-3">
               {identityPieces.map((libelle) => (
-                <UploadZone key={libelle} libelle={libelle} state={pieces[libelle] ?? "manquante"} loading={togglingPiece === libelle} onToggle={() => togglePiece(libelle)} />
+                <UploadZone key={libelle} libelle={libelle} state={pieces[libelle] ?? "manquante"} loading={togglingPiece === libelle} disabled={!isEditable} onUpload={(f) => uploadPiece(libelle, f)} />
               ))}
             </div>
           </div>
@@ -516,8 +590,8 @@ export default function DossierPage() {
         {step === 5 && (
           <div className="space-y-5">
             <div>
-              <h2 className="font-display text-lg font-bold text-encre">Récapitulatif & soumission</h2>
-              <p className="text-sm text-ardoise">Vérifiez votre dossier avant de le transmettre.</p>
+              <h2 className="font-display text-lg font-bold text-foreground">Récapitulatif & soumission</h2>
+              <p className="text-sm text-muted-foreground">Vérifiez votre dossier avant de le transmettre.</p>
             </div>
 
             <BoardingPass
@@ -533,8 +607,8 @@ export default function DossierPage() {
               mrz={boardingMrz}
             />
 
-            <div className="rounded-md border border-ligne bg-porcelaine p-4">
-              <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Informations</p>
+            <div className="rounded-md border border-border bg-muted/50 p-4">
+              <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">Informations</p>
               <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
                 <RecapLine label="Candidat" value={`${info.prenom} ${info.nom}`.trim()} />
                 <RecapLine label="Nationalité" value={info.nationalite} />
@@ -545,16 +619,16 @@ export default function DossierPage() {
               </div>
             </div>
 
-            <div className="rounded-md border border-ligne bg-blanc p-4">
-              <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Pièces ({allPieces.length - missing.length}/{allPieces.length})</p>
+            <div className="rounded-md border border-border bg-card p-4">
+              <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">Pièces ({allPieces.length - missing.length}/{allPieces.length})</p>
               <ul className="mt-2 space-y-1.5">
                 {allPieces.map((p) => {
                   const st = pieces[p] ?? "manquante";
                   return (
                     <li key={p} className="flex items-center gap-2 text-sm">
-                      {st === "manquante" ? <AlertCircle className="h-4 w-4 text-carmin" strokeWidth={1.5} /> : st === "a_corriger" ? <AlertCircle className="h-4 w-4 text-ambre" strokeWidth={1.5} /> : <CheckCircle2 className="h-4 w-4 text-vert" strokeWidth={1.5} />}
-                      <span className={cn(st === "manquante" ? "text-carmin" : "text-encre")}>{p}</span>
-                      <span className="ml-auto font-mono text-[10px] uppercase text-ardoise">{st.replace("_", " ")}</span>
+                      {st === "manquante" ? <AlertCircle className="h-4 w-4 text-destructive" strokeWidth={1.5} /> : st === "a_corriger" ? <AlertCircle className="h-4 w-4 text-primary" strokeWidth={1.5} /> : <CheckCircle2 className="h-4 w-4 text-vert-vif" strokeWidth={1.5} />}
+                      <span className={cn(st === "manquante" ? "text-destructive" : "text-foreground")}>{p}</span>
+                      <span className="ml-auto font-mono text-[10px] uppercase text-muted-foreground">{st.replace("_", " ")}</span>
                     </li>
                   );
                 })}
@@ -562,9 +636,9 @@ export default function DossierPage() {
             </div>
 
             {missing.length > 0 && (
-              <div className="flex items-start gap-2 rounded-md border border-carmin/30 bg-carmin/5 p-3">
-                <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-carmin" strokeWidth={1.5} />
-                <p className="text-sm text-carmin">
+              <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3">
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-destructive" strokeWidth={1.5} />
+                <p className="text-sm text-destructive">
                   Votre dossier ne peut pas être soumis : {missing.length} pièce(s) obligatoire(s) manquante(s). Complétez-la(s) pour poursuivre.
                 </p>
               </div>
@@ -573,28 +647,32 @@ export default function DossierPage() {
         )}
 
         {/* Navigation */}
-        <div className="mt-8 flex items-center justify-between border-t border-ligne pt-5">
-          <Button variant="ghost" onClick={() => setStep((s) => Math.max(1, s - 1))} disabled={step === 1}>
+        <div className="mt-8 flex items-center justify-between border-t border-border pt-5">
+          <Button variant="ghost" onClick={() => setStep((s) => Math.max(1, s - 1))} disabled={step === 1} className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Étape précédente
           </Button>
           {step < 5 ? (
-            <Button className="bg-lapis text-blanc hover:bg-lapis/90" onClick={goNext} disabled={creatingDossier}>
+            <MotionButton className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={goNext} disabled={creatingDossier}>
               {creatingDossier ? (
                 <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} /> Création du dossier…</>
               ) : (
                 <>Étape suivante <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} /></>
               )}
-            </Button>
+            </MotionButton>
           ) : (
-            <Button className="bg-lapis text-blanc hover:bg-lapis/90" onClick={submit} disabled={!canSubmit || submitting}>
+            <MotionButton className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={submit} disabled={!canSubmit || submitting}>
               {submitting ? (
-                <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} /> Soumission…</>
+                <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} /> Envoi…</>
               ) : canSubmit ? (
-                <><Plane className="mr-1.5 h-4 w-4 -rotate-12" /> Soumettre mon dossier</>
+                isResubmit ? (
+                  <><Plane className="mr-1.5 h-4 w-4 -rotate-12" /> Renvoyer les corrections</>
+                ) : (
+                  <><Plane className="mr-1.5 h-4 w-4 -rotate-12" /> Soumettre mon dossier</>
+                )
               ) : (
                 <><Lock className="mr-1.5 h-4 w-4" /> Dossier incomplet</>
               )}
-            </Button>
+            </MotionButton>
           )}
         </div>
       </Card>
@@ -605,50 +683,70 @@ export default function DossierPage() {
 function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">{label}</p>
-      <p className={cn("mt-0.5 text-sm text-encre", mono && "font-mono")}>{value}</p>
+      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">{label}</p>
+      <p className={cn("mt-0.5 text-sm text-foreground", mono && "font-mono")}>{value}</p>
     </div>
   );
 }
 
 function RecapLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-ligne/60 py-1 last:border-0">
-      <span className="text-xs text-ardoise">{label}</span>
-      <span className="text-right text-sm font-medium text-encre">{value}</span>
+    <div className="flex items-center justify-between gap-2 border-b border-border/60 py-1 last:border-0">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-right text-sm font-medium text-foreground">{value}</span>
     </div>
   );
 }
 
-function UploadZone({ libelle, state, loading, onToggle }: { libelle: string; state: PieceState; loading?: boolean; onToggle: () => void }) {
+function UploadZone({
+  libelle,
+  state,
+  loading,
+  disabled,
+  onUpload,
+}: {
+  libelle: string;
+  state: PieceState;
+  loading?: boolean;
+  disabled?: boolean;
+  onUpload: (file: File) => void;
+}) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const config = {
-    manquante: { border: "border-ligne", icon: Upload, iconColor: "text-ardoise", label: "Glissez votre fichier ici ou cliquez pour parcourir", sub: "PDF, JPG, PNG · 10 Mo max", action: "Téléverser" },
-    televersee: { border: "border-vert/40 bg-vert/5", icon: CheckCircle2, iconColor: "text-vert", label: "document.pdf · 1,2 Mo", sub: "Téléversé", action: "Marquer validé" },
-    validee: { border: "border-vert/40 bg-vert/5", icon: CheckCircle2, iconColor: "text-vert", label: "document.pdf · 1,2 Mo", sub: "Validé", action: "Retirer" },
-    a_corriger: { border: "border-ambre/40 bg-ambre/5", icon: AlertCircle, iconColor: "text-ambre", label: "document.pdf · 1,2 Mo", sub: "À corriger — format trop lourd", action: "Retéléverser" },
+    manquante: { border: "border-border border-dashed hover:border-primary/50 hover:bg-muted/50", icon: Upload, iconColor: "text-muted-foreground", label: "Glissez votre fichier ici ou cliquez pour parcourir", sub: "PDF, JPG, PNG · 10 Mo max", action: "Téléverser" },
+    televersee: { border: "border-vert-vif/40 bg-vert-vif/5", icon: CheckCircle2, iconColor: "text-vert-vif", label: "Fichier téléversé", sub: "Téléversé", action: "Remplacer" },
+    validee: { border: "border-vert-vif/40 bg-vert-vif/5", icon: CheckCircle2, iconColor: "text-vert-vif", label: "Fichier validé par l'agence", sub: "Validé", action: "Remplacer" },
+    a_corriger: { border: "border-primary/40 bg-primary/5", icon: AlertCircle, iconColor: "text-primary", label: "Pièce à corriger", sub: "À corriger", action: "Retéléverser" },
   }[state];
 
   return (
-    <div className={cn("rounded-md border p-4", config.border)}>
+    <div className={cn("rounded-md border p-4 transition-colors", config.border, disabled && "opacity-70")}>
       <div className="flex items-start gap-3">
-        <div className={cn("flex h-10 w-10 flex-none items-center justify-center rounded-md bg-blanc border border-ligne", config.iconColor)}>
+        <div className={cn("flex h-10 w-10 flex-none items-center justify-center rounded-md bg-background border border-border shadow-sm", config.iconColor)}>
           <config.icon className="h-5 w-5" strokeWidth={1.5} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-encre">{libelle}</p>
-          <p className="truncate text-xs text-ardoise">{config.label}</p>
+          <p className="text-sm font-medium text-foreground">{libelle}</p>
+          <p className="truncate text-xs text-muted-foreground">{config.label}</p>
           <p className={cn("mt-0.5 font-mono text-[10px] uppercase", config.iconColor)}>{config.sub}</p>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={onToggle} disabled={loading} className="flex-none">
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/*"
+          className="sr-only"
+          disabled={disabled || loading}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onUpload(f);
+            e.target.value = "";
+          }}
+        />
+        <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={loading || disabled} className="flex-none">
           {loading ? (
             <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
           ) : (
-            <>
-              {state === "manquante" && <Upload className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />}
-              {state === "televersee" && <Check className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />}
-              {state === "validee" && <X className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />}
-              {state === "a_corriger" && <Upload className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />}
-            </>
+            <Upload className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
           )}
           {config.action}
         </Button>

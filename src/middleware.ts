@@ -1,28 +1,54 @@
 import { withAuth } from "next-auth/middleware";
+import { NextResponse } from "next/server";
+import { isStaff, permissionForAdminPath, hasPermission } from "@/lib/rbac";
 
-// Middleware RBAC : protège /espace* et /admin*
-// - /espace* : nécessite une authentification (tous rôles)
-// - /admin* : nécessite un rôle staff (CONSEILLER, FINANCIER, ADMIN, SUPER_ADMIN)
-export default withAuth({
-  pages: {
-    signIn: "/connexion",
+// Middleware RBAC :
+// - /espace* : rôle CANDIDAT uniquement
+// - /admin* : staff + permission par chemin (§5)
+export default withAuth(
+  function middleware(req) {
+    const path = req.nextUrl.pathname;
+    const role = req.nextauth.token?.role as string | undefined;
+
+    // Staff qui tente /espace → back-office
+    if (path.startsWith("/espace") && role && role !== "CANDIDAT") {
+      const url = req.nextUrl.clone();
+      url.pathname = hasPermission(role, "dashboard") ? "/admin" : "/connexion";
+      return NextResponse.redirect(url);
+    }
+
+    if (path.startsWith("/admin")) {
+      const needed = permissionForAdminPath(path);
+      if (needed && !hasPermission(role, needed)) {
+        const url = req.nextUrl.clone();
+        if (hasPermission(role, "dossiers.read")) {
+          url.pathname = "/admin/dossiers";
+        } else if (hasPermission(role, "finance.read")) {
+          url.pathname = "/admin/finance";
+        } else {
+          url.pathname = "/connexion";
+        }
+        return NextResponse.redirect(url);
+      }
+    }
+    return NextResponse.next();
   },
-  callbacks: {
-    authorized: ({ token, req }) => {
-      const path = req.nextUrl.pathname;
-      // /espace* : juste besoin d'être connecté
-      if (path.startsWith("/espace")) {
+  {
+    pages: { signIn: "/connexion" },
+    callbacks: {
+      authorized: ({ token, req }) => {
+        const path = req.nextUrl.pathname;
+        if (path.startsWith("/espace")) {
+          return !!token && token.role === "CANDIDAT";
+        }
+        if (path.startsWith("/admin")) {
+          return isStaff(token?.role as string | undefined);
+        }
         return !!token;
-      }
-      // /admin* : besoin d'un rôle staff
-      if (path.startsWith("/admin")) {
-        const role = token?.role as string | undefined;
-        return ["CONSEILLER", "FINANCIER", "ADMIN", "SUPER_ADMIN"].includes(role ?? "");
-      }
-      return !!token;
+      },
     },
-  },
-});
+  }
+);
 
 export const config = {
   matcher: ["/espace/:path*", "/admin/:path*"],

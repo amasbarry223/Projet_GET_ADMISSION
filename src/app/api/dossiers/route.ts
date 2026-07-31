@@ -5,8 +5,9 @@ import { db } from "@/lib/db";
 import { dossierCreateSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { parseJsonArray } from "@/lib/types";
+import { requirePermission } from "@/lib/rbac";
 
-// GET /api/dossiers — liste (candidat: ses dossiers ; staff: tous)
+// GET /api/dossiers — liste (candidat: ses dossiers ; staff: dossiers.read)
 //
 // Comportement de pagination (backward compatible) :
 // - Sans `?page=`      → renvoie un tableau plat (legacy).
@@ -19,6 +20,11 @@ export async function GET(request: Request) {
 
   const role = (session.user as any).role;
   const userId = (session.user as any).id;
+
+  if (role !== "CANDIDAT") {
+    const gate = requirePermission(role, "dossiers.read");
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  }
 
   // --- Params de pagination (optionnels) ---
   const { searchParams } = new URL(request.url);
@@ -38,6 +44,7 @@ export async function GET(request: Request) {
           pieces: true,
           paiements: true,
           historiques: { orderBy: { date: "asc" as const } },
+          conversation: { select: { nonLusCandidat: true } },
         }
       : {
           candidat: { select: { prenom: true, nom: true, email: true, nationalite: true } },
@@ -47,6 +54,7 @@ export async function GET(request: Request) {
           pieces: true,
           paiements: true,
           historiques: { orderBy: { date: "asc" as const } },
+          conversation: { select: { nonLusCandidat: true } },
         };
 
   if (hasPagination) {
@@ -97,21 +105,17 @@ function generateMrz(opts: { nom: string; prenom: string; reference: string }): 
   return `${line1}\n${line2}`;
 }
 
-// POST /api/dossiers — créer un dossier (candidat uniquement)
+// POST /api/dossiers — créer un dossier brouillon (candidat uniquement)
 //
 // Body: { universiteId, formationId }
-// - Génère la référence : GETADM-YYYY-NNNN
-// - Génère le MRZ basé sur le nom du candidat
-// - État initial : SOUMIS, étape 2
-// - Crée : dossier + pieces (depuis formation.piecesRequises)
-//          + historique (SOUMIS) + conversation
+// - État initial : BROUILLON, étape 1 (BF-12)
+// - Soumission explicite via PUT action=soumettre (BF-15)
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  // Rate limiting (10 dossiers / min / IP)
   const rateLimited = checkRateLimit(getClientId(request), "/api/dossiers");
   if (rateLimited) return rateLimited;
 
@@ -137,7 +141,6 @@ export async function POST(request: Request) {
   }
   const { universiteId, formationId } = parsed.data;
 
-  // Vérifier que la formation appartient bien à l'université
   const formation = await db.formation.findUnique({
     where: { id: formationId },
     include: { universite: true },
@@ -149,7 +152,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // Vérifier que le candidat n'a pas déjà un dossier actif pour cette formation
   const existing = await db.dossier.findFirst({
     where: {
       candidatId: userId,
@@ -165,7 +167,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // Récupérer le candidat pour le MRZ
   const candidat = await db.user.findUnique({
     where: { id: userId },
     select: { prenom: true, nom: true },
@@ -174,24 +175,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
   }
 
-  // Générer la référence : GETADM-YYYY-NNNN (incrémental sur l'année)
   const year = new Date().getFullYear();
   const countThisYear = await db.dossier.count({
     where: { reference: { startsWith: `GETADM-${year}-` } },
   });
   const reference = `GETADM-${year}-${String(countThisYear + 1).padStart(4, "0")}`;
 
-  // Générer le MRZ
   const mrz = generateMrz({
     nom: candidat.nom,
     prenom: candidat.prenom,
     reference,
   });
 
-  // Récupérer les pièces requises depuis la formation
   const piecesRequises = parseJsonArray(formation.piecesRequises);
+  const identityPieces = ["Passeport ou CNI (page photo)", "Photo d'identité récente"];
+  const allLibelles = [...new Set([...piecesRequises, ...identityPieces])];
 
-  // Créer le dossier + pièces + historique + conversation en transaction
   const dossier = await db.$transaction(async (tx) => {
     const created = await tx.dossier.create({
       data: {
@@ -199,18 +198,17 @@ export async function POST(request: Request) {
         candidatId: userId,
         universiteId,
         formationId,
-        etat: "SOUMIS",
-        etapeActuelle: 2,
+        etat: "BROUILLON",
+        etapeActuelle: 1,
         fraisAgence: formation.fraisAgence,
         paiementStatut: "aucun",
         mrz,
       },
     });
 
-    // Créer les pièces requises (statut "manquante" par défaut)
-    if (piecesRequises.length > 0) {
+    if (allLibelles.length > 0) {
       await tx.piece.createMany({
-        data: piecesRequises.map((libelle) => ({
+        data: allLibelles.map((libelle) => ({
           dossierId: created.id,
           libelle,
           statut: "manquante",
@@ -219,18 +217,16 @@ export async function POST(request: Request) {
       });
     }
 
-    // Historique initial
     await tx.historique.create({
       data: {
         dossierId: created.id,
-        etat: "SOUMIS",
+        etat: "BROUILLON",
         auteur: `${candidat.prenom} ${candidat.nom}`,
         auteurId: userId,
-        note: `Dossier soumis pour ${formation.intitule} — ${formation.universite.nom}`,
+        note: `Brouillon créé pour ${formation.intitule} — ${formation.universite.nom}`,
       },
     });
 
-    // Conversation initiale (sans conseiller affecté)
     await tx.conversation.create({
       data: {
         dossierId: created.id,
@@ -242,7 +238,6 @@ export async function POST(request: Request) {
     return created;
   });
 
-  // Recharger avec relations pour la réponse
   const result = await db.dossier.findUnique({
     where: { id: dossier.id },
     include: {

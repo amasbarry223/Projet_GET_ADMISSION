@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Plane, Mail, Phone, MapPin } from "lucide-react";
+import { Mail, Phone, MapPin } from "lucide-react";
 import { db } from "@/lib/db";
+import { BrandLogo } from "@/components/brand-logo";
 
 const COLONNES = [
   {
@@ -24,10 +25,10 @@ const COLONNES = [
   {
     titre: "Légal",
     liens: [
-      { href: "#", label: "Mentions légales" },
-      { href: "#", label: "Politique de confidentialité" },
-      { href: "#", label: "Conditions d'agence" },
-      { href: "#", label: "Cookies" },
+      { href: "/mentions-legales", label: "Mentions légales" },
+      { href: "/mentions-legales", label: "Politique de confidentialité" },
+      { href: "/verifier", label: "Vérifier une attestation" },
+      { href: "/contact", label: "Contact" },
     ],
   },
 ];
@@ -44,14 +45,8 @@ export async function SiteFooter() {
       <div className="mx-auto max-w-content px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
-            <Link href="/" className="flex items-center gap-2.5" aria-label="Accueil GET Admission">
-              <span className="flex h-9 w-9 items-center justify-center rounded-md bg-lapis text-blanc">
-                <Plane className="h-4 w-4 -rotate-12" strokeWidth={1.75} />
-              </span>
-              <span className="flex flex-col leading-none">
-                <span className="font-display text-base font-bold text-encre">GET Admission</span>
-                <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Le passage</span>
-              </span>
+            <Link href="/" className="inline-flex" aria-label="Accueil GET Admission">
+              <BrandLogo height={48} />
             </Link>
             <p className="mt-4 max-w-xs text-sm text-ardoise">
               Agence d'admission universitaire. Nous accompagnons les étudiants d'Afrique de l'Ouest vers leurs universités partenaires à l'étranger.

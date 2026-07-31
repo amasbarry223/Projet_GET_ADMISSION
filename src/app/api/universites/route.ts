@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { universiteSchema, validate } from "@/lib/validations";
 import { uniqueSlug } from "@/lib/utils";
 import { logAudit } from "@/lib/audit";
+import { requirePermission } from "@/lib/rbac";
 
 // GET /api/universites — liste publique (catalogue)
 export async function GET(request: Request) {
@@ -36,6 +37,13 @@ export async function GET(request: Request) {
     ...u,
     domaines: JSON.parse(u.domaines),
     pointsForts: JSON.parse(u.pointsForts),
+    galleryUrls: (() => {
+      try {
+        return JSON.parse(u.galleryUrls || "[]");
+      } catch {
+        return [];
+      }
+    })(),
   }));
 
   return NextResponse.json(result);
@@ -52,9 +60,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const role = (session.user as any).role;
-  if (role === "CANDIDAT") {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  const gate = requirePermission((session.user as { role?: string }).role, "catalogue.write");
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
   let body: unknown;
@@ -71,6 +79,7 @@ export async function POST(request: Request) {
   const {
     nom, pays, drapeau, ville, ecusson, domaines,
     description, pointsForts, imageCouleur, fraisMin, fraisMax, partenaire,
+    siteUrl, logoUrl, coverUrl, galleryUrls,
   } = parsed.data;
 
   // Validation : fraisMax >= fraisMin
@@ -87,6 +96,12 @@ export async function POST(request: Request) {
     return !!found;
   });
 
+  const galleryStr = Array.isArray(galleryUrls)
+    ? JSON.stringify(galleryUrls)
+    : typeof galleryUrls === "string"
+      ? galleryUrls
+      : "[]";
+
   const created = await db.universite.create({
     data: {
       slug,
@@ -99,6 +114,10 @@ export async function POST(request: Request) {
       description,
       pointsForts: JSON.stringify(pointsForts),
       imageCouleur,
+      siteUrl: siteUrl || null,
+      logoUrl: logoUrl || null,
+      coverUrl: coverUrl || null,
+      galleryUrls: galleryStr,
       fraisMin,
       fraisMax,
       partenaire: partenaire ?? true,

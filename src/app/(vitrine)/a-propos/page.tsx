@@ -7,21 +7,25 @@ import { Eyebrow, Reveal, RevealStagger, RevealItem } from "@/components/site/re
 import { formatFCFA } from "@/lib/format";
 import { db } from "@/lib/db";
 
-const PILIERS = [
+export const dynamic = "force-dynamic";
+
+const ICON_MAP = { HeartHandshake, Eye, Network } as const;
+
+const PILIERS_DEFAUT = [
   {
-    icon: HeartHandshake,
+    icon: "HeartHandshake",
     titre: "Accompagnement humain",
     description:
       "Chaque candidat est suivi par un conseiller dédié, joignable par messagerie. Pas de robot, pas de ticket anonyme : un interlocuteur unique qui connaît votre dossier.",
   },
   {
-    icon: Eye,
+    icon: "Eye",
     titre: "Transparence du suivi",
     description:
       "Vous voyez l'avancement de votre dossier étape par étape, comme on suit un vol. Frais, délais, pièces attendues : tout est publié et horodaté.",
   },
   {
-    icon: Network,
+    icon: "Network",
     titre: "Réseau d'universités vérifiées",
     description:
       "Nos dix universités partenaires ont été visitées, leurs frais négociés et publiés, leurs délais de réponse mesurés. Vous savez toujours à quoi vous engager.",
@@ -31,11 +35,25 @@ const PILIERS = [
 /* --------------------------------- Page ----------------------------------- */
 
 export default async function AProposPage() {
-  // Statistiques + équipe — depuis la DB.
-  const [STATISTIQUES, EQUIPE] = await Promise.all([
+  const [STATISTIQUES, EQUIPE, piliersRow] = await Promise.all([
     db.statistique.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } }),
     db.membreEquipe.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } }),
+    db.contenuSection.findUnique({ where: { cle: "piliers" } }),
   ]);
+
+  let piliersData = PILIERS_DEFAUT;
+  if (piliersRow?.contenu) {
+    try {
+      const parsed = JSON.parse(piliersRow.contenu) as typeof PILIERS_DEFAUT;
+      if (Array.isArray(parsed) && parsed.length > 0) piliersData = parsed;
+    } catch {
+      // fallback
+    }
+  }
+  const PILIERS = piliersData.map((p) => ({
+    ...p,
+    icon: ICON_MAP[p.icon as keyof typeof ICON_MAP] ?? HeartHandshake,
+  }));
 
   return (
     <>

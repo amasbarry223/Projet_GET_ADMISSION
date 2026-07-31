@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { messageSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
+import { requirePermission } from "@/lib/rbac";
 
 // GET /api/messages?dossierId=xxx — conversation d'un dossier
 export async function GET(request: Request) {
@@ -18,10 +19,26 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "dossierId requis" }, { status: 400 });
   }
 
-  const role = (session.user as any).role;
-  const userId = (session.user as any).id;
+  const role = (session.user as { role?: string }).role;
+  const userId = (session.user as { id: string }).id;
 
-  // RBAC : candidat ne voit que sa conversation, staff voit tout
+  const dossier = await db.dossier.findUnique({
+    where: { id: dossierId },
+    select: { candidatId: true },
+  });
+  if (!dossier) {
+    return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
+  }
+
+  if (role === "CANDIDAT") {
+    if (dossier.candidatId !== userId) {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+  } else {
+    const gate = requirePermission(role, "dossiers.read");
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  }
+
   const conversation = await db.conversation.findUnique({
     where: { dossierId },
     include: {
@@ -36,10 +53,6 @@ export async function GET(request: Request) {
 
   if (!conversation) {
     return NextResponse.json(null);
-  }
-
-  if (role === "CANDIDAT" && conversation.candidatId !== userId) {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
   return NextResponse.json(conversation);
@@ -63,29 +76,38 @@ export async function POST(request: Request) {
   }
   const { dossierId, texte, pieceJointeNom, pieceJointeTaille } = parsed.data;
 
-  const userId = (session.user as any).id;
-  const role = (session.user as any).role;
+  const userId = (session.user as { id: string }).id;
+  const role = (session.user as { role?: string }).role;
+
+  const dossier = await db.dossier.findUnique({
+    where: { id: dossierId },
+    select: { id: true, candidatId: true, conseillerId: true },
+  });
+  if (!dossier) {
+    return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
+  }
+
+  // Ownership / permission AVANT toute création (anti-IDOR)
+  if (role === "CANDIDAT") {
+    if (dossier.candidatId !== userId) {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+  } else {
+    const gate = requirePermission(role, "dossiers.write");
+    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  }
 
   // Trouver ou créer la conversation
   let conversation = await db.conversation.findUnique({ where: { dossierId } });
 
   if (!conversation) {
-    const dossier = await db.dossier.findUnique({ where: { id: dossierId } });
-    if (!dossier) {
-      return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
-    }
     conversation = await db.conversation.create({
       data: {
         dossierId,
-        candidatId: role === "CANDIDAT" ? userId : dossier.candidatId,
+        candidatId: dossier.candidatId,
         conseillerId: role === "CONSEILLER" ? userId : dossier.conseillerId,
       },
     });
-  }
-
-  // RBAC : candidat ne peut écrire que dans sa conversation
-  if (role === "CANDIDAT" && conversation.candidatId !== userId) {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
   const message = await db.message.create({

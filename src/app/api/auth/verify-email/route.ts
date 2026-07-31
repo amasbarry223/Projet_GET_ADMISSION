@@ -1,13 +1,30 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { isVerifyTokenExpired } from "@/lib/verify-token";
 
-// GET /api/auth/verify-email?token=xxx — vérifie l'e-mail d'un candidat (BF-06)
+function redirectTo(status: "ok" | "error" | "already", message: string, request: Request) {
+  const base = process.env.NEXTAUTH_URL || new URL(request.url).origin;
+  const url = new URL("/verification-email", base);
+  url.searchParams.set("status", status);
+  url.searchParams.set("message", message);
+  return NextResponse.redirect(url);
+}
+
+// GET /api/auth/verify-email?token=xxx — vérifie puis redirige vers page UI (BF-06)
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const token = searchParams.get("token");
 
   if (!token) {
-    return NextResponse.json({ error: "Token manquant" }, { status: 400 });
+    return redirectTo("error", "Lien de vérification invalide (token manquant).", request);
+  }
+
+  if (isVerifyTokenExpired(token)) {
+    return redirectTo(
+      "error",
+      "Lien expiré (valable 48 h). Demandez un nouvel e-mail depuis la page de vérification ou la connexion.",
+      request
+    );
   }
 
   const user = await db.user.findFirst({
@@ -16,14 +33,15 @@ export async function GET(request: Request) {
   });
 
   if (!user) {
-    return NextResponse.json(
-      { error: "Token invalide ou expiré." },
-      { status: 404 }
+    return redirectTo(
+      "error",
+      "Lien invalide ou déjà utilisé. Vous pouvez demander un nouvel e-mail depuis la page de vérification ou la connexion.",
+      request
     );
   }
 
   if (user.emailVerified) {
-    return NextResponse.json({ success: true, message: "E-mail déjà vérifié." });
+    return redirectTo("already", "Votre e-mail est déjà vérifié. Vous pouvez vous connecter.", request);
   }
 
   await db.user.update({
@@ -34,9 +52,5 @@ export async function GET(request: Request) {
     },
   });
 
-  return NextResponse.json({
-    success: true,
-    message: "E-mail vérifié avec succès. Vous pouvez vous connecter.",
-    email: user.email,
-  });
+  return redirectTo("ok", "E-mail vérifié avec succès. Vous pouvez vous connecter.", request);
 }

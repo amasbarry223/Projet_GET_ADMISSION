@@ -2,16 +2,20 @@
 
 import React, { useEffect } from "react";
 import Lenis from "lenis";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { canAnimate } from "@/lib/motion";
+
+gsap.registerPlugin(ScrollTrigger);
 
 /**
  * Smooth scroll wrapper for the public vitrine ONLY.
- * Candidate & admin spaces use native scrolling.
- * Side-effect only: initializes Lenis + rAF loop. Respects prefers-reduced-motion.
+ * Synchronise Lenis ↔ GSAP ScrollTrigger.
+ * Ne tue pas les ScrollTriggers des composants enfants (évite removeChild).
  */
 export function SmoothScrollProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) return;
+    if (!canAnimate()) return;
 
     const lenis = new Lenis({
       duration: 1.1,
@@ -20,15 +24,20 @@ export function SmoothScrollProvider({ children }: { children: React.ReactNode }
       touchMultiplier: 1.4,
     });
 
-    let raf = 0;
-    function loop(time: number) {
-      lenis.raf(time);
-      raf = requestAnimationFrame(loop);
-    }
-    raf = requestAnimationFrame(loop);
+    const onScroll = () => ScrollTrigger.update();
+    lenis.on("scroll", onScroll);
+
+    const ticker = (time: number) => {
+      lenis.raf(time * 1000);
+    };
+    gsap.ticker.add(ticker);
+    gsap.ticker.lagSmoothing(0);
+
+    requestAnimationFrame(() => ScrollTrigger.refresh());
 
     return () => {
-      cancelAnimationFrame(raf);
+      gsap.ticker.remove(ticker);
+      lenis.off("scroll", onScroll);
       lenis.destroy();
     };
   }, []);

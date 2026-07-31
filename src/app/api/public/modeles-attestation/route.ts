@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requirePermission } from "@/lib/rbac";
 
 export const revalidate = 3600;
 
@@ -17,9 +18,9 @@ export async function POST(request: Request) {
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
-  const role = (session.user as any).role;
-  if (role === "CANDIDAT") {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  const gate = requirePermission((session.user as { role?: string }).role, "attestations.emit");
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
   const body = await request.json();

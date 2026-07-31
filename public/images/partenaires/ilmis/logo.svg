@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
+  <rect width="160" height="160" rx="80" fill="#fff"/>
+  <circle cx="80" cy="80" r="72" fill="none" stroke="#B8902E" stroke-width="3"/>
+  <text x="80" y="92" text-anchor="middle" fill="#B8902E" font-family="monospace" font-size="28" font-weight="700">ILM</text>
+</svg>

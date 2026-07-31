@@ -1,21 +1,22 @@
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowRight,
-  ArrowUpRight,
   UserPlus,
   FileText,
   CreditCard,
   Stamp,
   Quote,
   Plane,
-  CheckCircle2,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { BoardingPass } from "@/components/getadm/boarding-pass";
 import { Reveal, RevealStagger, RevealItem, Eyebrow } from "@/components/site/reveal";
-import { UniversiteCard } from "@/components/site/universite-card";
+import { HorizontalCarnet } from "@/components/site/horizontal-carnet";
+import { AnimatedCounters } from "@/components/site/animated-counters";
+import { MotionButton } from "@/components/site/motion-button";
+import { HeroSlideshow } from "@/components/site/hero-slideshow";
 
 import { db } from "@/lib/db";
 import { ETATS } from "@/lib/etats";
@@ -23,64 +24,58 @@ import { formatFCFA } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-/* ----------------------------- Données dérivées ---------------------------- */
+const ICON_MAP = {
+  UserPlus,
+  FileText,
+  CreditCard,
+  Stamp,
+} as const;
 
-const ETAPES = [
+const ETAPES_DEFAUT = [
   {
     numero: "01",
-    icon: UserPlus,
+    icon: "UserPlus",
     titre: "Créez votre compte",
     description:
       "Inscription en ligne, choix de l'université et de la formation. Votre espace candidat est ouvert en quelques minutes.",
   },
   {
     numero: "02",
-    icon: FileText,
+    icon: "FileText",
     titre: "Constitution du dossier",
     description:
       "Téléversez vos pièces, votre conseiller vérifie l'éligibilité et vous guide vers la version finale du dossier.",
   },
   {
     numero: "03",
-    icon: CreditCard,
+    icon: "CreditCard",
     titre: "Paiement des frais d'agence",
     description:
       "Réglez les frais d'agence par Orange Money, Wave ou carte bancaire. Le reçu est disponible immédiatement.",
   },
   {
     numero: "04",
-    icon: Stamp,
+    icon: "Stamp",
     titre: "Attestation de pré-inscription",
     description:
       "Une fois la pré-admission accordée par l'université, votre attestation officielle est disponible dans votre espace.",
   },
 ];
 
-const STATISTIQUES_PLACEHOLDER: { valeur: string; libelle: string }[] = [];
-
-/* --------------------------------- Page ----------------------------------- */
-
 export default async function AccueilPage() {
-  // Universités partenaires (vedettes) + bandeau de confiance — depuis la DB.
   const univRows = await db.universite.findMany({
     where: { partenaire: true },
-    take: 6,
+    take: 12,
     orderBy: { nom: "asc" },
   });
-  const universitesVedettes = univRows.map((u) => ({
+  const mapUniv = (u: (typeof univRows)[0]) => ({
     ...u,
     domaines: JSON.parse(u.domaines) as string[],
     pointsForts: JSON.parse(u.pointsForts) as string[],
-    partenaires: u.partenaire, // miroir pour compat UniversiteCard
-  }));
-  const BANDEAU_UNIVERSITES = univRows.map((u) => ({
-    ...u,
-    domaines: JSON.parse(u.domaines) as string[],
-    pointsForts: JSON.parse(u.pointsForts) as string[],
-    partenaires: u.partenaire,
-  }));
+  });
+  const BANDEAU_UNIVERSITES = univRows.map(mapUniv);
+  const carnetUnivs = univRows.map(mapUniv);
 
-  // Dossier démo pour la boarding pass du hero — depuis la DB.
   const dossierDemo = await db.dossier.findFirst({
     where: { etat: "PRE_ADMISSION" },
     include: {
@@ -90,13 +85,27 @@ export default async function AccueilPage() {
     },
   });
 
-  // Statistiques + témoignages — depuis la DB.
-  const [statistiquesRows, temoignagesRows] = await Promise.all([
+  const [statistiquesRows, temoignagesRows, etapesRow] = await Promise.all([
     db.statistique.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } }),
     db.temoignage.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } }),
+    db.contenuSection.findUnique({ where: { cle: "etapes" } }),
   ]);
-  const STATISTIQUES = statistiquesRows.length > 0 ? statistiquesRows : STATISTIQUES_PLACEHOLDER;
+  const STATISTIQUES = statistiquesRows;
   const TEMOIGNAGES = temoignagesRows;
+
+  let etapesData = ETAPES_DEFAUT;
+  if (etapesRow?.contenu) {
+    try {
+      const parsed = JSON.parse(etapesRow.contenu) as typeof ETAPES_DEFAUT;
+      if (Array.isArray(parsed) && parsed.length > 0) etapesData = parsed;
+    } catch {
+      /* fallback */
+    }
+  }
+  const ETAPES = etapesData.map((e) => ({
+    ...e,
+    icon: ICON_MAP[e.icon as keyof typeof ICON_MAP] ?? UserPlus,
+  }));
 
   const formationLabel = dossierDemo?.formation?.intitule ?? "Formation";
   const universiteNom = dossierDemo?.universite?.nom ?? "Université partenaire";
@@ -106,125 +115,10 @@ export default async function AccueilPage() {
 
   return (
     <>
-      {/* ============================== Hero ============================== */}
-      <section className="relative overflow-hidden bg-porcelaine" aria-labelledby="hero-title">
-        {/* Motif fond « Le Passage » : grille pointillée façon page de passeport + arc méridien */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 80% 30%, rgba(45,107,240,0.06), transparent 45%), radial-gradient(circle at 10% 80%, rgba(184,144,46,0.05), transparent 40%)",
-          }}
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.35]"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle, rgba(14,27,51,0.08) 1px, transparent 1.4px)",
-            backgroundSize: "22px 22px",
-            maskImage: "radial-gradient(ellipse 80% 60% at 20% 40%, black, transparent 70%)",
-            WebkitMaskImage: "radial-gradient(ellipse 80% 60% at 20% 40%, black, transparent 70%)",
-          }}
-        />
-        {/* Arc méridien doré, très atténué — évocation cartographique */}
-        <svg
-          aria-hidden
-          className="pointer-events-none absolute -right-32 top-1/2 -translate-y-1/2 opacity-[0.12]"
-          width="700"
-          height="700"
-          viewBox="0 0 700 700"
-          fill="none"
-        >
-          <circle cx="350" cy="350" r="340" stroke="#B8902E" strokeWidth="1" />
-          <circle cx="350" cy="350" r="270" stroke="#B8902E" strokeWidth="0.75" />
-          <circle cx="350" cy="350" r="200" stroke="#B8902E" strokeWidth="0.5" />
-          <line x1="350" y1="10" x2="350" y2="690" stroke="#B8902E" strokeWidth="0.5" />
-          <line x1="10" y1="350" x2="690" y2="350" stroke="#B8902E" strokeWidth="0.5" />
-          <line x1="106" y1="106" x2="594" y2="594" stroke="#B8902E" strokeWidth="0.4" />
-          <line x1="594" y1="106" x2="106" y2="594" stroke="#B8902E" strokeWidth="0.4" />
-        </svg>
-        <div className="relative mx-auto max-w-content px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24">
-          <div className={dossierDemo ? "grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]" : "grid items-center gap-12"}>
-            {/* Colonne gauche */}
-            <div>
-              <Eyebrow>Votre passage vers l&rsquo;international</Eyebrow>
+      {/* Départ — Hero slideshow */}
+      <HeroSlideshow />
 
-              <h1
-                id="hero-title"
-                className="mt-6 font-display text-[2.5rem] font-extrabold leading-[1.05] tracking-tightest text-encre sm:text-5xl lg:text-[4.5rem]"
-              >
-                L&rsquo;admission à l&rsquo;étranger, sans le parcours du combattant.
-              </h1>
-
-              <p className="mt-6 max-w-xl text-lg leading-relaxed text-ardoise">
-                GET Admission accompagne les étudiants d&rsquo;Afrique de l&rsquo;Ouest vers leurs universités
-                partenaires. Dossier vérifié, suivi en temps réel, attestation officielle — tout est
-                centralisé dans votre espace candidat.
-              </p>
-
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Button asChild size="lg" className="bg-lapis text-blanc hover:bg-lapis/90">
-                  <Link href="/inscription">
-                    Créer mon dossier
-                    <ArrowRight className="h-4 w-4" strokeWidth={1.75} />
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  size="lg"
-                  variant="outline"
-                  className="border-ligne bg-blanc text-encre hover:bg-porcelaine"
-                >
-                  <Link href="/universites">Découvrir les universités</Link>
-                </Button>
-              </div>
-
-              {/* Petit indicateur de confiance */}
-              <ul className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-sm text-ardoise">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-vert" strokeWidth={1.75} />
-                  Sans avance cachée
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-vert" strokeWidth={1.75} />
-                  Suivi transparent
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-vert" strokeWidth={1.75} />
-                  Conseiller dédié
-                </li>
-              </ul>
-            </div>
-
-            {/* Colonne droite : boarding pass (uniquement si un dossier démo existe) */}
-            {dossierDemo && (
-              <div className="relative">
-                <div className="absolute -inset-4 -z-10 rounded-xl bg-gradient-to-br from-or-pale/40 to-transparent blur-2xl" aria-hidden />
-                <BoardingPass
-                  reference={dossierDemo.reference}
-                  universiteNom={universiteNom}
-                  formationLabel={formationLabel}
-                  etat={dossierDemo.etat}
-                  etapeActuelle={dossierDemo.etapeActuelle}
-                  etapeTotal={ETATS.length}
-                  conseiller={conseillerNom}
-                  fraisAgence={dossierDemo.fraisAgence}
-                  mrz={dossierDemo.mrz}
-                  variant="hero"
-                  animateOnMount
-                />
-                <p className="mt-3 text-center font-mono text-[11px] uppercase tracking-eyebrow text-ardoise">
-                  Aperçu d&rsquo;un dossier candidat · étape pré-admission
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* ===================== Bandeau de confiance ====================== */}
+      {/* Confiance */}
       <section className="border-y border-ligne bg-blanc" aria-label="Universités partenaires">
         <div className="rule-or" aria-hidden />
         <div className="mx-auto max-w-content px-4 py-8 sm:px-6 lg:px-8">
@@ -232,17 +126,23 @@ export default async function AccueilPage() {
             Ils accompagnent nos candidats
           </p>
           <div className="mt-5 flex gap-6 overflow-x-auto scroll-fine pb-1 sm:justify-center">
-            {BANDEAU_UNIVERSITES.map((u) => (
+            {BANDEAU_UNIVERSITES.slice(0, 10).map((u) => (
               <Link
                 key={u.id}
                 href={`/universites/${u.slug}`}
                 className="group flex shrink-0 flex-col items-center gap-2"
               >
-                <span className="flex h-12 w-12 items-center justify-center rounded-full border border-ligne bg-porcelaine transition-colors group-hover:border-lapis">
-                  <span className="font-mono text-xs font-bold text-lapis">{u.ecusson}</span>
+                <span className="relative flex h-12 w-12 overflow-hidden rounded-full border border-ligne bg-porcelaine transition-colors group-hover:border-or">
+                  {u.logoUrl ? (
+                    <Image src={u.logoUrl} alt="" width={48} height={48} className="object-cover" />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center font-mono text-xs font-bold text-lapis">
+                      {u.ecusson}
+                    </span>
+                  )}
                 </span>
-                <span className="text-xs font-medium text-encre/80 group-hover:text-lapis">
-                  {u.nom}
+                <span className="max-w-[7rem] truncate text-center text-xs font-medium text-encre/80 group-hover:text-lapis">
+                  {u.ecusson}
                 </span>
               </Link>
             ))}
@@ -251,31 +151,74 @@ export default async function AccueilPage() {
         <div className="rule-or" aria-hidden />
       </section>
 
-      {/* ====================== Comment ça marche ======================= */}
+      {dossierDemo && (
+        <section className="bg-blanc" aria-labelledby="dossier-demo-title">
+          <div className="mx-auto max-w-content px-4 py-20 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-2xl text-center">
+              <Reveal>
+                <Eyebrow>Aperçu dossier</Eyebrow>
+                <h2
+                  id="dossier-demo-title"
+                  className="mt-5 font-display text-3xl font-bold tracking-tightest text-encre sm:text-4xl"
+                >
+                  Un dossier candidat, en un coup d&rsquo;œil.
+                </h2>
+                <p className="mt-4 text-ardoise">
+                  Référence, étapes et suivi — ce que vous retrouvez dans votre espace.
+                </p>
+              </Reveal>
+            </div>
+            <Reveal className="relative mx-auto mt-12 max-w-lg">
+              <div
+                className="absolute -inset-4 -z-10 rounded-xl bg-gradient-to-br from-or-pale/40 to-transparent blur-2xl"
+                aria-hidden
+              />
+              <BoardingPass
+                reference={dossierDemo.reference}
+                universiteNom={universiteNom}
+                formationLabel={formationLabel}
+                etat={dossierDemo.etat}
+                etapeActuelle={dossierDemo.etapeActuelle}
+                etapeTotal={ETATS.length}
+                conseiller={conseillerNom}
+                fraisAgence={dossierDemo.fraisAgence}
+                mrz={dossierDemo.mrz}
+                variant="hero"
+                animateOnMount
+              />
+              <p className="mt-3 text-center font-mono text-[11px] uppercase tracking-eyebrow text-ardoise">
+                Aperçu d&rsquo;un dossier candidat · étape pré-admission
+              </p>
+            </Reveal>
+          </div>
+        </section>
+      )}
+
+      {/* Escales */}
       <section className="bg-porcelaine" aria-labelledby="etapes-title">
-        <div className="mx-auto max-w-content px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-content px-4 py-24 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
             <Reveal>
-              <Eyebrow>Comment ça marche</Eyebrow>
+              <Eyebrow>L&rsquo;itinéraire</Eyebrow>
               <h2
                 id="etapes-title"
                 className="mt-5 font-display text-3xl font-bold tracking-tightest text-encre sm:text-4xl"
               >
-                Quatre étapes, un seul accompagnement.
+                Quatre escales, un seul accompagnement.
               </h2>
               <p className="mt-4 text-ardoise">
-                De la création du compte à l'attestation de pré-inscription, chaque étape est
-                documentée et suivie par votre conseiller dédié.
+                De la création du compte à l&apos;attestation, chaque étape est documentée et suivie
+                par votre conseiller.
               </p>
             </Reveal>
           </div>
 
-          <RevealStagger className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <RevealStagger className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
             {ETAPES.map((etape) => {
               const Icon = etape.icon;
               return (
                 <RevealItem key={etape.numero}>
-                  <article className="group relative h-full rounded-lg border border-ligne bg-blanc p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+                  <article className="group relative h-full rounded-lg border border-ligne bg-blanc p-7 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_28px_rgba(60,169,54,0.18)]">
                     <div className="flex items-center justify-between">
                       <span className="font-display text-3xl font-bold text-or">{etape.numero}</span>
                       <span className="flex h-10 w-10 items-center justify-center rounded-md bg-porcelaine text-lapis">
@@ -292,52 +235,16 @@ export default async function AccueilPage() {
         </div>
       </section>
 
-      {/* =================== Universités en vedette ===================== */}
-      <section className="bg-blanc" aria-labelledby="vedettes-title">
-        <div className="mx-auto max-w-content px-4 py-20 sm:px-6 lg:px-8">
-          <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
-            <Reveal className="max-w-2xl">
-              <Eyebrow>Destinations</Eyebrow>
-              <h2
-                id="vedettes-title"
-                className="mt-5 font-display text-3xl font-bold tracking-tightest text-encre sm:text-4xl"
-              >
-                Des universités partenaires, vérifiées.
-              </h2>
-              <p className="mt-4 text-ardoise">
-                Chaque université a été visitée, ses frais sont publiés et ses délais de réponse
-                connus. Vous savez toujours à quoi vous engager.
-              </p>
-            </Reveal>
-            <Button
-              asChild
-              variant="outline"
-              className="border-ligne bg-blanc text-encre hover:bg-porcelaine"
-            >
-              <Link href="/universites">
-                Voir tout le catalogue
-                <ArrowUpRight className="h-4 w-4" strokeWidth={1.75} />
-              </Link>
-            </Button>
-          </div>
+      {/* Destinations — carnet horizontal */}
+      <HorizontalCarnet universites={carnetUnivs} />
 
-          <RevealStagger className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {universitesVedettes.map((u) => (
-              <RevealItem key={u.id}>
-                <UniversiteCard universite={u} className="h-full" />
-              </RevealItem>
-            ))}
-          </RevealStagger>
-        </div>
-      </section>
-
-      {/* ========================= Section chiffres ====================== */}
+      {/* Preuves */}
       <section className="bg-porcelaine" aria-labelledby="chiffres-title">
         <div className="rule-or" aria-hidden />
-        <div className="mx-auto max-w-content px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-content px-4 py-24 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
             <Reveal>
-              <Eyebrow>GET Admission en chiffres</Eyebrow>
+              <Eyebrow>Preuves de passage</Eyebrow>
               <h2
                 id="chiffres-title"
                 className="mt-5 font-display text-3xl font-bold tracking-tightest text-encre sm:text-4xl"
@@ -346,28 +253,19 @@ export default async function AccueilPage() {
               </h2>
             </Reveal>
           </div>
-
-          <RevealStagger className="mt-12 grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-4">
-            {STATISTIQUES.map((stat) => (
-              <RevealItem key={stat.libelle}>
-                <div className="text-center">
-                  <p className="font-display text-5xl font-bold tracking-tightest text-lapis">
-                    {stat.valeur}
-                  </p>
-                  <p className="mt-2 text-sm text-ardoise">{stat.libelle}</p>
-                </div>
-              </RevealItem>
-            ))}
-          </RevealStagger>
+          <AnimatedCounters
+            className="mt-14"
+            stats={STATISTIQUES.map((s) => ({ valeur: s.valeur, libelle: s.libelle }))}
+          />
         </div>
       </section>
 
-      {/* =========================== Témoignages ========================= */}
+      {/* Voix */}
       <section className="bg-blanc" aria-labelledby="temoignages-title">
-        <div className="mx-auto max-w-content px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-content px-4 py-24 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
             <Reveal>
-              <Eyebrow>Témoignages</Eyebrow>
+              <Eyebrow>Voix du voyage</Eyebrow>
               <h2
                 id="temoignages-title"
                 className="mt-5 font-display text-3xl font-bold tracking-tightest text-encre sm:text-4xl"
@@ -377,7 +275,7 @@ export default async function AccueilPage() {
             </Reveal>
           </div>
 
-          <RevealStagger className="mt-12 grid gap-6 md:grid-cols-3">
+          <RevealStagger className="mt-14 grid gap-6 md:grid-cols-3">
             {TEMOIGNAGES.map((temoignage) => (
               <RevealItem key={temoignage.nom}>
                 <article className="flex h-full flex-col rounded-lg border border-ligne bg-porcelaine p-6 shadow-sm">
@@ -398,43 +296,38 @@ export default async function AccueilPage() {
         </div>
       </section>
 
-      {/* ============================ CTA final ========================== */}
+      {/* Embarquement */}
       <section className="bg-or-pale" aria-labelledby="cta-title">
         <div className="rule-or" aria-hidden />
-        <div className="mx-auto max-w-content px-4 py-20 text-center sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-content px-4 py-24 text-center sm:px-6 lg:px-8">
           <Reveal>
             <span className="eyebrow-or inline-flex items-center gap-2">
               <Plane className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
-              Prêt à décoller ?
+              Embarquement
             </span>
             <h2
               id="cta-title"
               className="mx-auto mt-5 max-w-2xl font-display text-3xl font-bold tracking-tightest text-encre sm:text-4xl"
             >
-              Composez votre dossier aujourd'hui.
+              Composez votre dossier aujourd&apos;hui.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-ardoise">
-              Comptez cinq minutes pour créer votre compte. Votre conseiller prend le relais sous
-              24 heures ouvrées.
+              Comptez cinq minutes pour créer votre compte. Votre conseiller prend le relais sous 24
+              heures ouvrées.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button asChild size="lg" className="bg-lapis text-blanc hover:bg-lapis/90">
+              <MotionButton asChild size="lg">
                 <Link href="/inscription">
-                  Créer mon dossier
+                  Créer mon compte
                   <ArrowRight className="h-4 w-4" strokeWidth={1.75} />
                 </Link>
-              </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="border-lapis/30 bg-blanc text-lapis hover:bg-blanc/60"
-              >
+              </MotionButton>
+              <MotionButton asChild size="lg" variant="outline">
                 <Link href="/contact">Parler à un conseiller</Link>
-              </Button>
+              </MotionButton>
             </div>
             <p className="mt-6 font-mono text-[11px] uppercase tracking-eyebrow text-ardoise">
-              Frais d'agence à partir de {formatFCFA(280000)}
+              Frais d&apos;agence à partir de {formatFCFA(280000)}
             </p>
           </Reveal>
         </div>

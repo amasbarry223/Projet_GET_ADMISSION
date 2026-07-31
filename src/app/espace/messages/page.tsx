@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { formatHeure } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { Paperclip, Send, Mail, Phone, ArrowLeft, Loader2, AlertCircle } from "lucide-react";
 
 type ConversationMessage = {
@@ -24,7 +25,7 @@ type ConversationMessage = {
 
 type Conversation = {
   candidat: { prenom: string; nom: string };
-  conseiller: { prenom: string; nom: string } | null;
+  conseiller: { prenom: string; nom: string; photoUrl?: string | null } | null;
   nonLusCandidat: number;
   messages: ConversationMessage[];
 } | null;
@@ -117,18 +118,22 @@ export default function MessagesPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur");
-      // Append localement
-      if (conversation) {
-        setConversation({
-          ...conversation,
-          messages: [...conversation.messages, data as ConversationMessage],
-        });
-      }
+      // Append ou bootstrap conversation locale
+      setConversation((prev) => {
+        if (prev) {
+          return { ...prev, messages: [...prev.messages, data as ConversationMessage] };
+        }
+        return {
+          candidat: { prenom: "", nom: "" },
+          conseiller: null,
+          nonLusCandidat: 0,
+          messages: [data as ConversationMessage],
+        };
+      });
       setInput("");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Erreur";
-      // toast.error("Échec de l'envoi", { description: msg });
-      console.error(msg);
+      toast.error("Échec de l'envoi", { description: msg });
     } finally {
       setSending(false);
     }
@@ -142,26 +147,42 @@ export default function MessagesPage() {
     );
   }
 
-  if (error || !conversation) {
+  if (error) {
+    return (
+      <Alert className="border-carmin/40 bg-carmin/5">
+        <AlertCircle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
+        <AlertTitle className="font-display text-sm font-bold text-encre">Chargement impossible</AlertTitle>
+        <AlertDescription className="text-sm text-ardoise">
+          {error}{" "}
+          <button type="button" className="font-medium text-lapis underline" onClick={() => window.location.reload()}>
+            Réessayer
+          </button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (!dossierId) {
     return (
       <Alert className="border-ambre/40 bg-ambre/5">
         <AlertCircle className="h-4 w-4 text-ambre" strokeWidth={1.5} />
-        <AlertTitle className="font-display text-sm font-bold text-encre">Messagerie indisponible</AlertTitle>
+        <AlertTitle className="font-display text-sm font-bold text-encre">Aucun dossier</AlertTitle>
         <AlertDescription className="text-sm text-ardoise">
-          {error || "Aucune conversation trouvée."}{" "}
+          Créez d&apos;abord un dossier pour écrire à votre conseiller.{" "}
           <Link href="/espace/dossier" className="font-medium text-lapis-clair hover:underline">
-            Créer mon dossier
+            Composer mon dossier
           </Link>
         </AlertDescription>
       </Alert>
     );
   }
 
-  const messages = conversation.messages;
+  const messages = conversation?.messages ?? [];
   const lastMessage = messages[messages.length - 1];
-  const conseillerNom = conversation.conseiller
+  const conseillerNom = conversation?.conseiller
     ? `${conversation.conseiller.prenom} ${conversation.conseiller.nom}`
     : "Conseiller non affecté";
+  const nonLus = conversation?.nonLusCandidat ?? 0;
 
   return (
     <div className="space-y-6">
@@ -191,9 +212,9 @@ export default function MessagesPage() {
                   </div>
                   <p className="truncate text-xs text-ardoise">{lastMessage?.texte ?? "Démarrez la conversation"}</p>
                 </div>
-                {conversation.nonLusCandidat > 0 && (
+                {nonLus > 0 && (
                   <Badge className="h-5 min-w-5 justify-center bg-ambre px-1.5 text-[10px] font-mono text-blanc">
-                    {conversation.nonLusCandidat}
+                    {nonLus}
                   </Badge>
                 )}
               </button>
@@ -220,7 +241,7 @@ export default function MessagesPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-encre">{conseillerNom}</p>
-                <p className="text-xs text-vert">En ligne</p>
+                <p className="text-xs text-ardoise">Conseillère GET Admission</p>
               </div>
             </div>
             {/* Desktop header */}
@@ -266,7 +287,7 @@ export default function MessagesPage() {
 
             {/* Input */}
             <form onSubmit={send} className="flex items-center gap-2 border-t border-ligne p-3">
-              <Button type="button" variant="ghost" size="icon" aria-label="Joindre un fichier" className="flex-none">
+              <Button type="button" variant="ghost" size="icon" aria-label="Pièces jointes bientôt disponibles" className="flex-none" disabled title="Pièces jointes bientôt disponibles">
                 <Paperclip className="h-4 w-4 text-ardoise" strokeWidth={1.5} />
               </Button>
               <Input

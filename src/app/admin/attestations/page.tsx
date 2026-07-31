@@ -1,19 +1,13 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { redirect } from "next/navigation";
 import {
   AttestationsClient,
   type AttestationDossier,
   type ModeleAttestation as ModeleAttestationProp,
 } from "@/components/admin/attestations-client";
+import { requireAdminPage } from "@/lib/admin-page-auth";
 
-// Server component — fetches the attestation queue (PRE_ADMISSION), already-issued
-// (ATTESTATION/CLOTURE) and the active models. No client waterfall.
-// Auth: any staff member (not CANDIDAT).
 export default async function AdminAttestationsPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || (session.user as any).role === "CANDIDAT") redirect("/connexion");
+  await requireAdminPage("attestations.read");
 
   // The detail page only needs a subset of fields per dossier.
   const select = {

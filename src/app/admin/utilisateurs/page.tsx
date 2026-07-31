@@ -1,14 +1,9 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { redirect } from "next/navigation";
 import { UtilisateursClient, type UserRow } from "@/components/admin/utilisateurs-client";
+import { requireAdminPage } from "@/lib/admin-page-auth";
 
-// Server component — fetches all staff users via Prisma (no client waterfall).
-// Auth: any staff member (not CANDIDAT).
 export default async function AdminUtilisateursPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || (session.user as any).role === "CANDIDAT") redirect("/connexion");
+  await requireAdminPage("users.write");
 
   const users = await db.user.findMany({
     select: {

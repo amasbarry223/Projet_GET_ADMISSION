@@ -66,6 +66,20 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
   const [creating, setCreating] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+  const [editSiteUrl, setEditSiteUrl] = React.useState("");
+  const [editCoverUrl, setEditCoverUrl] = React.useState("");
+  const [editLogoUrl, setEditLogoUrl] = React.useState("");
+  const [editGallery, setEditGallery] = React.useState("");
+
+  React.useEffect(() => {
+    if (!detailRow) return;
+    const u = universites.find((x) => x.id === detailRow.id);
+    if (!u) return;
+    setEditSiteUrl(u.siteUrl ?? "");
+    setEditCoverUrl(u.coverUrl ?? "");
+    setEditLogoUrl(u.logoUrl ?? "");
+    setEditGallery((u.galleryUrls ?? []).join("\n"));
+  }, [detailRow, universites]);
 
   const resetForm = () => {
     setFormNom("");
@@ -286,6 +300,13 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
           description: u.description ?? "",
           pointsForts: u.pointsForts ?? [],
           imageCouleur: u.imageCouleur ?? "",
+          siteUrl: editSiteUrl.trim() || "",
+          coverUrl: editCoverUrl.trim() || null,
+          logoUrl: editLogoUrl.trim() || null,
+          galleryUrls: editGallery
+            .split("\n")
+            .map((s) => s.trim())
+            .filter(Boolean),
           fraisMin: u.fraisMin,
           fraisMax: u.fraisMax,
           partenaire: u.partenaire,
@@ -518,6 +539,51 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
                   <div>
                     <p className="font-mono text-[10px] uppercase text-ardoise">Frais max</p>
                     <p className="font-mono text-encre">{formatFCFA(detailUniversite.fraisMax)}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 border-t border-ligne pt-4">
+                  <p className="font-mono text-[10px] uppercase tracking-eyebrow text-or">Médias Le Passage</p>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="siteUrl" className="text-xs text-ardoise">Site officiel</Label>
+                    <Input
+                      id="siteUrl"
+                      value={editSiteUrl}
+                      onChange={(e) => setEditSiteUrl(e.target.value)}
+                      placeholder="https://"
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="coverUrl" className="text-xs text-ardoise">Cover URL</Label>
+                    <Input
+                      id="coverUrl"
+                      value={editCoverUrl}
+                      onChange={(e) => setEditCoverUrl(e.target.value)}
+                      placeholder="/images/partenaires/.../cover.webp"
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="logoUrl" className="text-xs text-ardoise">Logo URL</Label>
+                    <Input
+                      id="logoUrl"
+                      value={editLogoUrl}
+                      onChange={(e) => setEditLogoUrl(e.target.value)}
+                      placeholder="/images/partenaires/.../logo.png"
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="gallery" className="text-xs text-ardoise">Galerie (1 chemin / ligne)</Label>
+                    <textarea
+                      id="gallery"
+                      value={editGallery}
+                      onChange={(e) => setEditGallery(e.target.value)}
+                      rows={3}
+                      className="w-full rounded-md border border-ligne bg-blanc px-3 py-2 font-mono text-xs text-encre"
+                      placeholder="/images/.../gallery-1.webp"
+                    />
                   </div>
                 </div>
                 <div>

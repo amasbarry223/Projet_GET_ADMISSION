@@ -13,7 +13,7 @@ export default function EspaceError({ reset }: { error: Error; reset: () => void
         </div>
         <h1 className="font-display text-xl font-bold text-encre">Erreur dans votre espace.</h1>
         <p className="mt-2 text-sm text-ardoise">
-          Une erreur est survenue lors du chargement de cette page. Vos données sont safe — réessayez ou revenez au tableau de bord.
+          Une erreur est survenue lors du chargement de cette page. Vos données sont intactes — réessayez ou revenez au tableau de bord.
         </p>
         <div className="mt-6 flex justify-center gap-3">
           <Button onClick={reset} size="sm" className="bg-lapis text-blanc hover:bg-lapis/90">

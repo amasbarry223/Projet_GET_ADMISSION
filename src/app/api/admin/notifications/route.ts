@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requirePermission } from "@/lib/rbac";
 
 // GET /api/admin/notifications — notifications dynamiques pour le staff
 export async function GET() {
@@ -9,9 +10,9 @@ export async function GET() {
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
-  const role = (session.user as any).role;
-  if (role === "CANDIDAT") {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  const gate = requirePermission((session.user as { role?: string }).role, "dashboard");
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
   const notifications: { id: string; type: string; message: string; reference: string; href: string; createdAt: string }[] = [];

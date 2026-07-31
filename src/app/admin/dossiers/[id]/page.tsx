@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,13 +67,14 @@ type MessageApi = {
 type DossierDetail = {
   id: string;
   reference: string;
+  candidatId: string;
   etat: string;
   etapeActuelle: number;
   fraisAgence: number;
   mrz: string;
   createdAt: string;
   updatedAt: string;
-  candidat: { prenom: string; nom: string; email: string; nationalite: string; telephone: string | null };
+  candidat: { id: string; prenom: string; nom: string; email: string; nationalite: string; telephone: string | null };
   universite: { nom: string };
   formation: { intitule: string; niveau: string; domaine: string };
   conseiller: { prenom: string; nom: string } | null;
@@ -153,8 +155,12 @@ export default function AdminDossierDetail() {
   const etatLower = dossier.etat.toLowerCase();
 
   const actions: ActionDef[] = [];
-  if (etatLower === "soumis" || etatLower === "verification") {
-    actions.push({ label: "Vérifier le dossier", icon: ShieldCheck, tone: "primary", toastLabel: "Dossier vérifié", toastDesc: "Transition vers « Paiement en attente ».", workflowAction: "verifier" });
+  if (etatLower === "soumis") {
+    actions.push({ label: "Prendre en charge", icon: ShieldCheck, tone: "primary", toastLabel: "Vérification démarrée", toastDesc: "Dossier passé en « En vérification ».", workflowAction: "demarrer_verification" });
+    actions.push({ label: "Demander correction", icon: AlertCircle, tone: "outline", toastLabel: "Correction demandée", toastDesc: "Le candidat a été notifié.", workflowAction: "correction", confirm: { title: "Demander une correction ?", desc: `Le candidat ${dossier.candidat.prenom} sera notifié et le dossier repassera en « À corriger ».` } });
+  }
+  if (etatLower === "verification") {
+    actions.push({ label: "Valider le dossier", icon: ShieldCheck, tone: "primary", toastLabel: "Dossier validé", toastDesc: "Transition vers « Paiement en attente ».", workflowAction: "valider_dossier" });
     actions.push({ label: "Demander correction", icon: AlertCircle, tone: "outline", toastLabel: "Correction demandée", toastDesc: "Le candidat a été notifié.", workflowAction: "correction", confirm: { title: "Demander une correction ?", desc: `Le candidat ${dossier.candidat.prenom} sera notifié et le dossier repassera en « À corriger ».` } });
   }
   if (etatLower === "correction") {
@@ -164,7 +170,12 @@ export default function AdminDossierDetail() {
     actions.push({ label: "Confirmer le paiement", icon: Wallet, tone: "primary", toastLabel: "Paiement confirmé", toastDesc: "Dossier prêt à être transmis.", workflowAction: "confirmer_paiement", confirm: { title: "Confirmer le paiement ?", desc: `Vérifiez que les ${formatFCFA(dossier.fraisAgence)} ont bien été reçus avant de confirmer.` } });
   }
   if (etatLower === "paiement_confirme") {
-    actions.push({ label: "Transmettre à l'université", icon: Send, tone: "primary", toastLabel: "Dossier transmis", toastDesc: `${univ?.nom} a été notifié.`, workflowAction: "transmettre", confirm: { title: "Transmettre à l'université ?", desc: `Le dossier sera envoyé à ${univ?.nom}. Cette action est irréversible.` } });
+    actions.push({ label: "Transmettre à l'université", icon: Send, tone: "primary", toastLabel: "Dossier transmis", toastDesc: `${univ?.nom} a été notifié. Passage en attente de réponse.`, workflowAction: "transmettre", confirm: { title: "Transmettre à l'université ?", desc: `Le dossier sera envoyé à ${univ?.nom}. Cette action est irréversible.` } });
+  }
+  if (etatLower === "transmis") {
+    actions.push({ label: "Passer en attente de réponse", icon: Send, tone: "primary", toastLabel: "En attente", toastDesc: "L'université examine le dossier.", workflowAction: "attendre_reponse" });
+    actions.push({ label: "Marquer accepté", icon: CheckCircle2, tone: "outline", toastLabel: "Pré-admission accordée", toastDesc: "Attestation à émettre sous 48h.", workflowAction: "accepter", confirm: { title: "Marquer la candidature acceptée ?", desc: `L'université ${univ?.nom} a accordé la pré-admission.` } });
+    actions.push({ label: "Marquer refusé", icon: XCircle, tone: "danger", toastLabel: "Candidature refusée", toastDesc: "Le candidat a été informé.", workflowAction: "refuser", confirm: { title: "Marquer la candidature refusée ?", desc: `Cette action notifiera ${dossier.candidat.prenom} du refus.` } });
   }
   if (etatLower === "attente_reponse") {
     actions.push({ label: "Marquer accepté", icon: CheckCircle2, tone: "primary", toastLabel: "Pré-admission accordée", toastDesc: "Attestation à émettre sous 48h.", workflowAction: "accepter", confirm: { title: "Marquer la candidature acceptée ?", desc: `L'université ${univ?.nom} a accordé la pré-admission. L'attestation pourra ensuite être émise.` } });
@@ -172,6 +183,9 @@ export default function AdminDossierDetail() {
   }
   if (etatLower === "pre_admission") {
     actions.push({ label: "Émettre l'attestation", icon: Stamp, tone: "primary", toastLabel: "Attestation émise", toastDesc: "Disponible dans l'espace candidat.", workflowAction: "emettre_attestation", confirm: { title: "Émettre l'attestation ?", desc: "L'attestation de pré-inscription sera générée avec sceau officiel et code de vérification." } });
+  }
+  if (etatLower === "attestation" || etatLower === "refuse") {
+    actions.push({ label: "Clôturer le dossier", icon: CheckCircle2, tone: "outline", toastLabel: "Dossier clôturé", toastDesc: "Archivage effectué.", workflowAction: "cloturer", confirm: { title: "Clôturer le dossier ?", desc: "Le dossier sera archivé et ne pourra plus être modifié." } });
   }
 
   const execAction = (a: ActionDef) => async () => {
@@ -256,6 +270,31 @@ export default function AdminDossierDetail() {
                 <Field label="Frais d'agence" value={formatFCFA(dossier.fraisAgence)} mono />
                 <Field label="Date de création" value={formatDate(dossier.createdAt)} />
               </dl>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    const res = await fetch("/api/profile/kyc", {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ userId: dossier.candidat.id, verifie: true }),
+                    });
+                    if (!res.ok) {
+                      toast.error("Validation KYC échouée");
+                      return;
+                    }
+                    toast.success("KYC vérifié");
+                  }}
+                >
+                  <ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> Valider le KYC
+                </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <a href={`/api/profile/kyc?side=recto&userId=${dossier.candidat.id}`} target="_blank" rel="noreferrer">
+                    Voir pièce KYC
+                  </a>
+                </Button>
+              </div>
             </Card>
           </TabsContent>
 
@@ -286,7 +325,20 @@ export default function AdminDossierDetail() {
                           {p.taille && <p className="font-mono text-[11px] text-ardoise">{p.taille}{p.televerseeLe ? ` · ${formatDate(p.televerseeLe)}` : ""}</p>}
                         </div>
                         <Badge className={cn("font-mono text-[10px] uppercase", cfg.color, "border-current")}>{cfg.label}</Badge>
-                        <Button variant="ghost" size="icon" aria-label="Voir la pièce"><Eye className="h-4 w-4" strokeWidth={1.5} /></Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Télécharger la pièce"
+                          asChild={!!(p as { cheminFichier?: string }).cheminFichier}
+                        >
+                          {(p as { cheminFichier?: string }).cheminFichier ? (
+                            <a href={`/api/dossiers/${dossier.id}/pieces/${p.id}/download`} target="_blank" rel="noreferrer">
+                              <Eye className="h-4 w-4" strokeWidth={1.5} />
+                            </a>
+                          ) : (
+                            <Eye className="h-4 w-4 opacity-40" strokeWidth={1.5} />
+                          )}
+                        </Button>
                       </li>
                     );
                   })}
@@ -363,21 +415,46 @@ export default function AdminDossierDetail() {
               {messages.length === 0 ? (
                 <p className="mt-4 text-sm text-ardoise">Aucun message échangé pour le moment.</p>
               ) : (
-                <div className="mt-4 space-y-3">
+                <div className="mt-4 max-h-80 space-y-3 overflow-y-auto">
                   {messages.map((m) => {
-                    const isConseiller = dossier.conseiller && m.auteurId === dossier.conseiller.id;
+                    const isStaffMsg = m.auteurId !== dossier.candidat.id;
                     return (
-                      <div key={m.id} className={cn("max-w-[80%] rounded-md px-3.5 py-2.5 text-sm", isConseiller ? "ml-auto bg-lapis text-blanc" : "border border-ligne bg-blanc text-encre")}>
+                      <div key={m.id} className={cn("max-w-[80%] rounded-md px-3.5 py-2.5 text-sm", isStaffMsg ? "ml-auto bg-lapis text-blanc" : "border border-ligne bg-blanc text-encre")}>
                         {m.texte}
-                        <p className={cn("mt-1 font-mono text-[10px]", isConseiller ? "text-blanc/60" : "text-ardoise")}>{formatDateTime(m.createdAt)}</p>
+                        <p className={cn("mt-1 font-mono text-[10px]", isStaffMsg ? "text-blanc/60" : "text-ardoise")}>{formatDateTime(m.createdAt)}</p>
                       </div>
                     );
                   })}
                 </div>
               )}
-              <Button variant="outline" className="mt-4" onClick={() => router.push("/espace/messages")}>
-                <MessageSquare className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Ouvrir la conversation
-              </Button>
+              <form
+                className="mt-4 flex gap-2"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const input = form.elements.namedItem("msg") as HTMLInputElement;
+                  const texte = input?.value?.trim();
+                  if (!texte) return;
+                  const res = await fetch("/api/messages", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dossierId: dossier.id, texte }),
+                  });
+                  if (!res.ok) {
+                    toast.error("Envoi échoué");
+                    return;
+                  }
+                  input.value = "";
+                  toast.success("Message envoyé");
+                  // Recharge
+                  window.location.reload();
+                }}
+              >
+                <Input name="msg" placeholder="Écrire au candidat…" className="flex-1" />
+                <Button type="submit" className="bg-lapis text-blanc hover:bg-lapis/90">
+                  <MessageSquare className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Envoyer
+                </Button>
+              </form>
             </Card>
           </TabsContent>
         </Tabs>

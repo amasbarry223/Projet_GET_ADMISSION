@@ -114,6 +114,8 @@ export type ActionItem<TData> = {
   label: string;
   icon: React.ElementType;
   tone?: "default" | "danger";
+  /** Masquer l'action pour certaines lignes */
+  hidden?: (row: TData) => boolean;
   /** Action directe (toast, navigation, etc.) */
   onClick?: (row: TData) => void;
   /** Action nécessitant confirmation (destructive / irréversible) — ouvre un AlertDialog */
@@ -139,6 +141,7 @@ export function createActionsColumn<TData>(
 }
 
 function RowActions<TData>({ row, actions, ariaLabel }: { row: TData; actions: ActionItem<TData>[]; ariaLabel?: string }) {
+  const visible = actions.filter((a) => !a.hidden?.(row));
   return (
     <div className="flex items-center justify-end">
       <DropdownMenu>
@@ -150,7 +153,7 @@ function RowActions<TData>({ row, actions, ariaLabel }: { row: TData; actions: A
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Actions</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {actions.map((action, i) =>
+          {visible.map((action, i) =>
             action.confirm ? (
               <AlertDialog key={i}>
                 <AlertDialogTrigger asChild>

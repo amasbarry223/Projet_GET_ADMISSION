@@ -32,11 +32,15 @@ model User {
   photoUrl      String?
   kycType       String?  // passeport | cni
   kycNumero     String?  // numéro de pièce
+  kycRectoPath  String?  // chemin fichier recto
+  kycVersoPath  String?  // chemin fichier verso
   kycVerifie    Boolean  @default(false)
   kycVerifieLe  DateTime?
   isDemo        Boolean  @default(false)
   emailVerified DateTime? // date de vérification de l'e-mail (BF-06)
   verifyToken   String?  // token de vérification e-mail
+  resetToken    String?  // token reset MDP (BF-08)
+  resetTokenExpires DateTime?
   role          Role     @default(CANDIDAT)
   actif         Boolean  @default(true)
   createdAt     DateTime @default(now())
@@ -51,6 +55,7 @@ model User {
   attestationsEmises   Attestation[]  @relation("AttestationEmetteur")
   conversationsCandidat   Conversation[] @relation("ConvCandidat")
   conversationsConseiller Conversation[] @relation("ConvConseiller")
+  notifications        Notification[]
 }
 
 /* --------------------------- Catalogue --------------------------- */
@@ -67,6 +72,10 @@ model Universite {
   description String
   pointsForts String // JSON array as string
   imageCouleur String
+  siteUrl     String?
+  logoUrl     String?
+  coverUrl    String?
+  galleryUrls String      @default("[]") // JSON array of image paths
   fraisMin    Int
   fraisMax    Int
   partenaire  Boolean     @default(true)
@@ -148,6 +157,7 @@ model Piece {
   type         String    @default("pdf") // pdf | image | autre
   taille       String?
   nomFichier   String?
+  cheminFichier String?  // chemin relatif sous /upload
   televerseeLe DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -178,7 +188,7 @@ model Paiement {
   date       DateTime  @default(now())
   montant    Int
   moyen      String // Orange Money | Moov Money | Wave | Carte bancaire | Espèces
-  statut     String    @default("en_attente") // en_attente | reussi | echoue
+  statut     String    @default("en_attente") // en_attente | reussi | echoue | rembourse
   tranche    String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -330,6 +340,12 @@ model Parametre {
   fraisMin         Int     @default(350000)
   fraisMax         Int     @default(1750000)
   paiementTranches Boolean @default(true)
+  notifEmail       Boolean @default(true)
+  notifInApp       Boolean @default(true)
+  workflowStrict   Boolean @default(true)
+  exigerEmailVerifie Boolean @default(false)
+  mentionsLegales  String  @default("")
+  politiqueConfidentialite String @default("")
 }
 
 model AuditLog {
@@ -347,4 +363,38 @@ model AuditLog {
   @@index([date])
   @@index([userId])
   @@index([resource])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  titre     String
+  message   String
+  type      String   @default("info") // info | workflow | paiement | alerte
+  lien      String?
+  dossierId String?
+  lu        Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, lu])
+  @@index([createdAt])
+}
+
+model EmailLog {
+  id        Int      @id @default(autoincrement())
+  to        String
+  subject   String
+  body      String
+  status    String   @default("queued")
+  createdAt DateTime @default(now())
+}
+
+model ContenuSection {
+  id        Int     @id @default(autoincrement())
+  cle       String  @unique // etapes | piliers | mentions | etc.
+  titre     String?
+  contenu   String  // JSON
+  actif     Boolean @default(true)
+  updatedAt DateTime @updatedAt
 }

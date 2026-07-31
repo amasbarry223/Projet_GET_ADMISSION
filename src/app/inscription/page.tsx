@@ -2,19 +2,35 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plane, User, Mail, Lock, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
+import { User, Mail, Lock, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { BrandLogo } from "@/components/brand-logo";
 
 export default function InscriptionPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-ardoise" /></div>}>
+      <InscriptionInner />
+    </Suspense>
+  );
+}
+
+function safeCallback(raw: string | null): string | null {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return null;
+  return raw;
+}
+
+function InscriptionInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = safeCallback(searchParams.get("callbackUrl"));
   const [form, setForm] = React.useState({ prenom: "", nom: "", email: "", password: "", confirm: "", nationalite: "", consent: false });
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [loading, setLoading] = React.useState(false);
@@ -81,36 +97,15 @@ export default function InscriptionPage() {
         return;
       }
       // BF-06 : Vérification de l'e-mail requise
-      if (data.verifyUrl) {
-        toast.success("Compte créé", {
-          description: "Un e-mail de vérification a été envoyé. Cliquez sur le lien pour activer votre compte.",
-          duration: 8000,
-        });
-        // En démo : afficher le lien de vérification (en production, envoyé par e-mail)
-        toast.info("Lien de vérification (démo)", {
-          description: "Cliquez pour vérifier votre e-mail.",
-          action: {
-            label: "Vérifier",
-            onClick: () => window.open(data.verifyUrl, "_blank"),
-          },
-          duration: 15000,
-        });
-        router.push("/connexion");
-        return;
-      }
-      // Si pas de verifyUrl (comptes démo) : auto-login
-      const signRes = await signIn("credentials", {
+      const q = new URLSearchParams({
+        status: "pending",
         email: form.email,
-        password: form.password,
-        redirect: false,
+        message: "Un e-mail de vérification vient d'être envoyé. Consultez votre boîte mail pour activer votre compte.",
       });
-      if (signRes?.error) {
-        toast.error("Compte créé", { description: "Connectez-vous pour accéder à votre espace." });
-        router.push("/connexion");
-        return;
-      }
-      toast.success("Compte créé", { description: "Bienvenue dans votre espace candidat." });
-      router.push("/espace");
+      if (data.verifyUrl) q.set("verifyUrl", data.verifyUrl);
+      if (callbackUrl) q.set("callbackUrl", callbackUrl);
+      router.push(`/verification-email?${q.toString()}`);
+      return;
     } catch {
       toast.error("Erreur", { description: "Une erreur est survenue. Réessayez." });
     }
@@ -122,23 +117,17 @@ export default function InscriptionPage() {
       {/* Left: editorial */}
       <div className="relative hidden flex-col justify-between bg-porcelaine p-10 lg:flex">
         <div className="rule-or absolute inset-x-0 top-0" aria-hidden />
-        <Link href="/" className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-md bg-lapis text-blanc">
-            <Plane className="h-4 w-4 -rotate-12" strokeWidth={1.75} />
-          </span>
-          <span className="flex flex-col leading-none">
-            <span className="font-display text-base font-bold text-encre">GET Admission</span>
-            <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Le passage</span>
-          </span>
+        <Link href="/" className="inline-flex">
+          <BrandLogo height={48} priority />
         </Link>
 
         <div className="max-w-md">
           <p className="eyebrow-or mb-4">Première étape</p>
           <h1 className="font-display text-4xl font-bold leading-tight tracking-tight text-encre">
-            Composez votre dossier<br />en quelques minutes.
+            Créez votre compte<br />en quelques minutes.
           </h1>
           <p className="mt-4 text-ardoise">
-            Créez votre compte, choisissez votre université partenaire, déposez vos pièces. Le reste, on s'en occupe.
+            Ouvrez votre espace candidat. Ensuite, choisissez votre université et composez votre dossier.
           </p>
 
           <ul className="mt-6 space-y-2.5">
@@ -153,10 +142,12 @@ export default function InscriptionPage() {
           <div className="mt-8 rounded-md border border-ligne bg-blanc p-4">
             <p className="font-mono text-[10px] uppercase tracking-eyebrow text-lapis">Déjà un compte ?</p>
             <p className="mt-1 text-sm text-encre">
-              Si vous avez déjà créé votre dossier, connectez-vous pour reprendre où vous en étiez.
+              Connectez-vous pour reprendre votre parcours ou composer votre dossier.
             </p>
             <Button asChild variant="outline" size="sm" className="mt-3">
-              <Link href="/connexion">Se connecter <ArrowRight className="ml-1.5 h-3.5 w-3.5" strokeWidth={1.5} /></Link>
+              <Link href={callbackUrl ? `/connexion?callbackUrl=${encodeURIComponent(callbackUrl)}` : "/connexion"}>
+                Se connecter <ArrowRight className="ml-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
+              </Link>
             </Button>
           </div>
         </div>
@@ -167,16 +158,13 @@ export default function InscriptionPage() {
       {/* Right: form */}
       <div className="flex items-center justify-center bg-blanc p-6 sm:p-10">
         <div className="w-full max-w-sm">
-          <div className="lg:hidden mb-8 flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-lapis text-blanc">
-              <Plane className="h-4 w-4 -rotate-12" strokeWidth={1.75} />
-            </span>
-            <span className="font-display text-base font-bold text-encre">GET Admission</span>
+          <div className="lg:hidden mb-8 flex items-center">
+            <BrandLogo height={40} />
           </div>
 
           <p className="eyebrow mb-2">Inscription</p>
-          <h2 className="font-display text-2xl font-bold text-encre">Créer mon dossier.</h2>
-          <p className="mt-1.5 text-sm text-ardoise">Quelques informations pour démarrer votre parcours.</p>
+          <h2 className="font-display text-2xl font-bold text-encre">Créer mon compte.</h2>
+          <p className="mt-1.5 text-sm text-ardoise">Quelques informations pour ouvrir votre espace candidat.</p>
 
           <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
             <div className="grid grid-cols-2 gap-3">
@@ -240,20 +228,33 @@ export default function InscriptionPage() {
               <label htmlFor="consent" className="flex items-start gap-2.5 cursor-pointer">
                 <Checkbox id="consent" checked={form.consent} onCheckedChange={(v) => set("consent", !!v)} className="mt-0.5" />
                 <span className="text-xs text-ardoise">
-                  J'accepte les <Link href="#" className="text-lapis-clair hover:underline">conditions d'agence</Link> et la <Link href="#" className="text-lapis-clair hover:underline">politique de confidentialité</Link>.
+                  J&apos;accepte les{" "}
+                  <Link href="/mentions-legales" className="text-lapis-clair hover:underline">
+                    conditions d&apos;agence
+                  </Link>{" "}
+                  et la{" "}
+                  <Link href="/mentions-legales" className="text-lapis-clair hover:underline">
+                    politique de confidentialité
+                  </Link>
+                  .
                 </span>
               </label>
               {errors.consent && <p className="text-xs text-carmin">{errors.consent}</p>}
             </div>
 
             <Button type="submit" className="w-full bg-lapis text-blanc hover:bg-lapis/90" disabled={loading}>
-              {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Création…</> : <>Créer mon dossier <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} /></>}
+              {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Création…</> : <>Créer mon compte <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} /></>}
             </Button>
           </form>
 
           <p className="mt-6 text-center text-sm text-ardoise">
             Déjà un compte ?{" "}
-            <Link href="/connexion" className="font-medium text-lapis-clair hover:underline">Se connecter</Link>
+            <Link
+              href={callbackUrl ? `/connexion?callbackUrl=${encodeURIComponent(callbackUrl)}` : "/connexion"}
+              className="font-medium text-lapis-clair hover:underline"
+            >
+              Se connecter
+            </Link>
           </p>
         </div>
       </div>

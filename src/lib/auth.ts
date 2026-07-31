@@ -82,6 +82,18 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        // BF-06 : optionnellement exiger la vérification e-mail (paramètre agence)
+        try {
+          const params = await db.parametre.findUnique({ where: { id: 1 } });
+          if (params?.exigerEmailVerifie && user.role === "CANDIDAT" && !user.emailVerified) {
+            throw new Error("EMAIL_NOT_VERIFIED");
+          }
+        } catch (e) {
+          if (e instanceof Error && e.message === "EMAIL_NOT_VERIFIED") {
+            throw e;
+          }
+        }
+
         return {
           id: user.id,
           email: user.email,
@@ -95,7 +107,7 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         const u = user as AuthUser;
         token.id = u.id;
@@ -103,10 +115,34 @@ export const authOptions: NextAuthOptions = {
         token.prenom = u.prenom;
         token.nom = u.nom;
         token.image = u.image;
+        token.lastValidated = Date.now();
+      }
+
+      // Revalider rôle + actif depuis la DB (au plus toutes les 5 min)
+      const last = typeof token.lastValidated === "number" ? token.lastValidated : 0;
+      const shouldRefresh = !last || Date.now() - last > 5 * 60 * 1000 || trigger === "update";
+      if (shouldRefresh && token.id) {
+        const dbUser = await db.user.findUnique({
+          where: { id: String(token.id) },
+          select: { role: true, actif: true, prenom: true, nom: true, photoUrl: true },
+        });
+        if (!dbUser || !dbUser.actif) {
+          return { ...token, role: undefined, error: "inactive", lastValidated: Date.now() };
+        }
+        token.role = dbUser.role;
+        token.prenom = dbUser.prenom;
+        token.nom = dbUser.nom;
+        token.image = dbUser.photoUrl;
+        token.error = undefined;
+        token.lastValidated = Date.now();
       }
       return token;
     },
     async session({ session, token }) {
+      if (token.error === "inactive") {
+        // Session invalide : le middleware / pages verront l'absence de rôle staff/candidat
+        return { ...session, user: undefined as unknown as typeof session.user };
+      }
       if (session.user) {
         const u = session.user as Record<string, unknown>;
         u.id = token.id;

@@ -30,7 +30,10 @@ export default async function CatalogueUniversitesPage() {
     fraisMin: u.fraisMin,
     fraisMax: u.fraisMax,
     partenaire: u.partenaire,
-    partenaires: u.partenaire, // miroir pour compat UniversiteCard
+    partenaires: u.partenaire,
+    coverUrl: u.coverUrl,
+    logoUrl: u.logoUrl,
+    siteUrl: u.siteUrl,
     formations: u.formations.map((f) => ({
       id: f.id,
       universiteId: f.universiteId,

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { universiteSchema, validate } from "@/lib/validations";
 import { uniqueSlug } from "@/lib/utils";
 import { logAudit } from "@/lib/audit";
+import { requirePermission } from "@/lib/rbac";
 
 // GET /api/universites/[id] — détail par ID (staff) — alias de la route /by-slug
 export async function GET(
@@ -47,9 +48,9 @@ export async function PUT(
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const role = (session.user as any).role;
-  if (role === "CANDIDAT") {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  const gate = requirePermission((session.user as { role?: string }).role, "catalogue.write");
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
   const { id } = await params;
@@ -76,6 +77,7 @@ export async function PUT(
   const {
     nom, pays, drapeau, ville, ecusson, domaines,
     description, pointsForts, imageCouleur, fraisMin, fraisMax, partenaire,
+    siteUrl, logoUrl, coverUrl, galleryUrls,
   } = parsed.data;
 
   if (fraisMax < fraisMin) {
@@ -97,6 +99,12 @@ export async function PUT(
     });
   }
 
+  const galleryStr = Array.isArray(galleryUrls)
+    ? JSON.stringify(galleryUrls)
+    : typeof galleryUrls === "string"
+      ? galleryUrls
+      : undefined;
+
   const updated = await db.universite.update({
     where: { id: existing.id },
     data: {
@@ -113,7 +121,19 @@ export async function PUT(
       fraisMin,
       fraisMax,
       ...(partenaire !== undefined ? { partenaire } : {}),
+      ...(siteUrl !== undefined ? { siteUrl: siteUrl || null } : {}),
+      ...(logoUrl !== undefined ? { logoUrl: logoUrl || null } : {}),
+      ...(coverUrl !== undefined ? { coverUrl: coverUrl || null } : {}),
+      ...(galleryStr !== undefined ? { galleryUrls: galleryStr } : {}),
     },
+  });
+
+  await logAudit({
+    session,
+    action: "UPDATE",
+    resource: "universite",
+    resourceId: updated.id,
+    details: `Université mise à jour : ${updated.nom}`,
   });
 
   const result = {
@@ -125,10 +145,7 @@ export async function PUT(
   return NextResponse.json(result);
 }
 
-// DELETE /api/universites/[id] — supprimer une université (staff uniquement)
-// Cascade : les formations liées sont supprimées (onDelete: Cascade dans le schema).
-// Les dossiers liés ne sont PAS supprimés (pas de cascade sur Dossier.universite) →
-// on bloque la suppression si des dossiers existent.
+// DELETE /api/universites/[id] — supprimer une université
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -138,9 +155,9 @@ export async function DELETE(
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const role = (session.user as any).role;
-  if (role === "CANDIDAT") {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  const gate = requirePermission((session.user as { role?: string }).role, "catalogue.write");
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
   const { id } = await params;

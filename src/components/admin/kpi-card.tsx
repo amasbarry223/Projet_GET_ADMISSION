@@ -48,7 +48,10 @@ export function KpiCard({
   const up = (delta ?? 0) >= 0;
 
   return (
-    <Card className={cn("border-ligne bg-blanc p-5 shadow-sm", className)}>
+    <Card className={cn(
+      "border-ligne bg-blanc p-5 shadow-sm transition-shadow duration-300 hover:shadow-[0_8px_24px_rgba(60,169,54,0.16)]",
+      className
+    )}>
       <div className="flex items-start justify-between">
         <div className={cn("flex h-12 w-12 items-center justify-center rounded-lg", config.iconBg)}>
           <Icon className={cn("h-6 w-6", config.iconText)} strokeWidth={1.5} />

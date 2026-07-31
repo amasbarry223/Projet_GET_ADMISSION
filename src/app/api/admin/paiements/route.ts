@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { manualTransactionSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { logAudit } from "@/lib/audit";
+import { requirePermission } from "@/lib/rbac";
 
 // POST /api/admin/paiements — transaction manuelle (staff uniquement)
 //
@@ -18,9 +19,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const role = (session.user as any).role;
-  if (role === "CANDIDAT") {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  const gate = requirePermission((session.user as { role?: string }).role, "finance.write");
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
   // Rate limiting (10 transactions / min / IP)
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
 
   const dossier = await db.dossier.findUnique({
     where: { id: dossierId },
-    select: { id: true, candidatId: true, reference: true, fraisAgence: true, paiementStatut: true },
+    select: { id: true, candidatId: true, reference: true, fraisAgence: true, paiementStatut: true, etat: true },
   });
   if (!dossier) {
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
@@ -61,6 +62,7 @@ export async function POST(request: Request) {
   });
   const totalPaye = paiementsExistants.reduce((sum, p) => sum + p.montant, 0) + montant;
   const nouveauStatut = totalPaye >= dossier.fraisAgence ? "complet" : "partiel";
+  const advanceEtat = nouveauStatut === "complet" && dossier.etat === "PAIEMENT_ATTENTE";
 
   const paiement = await db.$transaction(async (tx) => {
     const created = await tx.paiement.create({
@@ -77,13 +79,16 @@ export async function POST(request: Request) {
 
     await tx.dossier.update({
       where: { id: dossierId },
-      data: { paiementStatut: nouveauStatut },
+      data: {
+        paiementStatut: nouveauStatut,
+        ...(advanceEtat ? { etat: "PAIEMENT_CONFIRME" as const, etapeActuelle: 6 } : {}),
+      },
     });
 
     await tx.historique.create({
       data: {
         dossierId,
-        etat: "PAIEMENT_CONFIRME",
+        etat: advanceEtat ? "PAIEMENT_CONFIRME" : dossier.etat,
         auteur: auteurLabel,
         auteurId: userId,
         note: `Paiement manuel ${moyen} confirmé : ${montant} FCFA (statut: ${nouveauStatut}).`,
@@ -111,9 +116,9 @@ export async function GET() {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const role = (session.user as any).role;
-  if (role === "CANDIDAT") {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  const gate = requirePermission((session.user as { role?: string }).role, "finance.read");
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
   const paiements = await db.paiement.findMany({

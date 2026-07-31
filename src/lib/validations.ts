@@ -16,13 +16,17 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 export const workflowSchema = z.object({
   action: z.enum([
     "verifier",
+    "demarrer_verification",
+    "valider_dossier",
     "correction",
     "verifier_corrections",
     "confirmer_paiement",
     "transmettre",
+    "attendre_reponse",
     "accepter",
     "refuser",
     "emettre_attestation",
+    "cloturer",
   ]),
   note: z.string().max(1000).optional(),
 });
@@ -74,6 +78,8 @@ export type DossierCreateInput = z.infer<typeof dossierCreateSchema>;
 // --- Update dossier ---
 export const dossierUpdateSchema = z.object({
   etapeActuelle: z.number().int().min(1).max(12).optional(),
+  /** soumettre: BROUILLON→SOUMIS ; resoumettre: CORRECTION→VERIFICATION */
+  action: z.enum(["soumettre", "resoumettre"]).optional(),
   info: z.object({
     prenom: z.string().max(50).optional(),
     nom: z.string().max(50).optional(),
@@ -110,6 +116,10 @@ export const universiteSchema = z.object({
   description: z.string().max(2000).default(""),
   pointsForts: z.array(z.string().max(200)).default([]),
   imageCouleur: z.string().max(500).default(""),
+  siteUrl: z.union([z.string().url(), z.literal("")]).optional().nullable(),
+  logoUrl: z.string().max(500).optional().nullable(),
+  coverUrl: z.string().max(500).optional().nullable(),
+  galleryUrls: z.union([z.array(z.string().max(500)), z.string().max(2000)]).optional(),
   fraisMin: z.number().int().min(0).default(0),
   fraisMax: z.number().int().min(0).default(0),
   partenaire: z.boolean().optional(),
@@ -162,6 +172,12 @@ export const parametresSchema = z.object({
   fraisMin: z.number().int().min(0).max(10_000_000).optional(),
   fraisMax: z.number().int().min(0).max(10_000_000).optional(),
   paiementTranches: z.boolean().optional(),
+  notifEmail: z.boolean().optional(),
+  notifInApp: z.boolean().optional(),
+  workflowStrict: z.boolean().optional(),
+  exigerEmailVerifie: z.boolean().optional(),
+  mentionsLegales: z.string().max(50000).optional(),
+  politiqueConfidentialite: z.string().max(50000).optional(),
 });
 export type ParametresInput = z.infer<typeof parametresSchema>;
 

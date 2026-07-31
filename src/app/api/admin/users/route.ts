@@ -3,24 +3,33 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { adminUserCreateSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { logAudit } from "@/lib/audit";
+import { requirePermission } from "@/lib/rbac";
+import { sendMail, invitationEmailHtml } from "@/lib/mail";
 
-// GET /api/admin/users — liste des utilisateurs (staff uniquement)
-//
-// Comportement de pagination (backward compatible) :
-// - Sans `?page=`      → renvoie un tableau plat (legacy).
-// - Avec `?page=N`      → renvoie { data, total, page, pageSize }.
+function generateTempPassword(length = 14): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@$%";
+  const bytes = crypto.randomBytes(length);
+  let out = "";
+  for (let i = 0; i < length; i++) {
+    out += alphabet[bytes[i]! % alphabet.length];
+  }
+  return out;
+}
+
+// GET /api/admin/users — liste des utilisateurs (ADMIN / SUPER_ADMIN)
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const role = (session.user as any).role;
-  if (role === "CANDIDAT") {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  const gate = requirePermission((session.user as { role?: string }).role, "users.write");
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
   // --- Params de pagination (optionnels) ---
@@ -72,7 +81,7 @@ export async function GET(request: Request) {
 // POST /api/admin/users — inviter un nouvel utilisateur (admin uniquement)
 //
 // Body: { prenom, nom, email, role }
-// - Mot de passe par défaut : "demo1234"
+// - Mot de passe temporaire aléatoire (renvoyé une seule fois + e-mail)
 // - Email doit être unique
 // - Rôle peut être CANDIDAT, CONSEILLER, FINANCIER, ADMIN, SUPER_ADMIN
 export async function POST(request: Request) {
@@ -125,8 +134,8 @@ export async function POST(request: Request) {
     );
   }
 
-  // Hasher le mot de passe par défaut
-  const defaultPassword = "demo1234";
+  // Mot de passe temporaire aléatoire
+  const defaultPassword = generateTempPassword();
   const passwordHash = await bcrypt.hash(defaultPassword, 10);
 
   const user = await db.user.create({
@@ -137,6 +146,7 @@ export async function POST(request: Request) {
       nom: nom.trim(),
       role: newRole,
       actif: true,
+      emailVerified: new Date(),
     },
     select: {
       id: true,
@@ -147,6 +157,13 @@ export async function POST(request: Request) {
       actif: true,
       createdAt: true,
     },
+  });
+
+  await sendMail({
+    to: user.email,
+    subject: "Invitation GET Admission — votre compte",
+    html: invitationEmailHtml(user.prenom, user.email, defaultPassword),
+    text: `Bonjour ${user.prenom}, votre compte GET Admission a été créé. E-mail : ${user.email}. Mot de passe temporaire : ${defaultPassword}`,
   });
 
   await logAudit({

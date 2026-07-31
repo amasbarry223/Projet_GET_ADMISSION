@@ -1,12 +1,16 @@
+"use client";
+
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { formatFCFACompact } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 
 /** Type local pour la carte université (compatible DB et API). */
-type Universite = {
+export type UniversiteCardData = {
   id: string;
   slug: string;
   nom: string;
@@ -21,50 +25,70 @@ type Universite = {
   fraisMin: number;
   fraisMax: number;
   partenaire?: boolean;
+  coverUrl?: string | null;
+  logoUrl?: string | null;
+  siteUrl?: string | null;
 };
 
 type Props = {
-  universite: Universite;
+  universite: UniversiteCardData;
   className?: string;
-  /** Afficher la flèche "voir" en bas (catalogue) — par défaut true */
   showFooter?: boolean;
 };
 
 /**
- * Carte université — utilisée sur l'accueil (vedettes) et le catalogue.
- * Tuile hautaine, lapis/blanc, ecusson dans un cercle blanc, frais en mono.
+ * Carte université — cover + logo, hover scale + ombre or.
  */
 export function UniversiteCard({ universite, className, showFooter = true }: Props) {
   const domainesVisibles = universite.domaines.slice(0, 3);
   const restant = universite.domaines.length - domainesVisibles.length;
+  const reduce = useReducedMotion();
 
-  return (
+  const inner = (
     <Link
       href={`/universites/${universite.slug}`}
       className={cn(
-        "group relative flex flex-col overflow-hidden rounded-lg border border-ligne bg-blanc shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none",
+        "group relative flex h-full flex-col overflow-hidden rounded-lg border border-ligne bg-blanc shadow-sm transition-shadow duration-300",
+        "hover:shadow-[0_12px_36px_rgba(60,169,54,0.28)]",
         className
       )}
     >
-      {/* Bandeau gradient avec ecusson */}
       <div
         className={cn(
-          "relative flex h-32 items-center justify-center bg-gradient-to-br",
+          "relative flex h-36 items-center justify-center overflow-hidden bg-gradient-to-br",
           universite.imageCouleur
         )}
         aria-hidden
       >
-        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-blanc/95 shadow-sm">
-          <span className="font-mono text-sm font-bold tracking-tight text-lapis">
-            {universite.ecusson}
-          </span>
+        {universite.coverUrl ? (
+          <Image
+            src={universite.coverUrl}
+            alt=""
+            fill
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            sizes="(max-width:768px) 100vw, 33vw"
+            loading="lazy"
+          />
+        ) : null}
+        <div className="absolute inset-0 bg-gradient-to-t from-encre/40 to-transparent" />
+        <span className="absolute left-1/2 top-1/2 z-10 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full border-2 border-blanc bg-blanc/95 shadow-md">
+          {universite.logoUrl ? (
+            <Image
+              src={universite.logoUrl}
+              alt=""
+              width={56}
+              height={56}
+              className="object-cover"
+            />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center font-mono text-sm font-bold tracking-tight text-lapis">
+              {universite.ecusson}
+            </span>
+          )}
         </span>
-        <span className="absolute right-3 top-3 text-2xl" aria-hidden>
-          {universite.drapeau}
-        </span>
+        <span className="absolute right-3 top-3 z-10 text-2xl">{universite.drapeau}</span>
       </div>
 
-      {/* Corps */}
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div>
           <h3 className="font-display text-lg font-bold leading-tight text-encre">
@@ -72,7 +96,7 @@ export function UniversiteCard({ universite, className, showFooter = true }: Pro
               <span aria-hidden className="text-base">
                 {universite.drapeau}
               </span>
-              <span>{universite.nom}</span>
+              <span className="line-clamp-2">{universite.nom}</span>
             </span>
           </h3>
           <p className="mt-1 text-sm text-ardoise">
@@ -80,7 +104,6 @@ export function UniversiteCard({ universite, className, showFooter = true }: Pro
           </p>
         </div>
 
-        {/* Domaines */}
         <div className="flex flex-wrap gap-1.5">
           {domainesVisibles.map((d) => (
             <Badge
@@ -105,14 +128,15 @@ export function UniversiteCard({ universite, className, showFooter = true }: Pro
           <div className="mt-auto flex items-end justify-between border-t border-ligne pt-3">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
-                Frais d'agence
+                Frais d&apos;agence
               </p>
               <p className="mt-0.5 font-mono text-sm font-semibold text-encre">
-                {formatFCFACompact(universite.fraisMin)} – {formatFCFACompact(universite.fraisMax)}
+                {formatFCFACompact(universite.fraisMin)} –{" "}
+                {formatFCFACompact(universite.fraisMax)}
               </p>
             </div>
             <span
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-ligne text-ardoise transition-colors group-hover:border-lapis group-hover:text-lapis"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-ligne text-ardoise transition-colors group-hover:border-or group-hover:text-or"
               aria-hidden
             >
               <ArrowUpRight className="h-4 w-4" strokeWidth={1.75} />
@@ -121,5 +145,13 @@ export function UniversiteCard({ universite, className, showFooter = true }: Pro
         )}
       </div>
     </Link>
+  );
+
+  if (reduce) return inner;
+
+  return (
+    <motion.div whileHover={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 380, damping: 28 }}>
+      {inner}
+    </motion.div>
   );
 }

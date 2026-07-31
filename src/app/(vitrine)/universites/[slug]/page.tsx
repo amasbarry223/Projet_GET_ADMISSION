@@ -1,6 +1,7 @@
 import * as React from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import {
   CheckCircle2,
@@ -12,8 +13,11 @@ import {
   FileText,
   ClipboardList,
   ShieldCheck,
+  ExternalLink,
 } from "lucide-react";
 
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatFCFA, formatFCFACompact } from "@/lib/format";
 
@@ -50,6 +54,8 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { Reveal, RevealStagger, RevealItem } from "@/components/site/reveal";
+import { MotionButton } from "@/components/site/motion-button";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -76,6 +82,13 @@ export default async function UniversiteDetailPage({
     ...row,
     domaines: JSON.parse(row.domaines) as string[],
     pointsForts: JSON.parse(row.pointsForts) as string[],
+    galleryUrls: (() => {
+      try {
+        return JSON.parse(row.galleryUrls || "[]") as string[];
+      } catch {
+        return [] as string[];
+      }
+    })(),
   };
   const formations = row.formations.map((f) => ({
     ...f,
@@ -87,6 +100,15 @@ export default async function UniversiteDetailPage({
   const piecesUniques = Array.from(new Set(formations.flatMap((f) => f.piecesRequises))).sort(
     (a, b) => a.localeCompare(b, "fr")
   );
+
+  const session = await getServerSession(authOptions);
+  const dossierHref = (formationId?: string) => {
+    const q = new URLSearchParams({ universite: universite.id });
+    if (formationId) q.set("formation", formationId);
+    const path = `/espace/dossier?${q.toString()}`;
+    if (session?.user) return path;
+    return `/inscription?callbackUrl=${encodeURIComponent(path)}`;
+  };
 
   return (
     <>
@@ -123,30 +145,55 @@ export default async function UniversiteDetailPage({
         </div>
       </div>
 
-      {/* Bandeau d'en-tête */}
-      <header
-        className={cn("relative overflow-hidden bg-gradient-to-br", universite.imageCouleur)}
-      >
-        {/* Scrim pour lisibilité du texte blanc */}
-        <div
-          aria-hidden
-          className="absolute inset-0 bg-encre/35"
-        />
-        <div className="relative mx-auto max-w-content px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
-          <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center">
-            <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-blanc shadow-md">
-              <span className="font-mono text-xl font-bold text-lapis">
-                {universite.ecusson}
-              </span>
+      {/* Hero full-bleed */}
+      <header className="relative min-h-[320px] overflow-hidden sm:min-h-[420px]">
+        <div className={cn("absolute inset-0 bg-gradient-to-br", universite.imageCouleur)} />
+        {universite.coverUrl ? (
+          <Image
+            src={universite.coverUrl}
+            alt=""
+            fill
+            priority
+            className="object-cover"
+            sizes="100vw"
+          />
+        ) : null}
+        <div aria-hidden className="absolute inset-0 bg-encre/45" />
+        <div className="relative mx-auto flex min-h-[320px] max-w-content flex-col justify-end px-4 py-12 sm:min-h-[420px] sm:px-6 lg:px-8 lg:py-16">
+          <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-end">
+            <span className="relative flex h-20 w-20 shrink-0 overflow-hidden rounded-full border-2 border-blanc bg-blanc shadow-md">
+              {universite.logoUrl ? (
+                <Image
+                  src={universite.logoUrl}
+                  alt=""
+                  width={80}
+                  height={80}
+                  className="object-cover"
+                />
+              ) : (
+                <span className="flex h-full w-full items-center justify-center font-mono text-xl font-bold text-lapis">
+                  {universite.ecusson}
+                </span>
+              )}
             </span>
             <div>
-              <div className="flex items-center gap-2 text-blanc/90">
+              <div className="flex flex-wrap items-center gap-3 text-blanc/90">
                 <span className="text-2xl" aria-hidden>
                   {universite.drapeau}
                 </span>
                 <span className="font-mono text-[11px] uppercase tracking-eyebrow">
                   {universite.pays}
                 </span>
+                {universite.siteUrl ? (
+                  <a
+                    href={universite.siteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-eyebrow text-or-pale hover:text-blanc"
+                  >
+                    Site officiel <ExternalLink className="h-3 w-3" />
+                  </a>
+                ) : null}
               </div>
               <h1 className="mt-2 font-display text-4xl font-extrabold tracking-tightest text-blanc sm:text-5xl">
                 {universite.nom}
@@ -161,6 +208,30 @@ export default async function UniversiteDetailPage({
         <div className="rule-or" aria-hidden />
       </header>
 
+      {/* Galerie */}
+      {universite.galleryUrls.length > 0 && (
+        <section className="border-b border-ligne bg-blanc" aria-label="Galerie">
+          <div className="mx-auto max-w-content px-4 py-8 sm:px-6 lg:px-8">
+            <RevealStagger className="grid gap-4 sm:grid-cols-3">
+              {universite.galleryUrls.slice(0, 3).map((src, i) => (
+                <RevealItem key={src}>
+                  <div className="relative aspect-[16/10] overflow-hidden rounded-lg border border-ligne">
+                    <Image
+                      src={src}
+                      alt={`Vue ${i + 1} — ${universite.nom}`}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width:768px) 100vw, 33vw"
+                      loading="lazy"
+                    />
+                  </div>
+                </RevealItem>
+              ))}
+            </RevealStagger>
+          </div>
+        </section>
+      )}
+
       {/* Corps : 2 colonnes */}
       <div className="mx-auto max-w-content px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
         <div className="grid gap-10 lg:grid-cols-[1fr_320px]">
@@ -173,7 +244,7 @@ export default async function UniversiteDetailPage({
                 id="presentation-title"
                 className="mt-3 font-display text-2xl font-bold tracking-tightest text-encre sm:text-3xl"
               >
-                Une université partenaire vérifiée.
+                {universite.nom}
               </h2>
               <p className="mt-5 text-base leading-relaxed text-ardoise">
                 {universite.description}
@@ -265,7 +336,7 @@ export default async function UniversiteDetailPage({
                               variant="outline"
                               className="border-lapis/30 text-lapis hover:bg-porcelaine"
                             >
-                              <Link href="/inscription">
+                              <Link href={dossierHref(f.id)}>
                                 Choisir
                                 <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.75} />
                               </Link>
@@ -332,12 +403,12 @@ export default async function UniversiteDetailPage({
                 </p>
               </div>
 
-              <Button asChild size="lg" className="mt-5 w-full bg-lapis text-blanc hover:bg-lapis/90">
-                <Link href="/inscription">
-                  Créer mon dossier
+              <MotionButton asChild size="lg" className="mt-5 w-full">
+                <Link href={dossierHref()}>
+                  Composer mon dossier
                   <ArrowRight className="h-4 w-4" strokeWidth={1.75} />
                 </Link>
-              </Button>
+              </MotionButton>
               <Button
                 asChild
                 size="lg"

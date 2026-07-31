@@ -81,6 +81,7 @@ export function normalizeUniversite(u: UniversiteWithFormations) {
     ...u,
     domaines: parseJsonArray(u.domaines),
     pointsForts: parseJsonArray(u.pointsForts),
+    galleryUrls: parseJsonArray((u as { galleryUrls?: string }).galleryUrls ?? "[]"),
     formations: u.formations.map((f) => ({
       ...f,
       prerequis: parseJsonArray(f.prerequis),

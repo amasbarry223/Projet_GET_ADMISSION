@@ -8,10 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { User, Upload, ShieldCheck, Lock, Camera, CheckCircle2, Save, Loader2 } from "lucide-react";
+import { Upload, ShieldCheck, Camera, CheckCircle2, Save, Loader2 } from "lucide-react";
 
 type Profile = {
   id: string;
@@ -22,8 +21,11 @@ type Profile = {
   nationalite: string | null;
   dateNaissance: string | null;
   adresse: string | null;
+  photoUrl: string | null;
   kycType: string | null;
   kycNumero: string | null;
+  kycRectoPath?: string | null;
+  kycVersoPath?: string | null;
   kycVerifie: boolean;
   kycVerifieLe: string | null;
   role: string;
@@ -32,46 +34,86 @@ type Profile = {
 export default function ProfilPage() {
   const [profile, setProfile] = React.useState<Profile | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [kycType, setKycType] = React.useState("passeport");
+  const [saving, setSaving] = React.useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = React.useState(false);
   const [password, setPassword] = React.useState({ current: "", next: "", confirm: "" });
   const [savingPassword, setSavingPassword] = React.useState(false);
+  const photoRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     fetch("/api/profile")
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { setProfile(data); setLoading(false); })
-      .catch((e) => { console.error("fetch error:", e); setLoading(false); });
+      .then((data) => {
+        setProfile(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
-  const save = async (section: string) => {
+  const setField = <K extends keyof Profile>(key: K, value: Profile[K]) => {
+    setProfile((p) => (p ? { ...p, [key]: value } : p));
+  };
+
+  const save = async () => {
     if (!profile) return;
+    setSaving(true);
     try {
       const res = await fetch("/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile),
+        body: JSON.stringify({
+          prenom: profile.prenom,
+          nom: profile.nom,
+          telephone: profile.telephone,
+          nationalite: profile.nationalite,
+          dateNaissance: profile.dateNaissance,
+          adresse: profile.adresse,
+          kycType: profile.kycType,
+          kycNumero: profile.kycNumero,
+        }),
       });
-      if (res.ok) {
-        toast.success("Modifications enregistrées", { description: `${section} mis à jour.` });
-      } else {
-        toast.error("Erreur", { description: "Échec de l'enregistrement." });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Échec");
       }
-    } catch {
-      toast.error("Erreur", { description: "Échec de l'enregistrement." });
+      const updated = await res.json();
+      setProfile((p) => (p ? { ...p, ...updated } : p));
+      toast.success("Profil enregistré");
+    } catch (e) {
+      toast.error("Erreur", { description: e instanceof Error ? e.message : "Échec" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const uploadPhoto = async (file: File) => {
+    setUploadingPhoto(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/profile/photo", { method: "POST", body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Upload échoué");
+      setProfile((p) => (p ? { ...p, photoUrl: data.photoUrl } : p));
+      toast.success("Photo mise à jour");
+    } catch (e) {
+      toast.error("Photo", { description: e instanceof Error ? e.message : "Erreur" });
+    } finally {
+      setUploadingPhoto(false);
     }
   };
 
   const changePassword = async () => {
     if (!password.current || !password.next || !password.confirm) {
-      toast.error("Champs manquants", { description: "Renseignez les trois champs mot de passe." });
+      toast.error("Champs manquants");
       return;
     }
     if (password.next.length < 8) {
-      toast.error("Mot de passe trop court", { description: "Le nouveau mot de passe doit contenir au moins 8 caractères." });
+      toast.error("Mot de passe trop court", { description: "Minimum 8 caractères." });
       return;
     }
     if (password.next !== password.confirm) {
-      toast.error("Confirmation incorrecte", { description: "Le nouveau mot de passe et sa confirmation ne correspondent pas." });
+      toast.error("Confirmation incorrecte");
       return;
     }
     setSavingPassword(true);
@@ -81,22 +123,25 @@ export default function ProfilPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentPassword: password.current, newPassword: password.next }),
       });
-      if (res.ok) {
-        toast.success("Mot de passe modifié");
-        setPassword({ current: "", next: "", confirm: "" });
-      } else {
+      if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        toast.error("Erreur", { description: data.error || "Échec de la mise à jour." });
+        throw new Error(data.error || "Échec");
       }
-    } catch {
-      toast.error("Erreur", { description: "Échec de la mise à jour." });
+      toast.success("Mot de passe modifié");
+      setPassword({ current: "", next: "", confirm: "" });
+    } catch (e) {
+      toast.error("Erreur", { description: e instanceof Error ? e.message : "Échec" });
     } finally {
       setSavingPassword(false);
     }
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-lapis" /></div>;
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
+      </div>
+    );
   }
 
   if (!profile) {
@@ -110,23 +155,52 @@ export default function ProfilPage() {
         <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Mes informations.</h1>
       </div>
 
-      {/* Identity header */}
       <Card className="border-ligne bg-blanc p-6">
         <div className="flex flex-wrap items-center gap-4">
           <div className="relative">
-            <div className="relative h-16 w-16 overflow-hidden rounded-full border-2 border-ligne">
-              <Image src={profile?.photoUrl ?? "/images/candidate-portrait.png"} alt={profile ? `${profile.prenom} ${profile.nom}` : "Photo de profil"} fill className="object-cover" sizes="64px" />
+            <div className="relative h-16 w-16 overflow-hidden rounded-full border-2 border-ligne bg-porcelaine">
+              {profile.photoUrl ? (
+                <Image src={profile.photoUrl} alt={`${profile.prenom} ${profile.nom}`} fill className="object-cover" sizes="64px" unoptimized={profile.photoUrl.startsWith("/api/")} />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center font-mono text-sm font-semibold text-lapis">
+                  {profile.prenom[0]}
+                  {profile.nom[0]}
+                </div>
+              )}
             </div>
-            <button className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-lapis text-blanc shadow-sm hover:bg-lapis/90" aria-label="Changer la photo">
-              <Camera className="h-3 w-3" strokeWidth={1.5} />
+            <input
+              ref={photoRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="sr-only"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadPhoto(f);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              disabled={uploadingPhoto}
+              onClick={() => photoRef.current?.click()}
+              className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-lapis text-blanc shadow-sm hover:bg-lapis/90 disabled:opacity-50"
+              aria-label="Changer la photo"
+            >
+              {uploadingPhoto ? <Loader2 className="h-3 w-3 animate-spin" /> : <Camera className="h-3 w-3" strokeWidth={1.5} />}
             </button>
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="font-display text-xl font-bold text-encre">{`${profile.prenom} ${profile.nom}`}</h2>
+            <h2 className="font-display text-xl font-bold text-encre">
+              {profile.prenom} {profile.nom}
+            </h2>
             <p className="text-sm text-ardoise">{profile.email}</p>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               <Badge className="bg-lapis/10 font-mono text-[10px] uppercase text-lapis">Candidat</Badge>
-              <Badge className="bg-vert/10 font-mono text-[10px] uppercase text-vert">KYC vérifié</Badge>
+              {profile.kycVerifie ? (
+                <Badge className="bg-vert/10 font-mono text-[10px] uppercase text-vert">KYC vérifié</Badge>
+              ) : (
+                <Badge className="bg-ambre/10 font-mono text-[10px] uppercase text-ambre">KYC en attente</Badge>
+              )}
             </div>
           </div>
         </div>
@@ -135,129 +209,181 @@ export default function ProfilPage() {
       <Tabs defaultValue="perso">
         <TabsList className="bg-porcelaine">
           <TabsTrigger value="perso">Informations personnelles</TabsTrigger>
-          <TabsTrigger value="kyc">Pièce d'identité (KYC)</TabsTrigger>
+          <TabsTrigger value="kyc">Pièce d&apos;identité (KYC)</TabsTrigger>
           <TabsTrigger value="securite">Sécurité</TabsTrigger>
         </TabsList>
 
-        {/* Personal info */}
         <TabsContent value="perso">
           <Card className="border-ligne bg-blanc p-6">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">Prénom</Label>
-                <Input defaultValue={profile.prenom ?? ""} />
+                <Label>Prénom</Label>
+                <Input value={profile.prenom} onChange={(e) => setField("prenom", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">Nom</Label>
-                <Input defaultValue={profile.nom ?? ""} />
+                <Label>Nom</Label>
+                <Input value={profile.nom} onChange={(e) => setField("nom", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">E-mail</Label>
-                <Input type="email" defaultValue={profile.email ?? ""} />
+                <Label>E-mail</Label>
+                <Input type="email" value={profile.email} disabled />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">Téléphone</Label>
-                <Input defaultValue={profile.telephone ?? ""} />
+                <Label>Téléphone</Label>
+                <Input value={profile.telephone ?? ""} onChange={(e) => setField("telephone", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">Nationalité</Label>
-                <Input defaultValue={profile.nationalite ?? ""} />
+                <Label>Nationalité</Label>
+                <Input value={profile.nationalite ?? ""} onChange={(e) => setField("nationalite", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">Date de naissance</Label>
-                <Input type="date" defaultValue={profile.dateNaissance ?? ""} />
+                <Label>Date de naissance</Label>
+                <Input type="date" value={profile.dateNaissance ?? ""} onChange={(e) => setField("dateNaissance", e.target.value)} />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
-                <Label className="text-sm font-medium text-encre">Adresse</Label>
-                <Input defaultValue={profile.adresse ?? ""} />
+                <Label>Adresse</Label>
+                <Input value={profile.adresse ?? ""} onChange={(e) => setField("adresse", e.target.value)} />
               </div>
             </div>
             <div className="mt-5 flex justify-end">
-              <Button onClick={() => save("Profil")} className="bg-lapis text-blanc hover:bg-lapis/90">
-                <Save className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Enregistrer
+              <Button onClick={save} disabled={saving} className="bg-lapis text-blanc hover:bg-lapis/90">
+                {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
+                Enregistrer
               </Button>
             </div>
           </Card>
         </TabsContent>
 
-        {/* KYC */}
         <TabsContent value="kyc">
           <Card className="border-ligne bg-blanc p-6">
             <div className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-encre">Type de pièce</Label>
-                  <Select value={profile?.kycType ?? kycType} onValueChange={(v) => { setKycType(v); setProfile(profile ? { ...profile, kycType: v } : profile); }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Label>Type de pièce</Label>
+                  <Select
+                    value={profile.kycType ?? "passeport"}
+                    onValueChange={(v) => setField("kycType", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="passeport">Passeport</SelectItem>
-                      <SelectItem value="cni">Carte nationale d'identité</SelectItem>
+                      <SelectItem value="cni">Carte nationale d&apos;identité</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-encre">Numéro</Label>
-                  <Input defaultValue={profile?.kycNumero ?? ""} className="font-mono" onChange={(e) => setProfile({ ...profile, kycNumero: e.target.value })} />
+                  <Label>Numéro</Label>
+                  <Input
+                    className="font-mono"
+                    value={profile.kycNumero ?? ""}
+                    onChange={(e) => setField("kycNumero", e.target.value)}
+                  />
                 </div>
               </div>
 
               <div className="rounded-md border border-ligne bg-porcelaine p-4">
                 <div className="flex items-center gap-3">
-                  <div className={`flex h-10 w-10 items-center justify-center rounded-md ${profile?.kycVerifie ? "bg-vert/10" : "bg-ambre/10"}`}>
-                    <CheckCircle2 className={`h-5 w-5 ${profile?.kycVerifie ? "text-vert" : "text-ambre"}`} strokeWidth={1.5} />
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-md ${profile.kycVerifie ? "bg-vert/10" : "bg-ambre/10"}`}>
+                    <CheckCircle2 className={`h-5 w-5 ${profile.kycVerifie ? "text-vert" : "text-ambre"}`} strokeWidth={1.5} />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-encre">{profile?.kycVerifie ? "Pièce vérifiée" : "Vérification en attente"}</p>
+                    <p className="text-sm font-medium text-encre">{profile.kycVerifie ? "Pièce vérifiée" : "Vérification en attente"}</p>
                     <p className="text-xs text-ardoise">
-                      {profile?.kycType === "passeport" ? "Passeport" : profile?.kycType === "cni" ? "CNI" : "Aucune pièce"}
-                      {profile?.kycVerifie && profile?.kycVerifieLe ? ` · Vérifié le ${new Date(profile.kycVerifieLe).toLocaleDateString("fr-FR")}` : ""}
+                      {profile.kycType === "cni" ? "CNI" : "Passeport"}
+                      {profile.kycVerifie && profile.kycVerifieLe
+                        ? ` · Vérifié le ${new Date(profile.kycVerifieLe).toLocaleDateString("fr-FR")}`
+                        : ""}
                     </p>
                   </div>
-                  <Badge className={`ml-auto font-mono text-[10px] uppercase ${profile?.kycVerifie ? "bg-vert/10 text-vert" : "bg-ambre/10 text-ambre"}`}>
-                    {profile?.kycVerifie ? "Vérifiée" : "En attente"}
+                  <Badge className={`ml-auto font-mono text-[10px] uppercase ${profile.kycVerifie ? "bg-vert/10 text-vert" : "bg-ambre/10 text-ambre"}`}>
+                    {profile.kycVerifie ? "Vérifiée" : "En attente"}
                   </Badge>
                 </div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-ligne bg-blanc p-6 text-center">
-                  <Upload className="h-5 w-5 text-ardoise" strokeWidth={1.5} />
-                  <p className="mt-2 text-xs text-ardoise">Recto · passeport.pdf · 1,1 Mo</p>
-                </div>
-                <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-ligne bg-blanc p-6 text-center">
-                  <Upload className="h-5 w-5 text-ardoise" strokeWidth={1.5} />
-                  <p className="mt-2 text-xs text-ardoise">Verso · non requis pour passeport</p>
-                </div>
+                {(["recto", "verso"] as const).map((side) => {
+                  const hasFile = side === "recto" ? !!profile.kycRectoPath : !!profile.kycVersoPath;
+                  return (
+                    <label
+                      key={side}
+                      className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-ligne bg-blanc p-6 text-center hover:border-lapis/40"
+                    >
+                      <Upload className="h-5 w-5 text-ardoise" strokeWidth={1.5} />
+                      <p className="mt-2 text-xs text-ardoise">
+                        {side === "recto" ? "Recto" : "Verso"}
+                        {hasFile
+                          ? " · fichier présent"
+                          : side === "verso" && (profile.kycType ?? "passeport") === "passeport"
+                            ? " · optionnel"
+                            : " · requis"}
+                      </p>
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png,.webp"
+                        className="sr-only"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const fd = new FormData();
+                          fd.append("file", file);
+                          fd.append("side", side);
+                          if (profile.kycType) fd.append("kycType", profile.kycType);
+                          if (profile.kycNumero) fd.append("kycNumero", profile.kycNumero);
+                          const res = await fetch("/api/profile/kyc", { method: "POST", body: fd });
+                          if (!res.ok) {
+                            const data = await res.json().catch(() => ({}));
+                            toast.error("Upload KYC échoué", { description: data.error });
+                            return;
+                          }
+                          const data = await res.json();
+                          setProfile((p) => (p ? { ...p, ...data.user } : p));
+                          toast.success(`${side === "recto" ? "Recto" : "Verso"} téléversé`);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  );
+                })}
               </div>
 
               <div className="flex items-center gap-2 rounded-md border border-ligne bg-blanc p-3 text-xs text-ardoise">
                 <ShieldCheck className="h-4 w-4 text-vert" strokeWidth={1.5} />
-                Vos données sont chiffrées et utilisées uniquement pour la constitution du dossier.
+                Vos données sont utilisées uniquement pour la constitution du dossier.
+              </div>
+
+              <div className="flex justify-end">
+                <Button onClick={save} disabled={saving} className="bg-lapis text-blanc hover:bg-lapis/90">
+                  {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
+                  Enregistrer le KYC
+                </Button>
               </div>
             </div>
           </Card>
         </TabsContent>
 
-        {/* Security */}
         <TabsContent value="securite">
           <Card className="border-ligne bg-blanc p-6">
             <div className="grid gap-4 sm:max-w-md">
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">Mot de passe actuel</Label>
-                <Input type="password" placeholder="••••••••" value={password.current} onChange={(e) => setPassword((p) => ({ ...p, current: e.target.value }))} autoComplete="current-password" />
+                <Label>Mot de passe actuel</Label>
+                <Input type="password" value={password.current} onChange={(e) => setPassword((p) => ({ ...p, current: e.target.value }))} autoComplete="current-password" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">Nouveau mot de passe</Label>
-                <Input type="password" placeholder="Minimum 8 caractères" value={password.next} onChange={(e) => setPassword((p) => ({ ...p, next: e.target.value }))} autoComplete="new-password" />
+                <Label>Nouveau mot de passe</Label>
+                <Input type="password" value={password.next} onChange={(e) => setPassword((p) => ({ ...p, next: e.target.value }))} autoComplete="new-password" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-encre">Confirmer le nouveau mot de passe</Label>
-                <Input type="password" placeholder="••••••••" value={password.confirm} onChange={(e) => setPassword((p) => ({ ...p, confirm: e.target.value }))} autoComplete="new-password" />
+                <Label>Confirmer</Label>
+                <Input type="password" value={password.confirm} onChange={(e) => setPassword((p) => ({ ...p, confirm: e.target.value }))} autoComplete="new-password" />
               </div>
             </div>
             <div className="mt-5 flex justify-end">
               <Button onClick={changePassword} disabled={savingPassword} className="bg-lapis text-blanc hover:bg-lapis/90">
-                {savingPassword ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} /> Mise à jour…</> : <><Lock className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Mettre à jour</>}
+                {savingPassword ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+                Changer le mot de passe
               </Button>
             </div>
           </Card>

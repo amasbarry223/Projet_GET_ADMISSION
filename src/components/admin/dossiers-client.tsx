@@ -167,7 +167,8 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
             <Badge className={cn("font-mono text-[10px] uppercase", c.text, c.border, c.bg)}>{e.libelle}</Badge>
           );
         },
-        filterFn: (row, _id, value: string) => (value === "tous" ? true : row.original.etat === value),
+        filterFn: (row, _id, value: string) =>
+          value === "tous" ? true : row.original.etat.toLowerCase() === String(value).toLowerCase(),
       },
       {
         id: "conseiller",

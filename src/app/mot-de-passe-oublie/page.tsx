@@ -5,37 +5,51 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plane, Mail, ArrowLeft, CheckCircle2, ArrowRight } from "lucide-react";
+import { Mail, ArrowLeft, CheckCircle2, ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { BrandLogo } from "@/components/brand-logo";
 
 export default function MotDePasseOubliePage() {
   const [email, setEmail] = React.useState("");
   const [sent, setSent] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [demoUrl, setDemoUrl] = React.useState<string | null>(null);
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       toast.error("E-mail invalide", { description: "L'e-mail saisi n'est pas valide." });
       return;
     }
-    setSent(true);
-    toast.success("Demande envoyée", { description: "Vérifiez votre boîte de réception." });
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Erreur");
+      }
+      setSent(true);
+      if (data.resetUrl) setDemoUrl(data.resetUrl);
+      toast.success("Demande envoyée", { description: "Vérifiez votre boîte de réception." });
+    } catch (err) {
+      toast.error("Échec", { description: err instanceof Error ? err.message : "Erreur" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-porcelaine p-6">
       <div className="w-full max-w-sm">
-        <Link href="/" className="mb-8 flex items-center justify-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-md bg-lapis text-blanc">
-            <Plane className="h-4 w-4 -rotate-12" strokeWidth={1.75} />
-          </span>
-          <span className="flex flex-col leading-none">
-            <span className="font-display text-base font-bold text-encre">GET Admission</span>
-            <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Le passage</span>
-          </span>
-        </Link>
-
         <div className="rounded-lg border border-ligne bg-blanc p-6 shadow-sm sm:p-8">
+          <Link href="/" className="mb-6 flex items-center justify-center">
+            <BrandLogo height={52} priority className="object-center" />
+          </Link>
+
           {!sent ? (
             <>
               <p className="eyebrow mb-2">Mot de passe oublié</p>
@@ -46,15 +60,26 @@ export default function MotDePasseOubliePage() {
 
               <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
                 <div className="space-y-1.5">
-                  <Label htmlFor="email" className="text-sm font-medium text-encre">E-mail</Label>
+                  <Label htmlFor="email" className="text-sm font-medium text-encre">
+                    E-mail
+                  </Label>
                   <div className="relative">
                     <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise" strokeWidth={1.5} />
-                    <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-9" placeholder="vous@exemple.com" autoComplete="email" />
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-9"
+                      placeholder="vous@exemple.com"
+                      autoComplete="email"
+                    />
                   </div>
                 </div>
-                <Button type="submit" className="w-full bg-lapis text-blanc hover:bg-lapis/90">
+                <Button type="submit" disabled={loading} className="w-full bg-lapis text-blanc hover:bg-lapis/90">
+                  {loading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
                   Envoyer le lien
-                  <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} />
+                  {!loading && <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} />}
                 </Button>
               </form>
             </>
@@ -67,6 +92,14 @@ export default function MotDePasseOubliePage() {
               <p className="mt-2 text-sm text-ardoise">
                 Si un compte existe pour <span className="font-mono text-encre">{email}</span>, un lien de réinitialisation a été envoyé.
               </p>
+              {demoUrl && (
+                <p className="mt-3 break-all rounded-md bg-porcelaine p-2 text-left text-xs text-lapis">
+                  Lien démo :{" "}
+                  <Link href={demoUrl} className="underline">
+                    {demoUrl}
+                  </Link>
+                </p>
+              )}
             </div>
           )}
 

@@ -4,7 +4,7 @@ import * as React from "react";
 import { Search, SlidersHorizontal, RotateCcw, Inbox } from "lucide-react";
 
 import { UniversiteCard } from "@/components/site/universite-card";
-import { Eyebrow } from "@/components/site/reveal";
+import { Eyebrow, RevealStagger, RevealItem } from "@/components/site/reveal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -48,7 +48,10 @@ export type CatalogueUniversite = {
   fraisMin: number;
   fraisMax: number;
   partenaire: boolean;
-  partenaires: boolean; // miroir pour compat UniversiteCard
+  partenaires: boolean;
+  coverUrl?: string | null;
+  logoUrl?: string | null;
+  siteUrl?: string | null;
   formations: CatalogueFormation[];
 };
 
@@ -301,11 +304,13 @@ export function CatalogueClient({ universites }: Props) {
             </div>
           ) : (
             <>
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <RevealStagger className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {visible.map((u) => (
-                  <UniversiteCard key={u.id} universite={u} className="h-full" />
+                  <RevealItem key={u.id}>
+                    <UniversiteCard universite={u} className="h-full" />
+                  </RevealItem>
                 ))}
-              </div>
+              </RevealStagger>
 
               {hasMore && (
                 <div className="mt-12 flex justify-center">

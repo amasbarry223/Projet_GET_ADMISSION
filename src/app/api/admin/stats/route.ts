@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requirePermission } from "@/lib/rbac";
 
 // GET /api/admin/stats — KPIs + chart data + file prioritaire (staff uniquement)
 export async function GET() {
@@ -10,9 +11,9 @@ export async function GET() {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const role = (session.user as any).role;
-  if (role === "CANDIDAT") {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  const gate = requirePermission((session.user as { role?: string }).role, "dashboard");
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
   // --- KPIs ---
@@ -38,7 +39,7 @@ export async function GET() {
   });
 
   const STATUT_LABELS: Record<string, { name: string; couleur: string }> = {
-    BROUILLON: { name: "Brouillon", couleur: "#5A6781" },
+    BROUILLON: { name: "Brouillon", couleur: "#6B7280" },
     SOUMIS: { name: "En cours", couleur: "#C77A12" },
     VERIFICATION: { name: "En cours", couleur: "#C77A12" },
     CORRECTION: { name: "En cours", couleur: "#C77A12" },
@@ -46,9 +47,9 @@ export async function GET() {
     PAIEMENT_CONFIRME: { name: "En cours", couleur: "#C77A12" },
     TRANSMIS: { name: "En cours", couleur: "#C77A12" },
     ATTENTE_REPONSE: { name: "En cours", couleur: "#C77A12" },
-    PRE_ADMISSION: { name: "Validés", couleur: "#1F8A5B" },
-    ATTESTATION: { name: "Validés", couleur: "#1F8A5B" },
-    CLOTURE: { name: "Validés", couleur: "#1F8A5B" },
+    PRE_ADMISSION: { name: "Validés", couleur: "#3CA936" },
+    ATTESTATION: { name: "Validés", couleur: "#3CA936" },
+    CLOTURE: { name: "Validés", couleur: "#3CA936" },
     REFUSE: { name: "Refusés", couleur: "#C0392B" },
   };
 
@@ -61,7 +62,7 @@ export async function GET() {
   const repartitionStatuts = Array.from(repartitionMap.entries()).map(([name, value]) => ({
     name,
     value,
-    couleur: name === "Brouillon" ? "#5A6781" : name === "En cours" ? "#C77A12" : name === "Validés" ? "#1F8A5B" : "#C0392B",
+    couleur: name === "Brouillon" ? "#6B7280" : name === "En cours" ? "#C77A12" : name === "Validés" ? "#3CA936" : "#C0392B",
   }));
 
   // --- Top universités ---
@@ -187,6 +188,61 @@ export async function GET() {
   const enAttente = await db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "en_attente" } });
   const impayes = await db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "echoue" } });
 
+  // --- Deltas vs mois précédent (calculés, non hardcodés) ---
+  const startPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const endPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+
+  const [
+    dossiersCeMois,
+    dossiersMoisPrec,
+    enCoursCeMois,
+    enCoursMoisPrec,
+    acceptesCeMois,
+    acceptesMoisPrec,
+    refusesCeMois,
+    refusesMoisPrec,
+    paiementsMoisPrec,
+    attestationsMoisPrec,
+  ] = await Promise.all([
+    db.dossier.count({ where: { createdAt: { gte: startOfMonth } } }),
+    db.dossier.count({ where: { createdAt: { gte: startPrevMonth, lte: endPrevMonth } } }),
+    db.dossier.count({
+      where: {
+        etat: { in: ["SOUMIS", "VERIFICATION", "CORRECTION", "PAIEMENT_ATTENTE", "PAIEMENT_CONFIRME", "TRANSMIS", "ATTENTE_REPONSE"] },
+        updatedAt: { gte: startOfMonth },
+      },
+    }),
+    db.dossier.count({
+      where: {
+        etat: { in: ["SOUMIS", "VERIFICATION", "CORRECTION", "PAIEMENT_ATTENTE", "PAIEMENT_CONFIRME", "TRANSMIS", "ATTENTE_REPONSE"] },
+        updatedAt: { gte: startPrevMonth, lte: endPrevMonth },
+      },
+    }),
+    db.dossier.count({
+      where: { etat: { in: ["PRE_ADMISSION", "ATTESTATION", "CLOTURE"] }, updatedAt: { gte: startOfMonth } },
+    }),
+    db.dossier.count({
+      where: { etat: { in: ["PRE_ADMISSION", "ATTESTATION", "CLOTURE"] }, updatedAt: { gte: startPrevMonth, lte: endPrevMonth } },
+    }),
+    db.dossier.count({ where: { etat: "REFUSE", updatedAt: { gte: startOfMonth } } }),
+    db.dossier.count({ where: { etat: "REFUSE", updatedAt: { gte: startPrevMonth, lte: endPrevMonth } } }),
+    db.paiement.aggregate({
+      _sum: { montant: true },
+      where: { date: { gte: startPrevMonth, lte: endPrevMonth }, statut: "reussi" },
+    }),
+    db.attestation.count({ where: { dateEmission: { gte: startPrevMonth, lte: endPrevMonth } } }),
+  ]);
+
+  const pctDelta = (curr: number, prev: number) => {
+    if (prev === 0) return curr > 0 ? 100 : 0;
+    return Math.round(((curr - prev) / prev) * 100);
+  };
+
+  const decidedCeMois = acceptesCeMois + refusesCeMois;
+  const decidedPrec = acceptesMoisPrec + refusesMoisPrec;
+  const tauxCeMois = decidedCeMois > 0 ? Math.round((acceptesCeMois / decidedCeMois) * 100) : 0;
+  const tauxPrec = decidedPrec > 0 ? Math.round((acceptesMoisPrec / decidedPrec) * 100) : 0;
+
   return NextResponse.json({
     kpis: {
       nouveauxDossiers: totalDossiers,
@@ -194,11 +250,11 @@ export async function GET() {
       tauxAcceptation,
       encaissementsMois: paiementsMois._sum.montant ?? 0,
       attestationsEmises: attestationsMois,
-      deltaNouveaux: 12,
-      deltaEnCours: -8,
-      deltaAcceptation: 4,
-      deltaEncaissements: 22,
-      deltaAttestations: 18,
+      deltaNouveaux: pctDelta(dossiersCeMois, dossiersMoisPrec),
+      deltaEnCours: pctDelta(enCoursCeMois, enCoursMoisPrec),
+      deltaAcceptation: tauxCeMois - tauxPrec,
+      deltaEncaissements: pctDelta(paiementsMois._sum.montant ?? 0, paiementsMoisPrec._sum.montant ?? 0),
+      deltaAttestations: pctDelta(attestationsMois, attestationsMoisPrec),
     },
     financeKpis: {
       encaisseMois: paiementsMois._sum.montant ?? 0,

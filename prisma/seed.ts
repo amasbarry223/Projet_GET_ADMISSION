@@ -5,11 +5,13 @@ async function main() {
   console.log("🌱 Début du seed...");
 
   // ------------------- Users (RBAC) -------------------
-  const passwordHash = await bcrypt.hash("demo1234", 10);
+  // Mot de passe démo : SEED_DEMO_PASSWORD ou valeur non triviale (jamais "demo1234" en prod)
+  const demoPassword = process.env.SEED_DEMO_PASSWORD || "GetAdm-Demo-2026!";
+  const passwordHash = await bcrypt.hash(demoPassword, 10);
 
   const candidat = await db.user.upsert({
     where: { email: "fatou.diallo@demo.getadm" },
-    update: {},
+    update: { isDemo: true, emailVerified: new Date(), passwordHash },
     create: {
       email: "fatou.diallo@demo.getadm",
       passwordHash,
@@ -21,12 +23,14 @@ async function main() {
       adresse: "Dakar, Sénégal",
       role: "CANDIDAT",
       actif: true,
+      isDemo: true,
+      emailVerified: new Date(),
     },
   });
 
   const conseiller = await db.user.upsert({
     where: { email: "a.diallo@getadm.com" },
-    update: {},
+    update: { isDemo: true, emailVerified: new Date(), passwordHash },
     create: {
       email: "a.diallo@getadm.com",
       passwordHash,
@@ -35,12 +39,14 @@ async function main() {
       telephone: "+221 33 800 00 00",
       role: "CONSEILLER",
       actif: true,
+      isDemo: true,
+      emailVerified: new Date(),
     },
   });
 
   const conseiller2 = await db.user.upsert({
     where: { email: "o.nguema@getadm.com" },
-    update: {},
+    update: { isDemo: true, emailVerified: new Date(), passwordHash },
     create: {
       email: "o.nguema@getadm.com",
       passwordHash,
@@ -48,12 +54,14 @@ async function main() {
       nom: "Nguema",
       role: "CONSEILLER",
       actif: true,
+      isDemo: true,
+      emailVerified: new Date(),
     },
   });
 
   const financier = await db.user.upsert({
     where: { email: "m.kouassi@getadm.com" },
-    update: {},
+    update: { isDemo: true, emailVerified: new Date(), passwordHash },
     create: {
       email: "m.kouassi@getadm.com",
       passwordHash,
@@ -61,12 +69,14 @@ async function main() {
       nom: "Kouassi",
       role: "FINANCIER",
       actif: true,
+      isDemo: true,
+      emailVerified: new Date(),
     },
   });
 
   const admin = await db.user.upsert({
     where: { email: "y.bensaid@getadm.com" },
-    update: {},
+    update: { isDemo: true, emailVerified: new Date(), passwordHash },
     create: {
       email: "y.bensaid@getadm.com",
       passwordHash,
@@ -74,12 +84,14 @@ async function main() {
       nom: "Bensaid",
       role: "ADMIN",
       actif: true,
+      isDemo: true,
+      emailVerified: new Date(),
     },
   });
 
   const superAdmin = await db.user.upsert({
     where: { email: "o.toure@getadm.com" },
-    update: {},
+    update: { isDemo: true, emailVerified: new Date(), passwordHash },
     create: {
       email: "o.toure@getadm.com",
       passwordHash,
@@ -87,6 +99,8 @@ async function main() {
       nom: "Touré",
       role: "SUPER_ADMIN",
       actif: true,
+      isDemo: true,
+      emailVerified: new Date(),
     },
   });
 
@@ -106,13 +120,23 @@ async function main() {
     { slug: "universite-yaounde-i", nom: "Université de Yaoundé I", pays: "Cameroun", drapeau: "🇨🇲", ville: "Yaoundé", ecusson: "UY1", domaines: ["Sciences", "Droit", "Médecine", "Lettres"], description: "Plus ancienne université camerounaise.", pointsForts: ["Filière scientifique reconnue", "Frais d'agence très accessibles"], imageCouleur: "from-vert to-ambre", fraisMin: 280000, fraisMax: 540000 },
   ];
 
-  const univs = [];
+  const univs: { id: string; slug: string }[] = [];
   for (const u of univData) {
+    const assets = {
+      logoUrl: `/images/partenaires/${u.slug}/logo.png`,
+      coverUrl: u.slug === "sorbonne-universite" ? `/images/partenaires/${u.slug}/cover.webp` : `/images/partenaires/${u.slug}/cover.webp`,
+      galleryUrls: JSON.stringify([
+        `/images/partenaires/${u.slug}/gallery-1.webp`,
+        `/images/partenaires/${u.slug}/gallery-2.webp`,
+        `/images/partenaires/${u.slug}/gallery-3.webp`,
+      ]),
+    };
     const univ = await db.universite.upsert({
       where: { slug: u.slug },
-      update: {},
+      update: { ...assets },
       create: {
         ...u,
+        ...assets,
         domaines: JSON.stringify(u.domaines),
         pointsForts: JSON.stringify(u.pointsForts),
       },
@@ -230,7 +254,7 @@ async function main() {
 
   console.log("✓ Dossier démo créé (GETADM-2026-0048)");
   console.log("🎉 Seed terminé !");
-  console.log("   Comptes démo (mot de passe: demo1234) :");
+  console.log(`   Comptes démo (mot de passe: ${demoPassword}) — définir SEED_DEMO_PASSWORD pour personnaliser`);
   console.log("   - candidat:    fatou.diallo@demo.getadm");
   console.log("   - conseiller:  a.diallo@getadm.com");
   console.log("   - financier:   m.kouassi@getadm.com");

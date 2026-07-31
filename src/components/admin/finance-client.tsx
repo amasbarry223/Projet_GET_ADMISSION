@@ -29,6 +29,7 @@ import { formatFCFA, formatFCFACompact, formatDate } from "@/lib/format";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  CheckCircle2,
   Download,
   Wallet,
   TrendingUp,
@@ -48,6 +49,7 @@ export type TransactionRow = {
   reference: string;
   candidat: string;
   dossier: string;
+  dossierId: string;
   date: string;
   moyen: string;
   montant: number;
@@ -90,13 +92,73 @@ export function FinanceClient({
   const actions: ActionItem<TransactionRow>[] = React.useMemo(
     () => [
       {
+        label: "Confirmer le paiement",
+        icon: CheckCircle2,
+        hidden: (row) => row.statut !== "en_attente",
+        confirm: {
+          title: "Confirmer ce paiement ?",
+          description: (row) =>
+            `Valider l'encaissement de ${formatFCFA(row.montant)} pour ${row.reference}. Le candidat sera notifié et le reçu sera disponible.`,
+          confirmLabel: "Confirmer",
+          onConfirm: async (row) => {
+            try {
+              const res = await fetch("/api/paiements", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: row.id, statut: "reussi" }),
+              });
+              if (res.ok) {
+                toast.success("Paiement confirmé", { description: row.reference });
+                router.refresh();
+              } else {
+                const err = await res.json().catch(() => ({}));
+                toast.error("Échec", { description: (err as { error?: string }).error ?? "Confirmation impossible." });
+              }
+            } catch {
+              toast.error("Erreur réseau");
+            }
+          },
+        },
+      },
+      {
+        label: "Rejeter le paiement",
+        icon: XCircle,
+        hidden: (row) => row.statut !== "en_attente",
+        tone: "danger",
+        confirm: {
+          title: "Rejeter ce paiement ?",
+          description: (row) =>
+            `${row.reference} sera marqué comme échoué. Le candidat devra réessayer.`,
+          confirmLabel: "Rejeter",
+          onConfirm: async (row) => {
+            try {
+              const res = await fetch("/api/paiements", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: row.id, statut: "echoue" }),
+              });
+              if (res.ok) {
+                toast.success("Paiement rejeté", { description: row.reference });
+                router.refresh();
+              } else {
+                toast.error("Échec", { description: "Rejet impossible." });
+              }
+            } catch {
+              toast.error("Erreur réseau");
+            }
+          },
+        },
+      },
+      {
         label: "Voir le reçu",
         icon: Eye,
+        hidden: (row) => row.statut !== "réussi",
         onClick: (row) => window.open(`/api/recu/${row.id}`, "_blank"),
       },
       {
         label: "Télécharger le reçu",
         icon: FileText,
+        hidden: (row) => row.statut !== "réussi",
         onClick: (row) => window.open(`/api/recu/${row.id}`, "_blank"),
       },
       {
@@ -113,9 +175,9 @@ export function FinanceClient({
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  dossierId: row.dossierId ?? row.id,
+                  dossierId: row.dossierId,
                   montant: row.montant,
-                  moyen: row.moyen,
+                  moyen: row.moyen.split(" · ")[0],
                   tranche: "Relance",
                 }),
               });
@@ -132,7 +194,7 @@ export function FinanceClient({
         },
       },
     ],
-    []
+    [router]
   );
 
   const columns: ColumnDef<TransactionRow>[] = React.useMemo(

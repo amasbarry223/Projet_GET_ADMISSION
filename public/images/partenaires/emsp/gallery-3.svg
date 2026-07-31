@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500">
+  <rect width="800" height="500" fill="#F4F6FB"/>
+  <rect y="200" width="800" height="200" fill="#2D6BF0" fill-opacity="0.28"/>
+  <text x="40" y="460" fill="#173A7A" font-family="monospace" font-size="16">EMS · vue 3</text>
+</svg>

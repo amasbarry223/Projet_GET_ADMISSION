@@ -178,7 +178,7 @@ export function UtilisateursClient({ initialData }: { initialData: UserRow[] }) 
             });
             if (res.ok) {
               const data = await res.json();
-              toast.success("Invitation renvoyée", { description: `E-mail envoyé à ${row.email}. Mot de passe : ${data.defaultPassword ?? "demo1234"}` });
+              toast.success("Invitation renvoyée", { description: `E-mail envoyé à ${row.email}.${data.defaultPassword ? ` Mot de passe : ${data.defaultPassword}` : ""}` });
             } else {
               toast.error("Échec", { description: "L'envoi a échoué." });
             }

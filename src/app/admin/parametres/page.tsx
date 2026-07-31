@@ -5,43 +5,68 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { formatFCFA } from "@/lib/format";
-import { Lock, Save, ShieldCheck, CreditCard, Bell, GitBranch, Plane, Loader2 } from "lucide-react";
+import { Lock, Save, ShieldCheck, CreditCard, Bell, GitBranch, Loader2, FileText } from "lucide-react";
+
+type ParamsState = {
+  fraisMin: string;
+  fraisMax: string;
+  paiementTranches: boolean;
+  notifEmail: boolean;
+  notifInApp: boolean;
+  workflowStrict: boolean;
+  exigerEmailVerifie: boolean;
+  mentionsLegales: string;
+  politiqueConfidentialite: string;
+};
 
 export default function AdminParametresPage() {
   const { data: session } = useSession();
   const isSuperAdmin = session?.user?.role === "SUPER_ADMIN";
 
-  // État du formulaire de paramètres (alimenté par GET /api/admin/parametres au mount).
-  const [fraisMin, setFraisMin] = React.useState("");
-  const [fraisMax, setFraisMax] = React.useState("");
-  const [paiementTranches, setPaiementTranches] = React.useState(false);
+  const [form, setForm] = React.useState<ParamsState>({
+    fraisMin: "",
+    fraisMax: "",
+    paiementTranches: true,
+    notifEmail: true,
+    notifInApp: true,
+    workflowStrict: true,
+    exigerEmailVerifie: false,
+    mentionsLegales: "",
+    politiqueConfidentialite: "",
+  });
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
 
-  // Chargement initial des paramètres depuis l'API.
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch("/api/admin/parametres");
         if (!res.ok) {
-          if (!cancelled) toast.error("Chargement échoué", { description: "Impossible de charger les paramètres." });
+          if (!cancelled) toast.error("Chargement échoué");
           return;
         }
         const data = await res.json();
         if (cancelled) return;
-        setFraisMin(String(data.fraisMin ?? ""));
-        setFraisMax(String(data.fraisMax ?? ""));
-        setPaiementTranches(!!data.paiementTranches);
+        setForm({
+          fraisMin: String(data.fraisMin ?? ""),
+          fraisMax: String(data.fraisMax ?? ""),
+          paiementTranches: !!data.paiementTranches,
+          notifEmail: data.notifEmail !== false,
+          notifInApp: data.notifInApp !== false,
+          workflowStrict: data.workflowStrict !== false,
+          exigerEmailVerifie: !!data.exigerEmailVerifie,
+          mentionsLegales: data.mentionsLegales ?? "",
+          politiqueConfidentialite: data.politiqueConfidentialite ?? "",
+        });
       } catch {
-        if (!cancelled) toast.error("Chargement échoué", { description: "Erreur réseau." });
+        if (!cancelled) toast.error("Erreur réseau");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -51,6 +76,9 @@ export default function AdminParametresPage() {
     };
   }, []);
 
+  const set = <K extends keyof ParamsState>(key: K, value: ParamsState[K]) =>
+    setForm((f) => ({ ...f, [key]: value }));
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -58,19 +86,25 @@ export default function AdminParametresPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fraisMin: Number(fraisMin) || 0,
-          fraisMax: Number(fraisMax) || 0,
-          paiementTranches,
+          fraisMin: Number(form.fraisMin) || 0,
+          fraisMax: Number(form.fraisMax) || 0,
+          paiementTranches: form.paiementTranches,
+          notifEmail: form.notifEmail,
+          notifInApp: form.notifInApp,
+          workflowStrict: form.workflowStrict,
+          exigerEmailVerifie: form.exigerEmailVerifie,
+          mentionsLegales: form.mentionsLegales,
+          politiqueConfidentialite: form.politiqueConfidentialite,
         }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        toast.error("Enregistrement échoué", { description: (err as any)?.error ?? "Erreur serveur." });
+        toast.error("Enregistrement échoué", { description: (err as { error?: string })?.error ?? "Erreur serveur." });
         return;
       }
       toast.success("Paramètres enregistrés");
     } catch {
-      toast.error("Enregistrement échoué", { description: "Erreur réseau." });
+      toast.error("Erreur réseau");
     } finally {
       setSaving(false);
     }
@@ -80,13 +114,13 @@ export default function AdminParametresPage() {
     <div className="space-y-5">
       <div>
         <p className="eyebrow">Paramètres</p>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Configuration de l'agence.</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Configuration de l&apos;agence.</h1>
         {!isSuperAdmin && (
           <Alert className="mt-3 border-ambre/40 bg-ambre/5">
             <Lock className="h-4 w-4 text-ambre" strokeWidth={1.5} />
             <AlertTitle className="font-display text-sm font-bold text-ambre">Accès restreint</AlertTitle>
             <AlertDescription className="text-sm text-ardoise">
-              Certaines sections sont réservées au Super Admin. Connectez-vous en démo avec ce rôle (via le sélecteur en haut à droite) pour tout modifier.
+              La modification des paramètres est réservée au Super Administrateur.
             </AlertDescription>
           </Alert>
         )}
@@ -94,131 +128,137 @@ export default function AdminParametresPage() {
 
       <Tabs defaultValue="frais">
         <TabsList className="bg-porcelaine">
-          <TabsTrigger value="frais"><CreditCard className="mr-1.5 h-3.5 w-3.5" /> Frais & paiement</TabsTrigger>
-          <TabsTrigger value="notifications"><Bell className="mr-1.5 h-3.5 w-3.5" /> Notifications</TabsTrigger>
-          <TabsTrigger value="workflow"><GitBranch className="mr-1.5 h-3.5 w-3.5" /> Workflow</TabsTrigger>
-          <TabsTrigger value="systeme"><ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> Système</TabsTrigger>
+          <TabsTrigger value="frais">
+            <CreditCard className="mr-1.5 h-3.5 w-3.5" /> Frais & paiement
+          </TabsTrigger>
+          <TabsTrigger value="notifications">
+            <Bell className="mr-1.5 h-3.5 w-3.5" /> Notifications
+          </TabsTrigger>
+          <TabsTrigger value="workflow">
+            <GitBranch className="mr-1.5 h-3.5 w-3.5" /> Workflow
+          </TabsTrigger>
+          <TabsTrigger value="legal">
+            <FileText className="mr-1.5 h-3.5 w-3.5" /> Mentions
+          </TabsTrigger>
+          <TabsTrigger value="systeme">
+            <ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> Système
+          </TabsTrigger>
         </TabsList>
 
-        {/* Frais & paiement */}
         <TabsContent value="frais" className="space-y-4">
           <Card className={cardLocked(isSuperAdmin)}>
             <SectionHeader icon={CreditCard} title="Frais d'agence par défaut" />
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label className="text-sm text-encre">Frais minimum (FCFA)</Label>
+                <Label>Frais minimum (FCFA)</Label>
                 <Input
-                  value={fraisMin}
-                  onChange={(e) => setFraisMin(e.target.value)}
-                  placeholder={loading ? "Chargement…" : "350000"}
+                  value={form.fraisMin}
+                  onChange={(e) => set("fraisMin", e.target.value)}
                   className="font-mono"
                   disabled={!isSuperAdmin || loading}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-sm text-encre">Frais maximum (FCFA)</Label>
+                <Label>Frais maximum (FCFA)</Label>
                 <Input
-                  value={fraisMax}
-                  onChange={(e) => setFraisMax(e.target.value)}
-                  placeholder={loading ? "Chargement…" : "1750000"}
+                  value={form.fraisMax}
+                  onChange={(e) => set("fraisMax", e.target.value)}
                   className="font-mono"
                   disabled={!isSuperAdmin || loading}
                 />
               </div>
             </div>
-          </Card>
-
-          <Card className={cardLocked(isSuperAdmin)}>
-            <SectionHeader icon={Plane} title="Moyens de paiement acceptés" />
-            <div className="space-y-3">
-              {[
-                { name: "Orange Money", on: true },
-                { name: "Moov Money", on: true },
-                { name: "Wave", on: true },
-                { name: "Carte bancaire", on: true },
-                { name: "Virement bancaire", on: false },
-              ].map((m) => (
-                <div key={m.name} className="flex items-center justify-between rounded-md border border-ligne px-3 py-2">
-                  <span className="text-sm text-encre">{m.name}</span>
-                  <Switch defaultChecked={m.on} disabled={!isSuperAdmin} onCheckedChange={() => toast.success("Moyen mis à jour")} />
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 flex items-center justify-between rounded-md border border-ligne bg-porcelaine p-3">
+            <div className="mt-4 flex items-center justify-between rounded-md border border-ligne bg-porcelaine p-3">
               <div>
                 <Label className="text-sm font-medium text-encre">Paiement en tranches</Label>
-                <p className="text-xs text-ardoise">Autoriser les candidats à payer en 2 fois.</p>
+                <p className="text-xs text-ardoise">Autoriser les candidats à payer en plusieurs fois.</p>
               </div>
               <Switch
-                checked={paiementTranches}
-                onCheckedChange={setPaiementTranches}
+                checked={form.paiementTranches}
+                onCheckedChange={(v) => set("paiementTranches", v)}
                 disabled={!isSuperAdmin || loading}
               />
             </div>
           </Card>
         </TabsContent>
 
-        {/* Notifications */}
         <TabsContent value="notifications" className="space-y-4">
-          <Card className="border-ligne bg-blanc p-5">
-            <SectionHeader icon={Bell} title="Modèles de notifications" />
+          <Card className={cardLocked(isSuperAdmin)}>
+            <SectionHeader icon={Bell} title="Canaux de notification" />
             <div className="space-y-3">
-              {[
-                { event: "Dossier soumis", channel: "E-mail + Push", on: true },
-                { event: "Paiement confirmé", channel: "E-mail + SMS", on: true },
-                { event: "Pré-admission accordée", channel: "E-mail + SMS + Push", on: true },
-                { event: "Attestation disponible", channel: "E-mail + SMS", on: true },
-                { event: "Refus de l'université", channel: "E-mail + Appel conseiller", on: true },
-              ].map((n) => (
-                <div key={n.event} className="flex items-center justify-between rounded-md border border-ligne px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium text-encre">{n.event}</p>
-                    <p className="font-mono text-[11px] text-ardoise">{n.channel}</p>
-                  </div>
-                  <Switch defaultChecked={n.on} onCheckedChange={() => toast.success("Notification mise à jour")} />
-                </div>
-              ))}
+              <ToggleRow
+                label="E-mails transactionnels"
+                desc="Envoi d'e-mails à chaque transition de dossier"
+                checked={form.notifEmail}
+                onChange={(v) => set("notifEmail", v)}
+                disabled={!isSuperAdmin || loading}
+              />
+              <ToggleRow
+                label="Notifications in-app"
+                desc="Bell et alertes dans l'espace candidat"
+                checked={form.notifInApp}
+                onChange={(v) => set("notifInApp", v)}
+                disabled={!isSuperAdmin || loading}
+              />
             </div>
           </Card>
         </TabsContent>
 
-        {/* Workflow */}
         <TabsContent value="workflow" className="space-y-4">
           <Card className={cardLocked(isSuperAdmin)}>
             <SectionHeader icon={GitBranch} title="Règles de workflow" />
-            <div className="space-y-3 text-sm">
-              <Rule label="Délai maximum de vérification" value="48h" disabled={!isSuperAdmin} />
-              <Rule label="Délai de transmission à l'université" value="24h après paiement" disabled={!isSuperAdmin} />
-              <Rule label="Relance candidat sans action" value="3 jours" disabled={!isSuperAdmin} />
-              <Rule label="Validation automatique des pièces < 5 Mo" value="Activée" disabled={!isSuperAdmin} />
+            <ToggleRow
+              label="Workflow strict (§6)"
+              desc="Refuse les transitions hors circuit (ex. transmission sans paiement)"
+              checked={form.workflowStrict}
+              onChange={(v) => set("workflowStrict", v)}
+              disabled={!isSuperAdmin || loading}
+            />
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="legal" className="space-y-4">
+          <Card className={cardLocked(isSuperAdmin)}>
+            <SectionHeader icon={FileText} title="Contenus légaux" />
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Mentions légales</Label>
+                <Textarea
+                  rows={8}
+                  value={form.mentionsLegales}
+                  onChange={(e) => set("mentionsLegales", e.target.value)}
+                  disabled={!isSuperAdmin || loading}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Politique de confidentialité</Label>
+                <Textarea
+                  rows={8}
+                  value={form.politiqueConfidentialite}
+                  onChange={(e) => set("politiqueConfidentialite", e.target.value)}
+                  disabled={!isSuperAdmin || loading}
+                />
+              </div>
             </div>
           </Card>
         </TabsContent>
 
-        {/* Système */}
         <TabsContent value="systeme" className="space-y-4">
           <Card className={cardLocked(isSuperAdmin)}>
-            <SectionHeader icon={ShieldCheck} title="Système & sécurité" />
-            <div className="space-y-3 text-sm">
-              <Rule label="Version de la plateforme" value="2.4.1" disabled />
-              <Rule label="Sauvegarde automatique" value="Quotidienne · 03:00" disabled={!isSuperAdmin} />
-              <Rule label="Authentification à deux facteurs" value="Exigée pour Admin+" disabled={!isSuperAdmin} />
-              <Rule label="Rétention des dossiers clôturés" value="5 ans" disabled={!isSuperAdmin} />
-            </div>
-            <div className="mt-4 flex gap-2">
-              <Button variant="outline" onClick={() => toast.success("Cache purgée")} disabled={!isSuperAdmin}>Purger le cache</Button>
-              <Button variant="outline" className="border-carmin/40 text-carmin hover:bg-carmin/5" onClick={() => toast.error("Action simulée")} disabled={!isSuperAdmin}>Réinitialiser la plateforme</Button>
-            </div>
+            <SectionHeader icon={ShieldCheck} title="Sécurité" />
+            <ToggleRow
+              label="Exiger e-mail vérifié (BF-06)"
+              desc="Bloque la connexion candidat tant que l'e-mail n'est pas confirmé"
+              checked={form.exigerEmailVerifie}
+              onChange={(v) => set("exigerEmailVerifie", v)}
+              disabled={!isSuperAdmin || loading}
+            />
           </Card>
         </TabsContent>
       </Tabs>
 
       <div className="flex justify-end">
-        <Button
-          className="bg-lapis text-blanc hover:bg-lapis/90"
-          onClick={handleSave}
-          disabled={saving || loading || !isSuperAdmin}
-        >
+        <Button className="bg-lapis text-blanc hover:bg-lapis/90" onClick={handleSave} disabled={saving || loading || !isSuperAdmin}>
           {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
           <Save className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Enregistrer les modifications
         </Button>
@@ -240,12 +280,26 @@ function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: 
   );
 }
 
-function Rule({ label, value, disabled }: { label: string; value: string; disabled?: boolean }) {
+function ToggleRow({
+  label,
+  desc,
+  checked,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  desc: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
   return (
-    <div className="flex items-center justify-between border-b border-ligne/60 py-2 last:border-0">
-      <span className="text-ardoise">{label}</span>
-      <span className="font-mono text-encre">{value}</span>
-      {disabled && <Lock className="ml-2 h-3 w-3 text-ardoise" strokeWidth={1.5} />}
+    <div className="flex items-center justify-between rounded-md border border-ligne px-3 py-3">
+      <div>
+        <p className="text-sm font-medium text-encre">{label}</p>
+        <p className="text-xs text-ardoise">{desc}</p>
+      </div>
+      <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
     </div>
   );
 }

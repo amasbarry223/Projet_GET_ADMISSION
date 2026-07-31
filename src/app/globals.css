@@ -3,29 +3,31 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ===== GET Admission design tokens (Tailwind v4 @theme) ===== */
+/* ===== GET Admission — palette officielle =====
+   Primary #3CA936 · White #FFFFFF · Text #1A1A1A
+   Les noms historiques (lapis, or) sont conservés comme alias de classes. */
 @theme {
   /* Palette signature (light only) */
-  --color-porcelaine: #F4F6FB;
+  --color-porcelaine: #F3F4F6; /* gray-light — fond page */
   --color-blanc: #FFFFFF;
-  --color-lapis: #173A7A;
-  --color-lapis-clair: #2D6BF0;
-  --color-encre: #0E1B33;
-  --color-ardoise: #5A6781;
-  --color-or: #B8902E;
-  --color-or-pale: #F3ECD8;
-  --color-ligne: #E2E7F0;
-  --color-vert: #1F8A5B;
+  --color-lapis: #3CA936; /* primary (alias historique) */
+  --color-lapis-clair: #5BC455; /* focus / hover léger */
+  --color-encre: #1A1A1A; /* texte principal */
+  --color-ardoise: #6B7280; /* texte secondaire */
+  --color-or: #2E8329; /* primary-dark — hover/active (alias) */
+  --color-or-pale: #E8F5E7; /* primary-light — fonds soft */
+  --color-ligne: #E5E7EB;
+  --color-vert: #2E8329; /* succès = primary-dark */
   --color-ambre: #C77A12;
   --color-carmin: #C0392B;
 
-  /* Couleurs sémantiques vives (inspiration enterprise dashboard) */
+  /* Couleurs sémantiques vives (dashboard) */
   --color-cyan: #13C2C2;
   --color-cyan-pale: #E6FFFB;
   --color-bleu-vif: #1890FF;
   --color-bleu-pale: #E6F7FF;
-  --color-vert-vif: #52C41A;
-  --color-vert-pale: #F6FFED;
+  --color-vert-vif: #3CA936; /* = primary */
+  --color-vert-pale: #E8F5E7;
   --color-jaune: #FAAD14;
   --color-jaune-pale: #FFFBE6;
   --color-rouge: #FF4D4F;
@@ -81,10 +83,10 @@
   --container-content: 1200px;
   --container-admin: 1280px;
 
-  /* Shadows (teintées navy) */
-  --shadow-sm: 0 1px 2px rgba(14,27,51,.04);
-  --shadow-md: 0 1px 2px rgba(14,27,51,.04), 0 8px 24px rgba(14,27,51,.06);
-  --shadow-lg: 0 12px 40px rgba(14,27,51,.10);
+  /* Shadows (teintées vert / texte) */
+  --shadow-sm: 0 1px 2px rgba(26,26,26,.04);
+  --shadow-md: 0 1px 2px rgba(26,26,26,.04), 0 8px 24px rgba(26,26,26,.06);
+  --shadow-lg: 0 12px 40px rgba(26,26,26,.10);
 
   /* Lettre spacings */
   --tracking-eyebrow: 0.18em;
@@ -106,8 +108,8 @@
     100% { transform: scaleX(1); opacity: 1; }
   }
   @keyframes pulse-soft {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(23,58,122,.35); }
-    50% { box-shadow: 0 0 0 8px rgba(23,58,122,0); }
+    0%, 100% { box-shadow: 0 0 0 0 rgba(60,169,54,.35); }
+    50% { box-shadow: 0 0 0 8px rgba(60,169,54,0); }
   }
   @keyframes fade-up {
     0% { opacity: 0; transform: translateY(16px); }
@@ -118,37 +120,71 @@
 /* ===== shadcn semantic tokens (light only) ===== */
 :root {
   --radius: 12px;
-  --background: #F4F6FB;   /* porcelaine */
-  --foreground: #0E1B33;   /* encre */
+  --background: #F3F4F6;   /* porcelaine / gray-light */
+  --foreground: #1A1A1A;   /* encre */
   --card: #FFFFFF;         /* blanc */
-  --card-foreground: #0E1B33;
+  --card-foreground: #1A1A1A;
   --popover: #FFFFFF;
-  --popover-foreground: #0E1B33;
-  --primary: #173A7A;      /* lapis */
+  --popover-foreground: #1A1A1A;
+  --primary: #3CA936;      /* vert officiel */
   --primary-foreground: #FFFFFF;
-  --secondary: #F4F6FB;
-  --secondary-foreground: #173A7A;
-  --muted: #F4F6FB;
-  --muted-foreground: #5A6781; /* ardoise */
-  --accent: #F3ECD8;       /* or-pale */
-  --accent-foreground: #B8902E; /* or */
+  --secondary: #F3F4F6;
+  --secondary-foreground: #3CA936;
+  --muted: #F3F4F6;
+  --muted-foreground: #6B7280; /* ardoise */
+  --accent: #E8F5E7;       /* primary-light */
+  --accent-foreground: #2E8329; /* primary-dark */
   --destructive: #C0392B;  /* carmin */
-  --border: #E2E7F0;       /* ligne */
-  --input: #E2E7F0;
-  --ring: #2D6BF0;         /* lapis-clair (azur) */
-  --chart-1: #2D6BF0;      /* lapis-clair */
-  --chart-2: #1F8A5B;      /* vert */
-  --chart-3: #B8902E;      /* or */
+  --border: #E5E7EB;       /* ligne */
+  --input: #E5E7EB;
+  --ring: #5BC455;         /* primary clair */
+  --chart-1: #3CA936;      /* primary */
+  --chart-2: #2E8329;      /* primary-dark */
+  --chart-3: #5BC455;      /* primary-clair */
   --chart-4: #C77A12;      /* ambre */
-  --chart-5: #5A6781;      /* ardoise */
+  --chart-5: #6B7280;      /* ardoise */
   --sidebar: #FFFFFF;
-  --sidebar-foreground: #0E1B33;
-  --sidebar-primary: #173A7A;
+  --sidebar-foreground: #1A1A1A;
+  --sidebar-primary: #3CA936;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F4F6FB;
-  --sidebar-accent-foreground: #173A7A;
-  --sidebar-border: #E2E7F0;
-  --sidebar-ring: #2D6BF0;
+  --sidebar-accent: #E8F5E7;
+  --sidebar-accent-foreground: #2E8329;
+  --sidebar-border: #E5E7EB;
+  --sidebar-ring: #5BC455;
+}
+
+.dark {
+  --background: #0D0E15;
+  --foreground: #F3F4F6;
+  --card: #131521;
+  --card-foreground: #F3F4F6;
+  --popover: #131521;
+  --popover-foreground: #F3F4F6;
+  --primary: #3CA936;
+  --primary-foreground: #FFFFFF;
+  --secondary: #1E2030;
+  --secondary-foreground: #F3F4F6;
+  --muted: #1E2030;
+  --muted-foreground: #A1A1AA;
+  --accent: #2E8329;
+  --accent-foreground: #FFFFFF;
+  --destructive: #EF4444;
+  --border: #272A3D;
+  --input: #272A3D;
+  --ring: #5BC455;
+  --chart-1: #3CA936;
+  --chart-2: #5BC455;
+  --chart-3: #2E8329;
+  --chart-4: #C77A12;
+  --chart-5: #6B7280;
+  --sidebar: #0D0E15;
+  --sidebar-foreground: #F3F4F6;
+  --sidebar-primary: #3CA936;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1E2030;
+  --sidebar-accent-foreground: #F3F4F6;
+  --sidebar-border: #272A3D;
+  --sidebar-ring: #5BC455;
 }
 
 @layer base {
@@ -170,7 +206,7 @@
     font-family: var(--font-display);
     letter-spacing: -0.01em;
   }
-  /* Visible focus ring (azur) */
+  /* Visible focus ring (vert clair) */
   :focus-visible {
     outline: 2px solid var(--color-lapis-clair);
     outline-offset: 2px;
@@ -200,14 +236,14 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
-  /* Hairline gold rule */
+  /* Hairline brand rule (vert) */
   .rule-or {
-    background: linear-gradient(90deg, transparent, #B8902E 12%, #B8902E 88%, transparent);
+    background: linear-gradient(90deg, transparent, #3CA936 12%, #3CA936 88%, transparent);
     height: 1px;
   }
   /* Perforation between boarding pass halves */
   .perforation {
-    background-image: radial-gradient(circle, #F4F6FB 4px, transparent 4.5px);
+    background-image: radial-gradient(circle, #F3F4F6 4px, transparent 4.5px);
     background-size: 14px 14px;
     background-repeat: repeat-y;
     background-position: center;
@@ -215,8 +251,8 @@
   /* Custom scrollbar */
   .scroll-fine::-webkit-scrollbar { width: 8px; height: 8px; }
   .scroll-fine::-webkit-scrollbar-track { background: transparent; }
-  .scroll-fine::-webkit-scrollbar-thumb { background: #E2E7F0; border-radius: 9999px; }
-  .scroll-fine::-webkit-scrollbar-thumb:hover { background: #5A6781; }
+  .scroll-fine::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 9999px; }
+  .scroll-fine::-webkit-scrollbar-thumb:hover { background: #6B7280; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -227,5 +263,8 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+  .will-change-transform {
+    will-change: auto !important;
   }
 }

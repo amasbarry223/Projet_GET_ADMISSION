@@ -1,18 +1,13 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { redirect } from "next/navigation";
 import {
   FinanceClient,
   type TransactionRow,
   type FinanceKpis,
 } from "@/components/admin/finance-client";
+import { requireAdminPage } from "@/lib/admin-page-auth";
 
-// Server component — fetches transactions + computes finance KPIs via Prisma.
-// Auth: any staff member (not CANDIDAT).
 export default async function AdminFinancePage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || (session.user as any).role === "CANDIDAT") redirect("/connexion");
+  await requireAdminPage("finance.read");
 
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -44,6 +39,7 @@ export default async function AdminFinancePage() {
     reference: t.reference,
     candidat: `${t.candidat.prenom} ${t.candidat.nom}`,
     dossier: t.dossier.reference,
+    dossierId: t.dossierId,
     date: t.date.toISOString(),
     moyen: t.moyen + (t.tranche ? ` · ${t.tranche}` : ""),
     montant: t.montant,

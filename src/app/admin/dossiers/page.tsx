@@ -1,14 +1,9 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { redirect } from "next/navigation";
 import { DossiersClient, type DossierRow } from "@/components/admin/dossiers-client";
+import { requireAdminPage } from "@/lib/admin-page-auth";
 
-// Server component — fetches all dossiers via Prisma (no client waterfall).
-// Auth: any staff member (not CANDIDAT).
 export default async function AdminDossiersPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || (session.user as any).role === "CANDIDAT") redirect("/connexion");
+  await requireAdminPage("dossiers.read");
 
   const dossiers = await db.dossier.findMany({
     include: {
@@ -26,7 +21,7 @@ export default async function AdminDossiersPage() {
     candidat: `${d.candidat?.prenom ?? ""} ${d.candidat?.nom ?? ""}`.trim(),
     universite: d.universite?.nom ?? "—",
     formation: d.formation?.intitule ?? "",
-    etat: (d.etat ?? "").toLowerCase(),
+    etat: d.etat ?? "BROUILLON",
     conseiller: d.conseiller ? `${d.conseiller.prenom} ${d.conseiller.nom}` : "Non affecté",
     date: d.updatedAt.toISOString(),
     frais: d.fraisAgence ?? 0,

@@ -26,6 +26,8 @@ export async function GET() {
       photoUrl: true,
       kycType: true,
       kycNumero: true,
+      kycRectoPath: true,
+      kycVersoPath: true,
       kycVerifie: true,
       kycVerifieLe: true,
       role: true,

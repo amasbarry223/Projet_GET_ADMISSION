@@ -39,7 +39,18 @@ export const metadata: Metadata = {
     "universités partenaires",
   ],
   authors: [{ name: "GET Admission" }],
-  icons: { icon: "/logo.svg" },
+  applicationName: "GET Admission",
+  // Favicon : monogramme GET (lisible en onglet) + Apple = logo complet
+  // Les fichiers src/app/icon.png et apple-icon.png sont aussi servis par Next.js.
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-48x48.png", sizes: "48x48", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    shortcut: ["/favicon-32x32.png"],
+  },
 };
 
 export default function RootLayout({

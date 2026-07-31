@@ -72,6 +72,78 @@ async function main() {
   }
   console.log("✓ Objets contact créés");
 
+  // --- ContenuSection (étapes accueil + piliers à propos) ---
+  const etapesContenu = [
+    { numero: "01", icon: "UserPlus", titre: "Créez votre compte", description: "Inscription en ligne, choix de l'université et de la formation. Votre espace candidat est ouvert en quelques minutes." },
+    { numero: "02", icon: "FileText", titre: "Constitution du dossier", description: "Téléversez vos pièces, votre conseiller vérifie l'éligibilité et vous guide vers la version finale du dossier." },
+    { numero: "03", icon: "CreditCard", titre: "Paiement des frais d'agence", description: "Réglez les frais d'agence par Orange Money, Wave ou carte bancaire. Le reçu est disponible après validation." },
+    { numero: "04", icon: "Stamp", titre: "Attestation de pré-inscription", description: "Une fois la pré-admission accordée par l'université, votre attestation officielle est disponible dans votre espace." },
+  ];
+  const piliersContenu = [
+    { icon: "HeartHandshake", titre: "Accompagnement humain", description: "Chaque candidat est suivi par un conseiller dédié, joignable par messagerie. Pas de robot, pas de ticket anonyme : un interlocuteur unique qui connaît votre dossier." },
+    { icon: "Eye", titre: "Transparence du suivi", description: "Vous voyez l'avancement de votre dossier étape par étape, comme on suit un vol. Frais, délais, pièces attendues : tout est publié et horodaté." },
+    { icon: "Network", titre: "Réseau d'universités vérifiées", description: "Nos universités partenaires ont été visitées, leurs frais négociés et publiés, leurs délais de réponse mesurés. Vous savez toujours à quoi vous engager." },
+  ];
+
+  await db.contenuSection.upsert({
+    where: { cle: "etapes" },
+    update: {
+      titre: "Comment ça marche",
+      contenu: JSON.stringify(etapesContenu),
+    },
+    create: {
+      cle: "etapes",
+      titre: "Comment ça marche",
+      contenu: JSON.stringify(etapesContenu),
+    },
+  });
+  await db.contenuSection.upsert({
+    where: { cle: "piliers" },
+    update: {
+      titre: "Nos piliers",
+      contenu: JSON.stringify(piliersContenu),
+    },
+    create: {
+      cle: "piliers",
+      titre: "Nos piliers",
+      contenu: JSON.stringify(piliersContenu),
+    },
+  });
+  console.log("✓ ContenuSection (étapes/piliers) créée");
+
+  const mentionsLegales = `## Mentions légales — GET Admission
+
+**Éditeur :** GET Admission — Agence d'admission universitaire
+
+**Contact :** voir la page Contact
+
+**Hébergement :** infrastructure cloud sécurisée
+
+**Données personnelles :** Les données collectées (identité, pièces KYC, dossiers) sont traitées exclusivement pour la gestion des candidatures et conformément aux principes de protection des données. Vous disposez d'un droit d'accès, de rectification et de suppression via votre espace personnel ou en contactant l'agence.
+
+**Cookies :** La plateforme utilise des cookies de session strictement nécessaires à l'authentification.
+
+**Propriété intellectuelle :** L'ensemble des contenus de ce site est la propriété de GET Admission.`;
+
+  const politiqueConfidentialite = `## Politique de confidentialité
+
+GET Admission collecte et conserve les données nécessaires au traitement de votre dossier d'admission. La durée de conservation est limitée à la durée du parcours + obligations légales. Aucune cession commerciale à des tiers n'est effectuée hors universités partenaires concernées par votre candidature.`;
+
+  // Paramètres agence
+  await db.parametre.upsert({
+    where: { id: 1 },
+    update: {
+      mentionsLegales,
+      politiqueConfidentialite,
+    },
+    create: {
+      id: 1,
+      mentionsLegales,
+      politiqueConfidentialite,
+    },
+  });
+  console.log("✓ Paramètres (mentions / confidentialité) créés");
+
   console.log("🎉 Seed contenu gérable terminé !");
   await db.$disconnect();
 }
