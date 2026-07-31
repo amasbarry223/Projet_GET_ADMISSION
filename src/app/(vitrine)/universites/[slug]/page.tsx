@@ -60,11 +60,6 @@ import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export async function generateStaticParams() {
-  const univs = await db.universite.findMany({ select: { slug: true } });
-  return univs.map((u) => ({ slug: u.slug }));
-}
-
 export default async function UniversiteDetailPage({
   params,
 }: {
