@@ -15,7 +15,6 @@ import { User, Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/components/brand-logo";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -132,23 +131,11 @@ function InscriptionInner() {
         return;
       }
 
-      const supabase = createSupabaseBrowserClient();
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: form.email.toLowerCase().trim(),
-        options: {
-          shouldCreateUser: true,
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          data: {
-            prenom: form.prenom.trim(),
-            nom: form.nom.trim(),
-            nationalite: form.nationalite,
-          },
-        },
-      });
-
-      if (otpError) {
+      if (data.emailSent === false) {
         toast.error("Compte créé, e-mail non envoyé", {
-          description: otpError.message || "Connectez-vous puis renvoyez la vérification.",
+          description:
+            data.emailError ||
+            "Connectez-vous puis utilisez « Renvoyer le lien / code ».",
         });
         setLoading(false);
         router.push("/connexion");
@@ -156,7 +143,7 @@ function InscriptionInner() {
       }
 
       toast.success("Compte créé", {
-        description: "Vérifiez votre e-mail pour activer le compte.",
+        description: "Vérifiez votre e-mail (lien ou code) pour activer le compte.",
       });
 
       const q = new URLSearchParams({

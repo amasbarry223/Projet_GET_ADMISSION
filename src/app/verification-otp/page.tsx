@@ -149,27 +149,16 @@ function VerificationOtpInner() {
     if (!email) return;
     setResending(true);
     try {
-      if (mode === "login") {
-        await fetch("/api/auth/request-otp-login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        });
-      }
-      const supabase = createSupabaseBrowserClient();
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: mode === "register",
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          data:
-            mode === "register"
-              ? { prenom, nom, nationalite }
-              : undefined,
-        },
+      const res = await fetch("/api/auth/send-verification-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
       });
-      if (error) {
-        toast.error("Renvoi impossible", { description: error.message });
+      const data = await res.json();
+      if (!res.ok || data.emailSent === false) {
+        toast.error("Renvoi impossible", {
+          description: data.error || "Réessayez dans une minute.",
+        });
       } else {
         toast.success("Nouveau code envoyé", {
           description: "Consultez votre boîte mail.",

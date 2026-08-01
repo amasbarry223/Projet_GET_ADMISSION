@@ -15,7 +15,6 @@ import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
 import { FieldError } from "@/components/ui/field-error";
 import { defaultAdminRoute, isStaff } from "@/lib/rbac";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type PortalTab = "etudiant" | "staff";
 
@@ -163,16 +162,16 @@ function ConnexionInner() {
     }
     const emailNorm = email.toLowerCase().trim();
     try {
-      const supabase = createSupabaseBrowserClient();
-      const { error } = await supabase.auth.signInWithOtp({
-        email: emailNorm,
-        options: {
-          shouldCreateUser: false,
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
+      const res = await fetch("/api/auth/send-verification-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailNorm }),
       });
-      if (error) {
-        toast.error("Envoi impossible", { description: error.message || "Réessayez." });
+      const data = await res.json();
+      if (!res.ok || data.emailSent === false) {
+        toast.error("Envoi impossible", {
+          description: data.error || "Réessayez dans une minute.",
+        });
         return;
       }
       toast.success("E-mail renvoyé", {
