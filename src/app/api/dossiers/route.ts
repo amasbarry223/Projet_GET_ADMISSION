@@ -4,8 +4,10 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dossierCreateSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
-import { parseJsonArray } from "@/lib/types";
 import { requirePermission } from "@/lib/rbac";
+import { resolveFraisAgence } from "@/lib/dossier/frais-agence";
+import { isProfilAcademiqueComplet } from "@/lib/dossier/pieces-requises";
+import { syncPiecesDossier } from "@/lib/dossier/sync-pieces";
 
 // GET /api/dossiers — liste (candidat: ses dossiers ; staff: dossiers.read)
 //
@@ -169,10 +171,22 @@ export async function POST(request: Request) {
 
   const candidat = await db.user.findUnique({
     where: { id: userId },
-    select: { prenom: true, nom: true },
+    select: { prenom: true, nom: true, profilAcademique: true },
   });
   if (!candidat) {
     return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
+  }
+
+  const profil = candidat.profilAcademique;
+  if (!profil || !isProfilAcademiqueComplet(profil)) {
+    return NextResponse.json(
+      {
+        error:
+          "Complétez votre profil académique avant de créer un dossier (parcours lycée ou études après le bac).",
+        code: "PROFIL_ACADEMIQUE_REQUIS",
+      },
+      { status: 400 }
+    );
   }
 
   const year = new Date().getFullYear();
@@ -187,9 +201,7 @@ export async function POST(request: Request) {
     reference,
   });
 
-  const piecesRequises = parseJsonArray(formation.piecesRequises);
-  const identityPieces = ["Passeport ou CNI (page photo)", "Photo d'identité récente"];
-  const allLibelles = [...new Set([...piecesRequises, ...identityPieces])];
+  const fraisAgence = resolveFraisAgence(formation.universite.typeEtablissement);
 
   const dossier = await db.$transaction(async (tx) => {
     const created = await tx.dossier.create({
@@ -200,22 +212,31 @@ export async function POST(request: Request) {
         formationId,
         etat: "BROUILLON",
         etapeActuelle: 1,
-        fraisAgence: formation.fraisAgence,
+        fraisAgence,
         paiementStatut: "aucun",
         mrz,
       },
     });
 
-    if (allLibelles.length > 0) {
-      await tx.piece.createMany({
-        data: allLibelles.map((libelle) => ({
-          dossierId: created.id,
-          libelle,
-          statut: "manquante",
-          type: "pdf",
-        })),
-      });
-    }
+    await syncPiecesDossier(
+      tx,
+      created.id,
+      {
+        statutCandidat: profil.statutCandidat,
+        classeActuelle: profil.classeActuelle,
+        aObtenuBac: profil.aObtenuBac,
+        trimestresSeconde: profil.trimestresSeconde,
+        trimestresPremiere: profil.trimestresPremiere,
+        trimestresTerminale: profil.trimestresTerminale,
+        attestationScolariteDisponible: profil.attestationScolariteDisponible,
+        niveauEtudesSuperieures: profil.niveauEtudesSuperieures,
+        formationEnCours: profil.formationEnCours,
+        diplomesObtenus: profil.diplomesObtenus,
+        redoublements: profil.redoublements,
+        interruptions: profil.interruptions,
+      },
+      { formationPiecesRequises: formation.piecesRequises },
+    );
 
     await tx.historique.create({
       data: {

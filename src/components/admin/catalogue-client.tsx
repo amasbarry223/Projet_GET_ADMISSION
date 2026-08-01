@@ -45,6 +45,7 @@ export type CatalogueRow = {
   formations: number;
   fraisMin: number;
   fraisMax: number;
+  typeEtablissement?: "PUBLIC" | "PRIVE";
 };
 
 export function CatalogueClient({ initialData }: { initialData: UniversiteNormalized[] }) {
@@ -59,8 +60,9 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
   const [formEcusson, setFormEcusson] = React.useState("");
   const [formVille, setFormVille] = React.useState("");
   const [formPays, setFormPays] = React.useState("");
-  const [formFraisMin, setFormFraisMin] = React.useState("");
-  const [formFraisMax, setFormFraisMax] = React.useState("");
+  const [formFraisMin, setFormFraisMin] = React.useState("110000");
+  const [formFraisMax, setFormFraisMax] = React.useState("110000");
+  const [formType, setFormType] = React.useState<"PUBLIC" | "PRIVE">("PRIVE");
   const [creating, setCreating] = React.useState(false);
 
   const resetForm = () => {
@@ -68,8 +70,9 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
     setFormEcusson("");
     setFormVille("");
     setFormPays("");
-    setFormFraisMin("");
-    setFormFraisMax("");
+    setFormFraisMin("110000");
+    setFormFraisMax("110000");
+    setFormType("PRIVE");
   };
 
   const data: CatalogueRow[] = React.useMemo(() => {
@@ -84,6 +87,7 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
       formations: u.formations?.length ?? 0,
       fraisMin: u.fraisMin,
       fraisMax: u.fraisMax,
+      typeEtablissement: (u as { typeEtablissement?: "PUBLIC" | "PRIVE" }).typeEtablissement,
     }));
   }, [universites]);
 
@@ -212,9 +216,14 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
         accessorFn: (row) => `${row.fraisMin}-${row.fraisMax}`,
         header: ({ column }) => <DataTableColumnHeader column={column} title="Frais d'agence" />,
         cell: ({ row }) => (
-          <span className="font-mono text-xs text-encre">
-            {formatFCFACompact(row.original.fraisMin)} – {formatFCFACompact(row.original.fraisMax)}
-          </span>
+          <div className="space-y-0.5">
+            <span className="font-mono text-xs text-encre">
+              {formatFCFACompact(row.original.fraisMin)} – {formatFCFACompact(row.original.fraisMax)}
+            </span>
+            <p className="font-mono text-[10px] uppercase text-ardoise">
+              {row.original.typeEtablissement === "PUBLIC" ? "Public · 65k" : "Privé · 110k"}
+            </p>
+          </div>
         ),
       },
       createActionsColumn<CatalogueRow>(actions, { ariaLabel: (row) => `Actions sur ${row.nom}` }),
@@ -241,6 +250,7 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
           imageCouleur: "",
           fraisMin: Number(formFraisMin) || 0,
           fraisMax: Number(formFraisMax) || 0,
+          typeEtablissement: formType,
           partenaire: true,
         }),
       });
@@ -351,13 +361,38 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-1.5 col-span-2">
+                  <Label className="text-sm font-medium text-encre">Type d&apos;établissement</Label>
+                  <Select
+                    value={formType}
+                    onValueChange={(v) => {
+                      const t = v as "PUBLIC" | "PRIVE";
+                      setFormType(t);
+                      if (t === "PUBLIC") {
+                        setFormFraisMin("65000");
+                        setFormFraisMax("65000");
+                      } else {
+                        setFormFraisMin("110000");
+                        setFormFraisMax("110000");
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PUBLIC">Public — 65 000 FCFA</SelectItem>
+                      <SelectItem value="PRIVE">Privé — 110 000 FCFA</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium text-encre">Frais min (FCFA)</Label>
                   <Input
                     type="number"
                     value={formFraisMin}
                     onChange={(e) => setFormFraisMin(e.target.value)}
-                    placeholder="350000"
+                    placeholder="65000"
                     className="font-mono"
                   />
                 </div>
@@ -367,7 +402,7 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
                     type="number"
                     value={formFraisMax}
                     onChange={(e) => setFormFraisMax(e.target.value)}
-                    placeholder="1750000"
+                    placeholder="110000"
                     className="font-mono"
                   />
                 </div>

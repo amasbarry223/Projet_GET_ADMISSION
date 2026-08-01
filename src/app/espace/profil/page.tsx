@@ -15,6 +15,12 @@ import { FormPageSkeleton } from "@/components/ui/skeleton-card";
 import { getApiErrorMessageSync, messageFromBody } from "@/lib/api-error";
 import { toast } from "sonner";
 import { Upload, ShieldCheck, Camera, CheckCircle2, Save, Loader2, AlertCircle } from "lucide-react";
+import {
+  ProfilAcademiqueForm,
+  emptyProfilAcademique,
+  profilFromApi,
+  type ProfilAcademiqueFormState,
+} from "@/components/dossier/profil-academique-form";
 
 type Profile = {
   id: string;
@@ -33,6 +39,7 @@ type Profile = {
   kycVerifie: boolean;
   kycVerifieLe: string | null;
   role: string;
+  profilAcademique?: ProfilAcademiqueFormState | null;
 };
 
 type ProfileErrors = Partial<Record<"prenom" | "nom", string>>;
@@ -48,6 +55,8 @@ export default function ProfilPage() {
   const [savingPassword, setSavingPassword] = React.useState(false);
   const [profileErrors, setProfileErrors] = React.useState<ProfileErrors>({});
   const [passwordErrors, setPasswordErrors] = React.useState<PasswordErrors>({});
+  const [profilAcademique, setProfilAcademique] = React.useState<ProfilAcademiqueFormState>(emptyProfilAcademique());
+  const [savingAcademique, setSavingAcademique] = React.useState(false);
   const photoRef = React.useRef<HTMLInputElement>(null);
 
   const loadProfile = React.useCallback(() => {
@@ -63,6 +72,7 @@ export default function ProfilPage() {
       })
       .then((data) => {
         setProfile(data);
+        setProfilAcademique(profilFromApi(data.profilAcademique));
         setLoading(false);
       })
       .catch((e) => {
@@ -254,6 +264,7 @@ export default function ProfilPage() {
       <Tabs defaultValue="perso">
         <TabsList className="bg-porcelaine">
           <TabsTrigger value="perso">Informations personnelles</TabsTrigger>
+          <TabsTrigger value="academique">Parcours académique</TabsTrigger>
           <TabsTrigger value="kyc">Pièce d&apos;identité (KYC)</TabsTrigger>
           <TabsTrigger value="securite">Sécurité</TabsTrigger>
         </TabsList>
@@ -310,6 +321,39 @@ export default function ProfilPage() {
                 Enregistrer
               </Button>
             </div>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="academique">
+          <Card className="border-ligne bg-blanc p-6">
+            <p className="mb-4 text-sm text-ardoise">
+              Ce parcours détermine automatiquement les documents demandés pour vos dossiers de candidature.
+            </p>
+            <ProfilAcademiqueForm
+              value={profilAcademique}
+              onChange={setProfilAcademique}
+              saving={savingAcademique}
+              onSave={async () => {
+                setSavingAcademique(true);
+                try {
+                  const res = await fetch("/api/profile/academique", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(profilAcademique),
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) {
+                    throw new Error(messageFromBody(data) ?? getApiErrorMessageSync(res.status));
+                  }
+                  setProfilAcademique(profilFromApi(data));
+                  toast.success("Parcours académique enregistré");
+                } catch (e) {
+                  toast.error("Enregistrement échoué", { description: getApiErrorMessageSync(e) });
+                } finally {
+                  setSavingAcademique(false);
+                }
+              }}
+            />
           </Card>
         </TabsContent>
 

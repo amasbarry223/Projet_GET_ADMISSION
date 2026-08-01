@@ -6,8 +6,12 @@ import type { Role } from "@prisma/client";
 import { isStaff } from "@/lib/rbac";
 import { isRateLimited } from "@/lib/rate-limit";
 import { verifyOtpBridgeToken } from "@/lib/otp-bridge";
+import {
+  API_ROUTES,
+  JWT_REVALIDATE_INTERVAL_MS,
+  SESSION_MAX_AGE_SECONDS,
+} from "@/shared/constants";
 
-// Type étendu pour l'utilisateur retourné par authorize()
 type AuthUser = {
   id: string;
   email: string;
@@ -26,15 +30,15 @@ function parsePortal(raw: unknown): Portal | null {
   return null;
 }
 
-const isProd = process.env.NODE_ENV === "production";
-const cookieSecure = isProd;
-const sessionCookieName = isProd
+const isProduction = process.env.NODE_ENV === "production";
+const cookieSecure = isProduction;
+const sessionCookieName = isProduction
   ? "__Secure-next-auth.session-token"
   : "next-auth.session-token";
-const callbackCookieName = isProd
+const callbackCookieName = isProduction
   ? "__Secure-next-auth.callback-url"
   : "next-auth.callback-url";
-const csrfCookieName = isProd
+const csrfCookieName = isProduction
   ? "__Host-next-auth.csrf-token"
   : "next-auth.csrf-token";
 
@@ -57,10 +61,53 @@ function toAuthUser(user: {
   };
 }
 
+function markLastLogin(userId: string) {
+  void db.user
+    .update({ where: { id: userId }, data: { lastLoginAt: new Date() } })
+    .catch(() => undefined);
+}
+
+async function authorizeViaOtpBridge(bridgeToken: string): Promise<AuthUser | null> {
+  const userId = verifyOtpBridgeToken(bridgeToken);
+  if (!userId) return null;
+
+  const user = await db.user.findUnique({ where: { id: userId } });
+  if (!user || !user.actif || user.role !== "CANDIDAT") return null;
+
+  markLastLogin(user.id);
+  return toAuthUser(user);
+}
+
+async function authorizeViaPasswordCredentials(params: {
+  email: string;
+  password: string;
+  portal: Portal;
+}): Promise<AuthUser | null> {
+  const normalizedEmail = params.email.toLowerCase().trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) return null;
+
+  if (isRateLimited(normalizedEmail, API_ROUTES.AUTH_CALLBACK_CREDENTIALS)) {
+    return null;
+  }
+
+  const user = await db.user.findUnique({ where: { email: normalizedEmail } });
+  if (!user || !user.actif || !user.passwordHash) return null;
+
+  const isPasswordValid = await bcrypt.compare(params.password, user.passwordHash);
+  if (!isPasswordValid) return null;
+
+  // Refus silencieux si le portail ne correspond pas au rôle (anti-énumération)
+  if (params.portal === "candidat" && user.role !== "CANDIDAT") return null;
+  if (params.portal === "staff" && !isStaff(user.role)) return null;
+
+  markLastLogin(user.id);
+  return toAuthUser(user);
+}
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60, // 24h
+    maxAge: SESSION_MAX_AGE_SECONDS,
   },
   pages: {
     signIn: "/connexion",
@@ -104,111 +151,57 @@ export const authOptions: NextAuthOptions = {
         bridgeToken: { label: "OTP Bridge", type: "text" },
       },
       async authorize(credentials): Promise<AuthUser | null> {
-        // --- Bridge OTP Supabase → session NextAuth (candidats) ---
         if (credentials?.bridgeToken) {
-          const userId = verifyOtpBridgeToken(credentials.bridgeToken);
-          if (!userId) return null;
-
-          const user = await db.user.findUnique({ where: { id: userId } });
-          if (!user || !user.actif || user.role !== "CANDIDAT") return null;
-
-          void db.user
-            .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
-            .catch(() => undefined);
-
-          return toAuthUser(user);
+          return authorizeViaOtpBridge(credentials.bridgeToken);
         }
 
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
+        if (!credentials?.email || !credentials?.password) return null;
 
         const portal = parsePortal(credentials.portal);
-        if (!portal) {
-          return null;
-        }
+        if (!portal) return null;
 
-        const email = credentials.email.toLowerCase().trim();
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-          return null;
-        }
-
-        // Rate-limit par e-mail (5 / min) — même clé que le callback credentials
-        if (isRateLimited(email, "/api/auth/callback/credentials")) {
-          return null;
-        }
-
-        const user = await db.user.findUnique({
-          where: { email },
+        return authorizeViaPasswordCredentials({
+          email: credentials.email,
+          password: credentials.password,
+          portal,
         });
-
-        if (!user || !user.actif || !user.passwordHash) {
-          return null;
-        }
-
-        const valid = await bcrypt.compare(credentials.password, user.passwordHash);
-        if (!valid) {
-          return null;
-        }
-
-        // Intention portail : refus silencieux si rôle incompatible (pas d’énumération)
-        if (portal === "candidat" && user.role !== "CANDIDAT") {
-          return null;
-        }
-        if (portal === "staff" && !isStaff(user.role)) {
-          return null;
-        }
-
-        // Exiger la vérification e-mail pour les candidats
-        let exigerVerif = true;
-        try {
-          const params = await db.parametre.findUnique({ where: { id: 1 } });
-          if (params) exigerVerif = params.exigerEmailVerifie;
-        } catch {
-          exigerVerif = process.env.NODE_ENV === "production";
-        }
-        if (exigerVerif && user.role === "CANDIDAT" && !user.emailVerified) {
-          throw new Error("EMAIL_NOT_VERIFIED");
-        }
-
-        void db.user
-          .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
-          .catch(() => undefined);
-
-        return toAuthUser(user);
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user, trigger }) {
       if (user) {
-        const u = user as AuthUser;
-        token.id = u.id;
-        token.role = u.role;
-        token.prenom = u.prenom;
-        token.nom = u.nom;
-        token.image = u.image;
+        const authUser = user as AuthUser;
+        token.id = authUser.id;
+        token.role = authUser.role;
+        token.prenom = authUser.prenom;
+        token.nom = authUser.nom;
+        token.image = authUser.image;
         token.lastValidated = Date.now();
       }
 
-      // Revalider rôle + actif depuis la DB (au plus toutes les 5 min)
-      const last = typeof token.lastValidated === "number" ? token.lastValidated : 0;
-      const shouldRefresh = !last || Date.now() - last > 5 * 60 * 1000 || trigger === "update";
-      if (shouldRefresh && token.id) {
-        const dbUser = await db.user.findUnique({
+      const lastValidatedAt =
+        typeof token.lastValidated === "number" ? token.lastValidated : 0;
+      const shouldRefreshFromDatabase =
+        !lastValidatedAt ||
+        Date.now() - lastValidatedAt > JWT_REVALIDATE_INTERVAL_MS ||
+        trigger === "update";
+
+      if (shouldRefreshFromDatabase && token.id) {
+        const databaseUser = await db.user.findUnique({
           where: { id: String(token.id) },
           select: { role: true, actif: true, prenom: true, nom: true, photoUrl: true },
         });
-        if (!dbUser || !dbUser.actif) {
+        if (!databaseUser || !databaseUser.actif) {
           token.error = "inactive";
           token.lastValidated = Date.now();
           delete (token as { role?: unknown }).role;
           return token;
         }
-        token.role = dbUser.role;
-        token.prenom = dbUser.prenom;
-        token.nom = dbUser.nom;
-        token.image = dbUser.photoUrl;
+        token.role = databaseUser.role;
+        token.prenom = databaseUser.prenom;
+        token.nom = databaseUser.nom;
+        token.image = databaseUser.photoUrl;
         token.error = undefined;
         token.lastValidated = Date.now();
       }
@@ -216,16 +209,15 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (token.error === "inactive") {
-        // Session invalide : le middleware / pages verront l'absence de rôle staff/candidat
         return { ...session, user: undefined as unknown as typeof session.user };
       }
       if (session.user) {
-        const u = session.user as Record<string, unknown>;
-        u.id = token.id;
-        u.role = token.role;
-        u.prenom = token.prenom;
-        u.nom = token.nom;
-        u.image = token.image;
+        const sessionUser = session.user as Record<string, unknown>;
+        sessionUser.id = token.id;
+        sessionUser.role = token.role;
+        sessionUser.prenom = token.prenom;
+        sessionUser.nom = token.nom;
+        sessionUser.image = token.image;
       }
       return session;
     },

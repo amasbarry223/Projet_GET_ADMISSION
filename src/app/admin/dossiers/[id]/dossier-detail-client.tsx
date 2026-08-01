@@ -37,6 +37,9 @@ type PieceApi = {
   type: string;
   taille: string | null;
   televerseeLe: string | null;
+  code?: string | null;
+  categorie?: string | null;
+  obligatoire?: boolean;
 };
 
 type PaiementApi = {
@@ -74,8 +77,24 @@ type DossierDetail = {
   mrz: string;
   createdAt: string;
   updatedAt: string;
-  candidat: { id: string; prenom: string; nom: string; email: string; nationalite: string; telephone: string | null };
-  universite: { nom: string };
+  candidat: {
+    id: string;
+    prenom: string;
+    nom: string;
+    email: string;
+    nationalite: string;
+    telephone: string | null;
+    profilAcademique?: {
+      statutCandidat: string;
+      aObtenuBac: boolean;
+      niveauEtudesSuperieures: string;
+      formationEnCours: boolean;
+      redoublements?: unknown[];
+      interruptions?: unknown[];
+      diplomesObtenus?: string[];
+    } | null;
+  };
+  universite: { nom: string; typeEtablissement?: string };
   formation: { intitule: string; niveau: string; domaine: string };
   conseiller: { prenom: string; nom: string } | null;
   pieces: PieceApi[];
@@ -267,9 +286,27 @@ export default function DossierDetailClient() {
                 <Field label="Formation" value={form?.intitule ?? ""} />
                 <Field label="Niveau" value={form?.niveau ?? ""} />
                 <Field label="Domaine" value={form?.domaine ?? ""} />
+                <Field
+                  label="Type établissement"
+                  value={univ?.typeEtablissement === "PUBLIC" ? "Public" : "Privé"}
+                />
                 <Field label="Frais d'agence" value={formatFCFA(dossier.fraisAgence)} mono />
                 <Field label="Date de création" value={formatDate(dossier.createdAt)} />
               </dl>
+              {dossier.candidat.profilAcademique && (
+                <div className="mt-4 rounded-md border border-ligne bg-porcelaine p-3">
+                  <p className="font-mono text-[10px] uppercase text-ardoise">Profil académique</p>
+                  <p className="mt-1 text-sm text-encre">
+                    {dossier.candidat.profilAcademique.statutCandidat === "LYCEEN" ? "Lycéen" : "Bachelier"}
+                    {dossier.candidat.profilAcademique.statutCandidat === "BACHELIER"
+                      ? ` · ${dossier.candidat.profilAcademique.niveauEtudesSuperieures}`
+                      : dossier.candidat.profilAcademique.aObtenuBac
+                        ? " · Bac obtenu"
+                        : " · Bac non obtenu"}
+                    {dossier.candidat.profilAcademique.formationEnCours ? " · Formation en cours" : ""}
+                  </p>
+                </div>
+              )}
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button
                   variant="outline"
@@ -321,8 +358,17 @@ export default function DossierDetailClient() {
                           <cfg.icon className="h-4 w-4" strokeWidth={1.5} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-encre">{p.libelle}</p>
-                          {p.taille && <p className="font-mono text-[11px] text-ardoise">{p.taille}{p.televerseeLe ? ` · ${formatDate(p.televerseeLe)}` : ""}</p>}
+                          <p className="text-sm font-medium text-encre">
+                            {p.libelle}
+                            {p.obligatoire === false ? (
+                              <span className="ml-2 font-mono text-[10px] uppercase text-ardoise">(optionnel)</span>
+                            ) : null}
+                          </p>
+                          <p className="font-mono text-[11px] text-ardoise">
+                            {p.categorie ?? "academique"}
+                            {p.taille ? ` · ${p.taille}` : ""}
+                            {p.televerseeLe ? ` · ${formatDate(p.televerseeLe)}` : ""}
+                          </p>
                         </div>
                         <Badge className={cn("font-mono text-[10px] uppercase", cfg.color, "border-current")}>{cfg.label}</Badge>
                         <Button

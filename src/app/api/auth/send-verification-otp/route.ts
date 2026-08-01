@@ -2,14 +2,13 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { provisionAndSendEmailOtp } from "@/lib/supabase/send-otp";
+import { API_ERROR_CODES, API_ROUTES } from "@/shared/constants";
 
-/**
- * POST /api/auth/send-verification-otp
- * Body: { email }
- * Provisionne auth.users si besoin puis envoie le lien / OTP Supabase.
- */
 export async function POST(request: Request) {
-  const rateLimited = checkRateLimit(getClientId(request), "/api/auth/send-verification-otp");
+  const rateLimited = checkRateLimit(
+    getClientId(request),
+    API_ROUTES.AUTH_SEND_VERIFICATION_OTP,
+  );
   if (rateLimited) return rateLimited;
 
   try {
@@ -36,20 +35,23 @@ export async function POST(request: Request) {
     });
 
     // Réponse neutre hors candidat (anti-énumération)
-    const neutral = {
+    const neutralResponse = {
       success: true as const,
-      message: "Si un compte existe, un e-mail de vérification a été envoyé.",
+      message: "Si un compte existe, un code de vérification a été envoyé.",
     };
 
     if (!user || user.role !== "CANDIDAT") {
-      return NextResponse.json(neutral);
+      return NextResponse.json(neutralResponse);
     }
     if (!user.actif) {
       return NextResponse.json({ error: "Compte désactivé" }, { status: 403 });
     }
     if (user.emailVerified) {
       return NextResponse.json(
-        { error: "Cet e-mail est déjà vérifié. Connectez-vous.", code: "ALREADY_VERIFIED" },
+        {
+          error: "Cet e-mail est déjà vérifié. Connectez-vous.",
+          code: API_ERROR_CODES.ALREADY_VERIFIED,
+        },
         { status: 400 },
       );
     }
@@ -70,10 +72,20 @@ export async function POST(request: Request) {
     });
 
     if (!sent.ok) {
-      const status = sent.code === "RATE_LIMIT" ? 429 : 502;
+      const status = sent.code === API_ERROR_CODES.RATE_LIMIT ? 429 : 502;
       return NextResponse.json(
-        { error: sent.error, code: sent.code, emailSent: false },
-        { status },
+        {
+          error: sent.error,
+          code: sent.code,
+          emailSent: false,
+          ...(sent.retryAfterSec ? { retryAfterSec: sent.retryAfterSec } : {}),
+        },
+        {
+          status,
+          headers: sent.retryAfterSec
+            ? { "Retry-After": String(sent.retryAfterSec) }
+            : undefined,
+        },
       );
     }
 
@@ -81,7 +93,7 @@ export async function POST(request: Request) {
       success: true,
       emailSent: true,
       email: user.email,
-      message: "E-mail de vérification envoyé.",
+      message: "Un code de vérification a été envoyé à votre e-mail.",
     });
   } catch (error) {
     console.error("send-verification-otp error:", error);

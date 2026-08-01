@@ -1,29 +1,41 @@
 import { z } from "zod";
-
-// ===================== Schémas de validation API =====================
+import {
+  ADDRESS_MAX_LENGTH,
+  EMAIL_MAX_LENGTH,
+  MAX_DIPLOMES_OBTENUS,
+  MAX_INTERRUPTIONS,
+  MAX_REDOUBLEMENTS,
+  NAME_MAX_LENGTH,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  PHONE_MAX_LENGTH,
+  TRIMESTRES_MAX,
+  TRIMESTRES_MIN,
+} from "@/shared/constants";
 
 // --- Auth ---
-/** Inscription candidat : mot de passe + vérification e-mail OTP Supabase. */
 export const registerSchema = z.object({
-  prenom: z.string().min(1, "Le prénom est requis").max(50),
-  nom: z.string().min(1, "Le nom est requis").max(50),
-  email: z.string().email("L'e-mail saisi n'est pas valide"),
-  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères"),
-  nationalite: z.string().min(1, "La nationalité est requise").max(50),
+  prenom: z.string().min(1, "Le prénom est requis").max(NAME_MAX_LENGTH),
+  nom: z.string().min(1, "Le nom est requis").max(NAME_MAX_LENGTH),
+  email: z.string().email("L'e-mail saisi n'est pas valide").max(EMAIL_MAX_LENGTH),
+  password: z
+    .string()
+    .min(PASSWORD_MIN_LENGTH, `Le mot de passe doit contenir au moins ${PASSWORD_MIN_LENGTH} caractères`),
+  nationalite: z.string().min(1, "La nationalité est requise").max(NAME_MAX_LENGTH),
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
 
 export const otpVerifySchema = z.object({
   accessToken: z.string().min(1, "Token manquant"),
   mode: z.enum(["register", "login"]).default("register"),
-  prenom: z.string().min(1).max(50).optional(),
-  nom: z.string().min(1).max(50).optional(),
-  nationalite: z.string().max(50).optional(),
+  prenom: z.string().min(1).max(NAME_MAX_LENGTH).optional(),
+  nom: z.string().min(1).max(NAME_MAX_LENGTH).optional(),
+  nationalite: z.string().max(NAME_MAX_LENGTH).optional(),
 });
 export type OtpVerifyInput = z.infer<typeof otpVerifySchema>;
 
 export const otpRequestLoginSchema = z.object({
-  email: z.string().email("L'e-mail saisi n'est pas valide"),
+  email: z.string().email("L'e-mail saisi n'est pas valide").max(EMAIL_MAX_LENGTH),
 });
 export type OtpRequestLoginInput = z.infer<typeof otpRequestLoginSchema>;
 
@@ -67,19 +79,66 @@ export type PaiementInput = z.infer<typeof paiementSchema>;
 
 // --- Profile ---
 export const profileSchema = z.object({
-  prenom: z.string().min(1).max(50).optional(),
-  nom: z.string().min(1).max(50).optional(),
-  telephone: z.string().max(30).optional(),
-  nationalite: z.string().max(50).optional(),
+  prenom: z.string().min(1).max(NAME_MAX_LENGTH).optional(),
+  nom: z.string().min(1).max(NAME_MAX_LENGTH).optional(),
+  telephone: z.string().max(PHONE_MAX_LENGTH).optional(),
+  nationalite: z.string().max(NAME_MAX_LENGTH).optional(),
   dateNaissance: z.string().max(20).optional(),
-  adresse: z.string().max(200).optional(),
+  adresse: z.string().max(ADDRESS_MAX_LENGTH).optional(),
 });
 export type ProfileInput = z.infer<typeof profileSchema>;
 
-// --- Change password ---
+const interruptionTypeEnum = z.enum([
+  "stage",
+  "emploi",
+  "formation",
+  "volontariat",
+  "lettre",
+  "autre",
+]);
+
+export const profilAcademiqueSchema = z.object({
+  statutCandidat: z.enum(["LYCEEN", "BACHELIER"]),
+  classeActuelle: z.string().max(NAME_MAX_LENGTH).optional().nullable(),
+  aObtenuBac: z.boolean().optional(),
+  trimestresSeconde: z.number().int().min(TRIMESTRES_MIN).max(TRIMESTRES_MAX).optional(),
+  trimestresPremiere: z.number().int().min(TRIMESTRES_MIN).max(TRIMESTRES_MAX).optional(),
+  trimestresTerminale: z.number().int().min(TRIMESTRES_MIN).max(TRIMESTRES_MAX).optional(),
+  attestationScolariteDisponible: z.boolean().optional(),
+  niveauEtudesSuperieures: z
+    .enum(["AUCUN", "L1", "L2", "L3", "DUT_BTS", "MASTER_PLUS"])
+    .optional(),
+  formationEnCours: z.boolean().optional(),
+  diplomesObtenus: z.array(z.string().min(1).max(80)).max(MAX_DIPLOMES_OBTENUS).optional(),
+  redoublements: z
+    .array(
+      z.object({
+        niveau: z.string().min(1).max(40),
+        anneeScolaire: z.string().min(1).max(20),
+      })
+    )
+    .max(MAX_REDOUBLEMENTS)
+    .optional(),
+  interruptions: z
+    .array(
+      z.object({
+        type: interruptionTypeEnum,
+        anneeDebut: z.string().min(1).max(20),
+        anneeFin: z.string().min(1).max(20),
+        libelle: z.string().max(120).optional(),
+      })
+    )
+    .max(MAX_INTERRUPTIONS)
+    .optional(),
+});
+export type ProfilAcademiqueInputZod = z.infer<typeof profilAcademiqueSchema>;
+
 export const passwordChangeSchema = z.object({
   currentPassword: z.string().min(1, "Le mot de passe actuel est requis"),
-  newPassword: z.string().min(8, "Le nouveau mot de passe doit contenir au moins 8 caractères").max(128),
+  newPassword: z
+    .string()
+    .min(PASSWORD_MIN_LENGTH, `Le nouveau mot de passe doit contenir au moins ${PASSWORD_MIN_LENGTH} caractères`)
+    .max(PASSWORD_MAX_LENGTH),
 });
 export type PasswordChangeInput = z.infer<typeof passwordChangeSchema>;
 
@@ -96,12 +155,12 @@ export const dossierUpdateSchema = z.object({
   /** soumettre: BROUILLON→SOUMIS ; resoumettre: CORRECTION→VERIFICATION */
   action: z.enum(["soumettre", "resoumettre"]).optional(),
   info: z.object({
-    prenom: z.string().max(50).optional(),
-    nom: z.string().max(50).optional(),
-    telephone: z.string().max(30).optional(),
-    nationalite: z.string().max(50).optional(),
+    prenom: z.string().max(NAME_MAX_LENGTH).optional(),
+    nom: z.string().max(NAME_MAX_LENGTH).optional(),
+    telephone: z.string().max(PHONE_MAX_LENGTH).optional(),
+    nationalite: z.string().max(NAME_MAX_LENGTH).optional(),
     dateNaissance: z.string().max(20).optional(),
-    adresse: z.string().max(200).optional(),
+    adresse: z.string().max(ADDRESS_MAX_LENGTH).optional(),
   }).optional(),
   pieces: z.array(z.object({
     libelle: z.string().min(1).max(255),
@@ -135,6 +194,7 @@ export const universiteSchema = z.object({
   logoUrl: z.string().max(500).optional().nullable(),
   coverUrl: z.string().max(500).optional().nullable(),
   galleryUrls: z.union([z.array(z.string().max(500)), z.string().max(2000)]).optional(),
+  typeEtablissement: z.enum(["PUBLIC", "PRIVE"]).optional(),
   fraisMin: z.number().int().min(0).default(0),
   fraisMax: z.number().int().min(0).default(0),
   partenaire: z.boolean().optional(),

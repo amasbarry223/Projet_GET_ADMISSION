@@ -36,7 +36,7 @@ export default function AdminParametresClient() {
     notifEmail: true,
     notifInApp: true,
     workflowStrict: true,
-    exigerEmailVerifie: true,
+    exigerEmailVerifie: false,
     mentionsLegales: "",
     politiqueConfidentialite: "",
   });

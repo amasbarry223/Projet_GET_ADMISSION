@@ -32,6 +32,7 @@ export async function GET() {
       kycVerifieLe: true,
       role: true,
       createdAt: true,
+      profilAcademique: true,
     },
   });
 
@@ -39,7 +40,36 @@ export async function GET() {
     return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
   }
 
-  return NextResponse.json(user);
+  const profil = user.profilAcademique;
+  return NextResponse.json({
+    ...user,
+    profilAcademique: profil
+      ? {
+          ...profil,
+          diplomesObtenus: (() => {
+            try {
+              return JSON.parse(profil.diplomesObtenus);
+            } catch {
+              return [];
+            }
+          })(),
+          redoublements: (() => {
+            try {
+              return JSON.parse(profil.redoublements);
+            } catch {
+              return [];
+            }
+          })(),
+          interruptions: (() => {
+            try {
+              return JSON.parse(profil.interruptions);
+            } catch {
+              return [];
+            }
+          })(),
+        }
+      : null,
+  });
 }
 
 // PUT /api/profile — mise à jour du profil

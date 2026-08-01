@@ -5,75 +5,53 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { MotionButton } from "@/components/site/motion-button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { BoardingPass } from "@/components/getadm/boarding-pass";
-import { formatFCFA } from "@/lib/format";
+import { profilFromApi } from "@/components/dossier/profil-academique-form";
+import {
+  parseStringList,
+  WIZARD_STEP_LABELS,
+  type DossierWizardData,
+} from "@/components/dossier/wizard/types";
+import {
+  useDossierWizardState,
+  useLoadExistingDossier,
+} from "@/components/dossier/wizard/use-dossier-wizard-state";
+import { useAutosaveDossierDraft } from "@/components/dossier/wizard/use-autosave-dossier-draft";
+import {
+  refreshPiecesFromDossier,
+  useUploadDossierPiece,
+} from "@/components/dossier/wizard/use-upload-dossier-piece";
+import { DossierStepUniversite } from "@/components/dossier/wizard/step-universite";
+import { DossierStepInfos } from "@/components/dossier/wizard/step-infos";
+import { DossierStepProfilAcademique } from "@/components/dossier/wizard/step-profil-academique";
+import { DossierStepDocuments } from "@/components/dossier/wizard/step-documents";
+import { DossierStepIdentite } from "@/components/dossier/wizard/step-identite";
+import { DossierStepRecap } from "@/components/dossier/wizard/step-recap";
+import { resolveFraisAgence } from "@/lib/dossier/frais-agence";
+import { listPiecesManquantes } from "@/lib/dossier/pieces-requises";
 import { etatParCode } from "@/lib/etats";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { FormPageSkeleton } from "@/components/ui/skeleton-card";
-import { Upload, CheckCircle2, AlertCircle, ArrowLeft, ArrowRight, Save, Check, Lock, Plane, Loader2 } from "lucide-react";
-
-const STEPS = [
-  { n: 1, label: "Université & formation" },
-  { n: 2, label: "Informations" },
-  { n: 3, label: "Documents académiques" },
-  { n: 4, label: "Pièces d'identité" },
-  { n: 5, label: "Récapitulatif & soumission" },
-];
-
-type PieceState = "manquante" | "televersee" | "validee" | "a_corriger";
-
-type Universite = {
-  id: string;
-  nom: string;
-  ville: string;
-  drapeau: string;
-  pays: string;
-  domaines: string[];
-  formations: Formation[];
-};
-
-type Formation = {
-  id: string;
-  intitule: string;
-  niveau: string;
-  domaine: string;
-  duree: string;
-  fraisAgence: number;
-  prerequis: string[] | string;
-  piecesRequises: string[] | string;
-};
-
-type Dossier = {
-  id: string;
-  reference: string;
-  etat: string;
-  etapeActuelle: number;
-  fraisAgence: number;
-  mrz: string;
-  candidat: { prenom: string; nom: string; email: string; nationalite: string; telephone: string };
-  universite: { id: string; nom: string };
-  formation: { id: string; intitule: string; niveau: string; fraisAgence: number };
-  conseiller: { prenom: string; nom: string } | null;
-  pieces: { id: string; libelle: string; statut: PieceState }[];
-};
-
-function parseStringList(value: string[] | string | undefined | null): string[] {
-  if (!value) return [];
-  if (Array.isArray(value)) return value;
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  Save,
+  Check,
+  Lock,
+  Plane,
+  Loader2,
+} from "lucide-react";
+import {
+  API_ERROR_CODES,
+  API_ROUTES,
+  DOSSIER_WIZARD_STEP_COUNT,
+  DOSSIER_WIZARD_STEPS,
+  isDossierEditableByCandidate,
+} from "@/shared/constants";
 
 export default function DossierPage() {
   return (
@@ -88,302 +66,260 @@ function DossierWizard() {
   const searchParams = useSearchParams();
   const prefUniv = searchParams.get("universite") || "";
   const prefForm = searchParams.get("formation") || "";
-  const [loadingDossier, setLoadingDossier] = React.useState(true);
-  const [universites, setUniversites] = React.useState<Universite[]>([]);
-  const [universitesLoading, setUniversitesLoading] = React.useState(true);
-  const [universitesError, setUniversitesError] = React.useState(false);
-  const [existingDossier, setExistingDossier] = React.useState<Dossier | null>(null);
 
-  const [step, setStep] = React.useState(1);
-  const [univId, setUnivId] = React.useState("");
-  const [formId, setFormId] = React.useState("");
-  const [info, setInfo] = React.useState({ nom: "", prenom: "", naissance: "", nationalite: "", email: "", tel: "", adresse: "" });
-  const [pieces, setPieces] = React.useState<Record<string, PieceState>>({});
-  const [savedBadge, setSavedBadge] = React.useState(false);
-  const [creatingDossier, setCreatingDossier] = React.useState(false);
-  const [submitting, setSubmitting] = React.useState(false);
-  const [togglingPiece, setTogglingPiece] = React.useState<string | null>(null);
+  const wizard = useDossierWizardState();
+  const {
+    step,
+    setStep,
+    universiteId,
+    setUniversiteId,
+    formationId,
+    setFormationId,
+    personalInfo,
+    setPersonalInfo,
+    pieceRows,
+    setPieceRows,
+    profil,
+    setProfil,
+    hasProfil,
+    setHasProfil,
+    savedBadge,
+    setSavedBadge,
+    creatingDossier,
+    setCreatingDossier,
+    submitting,
+    setSubmitting,
+    togglingPiece,
+    setTogglingPiece,
+    savingProfil,
+    setSavingProfil,
+  } = wizard;
 
-  // Fetch universités (public, no auth needed) — pour les selectors step 1
-  React.useEffect(() => {
-    fetch("/api/universites")
-      .then((r) => {
-        if (!r.ok) throw new Error();
-        return r.json();
-      })
-      .then((data: Universite[]) => {
-        setUniversites(data);
-        setUniversitesLoading(false);
-      })
-      .catch((e) => {
-        console.error("fetch error:", e);
-        setUniversitesError(true);
-        setUniversitesLoading(false);
-      });
-  }, []);
+  const {
+    loadingDossier,
+    universites,
+    universitesLoading,
+    universitesError,
+    existingDossier,
+    setExistingDossier,
+  } = useLoadExistingDossier(prefUniv, prefForm, {
+    setUniversiteId,
+    setFormationId,
+    setPersonalInfo,
+    setPieceRows,
+    setStep,
+    setProfil,
+    setHasProfil,
+  });
 
-  // Fetch le dossier existant du candidat — pour pré-remplir
-  React.useEffect(() => {
-    fetch("/api/dossiers")
-      .then((r) => {
-        if (!r.ok) throw new Error();
-        return r.json();
-      })
-      .then((data: Dossier[]) => {
-        if (data[0]) {
-          const d = data[0];
-          setExistingDossier(d);
-          setUnivId(d.universite.id);
-          setFormId(d.formation.id);
-          setInfo({
-            nom: d.candidat.nom,
-            prenom: d.candidat.prenom,
-            naissance: "",
-            nationalite: d.candidat.nationalite,
-            email: d.candidat.email,
-            tel: d.candidat.telephone,
-            adresse: "",
-          });
-          const map: Record<string, PieceState> = {};
-          d.pieces.forEach((p) => {
-            const st = (["manquante", "televersee", "validee", "a_corriger"].includes(p.statut) ? p.statut : "manquante") as PieceState;
-            map[p.libelle] = st;
-          });
-          setPieces(map);
-          // etapeActuelle en brouillon = progression wizard 1–5 ; sinon ne pas restaurer le workflow 1–12
-          const etat = (d.etat || "").toUpperCase();
-          if (etat === "BROUILLON" || etat === "CORRECTION") {
-            const restored = Math.min(5, Math.max(1, d.etapeActuelle || 1));
-            setStep(etat === "CORRECTION" && restored < 3 ? 3 : restored);
-          } else {
-            setStep(5);
-          }
-        }
-        setLoadingDossier(false);
-      })
-      .catch((e) => {
-        console.error("fetch error:", e);
-        setLoadingDossier(false);
-      });
-  }, []);
+  useAutosaveDossierDraft({
+    loadingDossier,
+    universitesLoading,
+    dossierId: existingDossier?.id,
+    dossierEtat: existingDossier?.etat,
+    step,
+    personalInfo,
+    setSavedBadge,
+  });
 
-  // Pré-remplir depuis le catalogue (query) — jamais auto-sélectionner la 1ʳᵉ univ
-  React.useEffect(() => {
-    if (loadingDossier || universitesLoading || existingDossier) return;
-    if (prefUniv && universites.some((u) => u.id === prefUniv)) {
-      setUnivId(prefUniv);
-      const u = universites.find((x) => x.id === prefUniv);
-      if (prefForm && u?.formations.some((f) => f.id === prefForm)) {
-        setFormId(prefForm);
-      }
-      return;
-    }
-    if (prefForm) {
-      for (const u of universites) {
-        if (u.formations.some((f) => f.id === prefForm)) {
-          setUnivId(u.id);
-          setFormId(prefForm);
-          break;
-        }
-      }
-    }
-  }, [loadingDossier, universitesLoading, universites, prefUniv, prefForm, existingDossier]);
+  const uploadPiece = useUploadDossierPiece({
+    dossierId: existingDossier?.id,
+    setTogglingPiece,
+    setPieceRows,
+    setExistingDossier,
+  });
 
-  const universite = universites.find((u) => u.id === univId);
+  const universite = universites.find((item) => item.id === universiteId);
   const formationsForUniv = universite?.formations ?? [];
-  const formation = formationsForUniv.find((f) => f.id === formId);
-
+  const formation = formationsForUniv.find((item) => item.id === formationId);
+  const typeEtab =
+    universite?.typeEtablissement ??
+    existingDossier?.universite?.typeEtablissement ??
+    "PRIVE";
+  const fraisAgenceAffiche = existingDossier?.fraisAgence ?? resolveFraisAgence(typeEtab);
   const prerequisList = parseStringList(formation?.prerequis);
-  const piecesRequises = parseStringList(formation?.piecesRequises);
 
-  // Auto-sauvegarde brouillon réelle (debounce)
-  React.useEffect(() => {
-    if (loadingDossier || universitesLoading || !existingDossier?.id) return;
-    const etat = (existingDossier.etat || "").toUpperCase();
-    if (etat !== "BROUILLON" && etat !== "CORRECTION") return;
+  const piecesAcademiques = pieceRows.filter((piece) => piece.categorie !== "identite");
+  const piecesIdentite = pieceRows.filter((piece) => piece.categorie === "identite");
+  const missingObligatoires = listPiecesManquantes(pieceRows);
 
-    const t = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/dossiers/${existingDossier.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            etapeActuelle: step,
-            info: {
-              prenom: info.prenom,
-              nom: info.nom,
-              telephone: info.tel,
-              nationalite: info.nationalite,
-              ...(info.naissance ? { dateNaissance: info.naissance } : {}),
-              ...(info.adresse ? { adresse: info.adresse } : {}),
-            },
-          }),
-        });
-        if (res.ok) {
-          setSavedBadge(true);
-          setTimeout(() => setSavedBadge(false), 2000);
-        } else {
-          toast.error("Sauvegarde impossible", { description: "Vos modifications n'ont pas été enregistrées." });
-        }
-      } catch {
-        toast.error("Sauvegarde impossible", { description: "Vérifiez votre connexion." });
-      }
-    }, 1200);
-    return () => clearTimeout(t);
-  }, [step, info, existingDossier?.id, existingDossier?.etat, loadingDossier, universitesLoading]);
-
-  const identityPieces = ["Passeport ou CNI (page photo)", "Photo d'identité récente"];
-  const allPieces = [...piecesRequises, ...identityPieces];
-  const missing = allPieces.filter((p) => !pieces[p] || pieces[p] === "manquante" || pieces[p] === "a_corriger");
   const etatUpper = (existingDossier?.etat || "BROUILLON").toUpperCase();
-  const isEditable = etatUpper === "BROUILLON" || etatUpper === "CORRECTION";
-  const canSubmit = missing.length === 0 && step === 5 && isEditable;
+  const isEditable = isDossierEditableByCandidate(etatUpper);
+  const canSubmit =
+    missingObligatoires.length === 0 && step === DOSSIER_WIZARD_STEPS.RECAP && isEditable;
   const isResubmit = etatUpper === "CORRECTION";
   const etatBadge = etatParCode(etatUpper);
 
-  const uploadPiece = async (libelle: string, file: File) => {
-    const dossierId = existingDossier?.id;
-    if (!dossierId) {
-      toast.error("Dossier non créé", {
-        description: "Sélectionnez d'abord une université et une formation à l'étape 1.",
-      });
-      return;
-    }
-    const cur = pieces[libelle] ?? "manquante";
-    setPieces((prev) => ({ ...prev, [libelle]: "televersee" }));
-    setTogglingPiece(libelle);
+  const saveProfil = async (): Promise<boolean> => {
+    setSavingProfil(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("libelle", libelle);
-      const res = await fetch(`/api/dossiers/${dossierId}/pieces`, {
-        method: "POST",
-        body: fd,
+      const response = await fetch(API_ROUTES.PROFILE_ACADEMIQUE, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profil),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Échec de l'upload");
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Échec de l'enregistrement");
+      setProfil(profilFromApi(data));
+      setHasProfil(true);
+      if (existingDossier?.id) {
+        await refreshPiecesFromDossier(existingDossier.id, {
+          setExistingDossier,
+          setPieceRows,
+        });
       }
-      toast.success("Pièce téléversée", { description: file.name });
-    } catch (err: unknown) {
-      setPieces((prev) => ({ ...prev, [libelle]: cur }));
-      const msg = err instanceof Error ? err.message : "Erreur";
-      toast.error("Upload échoué", { description: msg });
+      const sync = data.sync as
+        | { dossiers?: number; added?: number; removed?: number }
+        | undefined;
+      if (sync && (sync.added || sync.removed)) {
+        toast.success("Profil académique enregistré", {
+          description: `Pièces mises à jour : +${sync.added ?? 0} / −${sync.removed ?? 0}`,
+        });
+      } else {
+        toast.success("Profil académique enregistré");
+      }
+      return true;
+    } catch (error: unknown) {
+      toast.error("Profil académique", {
+        description: error instanceof Error ? error.message : "Erreur",
+      });
+      return false;
     } finally {
-      setTogglingPiece(null);
+      setSavingProfil(false);
     }
   };
 
-  // Étape suivante — crée le dossier via API si nécessaire (step 1, pas de dossier existant)
+  const createDossierIfNeeded = async (): Promise<DossierWizardData | null> => {
+    if (existingDossier) return existingDossier;
+    if (!universiteId || !formationId) {
+      toast.error("Sélection incomplète", {
+        description: "Choisissez une université et une formation.",
+      });
+      return null;
+    }
+    if (!hasProfil) {
+      toast.error("Profil académique requis", {
+        description: "Complétez et enregistrez votre parcours académique (étape 3).",
+      });
+      return null;
+    }
+    setCreatingDossier(true);
+    try {
+      const response = await fetch(API_ROUTES.DOSSIERS, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ universiteId, formationId }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (data.code === API_ERROR_CODES.PROFIL_ACADEMIQUE_REQUIS) {
+          throw new Error(data.error || "Profil académique requis");
+        }
+        throw new Error(data.error || "Échec de la création du dossier");
+      }
+      const created = data as DossierWizardData;
+      setExistingDossier(created);
+      setPieceRows(created.pieces ?? []);
+      toast.success("Dossier créé", { description: `Référence : ${created.reference}` });
+      return created;
+    } catch (error: unknown) {
+      toast.error("Échec de la création", {
+        description: error instanceof Error ? error.message : "Erreur",
+      });
+      return null;
+    } finally {
+      setCreatingDossier(false);
+    }
+  };
+
   const goNext = async () => {
-    if (step === 1 && !existingDossier) {
-      if (!univId || !formId) {
+    if (step === DOSSIER_WIZARD_STEPS.UNIVERSITE) {
+      if (!universiteId || !formationId) {
         toast.error("Sélection incomplète", {
           description: "Choisissez une université et une formation.",
         });
         return;
       }
-      setCreatingDossier(true);
-      try {
-        const res = await fetch("/api/dossiers", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ universiteId: univId, formationId: formId }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || "Échec de la création du dossier");
-        }
-        const created = data as Dossier;
-        setExistingDossier(created);
-        // Synchronise les pièces locales avec celles créées côté serveur
-        const map: Record<string, PieceState> = {};
-        created.pieces.forEach((p) => {
-          const st = (["manquante", "televersee", "validee", "a_corriger"].includes(p.statut)
-            ? p.statut
-            : "manquante") as PieceState;
-          map[p.libelle] = st;
-        });
-        setPieces(map);
-        toast.success("Dossier créé", {
-          description: `Référence : ${created.reference}`,
-        });
-        setStep(2);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Erreur";
-        toast.error("Échec de la création", { description: msg });
-      } finally {
-        setCreatingDossier(false);
-      }
-    } else {
-      setStep((s) => Math.min(5, s + 1));
+      setStep(DOSSIER_WIZARD_STEPS.INFORMATIONS);
+      return;
     }
+    if (step === DOSSIER_WIZARD_STEPS.INFORMATIONS) {
+      setStep(DOSSIER_WIZARD_STEPS.PROFIL_ACADEMIQUE);
+      return;
+    }
+    if (step === DOSSIER_WIZARD_STEPS.PROFIL_ACADEMIQUE) {
+      const saved = await saveProfil();
+      if (!saved) return;
+      const dossier = await createDossierIfNeeded();
+      if (!dossier) return;
+      setStep(DOSSIER_WIZARD_STEPS.DOCUMENTS);
+      return;
+    }
+    setStep((current) => Math.min(DOSSIER_WIZARD_STEP_COUNT, current + 1));
   };
 
   const submit = async () => {
     if (!canSubmit) {
       toast.error("Dossier incomplet", {
-        description: `${missing.length} pièce(s) obligatoire(s) manquante(s) ou à corriger.`,
+        description: `${missingObligatoires.length} pièce(s) obligatoire(s) manquante(s).`,
       });
       return;
     }
     const dossierId = existingDossier?.id;
-    if (!dossierId) {
-      toast.error("Dossier non créé", { description: "Recommencez à l'étape 1." });
-      return;
-    }
+    if (!dossierId) return;
     setSubmitting(true);
     try {
-      const piecesArray = allPieces.map((libelle) => ({
-        libelle,
-        statut: pieces[libelle] ?? "manquante",
-      }));
-      const res = await fetch(`/api/dossiers/${dossierId}`, {
+      const response = await fetch(`${API_ROUTES.DOSSIERS}/${dossierId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: isResubmit ? "resoumettre" : "soumettre",
           info: {
-            prenom: info.prenom,
-            nom: info.nom,
-            telephone: info.tel,
-            nationalite: info.nationalite,
-            ...(info.naissance ? { dateNaissance: info.naissance } : {}),
-            ...(info.adresse ? { adresse: info.adresse } : {}),
+            prenom: personalInfo.prenom,
+            nom: personalInfo.nom,
+            telephone: personalInfo.tel,
+            nationalite: personalInfo.nationalite,
+            ...(personalInfo.naissance
+              ? { dateNaissance: personalInfo.naissance }
+              : {}),
+            ...(personalInfo.adresse ? { adresse: personalInfo.adresse } : {}),
           },
-          pieces: piecesArray,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Échec de la soumission");
+      const data = await response.json();
+      if (!response.ok) {
+        const manquantes = Array.isArray(data.piecesManquantes)
+          ? (data.piecesManquantes as string[])
+          : [];
+        const detail =
+          manquantes.length > 0
+            ? manquantes.length <= 5
+              ? manquantes.join(" · ")
+              : `${manquantes.slice(0, 5).join(" · ")} · +${manquantes.length - 5}`
+            : data.error || "Échec de la soumission";
+        throw new Error(detail);
       }
-      toast.success(isResubmit ? "Corrections renvoyées" : "Dossier soumis", {
-        description: isResubmit
-          ? "Votre dossier est de nouveau en vérification."
-          : "Votre conseiller va prendre en charge votre dossier.",
-      });
+      toast.success(isResubmit ? "Corrections renvoyées" : "Dossier soumis");
       router.push("/espace");
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erreur";
-      toast.error("Échec de la soumission", { description: msg });
+    } catch (error: unknown) {
+      toast.error("Échec de la soumission", {
+        description: error instanceof Error ? error.message : "Erreur",
+      });
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loadingDossier || universitesLoading) {
-    return <FormPageSkeleton />;
-  }
+  if (loadingDossier || universitesLoading) return <FormPageSkeleton />;
 
   if (universitesError) {
     return (
-      <Alert className="border-carmin/40 bg-carmin/5">
-        <AlertCircle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
-        <AlertTitle className="font-display text-sm font-bold text-encre">Catalogue indisponible</AlertTitle>
-        <AlertDescription className="text-sm text-ardoise">
-          Impossible de charger les universités partenaires.{" "}
-          <button type="button" className="font-medium text-lapis underline" onClick={() => window.location.reload()}>
+      <Alert className="border-destructive/40 bg-destructive/5">
+        <AlertCircle className="h-4 w-4 text-destructive" strokeWidth={1.5} />
+        <AlertTitle>Catalogue indisponible</AlertTitle>
+        <AlertDescription>
+          Impossible de charger les universités.{" "}
+          <button type="button" className="underline" onClick={() => window.location.reload()}>
             Réessayer
           </button>
         </AlertDescription>
@@ -391,27 +327,28 @@ function DossierWizard() {
     );
   }
 
-  // Helpers pour les champs récap — utilisent les données du dossier existant (DB)
-  // ou des valeurs génériques pour un nouveau dossier en cours de constitution.
   const boardingReference = existingDossier?.reference ?? "Nouveau dossier";
   const boardingEtat = existingDossier?.etat ?? "brouillon";
   const boardingEtape = etatParCode(existingDossier?.etat || "BROUILLON").ordre;
-  const boardingMrz = existingDossier?.mrz ?? "GETADM<<NOUVEAU DOSSIER<<<<<<<<<<<<<<\n2026<<EN COURS DE CONSTITUTION<<<<\nREFERENCE A GENERER<<<<<<<<<<<<<<";
-  const boardingConseiller = existingDossier?.conseiller ? `${existingDossier.conseiller.prenom} ${existingDossier.conseiller.nom}` : "Non affecté";
-  const boardingFrais = formation?.fraisAgence ?? existingDossier?.fraisAgence ?? 0;
+  const boardingMrz =
+    existingDossier?.mrz ??
+    "GETADM<<NOUVEAU DOSSIER<<<<<<<<<<<<<<\n2026<<EN COURS DE CONSTITUTION<<<<\nREFERENCE A GENERER<<<<<<<<<<<<<<";
+  const boardingConseiller = existingDossier?.conseiller
+    ? `${existingDossier.conseiller.prenom} ${existingDossier.conseiller.nom}`
+    : "Non affecté";
 
   return (
     <div className="space-y-6">
       {isResubmit && (
-        <Alert className="border-ambre/40 bg-ambre/5">
-          <AlertCircle className="h-4 w-4 text-ambre" strokeWidth={1.5} />
-          <AlertTitle className="font-display text-sm font-bold text-encre">Corrections demandées</AlertTitle>
-          <AlertDescription className="text-sm text-ardoise">
-            Votre conseiller a renvoyé le dossier. Corrigez les pièces marquées « À corriger », puis renvoyez le dossier.
+        <Alert className="border-amber-500/40 bg-amber-500/5">
+          <AlertCircle className="h-4 w-4 text-amber-600" strokeWidth={1.5} />
+          <AlertTitle>Corrections demandées</AlertTitle>
+          <AlertDescription>
+            Corrigez les pièces marquées « À corriger », puis renvoyez le dossier.
           </AlertDescription>
         </Alert>
       )}
-      {/* Header */}
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="eyebrow text-primary">Formulaire de dossier</p>
@@ -425,332 +362,193 @@ function DossierWizard() {
               <Save className="mr-1 h-3 w-3" /> Brouillon enregistré
             </Badge>
           )}
-          <Badge variant="outline" className="font-mono text-[10px] uppercase text-muted-foreground">
+          <Badge
+            variant="outline"
+            className="font-mono text-[10px] uppercase text-muted-foreground"
+          >
             {etatBadge.libelle}
           </Badge>
         </div>
       </div>
 
-      {/* Stepper */}
       <nav aria-label="Étapes du dossier" className="overflow-x-auto scroll-fine">
         <ol className="flex min-w-max items-center gap-1 px-1">
-          {STEPS.map((s, i) => {
-            const done = step > s.n;
-            const active = step === s.n;
+          {WIZARD_STEP_LABELS.map((wizardStep, index) => {
+            const done = step > wizardStep.n;
+            const active = step === wizardStep.n;
             return (
-              <li key={s.n} className="flex items-center">
-                <div className={cn("flex items-center gap-2 rounded-md px-3 py-2", active && "bg-primary/10")}>
-                  <span className={cn(
-                    "flex h-7 w-7 flex-none items-center justify-center rounded-full border-2 font-mono text-[11px] font-semibold",
-                    done && "border-vert-vif bg-vert-vif text-primary-foreground",
-                    active && "border-primary bg-primary text-primary-foreground",
-                    !done && !active && "border-border text-muted-foreground"
-                  )}>
-                    {done ? <Check className="h-3.5 w-3.5" strokeWidth={2.5} /> : String(s.n).padStart(2, "0")}
+              <li key={wizardStep.n} className="flex items-center">
+                <div
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-3 py-2",
+                    active && "bg-primary/10",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "flex h-7 w-7 flex-none items-center justify-center rounded-full border-2 font-mono text-[11px] font-semibold",
+                      done && "border-vert-vif bg-vert-vif text-primary-foreground",
+                      active && "border-primary bg-primary text-primary-foreground",
+                      !done && !active && "border-border text-muted-foreground",
+                    )}
+                  >
+                    {done ? (
+                      <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+                    ) : (
+                      String(wizardStep.n).padStart(2, "0")
+                    )}
                   </span>
-                  <span className={cn("text-xs font-medium", active ? "text-primary" : done ? "text-foreground" : "text-muted-foreground")}>{s.label}</span>
+                  <span
+                    className={cn(
+                      "text-xs font-medium",
+                      active
+                        ? "text-primary"
+                        : done
+                          ? "text-foreground"
+                          : "text-muted-foreground",
+                    )}
+                  >
+                    {wizardStep.label}
+                  </span>
                 </div>
-                {i < STEPS.length - 1 && <span className="mx-1 h-px w-6 bg-border sm:w-10" aria-hidden />}
+                {index < WIZARD_STEP_LABELS.length - 1 && (
+                  <span className="mx-1 h-px w-6 bg-border sm:w-10" aria-hidden />
+                )}
               </li>
             );
           })}
         </ol>
       </nav>
 
-      <Card className="border-border bg-card/60 backdrop-blur-md p-6 sm:p-8">
-        {/* Step 1 */}
-        {step === 1 && (
-          <div className="space-y-5">
-            <div>
-              <h2 className="font-display text-lg font-bold text-foreground">Université & formation</h2>
-              <p className="text-sm text-muted-foreground">Choisissez votre destination et votre cursus.</p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-foreground">Université partenaire</Label>
-                <Select
-                  value={univId}
-                  disabled={!isEditable || !!existingDossier}
-                  onValueChange={(v) => {
-                    setUnivId(v);
-                    const u = universites.find((x) => x.id === v);
-                    if (u?.formations[0]) setFormId(u.formations[0].id);
-                  }}
-                >
-                  <SelectTrigger><SelectValue placeholder="Sélectionnez une université" /></SelectTrigger>
-                  <SelectContent>
-                    {universites.map((u) => <SelectItem key={u.id} value={u.id}>{u.drapeau} {u.nom} — {u.ville}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-foreground">Formation</Label>
-                <Select value={formId} onValueChange={setFormId} disabled={!isEditable || !!existingDossier}>
-                  <SelectTrigger><SelectValue placeholder="Sélectionnez une formation" /></SelectTrigger>
-                  <SelectContent>
-                    {formationsForUniv.map((f) => <SelectItem key={f.id} value={f.id}>{f.intitule} ({f.niveau})</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            {formation && (
-              <div className="rounded-md border border-border bg-muted p-4">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Field label="Niveau" value={formation.niveau} />
-                  <Field label="Domaine" value={formation.domaine} />
-                  <Field label="Durée" value={formation.duree} />
-                  <Field label="Frais d'agence" value={formatFCFA(formation.fraisAgence)} mono />
-                </div>
-                <div className="mt-3 border-t border-border pt-3">
-                  <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">Prérequis</p>
-                  <p className="mt-1 text-sm text-foreground">{prerequisList.length > 0 ? prerequisList.join(" · ") : "—"}</p>
-                </div>
-              </div>
-            )}
-          </div>
+      <Card className="border-border bg-card/60 p-6 backdrop-blur-md sm:p-8">
+        {step === DOSSIER_WIZARD_STEPS.UNIVERSITE && (
+          <DossierStepUniversite
+            universites={universites}
+            universiteId={universiteId}
+            formationId={formationId}
+            formationsForUniv={formationsForUniv}
+            formation={formation}
+            typeEtab={typeEtab}
+            fraisAgenceAffiche={fraisAgenceAffiche}
+            prerequisList={prerequisList}
+            isEditable={isEditable}
+            hasExistingDossier={!!existingDossier}
+            onUniversiteChange={(id) => {
+              setUniversiteId(id);
+              const selected = universites.find((item) => item.id === id);
+              if (selected?.formations[0]) setFormationId(selected.formations[0].id);
+            }}
+            onFormationChange={setFormationId}
+          />
         )}
 
-        {/* Step 2 */}
-        {step === 2 && (
-          <div className="space-y-5">
-            <div>
-              <h2 className="font-display text-lg font-bold text-foreground">Informations personnelles</h2>
-              <p className="text-sm text-muted-foreground">Vos coordonnées telles qu'elles figureront sur le dossier.</p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-foreground">Prénom</Label>
-                <Input value={info.prenom} onChange={(e) => setInfo({ ...info, prenom: e.target.value })} disabled={!isEditable} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-foreground">Nom</Label>
-                <Input value={info.nom} onChange={(e) => setInfo({ ...info, nom: e.target.value })} disabled={!isEditable} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-foreground">Date de naissance</Label>
-                <Input type="date" value={info.naissance} onChange={(e) => setInfo({ ...info, naissance: e.target.value })} disabled={!isEditable} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-foreground">Nationalité</Label>
-                <Input value={info.nationalite} onChange={(e) => setInfo({ ...info, nationalite: e.target.value })} disabled={!isEditable} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-foreground">E-mail</Label>
-                <Input type="email" value={info.email} onChange={(e) => setInfo({ ...info, email: e.target.value })} disabled={!isEditable} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-foreground">Téléphone</Label>
-                <Input value={info.tel} onChange={(e) => setInfo({ ...info, tel: e.target.value })} disabled={!isEditable} />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label className="text-sm font-medium text-foreground">Adresse</Label>
-                <Input value={info.adresse} onChange={(e) => setInfo({ ...info, adresse: e.target.value })} disabled={!isEditable} />
-              </div>
-            </div>
-          </div>
+        {step === DOSSIER_WIZARD_STEPS.INFORMATIONS && (
+          <DossierStepInfos
+            personalInfo={personalInfo}
+            isEditable={isEditable}
+            onChange={setPersonalInfo}
+          />
         )}
 
-        {/* Step 3 */}
-        {step === 3 && (
-          <div className="space-y-5">
-            <div>
-              <h2 className="font-display text-lg font-bold text-foreground">Documents académiques</h2>
-              <p className="text-sm text-muted-foreground">Téléversez vos pièces au format PDF, JPG ou PNG (10 Mo max).</p>
-            </div>
-            <div className="space-y-3">
-              {piecesRequises.length === 0 ? (
-                <p className="rounded-md border border-border bg-muted p-4 text-sm text-muted-foreground">
-                  Sélectionnez d'abord une formation à l'étape 1 pour voir la liste des pièces requises.
-                </p>
-              ) : (
-                piecesRequises.map((libelle) => (
-                  <UploadZone key={libelle} libelle={libelle} state={pieces[libelle] ?? "manquante"} loading={togglingPiece === libelle} disabled={!isEditable} onUpload={(f) => uploadPiece(libelle, f)} />
-                ))
-              )}
-            </div>
-          </div>
+        {step === DOSSIER_WIZARD_STEPS.PROFIL_ACADEMIQUE && (
+          <DossierStepProfilAcademique
+            profil={profil}
+            isEditable={isEditable}
+            onChange={setProfil}
+            formationPiecesRequises={formation?.piecesRequises}
+          />
         )}
 
-        {/* Step 4 */}
-        {step === 4 && (
-          <div className="space-y-5">
-            <div>
-              <h2 className="font-display text-lg font-bold text-foreground">Pièces d'identité</h2>
-              <p className="text-sm text-muted-foreground">Passeport ou CNI, et photo d'identité.</p>
-            </div>
-            <div className="space-y-3">
-              {identityPieces.map((libelle) => (
-                <UploadZone key={libelle} libelle={libelle} state={pieces[libelle] ?? "manquante"} loading={togglingPiece === libelle} disabled={!isEditable} onUpload={(f) => uploadPiece(libelle, f)} />
-              ))}
-            </div>
-          </div>
+        {step === DOSSIER_WIZARD_STEPS.DOCUMENTS && (
+          <DossierStepDocuments
+            piecesAcademiques={piecesAcademiques}
+            togglingPiece={togglingPiece}
+            isEditable={isEditable}
+            onUpload={uploadPiece}
+          />
         )}
 
-        {/* Step 5 */}
-        {step === 5 && (
-          <div className="space-y-5">
-            <div>
-              <h2 className="font-display text-lg font-bold text-foreground">Récapitulatif & soumission</h2>
-              <p className="text-sm text-muted-foreground">Vérifiez votre dossier avant de le transmettre.</p>
-            </div>
-
-            <BoardingPass
-              variant="large"
-              reference={boardingReference}
-              universiteNom={universite?.nom ?? ""}
-              formationLabel={`${formation?.niveau ?? ""} · ${formation?.intitule ?? ""}`}
-              etat={boardingEtat}
-              etapeActuelle={boardingEtape}
-              etapeTotal={12}
-              conseiller={boardingConseiller}
-              fraisAgence={boardingFrais}
-              mrz={boardingMrz}
-            />
-
-            <div className="rounded-md border border-border bg-muted/50 p-4">
-              <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">Informations</p>
-              <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
-                <RecapLine label="Candidat" value={`${info.prenom} ${info.nom}`.trim()} />
-                <RecapLine label="Nationalité" value={info.nationalite} />
-                <RecapLine label="E-mail" value={info.email} />
-                <RecapLine label="Téléphone" value={info.tel} />
-                <RecapLine label="Université" value={universite?.nom ?? ""} />
-                <RecapLine label="Formation" value={formation?.intitule ?? ""} />
-              </div>
-            </div>
-
-            <div className="rounded-md border border-border bg-card p-4">
-              <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">Pièces ({allPieces.length - missing.length}/{allPieces.length})</p>
-              <ul className="mt-2 space-y-1.5">
-                {allPieces.map((p) => {
-                  const st = pieces[p] ?? "manquante";
-                  return (
-                    <li key={p} className="flex items-center gap-2 text-sm">
-                      {st === "manquante" ? <AlertCircle className="h-4 w-4 text-destructive" strokeWidth={1.5} /> : st === "a_corriger" ? <AlertCircle className="h-4 w-4 text-primary" strokeWidth={1.5} /> : <CheckCircle2 className="h-4 w-4 text-vert-vif" strokeWidth={1.5} />}
-                      <span className={cn(st === "manquante" ? "text-destructive" : "text-foreground")}>{p}</span>
-                      <span className="ml-auto font-mono text-[10px] uppercase text-muted-foreground">{st.replace("_", " ")}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-
-            {missing.length > 0 && (
-              <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3">
-                <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-destructive" strokeWidth={1.5} />
-                <p className="text-sm text-destructive">
-                  Votre dossier ne peut pas être soumis : {missing.length} pièce(s) obligatoire(s) manquante(s). Complétez-la(s) pour poursuivre.
-                </p>
-              </div>
-            )}
-          </div>
+        {step === DOSSIER_WIZARD_STEPS.IDENTITE && (
+          <DossierStepIdentite
+            piecesIdentite={piecesIdentite}
+            togglingPiece={togglingPiece}
+            isEditable={isEditable}
+            onUpload={uploadPiece}
+          />
         )}
 
-        {/* Navigation */}
+        {step === DOSSIER_WIZARD_STEPS.RECAP && (
+          <DossierStepRecap
+            personalInfo={personalInfo}
+            universite={universite}
+            formation={formation}
+            typeEtab={typeEtab}
+            fraisAgenceAffiche={fraisAgenceAffiche}
+            pieceRows={pieceRows}
+            missingObligatoires={missingObligatoires}
+            boardingReference={boardingReference}
+            boardingEtat={boardingEtat}
+            boardingEtape={boardingEtape}
+            boardingMrz={boardingMrz}
+            boardingConseiller={boardingConseiller}
+          />
+        )}
+
         <div className="mt-8 flex items-center justify-between border-t border-border pt-5">
-          <Button variant="ghost" onClick={() => setStep((s) => Math.max(1, s - 1))} disabled={step === 1} className="text-muted-foreground hover:text-foreground">
+          <Button
+            variant="ghost"
+            onClick={() => setStep((current) => Math.max(1, current - 1))}
+            disabled={step === 1}
+            className="text-muted-foreground hover:text-foreground"
+          >
             <ArrowLeft className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Étape précédente
           </Button>
-          {step < 5 ? (
-            <MotionButton className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={goNext} disabled={creatingDossier}>
-              {creatingDossier ? (
-                <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} /> Création du dossier…</>
+          {step < DOSSIER_WIZARD_STEP_COUNT ? (
+            <MotionButton
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={goNext}
+              disabled={creatingDossier || savingProfil}
+            >
+              {creatingDossier || savingProfil ? (
+                <>
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />{" "}
+                  Traitement…
+                </>
               ) : (
-                <>Étape suivante <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} /></>
+                <>
+                  Étape suivante <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} />
+                </>
               )}
             </MotionButton>
           ) : (
-            <MotionButton className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={submit} disabled={!canSubmit || submitting}>
+            <MotionButton
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={submit}
+              disabled={!canSubmit || submitting}
+            >
               {submitting ? (
-                <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} /> Envoi…</>
+                <>
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} /> Envoi…
+                </>
               ) : canSubmit ? (
                 isResubmit ? (
-                  <><Plane className="mr-1.5 h-4 w-4 -rotate-12" /> Renvoyer les corrections</>
+                  <>
+                    <Plane className="mr-1.5 h-4 w-4 -rotate-12" /> Renvoyer les corrections
+                  </>
                 ) : (
-                  <><Plane className="mr-1.5 h-4 w-4 -rotate-12" /> Soumettre mon dossier</>
+                  <>
+                    <Plane className="mr-1.5 h-4 w-4 -rotate-12" /> Soumettre mon dossier
+                  </>
                 )
               ) : (
-                <><Lock className="mr-1.5 h-4 w-4" /> Dossier incomplet</>
+                <>
+                  <Lock className="mr-1.5 h-4 w-4" /> Dossier incomplet
+                </>
               )}
             </MotionButton>
           )}
         </div>
       </Card>
-    </div>
-  );
-}
-
-function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div>
-      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">{label}</p>
-      <p className={cn("mt-0.5 text-sm text-foreground", mono && "font-mono")}>{value}</p>
-    </div>
-  );
-}
-
-function RecapLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-2 border-b border-border/60 py-1 last:border-0">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-right text-sm font-medium text-foreground">{value}</span>
-    </div>
-  );
-}
-
-function UploadZone({
-  libelle,
-  state,
-  loading,
-  disabled,
-  onUpload,
-}: {
-  libelle: string;
-  state: PieceState;
-  loading?: boolean;
-  disabled?: boolean;
-  onUpload: (file: File) => void;
-}) {
-  const inputRef = React.useRef<HTMLInputElement>(null);
-  const config = {
-    manquante: { border: "border-border border-dashed hover:border-primary/50 hover:bg-muted/50", icon: Upload, iconColor: "text-muted-foreground", label: "Glissez votre fichier ici ou cliquez pour parcourir", sub: "PDF, JPG, PNG · 10 Mo max", action: "Téléverser" },
-    televersee: { border: "border-vert-vif/40 bg-vert-vif/5", icon: CheckCircle2, iconColor: "text-vert-vif", label: "Fichier téléversé", sub: "Téléversé", action: "Remplacer" },
-    validee: { border: "border-vert-vif/40 bg-vert-vif/5", icon: CheckCircle2, iconColor: "text-vert-vif", label: "Fichier validé par l'agence", sub: "Validé", action: "Remplacer" },
-    a_corriger: { border: "border-primary/40 bg-primary/5", icon: AlertCircle, iconColor: "text-primary", label: "Pièce à corriger", sub: "À corriger", action: "Retéléverser" },
-  }[state];
-
-  return (
-    <div className={cn("rounded-md border p-4 transition-colors", config.border, disabled && "opacity-70")}>
-      <div className="flex items-start gap-3">
-        <div className={cn("flex h-10 w-10 flex-none items-center justify-center rounded-md bg-background border border-border shadow-sm", config.iconColor)}>
-          <config.icon className="h-5 w-5" strokeWidth={1.5} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-foreground">{libelle}</p>
-          <p className="truncate text-xs text-muted-foreground">{config.label}</p>
-          <p className={cn("mt-0.5 font-mono text-[10px] uppercase", config.iconColor)}>{config.sub}</p>
-        </div>
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/*"
-          className="sr-only"
-          disabled={disabled || loading}
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) onUpload(f);
-            e.target.value = "";
-          }}
-        />
-        <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={loading || disabled} className="flex-none">
-          {loading ? (
-            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
-          ) : (
-            <Upload className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
-          )}
-          {config.action}
-        </Button>
-      </div>
     </div>
   );
 }

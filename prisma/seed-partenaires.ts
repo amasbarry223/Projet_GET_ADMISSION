@@ -320,8 +320,9 @@ async function main() {
         description: p.description,
         siteUrl: p.siteUrl,
         ...assets,
-        fraisMin: p.fraisMin,
-        fraisMax: p.fraisMax,
+        fraisMin: 110000,
+        fraisMax: 110000,
+        typeEtablissement: "PRIVE",
         partenaire: true,
       },
       create: {
@@ -337,8 +338,9 @@ async function main() {
         imageCouleur: p.imageCouleur,
         siteUrl: p.siteUrl,
         ...assets,
-        fraisMin: p.fraisMin,
-        fraisMax: p.fraisMax,
+        fraisMin: 110000,
+        fraisMax: 110000,
+        typeEtablissement: "PRIVE",
         partenaire: true,
       },
     });
@@ -355,7 +357,7 @@ async function main() {
             niveau: p.formation.niveau,
             domaine: p.formation.domaine,
             duree: p.formation.duree,
-            fraisAgence: p.formation.fraisAgence,
+            fraisAgence: 110_000,
             prerequis: JSON.stringify(["Bac ou équivalent", "Dossier complet"]),
             piecesRequises: JSON.stringify([
               "Diplôme",

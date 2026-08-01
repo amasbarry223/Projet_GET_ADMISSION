@@ -4,6 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { Suspense } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -131,30 +132,37 @@ function InscriptionInner() {
         return;
       }
 
-      if (data.emailSent === false) {
-        toast.error("Compte créé, e-mail non envoyé", {
-          description:
-            data.emailError ||
-            "Connectez-vous puis utilisez « Renvoyer le lien / code ».",
+      const emailNorm = form.email.toLowerCase().trim();
+      const signInRes = await signIn("credentials", {
+        email: emailNorm,
+        password: form.password,
+        portal: "candidat",
+        redirect: false,
+      });
+
+      if (signInRes?.error) {
+        toast.success("Compte créé", {
+          description: "Connectez-vous avec votre e-mail et mot de passe.",
         });
         setLoading(false);
-        router.push("/connexion");
+        router.push(
+          callbackUrl
+            ? `/connexion?callbackUrl=${encodeURIComponent(callbackUrl)}`
+            : "/connexion",
+        );
         return;
       }
 
       toast.success("Compte créé", {
-        description: "Vérifiez votre e-mail (lien ou code) pour activer le compte.",
+        description: "Bienvenue sur GET Admission.",
       });
 
-      const q = new URLSearchParams({
-        email: form.email.toLowerCase().trim(),
-        mode: "register",
-        prenom: form.prenom.trim(),
-        nom: form.nom.trim(),
-        nationalite: form.nationalite,
-      });
-      if (callbackUrl) q.set("callbackUrl", callbackUrl);
-      router.push(`/verification-otp?${q.toString()}`);
+      const dest =
+        callbackUrl &&
+        (callbackUrl === "/espace" || callbackUrl.startsWith("/espace/"))
+          ? callbackUrl
+          : "/espace";
+      router.push(dest);
       return;
     } catch {
       toast.error("Erreur", { description: "Une erreur est survenue. Réessayez." });

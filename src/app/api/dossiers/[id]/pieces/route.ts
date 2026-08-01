@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { pieceSchema, validate } from "@/lib/validations";
 import { saveUpload, deleteUpload } from "@/lib/storage";
 import { hasPermission, requirePermission } from "@/lib/rbac";
+import { isDossierEditableByCandidate } from "@/shared/constants";
 
 // POST /api/dossiers/[id]/pieces
 // - multipart/form-data : file + libelle (+ statut optionnel) → upload réel
@@ -43,7 +44,7 @@ export async function POST(
 
   // ── Upload multipart ──
   if (contentType.includes("multipart/form-data")) {
-    if (role === "CANDIDAT" && !["BROUILLON", "CORRECTION"].includes(dossier.etat)) {
+    if (role === "CANDIDAT" && !isDossierEditableByCandidate(dossier.etat)) {
       return NextResponse.json(
         { error: "Upload impossible dans l'état actuel du dossier" },
         { status: 400 }

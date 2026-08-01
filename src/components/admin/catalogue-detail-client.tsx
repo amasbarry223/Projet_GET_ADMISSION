@@ -18,10 +18,18 @@ import { toast } from "sonner";
 
 import type { normalizeUniversite } from "@/lib/types";
 import { formatFCFA } from "@/lib/format";
+import { resolveFraisAgence } from "@/lib/dossier/frais-agence";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -90,6 +98,9 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
   const [pays, setPays] = React.useState(universite.pays ?? "");
   const [fraisMin, setFraisMin] = React.useState(String(universite.fraisMin ?? 0));
   const [fraisMax, setFraisMax] = React.useState(String(universite.fraisMax ?? 0));
+  const [typeEtablissement, setTypeEtablissement] = React.useState<"PUBLIC" | "PRIVE">(
+    (universite as { typeEtablissement?: "PUBLIC" | "PRIVE" }).typeEtablissement ?? "PRIVE"
+  );
   const [siteUrl, setSiteUrl] = React.useState(universite.siteUrl ?? "");
   const [coverUrl, setCoverUrl] = React.useState(universite.coverUrl ?? "");
   const [logoUrl, setLogoUrl] = React.useState(universite.logoUrl ?? "");
@@ -101,6 +112,9 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
     setPays(universite.pays ?? "");
     setFraisMin(String(universite.fraisMin ?? 0));
     setFraisMax(String(universite.fraisMax ?? 0));
+    setTypeEtablissement(
+      (universite as { typeEtablissement?: "PUBLIC" | "PRIVE" }).typeEtablissement ?? "PRIVE"
+    );
     setSiteUrl(universite.siteUrl ?? "");
     setCoverUrl(universite.coverUrl ?? "");
     setLogoUrl(universite.logoUrl ?? "");
@@ -199,6 +213,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
           galleryUrls: galleryList,
           fraisMin: Number(fraisMin) || 0,
           fraisMax: Number(fraisMax) || 0,
+          typeEtablissement,
           partenaire: universite.partenaire,
         }),
       });
@@ -337,6 +352,33 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                     Pays
                   </Label>
                   <Input id="pays" value={pays} onChange={(e) => setPays(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="typeEtab" className="text-sm text-encre">
+                    Type d&apos;établissement
+                  </Label>
+                  <Select
+                    value={typeEtablissement}
+                    onValueChange={(v) => {
+                      const t = v as "PUBLIC" | "PRIVE";
+                      setTypeEtablissement(t);
+                      if (t === "PUBLIC") {
+                        setFraisMin("65000");
+                        setFraisMax("65000");
+                      } else {
+                        setFraisMin("110000");
+                        setFraisMax("110000");
+                      }
+                    }}
+                  >
+                    <SelectTrigger id="typeEtab">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PUBLIC">Public — 65 000 FCFA</SelectItem>
+                      <SelectItem value="PRIVE">Privé — 110 000 FCFA</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="fraisMin" className="text-sm text-encre">
@@ -618,7 +660,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                     </p>
                   </div>
                   <span className="font-mono text-sm font-semibold text-encre">
-                    {formatFCFA(f.fraisAgence)}
+                    {formatFCFA(resolveFraisAgence(typeEtablissement))}
                   </span>
                 </li>
               ))}

@@ -17,6 +17,15 @@ import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { defaultAdminRoute } from "@/lib/rbac";
+import {
+  API_ROUTES,
+  OTP_CODE_MAX_LENGTH,
+  OTP_CODE_MIN_LENGTH,
+} from "@/shared/constants";
+
+function isValidOtpLength(code: string): boolean {
+  return code.length >= OTP_CODE_MIN_LENGTH && code.length <= OTP_CODE_MAX_LENGTH;
+}
 
 export default function VerificationOtpPage() {
   return (
@@ -87,7 +96,7 @@ function VerificationOtpInner() {
         return;
       }
 
-      const res = await fetch("/api/auth/verify-otp", {
+      const res = await fetch(API_ROUTES.AUTH_VERIFY_OTP, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -138,8 +147,10 @@ function VerificationOtpInner() {
       toast.error("E-mail manquant", { description: "Recommencez depuis l'inscription." });
       return;
     }
-    if (otp.length !== 6) {
-      toast.error("Code incomplet", { description: "Saisissez les 6 chiffres." });
+    if (!isValidOtpLength(otp)) {
+      toast.error("Code incomplet", {
+        description: `Saisissez le code reçu par e-mail (${OTP_CODE_MIN_LENGTH} à ${OTP_CODE_MAX_LENGTH} chiffres).`,
+      });
       return;
     }
     await completeAuth(otp);
@@ -149,15 +160,18 @@ function VerificationOtpInner() {
     if (!email) return;
     setResending(true);
     try {
-      const res = await fetch("/api/auth/send-verification-otp", {
+      const res = await fetch(API_ROUTES.AUTH_SEND_VERIFICATION_OTP, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
       const data = await res.json();
       if (!res.ok || data.emailSent === false) {
+        const wait = typeof data.retryAfterSec === "number" ? data.retryAfterSec : null;
         toast.error("Renvoi impossible", {
-          description: data.error || "Réessayez dans une minute.",
+          description:
+            data.error ||
+            (wait ? `Réessayez dans ${wait} s.` : "Réessayez dans une minute."),
         });
       } else {
         toast.success("Nouveau code envoyé", {
@@ -194,11 +208,9 @@ function VerificationOtpInner() {
           Activez votre compte.
         </h1>
         <p className="mt-2 text-sm text-ardoise">
-          Un e-mail a été envoyé à{" "}
-          <span className="font-medium text-encre">{email}</span>.
-          Saisissez le code à 6 chiffres s&apos;il apparaît, ou{" "}
-          <strong className="font-medium text-encre">cliquez sur le lien</strong>{" "}
-          dans le message pour activer votre compte.
+          Un <strong className="font-medium text-encre">code numérique</strong> a été
+          envoyé à <span className="font-medium text-encre">{email}</span>.
+          Saisissez-le ci-dessous pour activer votre compte. Vérifiez aussi vos spams.
         </p>
 
         <form onSubmit={onSubmit} className="mt-6 space-y-6">
@@ -206,28 +218,31 @@ function VerificationOtpInner() {
             <Label className="text-sm font-medium text-encre">Code OTP</Label>
             <div className="flex justify-center">
               <InputOTP
-                maxLength={6}
+                maxLength={OTP_CODE_MAX_LENGTH}
                 value={otp}
                 onChange={setOtp}
                 disabled={loading}
                 autoFocus
               >
                 <InputOTPGroup>
-                  <InputOTPSlot index={0} className="h-11 w-11 text-base" />
-                  <InputOTPSlot index={1} className="h-11 w-11 text-base" />
-                  <InputOTPSlot index={2} className="h-11 w-11 text-base" />
-                  <InputOTPSlot index={3} className="h-11 w-11 text-base" />
-                  <InputOTPSlot index={4} className="h-11 w-11 text-base" />
-                  <InputOTPSlot index={5} className="h-11 w-11 text-base" />
+                  <InputOTPSlot index={0} className="h-10 w-9 text-base sm:h-11 sm:w-10" />
+                  <InputOTPSlot index={1} className="h-10 w-9 text-base sm:h-11 sm:w-10" />
+                  <InputOTPSlot index={2} className="h-10 w-9 text-base sm:h-11 sm:w-10" />
+                  <InputOTPSlot index={3} className="h-10 w-9 text-base sm:h-11 sm:w-10" />
+                  <InputOTPSlot index={4} className="h-10 w-9 text-base sm:h-11 sm:w-10" />
+                  <InputOTPSlot index={5} className="h-10 w-9 text-base sm:h-11 sm:w-10" />
+                  <InputOTPSlot index={6} className="h-10 w-9 text-base sm:h-11 sm:w-10" />
+                  <InputOTPSlot index={7} className="h-10 w-9 text-base sm:h-11 sm:w-10" />
                 </InputOTPGroup>
               </InputOTP>
             </div>
+            <p className="text-center text-xs text-ardoise">6 ou 8 chiffres selon l&apos;e-mail reçu</p>
           </div>
 
           <Button
             type="submit"
             className="w-full bg-lapis text-blanc hover:bg-lapis/90"
-            disabled={loading || otp.length !== 6}
+            disabled={loading || !isValidOtpLength(otp)}
           >
             {loading ? (
               <>

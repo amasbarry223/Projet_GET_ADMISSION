@@ -135,11 +135,13 @@ GET Admission collecte et conserve les données nécessaires au traitement de vo
     update: {
       mentionsLegales,
       politiqueConfidentialite,
+      exigerEmailVerifie: false,
     },
     create: {
       id: 1,
       mentionsLegales,
       politiqueConfidentialite,
+      exigerEmailVerifie: false,
     },
   });
   console.log("✓ Paramètres (mentions / confidentialité) créés");

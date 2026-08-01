@@ -165,6 +165,23 @@ export function verificationEmailHtml(prenom: string, verifyUrl: string) {
   `;
 }
 
+/** E-mail OTP 6 chiffres pour inscription / connexion candidat. */
+export function otpEmailHtml(prenom: string, code: string) {
+  const safePrenom = prenom.replace(/[<>&]/g, "");
+  const safeCode = code.replace(/\D/g, "").slice(0, 8);
+  return `
+    <div style="font-family:Georgia,serif;max-width:480px;margin:0 auto;color:#1a1a1a">
+      <p style="font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#5a6a7a">GET Admission</p>
+      <h1 style="font-size:22px;font-weight:700;margin:8px 0 16px">Votre code de vérification</h1>
+      <p>Bonjour ${safePrenom},</p>
+      <p>Saisissez ce code sur la page de vérification pour activer votre compte :</p>
+      <p style="font-size:32px;font-weight:700;letter-spacing:0.35em;font-family:ui-monospace,monospace;margin:24px 0;text-align:center">${safeCode}</p>
+      <p style="font-size:13px;color:#5a6a7a">Ce code expire dans environ 1 heure. Ne le partagez avec personne.</p>
+      <p style="font-size:13px;color:#5a6a7a">Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.</p>
+    </div>
+  `;
+}
+
 export function resetPasswordEmailHtml(prenom: string, resetUrl: string) {
   return `
     <p>Bonjour ${prenom},</p>

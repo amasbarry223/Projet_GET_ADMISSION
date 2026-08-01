@@ -9,10 +9,8 @@ import { createNotification } from "@/lib/notifications";
 import { sendMail } from "@/lib/mail";
 import { hasPermission, requirePermission } from "@/lib/rbac";
 import { randomBytes } from "node:crypto";
-
-const ETAPE_MAP = {
-  PAIEMENT_CONFIRME: 6,
-} as const;
+import type { EtatDossier } from "@prisma/client";
+import { ETAPE_PAR_ETAT, PAYMENT_STATUSES } from "@/shared/constants";
 
 async function applyPaiementReussi(opts: {
   paiement: { id: string; reference: string; montant: number; moyen: string; dossierId: string };
@@ -32,7 +30,12 @@ async function applyPaiementReussi(opts: {
     _sum: { montant: true },
   });
   const paye = totalPaye._sum.montant ?? 0;
-  const paiementStatut = paye >= dossier.fraisAgence ? "complet" : paye > 0 ? "partiel" : "aucun";
+  const paiementStatut =
+    paye >= dossier.fraisAgence
+      ? PAYMENT_STATUSES.COMPLET
+      : paye > 0
+        ? PAYMENT_STATUSES.PARTIEL
+        : PAYMENT_STATUSES.AUCUN;
 
   const updateData: {
     paiementStatut: string;
@@ -40,9 +43,9 @@ async function applyPaiementReussi(opts: {
     etapeActuelle?: number;
   } = { paiementStatut };
 
-  if (dossier.etat === "PAIEMENT_ATTENTE" && paiementStatut === "complet") {
+  if (dossier.etat === "PAIEMENT_ATTENTE" && paiementStatut === PAYMENT_STATUSES.COMPLET) {
     updateData.etat = "PAIEMENT_CONFIRME";
-    updateData.etapeActuelle = ETAPE_MAP.PAIEMENT_CONFIRME;
+    updateData.etapeActuelle = ETAPE_PAR_ETAT.PAIEMENT_CONFIRME;
   }
 
   await db.dossier.update({ where: { id: dossier.id }, data: updateData });
@@ -50,7 +53,7 @@ async function applyPaiementReussi(opts: {
   await db.historique.create({
     data: {
       dossierId: dossier.id,
-      etat: updateData.etat ?? dossier.etat,
+      etat: (updateData.etat ?? dossier.etat) as EtatDossier,
       auteur: auteurLabel,
       auteurId: userId,
       note: `Paiement ${paiement.moyen} confirmé : ${paiement.montant} FCFA (${paiementStatut}).`,

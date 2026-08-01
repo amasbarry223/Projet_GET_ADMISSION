@@ -107,17 +107,29 @@ async function main() {
   console.log("✓ Users créés");
 
   // ------------------- Universités -------------------
+  const PUBLIC_SLUGS = new Set([
+    "sorbonne-universite",
+    "universite-de-montreal",
+    "universite-hasselt",
+    "universite-mohammed-v-rabat",
+    "universite-cape-town",
+    "universite-gaston-berger",
+    "universite-tunis-el-manar",
+    "universite-nantes",
+    "universite-yaounde-i",
+  ]);
+
   const univData = [
-    { slug: "sorbonne-universite", nom: "Sorbonne Université", pays: "France", drapeau: "🇫🇷", ville: "Paris", ecusson: "SU", domaines: ["Droit", "Sciences", "Lettres", "Médecine"], description: "Issue de la fusion de Paris-IV et Paris-VI, la Sorbonne Université est l'une des plus prestigieuses universités françaises.", pointsForts: ["Réseau d'échanges avec 48 pays", "Bibliothèque de 4 millions d'ouvrages"], imageCouleur: "from-lapis to-lapis-clair", fraisMin: 750000, fraisMax: 1450000 },
-    { slug: "universite-de-montreal", nom: "Université de Montréal", pays: "Canada", drapeau: "🇨🇦", ville: "Montréal", ecusson: "UM", domaines: ["Informatique", "Sciences", "Management", "Santé"], description: "Avec sa filiale affiliée HEC Montréal, l'UdeM figure parmi les grandes universités francophones d'Amérique du Nord.", pointsForts: ["Pôle d'intelligence artificielle (MILA)", "Programmes en français et en anglais"], imageCouleur: "from-ardoise to-lapis", fraisMin: 950000, fraisMax: 1850000 },
-    { slug: "universite-hasselt", nom: "Université de Hasselt", pays: "Belgique", drapeau: "🇧🇪", ville: "Hasselt", ecusson: "UH", domaines: ["Sciences", "Économie", "Transport", "Droit"], description: "Université jeune et innovante en Flandre, Hasselt mise sur l'interdisciplinarité.", pointsForts: ["Encadrement par petits groupes", "Programmes bilingues"], imageCouleur: "from-or to-ambre", fraisMin: 680000, fraisMax: 1150000 },
-    { slug: "universite-mohammed-v-rabat", nom: "Université Mohammed V de Rabat", pays: "Maroc", drapeau: "🇲🇦", ville: "Rabat", ecusson: "UM5", domaines: ["Droit", "Sciences politiques", "Économie", "Lettres"], description: "Plus ancienne université marocaine moderne.", pointsForts: ["Excellence en droit public comparé", "Coûts d'études accessibles"], imageCouleur: "from-vert to-lapis", fraisMin: 420000, fraisMax: 880000 },
-    { slug: "universite-cape-town", nom: "Université du Cap", pays: "Afrique du Sud", drapeau: "🇿🇦", ville: "Le Cap", ecusson: "UCT", domaines: ["Sciences", "Commerce", "Ingénierie", "Santé"], description: "Première université d'Afrique au classement QS.", pointsForts: ["Top 200 mondial (QS)", "Bourses pour étudiants africains"], imageCouleur: "from-lapis-clair to-vert", fraisMin: 880000, fraisMax: 1620000 },
-    { slug: "universite-gaston-berger", nom: "Université Gaston Berger", pays: "Sénégal", drapeau: "🇸🇳", ville: "Saint-Louis", ecusson: "UGB", domaines: ["Sciences", "Économie", "Lettres", "Droit"], description: "Université sénégalaise de référence.", pointsForts: ["Cadre moderne à Saint-Louis", "Filières francophones régionales"], imageCouleur: "from-ambre to-or", fraisMin: 350000, fraisMax: 620000 },
-    { slug: "universite-tunis-el-manar", nom: "Université de Tunis El Manar", pays: "Tunisie", drapeau: "🇹🇳", ville: "Tunis", ecusson: "UTM", domaines: ["Médecine", "Sciences", "Économie", "Ingénierie"], description: "Grande université tunisienne reconnue pour sa faculté de médecine.", pointsForts: ["Faculté de médecine réputée", "Coûts d'études modérés"], imageCouleur: "from-carmin to-ambre", fraisMin: 380000, fraisMax: 720000 },
-    { slug: "universite-nantes", nom: "Université de Nantes", pays: "France", drapeau: "🇫🇷", ville: "Nantes", ecusson: "UN", domaines: ["Sciences", "Droit", "Lettres", "STAPS"], description: "Université pluridisciplinaire de l'Ouest français.", pointsForts: ["Maison des étudiants internationaux", "Bourses EIFFEL"], imageCouleur: "from-lapis to-vert", fraisMin: 620000, fraisMax: 1180000 },
-    { slug: "universite-libanaise-americaine", nom: "Université Libano-Américaine", pays: "Liban", drapeau: "🇱🇧", ville: "Beyrouth", ecusson: "LAU", domaines: ["Management", "Ingénierie", "Architecture", "Santé"], description: "Université anglophone de référence au Liban.", pointsForts: ["Accréditations américaines", "Réseau d'alumni mondial"], imageCouleur: "from-ardoise to-or", fraisMin: 980000, fraisMax: 1750000 },
-    { slug: "universite-yaounde-i", nom: "Université de Yaoundé I", pays: "Cameroun", drapeau: "🇨🇲", ville: "Yaoundé", ecusson: "UY1", domaines: ["Sciences", "Droit", "Médecine", "Lettres"], description: "Plus ancienne université camerounaise.", pointsForts: ["Filière scientifique reconnue", "Frais d'agence très accessibles"], imageCouleur: "from-vert to-ambre", fraisMin: 280000, fraisMax: 540000 },
+    { slug: "sorbonne-universite", nom: "Sorbonne Université", pays: "France", drapeau: "🇫🇷", ville: "Paris", ecusson: "SU", domaines: ["Droit", "Sciences", "Lettres", "Médecine"], description: "Issue de la fusion de Paris-IV et Paris-VI, la Sorbonne Université est l'une des plus prestigieuses universités françaises.", pointsForts: ["Réseau d'échanges avec 48 pays", "Bibliothèque de 4 millions d'ouvrages"], imageCouleur: "from-lapis to-lapis-clair", fraisMin: 65000, fraisMax: 65000 },
+    { slug: "universite-de-montreal", nom: "Université de Montréal", pays: "Canada", drapeau: "🇨🇦", ville: "Montréal", ecusson: "UM", domaines: ["Informatique", "Sciences", "Management", "Santé"], description: "Avec sa filiale affiliée HEC Montréal, l'UdeM figure parmi les grandes universités francophones d'Amérique du Nord.", pointsForts: ["Pôle d'intelligence artificielle (MILA)", "Programmes en français et en anglais"], imageCouleur: "from-ardoise to-lapis", fraisMin: 65000, fraisMax: 65000 },
+    { slug: "universite-hasselt", nom: "Université de Hasselt", pays: "Belgique", drapeau: "🇧🇪", ville: "Hasselt", ecusson: "UH", domaines: ["Sciences", "Économie", "Transport", "Droit"], description: "Université jeune et innovante en Flandre, Hasselt mise sur l'interdisciplinarité.", pointsForts: ["Encadrement par petits groupes", "Programmes bilingues"], imageCouleur: "from-or to-ambre", fraisMin: 65000, fraisMax: 65000 },
+    { slug: "universite-mohammed-v-rabat", nom: "Université Mohammed V de Rabat", pays: "Maroc", drapeau: "🇲🇦", ville: "Rabat", ecusson: "UM5", domaines: ["Droit", "Sciences politiques", "Économie", "Lettres"], description: "Plus ancienne université marocaine moderne.", pointsForts: ["Excellence en droit public comparé", "Coûts d'études accessibles"], imageCouleur: "from-vert to-lapis", fraisMin: 65000, fraisMax: 65000 },
+    { slug: "universite-cape-town", nom: "Université du Cap", pays: "Afrique du Sud", drapeau: "🇿🇦", ville: "Le Cap", ecusson: "UCT", domaines: ["Sciences", "Commerce", "Ingénierie", "Santé"], description: "Première université d'Afrique au classement QS.", pointsForts: ["Top 200 mondial (QS)", "Bourses pour étudiants africains"], imageCouleur: "from-lapis-clair to-vert", fraisMin: 65000, fraisMax: 65000 },
+    { slug: "universite-gaston-berger", nom: "Université Gaston Berger", pays: "Sénégal", drapeau: "🇸🇳", ville: "Saint-Louis", ecusson: "UGB", domaines: ["Sciences", "Économie", "Lettres", "Droit"], description: "Université sénégalaise de référence.", pointsForts: ["Cadre moderne à Saint-Louis", "Filières francophones régionales"], imageCouleur: "from-ambre to-or", fraisMin: 65000, fraisMax: 65000 },
+    { slug: "universite-tunis-el-manar", nom: "Université de Tunis El Manar", pays: "Tunisie", drapeau: "🇹🇳", ville: "Tunis", ecusson: "UTM", domaines: ["Médecine", "Sciences", "Économie", "Ingénierie"], description: "Grande université tunisienne reconnue pour sa faculté de médecine.", pointsForts: ["Faculté de médecine réputée", "Coûts d'études modérés"], imageCouleur: "from-carmin to-ambre", fraisMin: 65000, fraisMax: 65000 },
+    { slug: "universite-nantes", nom: "Université de Nantes", pays: "France", drapeau: "🇫🇷", ville: "Nantes", ecusson: "UN", domaines: ["Sciences", "Droit", "Lettres", "STAPS"], description: "Université pluridisciplinaire de l'Ouest français.", pointsForts: ["Maison des étudiants internationaux", "Bourses EIFFEL"], imageCouleur: "from-lapis to-vert", fraisMin: 65000, fraisMax: 65000 },
+    { slug: "universite-libanaise-americaine", nom: "Université Libano-Américaine", pays: "Liban", drapeau: "🇱🇧", ville: "Beyrouth", ecusson: "LAU", domaines: ["Management", "Ingénierie", "Architecture", "Santé"], description: "Université anglophone de référence au Liban.", pointsForts: ["Accréditations américaines", "Réseau d'alumni mondial"], imageCouleur: "from-ardoise to-or", fraisMin: 110000, fraisMax: 110000 },
+    { slug: "universite-yaounde-i", nom: "Université de Yaoundé I", pays: "Cameroun", drapeau: "🇨🇲", ville: "Yaoundé", ecusson: "UY1", domaines: ["Sciences", "Droit", "Médecine", "Lettres"], description: "Plus ancienne université camerounaise.", pointsForts: ["Filière scientifique reconnue", "Frais d'agence très accessibles"], imageCouleur: "from-vert to-ambre", fraisMin: 65000, fraisMax: 65000 },
   ];
 
   const univs: { id: string; slug: string }[] = [];
@@ -131,12 +143,19 @@ async function main() {
         `/images/partenaires/${u.slug}/gallery-3.webp`,
       ]),
     };
+    const typeEtablissement = PUBLIC_SLUGS.has(u.slug) ? "PUBLIC" : "PRIVE";
     const univ = await db.universite.upsert({
       where: { slug: u.slug },
-      update: { ...assets },
+      update: {
+        ...assets,
+        typeEtablissement,
+        fraisMin: u.fraisMin,
+        fraisMax: u.fraisMax,
+      },
       create: {
         ...u,
         ...assets,
+        typeEtablissement,
         domaines: JSON.stringify(u.domaines),
         pointsForts: JSON.stringify(u.pointsForts),
       },
@@ -165,6 +184,8 @@ async function main() {
   for (const f of formationData) {
     const univ = univs.find((u) => u.slug === f.univSlug);
     if (!univ) continue;
+    const typeEtablissement = PUBLIC_SLUGS.has(f.univSlug) ? "PUBLIC" : "PRIVE";
+    const fraisAgence = typeEtablissement === "PUBLIC" ? 65_000 : 110_000;
     await db.formation.create({
       data: {
         universiteId: univ.id,
@@ -172,7 +193,7 @@ async function main() {
         niveau: f.niveau,
         domaine: f.domaine,
         duree: f.duree,
-        fraisAgence: f.fraisAgence,
+        fraisAgence,
         prerequis: JSON.stringify(f.prerequis),
         piecesRequises: JSON.stringify(f.piecesRequises),
       },
@@ -195,7 +216,7 @@ async function main() {
       etat: "PRE_ADMISSION",
       etapeActuelle: 9,
       conseillerId: conseiller.id,
-      fraisAgence: 850000,
+      fraisAgence: 65_000,
       paiementStatut: "complet",
       mrz,
       pieces: {
@@ -212,7 +233,7 @@ async function main() {
           { date: new Date("2026-01-10"), etat: "BROUILLON", auteur: "Fatou Diallo", note: "Dossier créé." },
           { date: new Date("2026-01-12"), etat: "SOUMIS", auteur: "Fatou Diallo", note: "Dossier soumis avec 5 pièces." },
           { date: new Date("2026-01-14"), etat: "VERIFICATION", auteur: "Aïssatou Diallo", note: "Prise en charge, début de vérification." },
-          { date: new Date("2026-01-16"), etat: "PAIEMENT_ATTENTE", auteur: "Aïssatou Diallo", note: "Frais d'agence à régler : 850 000 FCFA." },
+          { date: new Date("2026-01-16"), etat: "PAIEMENT_ATTENTE", auteur: "Aïssatou Diallo", note: "Frais d'agence à régler : 65 000 FCFA." },
           { date: new Date("2026-01-18"), etat: "PAIEMENT_CONFIRME", auteur: "Système", note: "Paiement Orange Money confirmé." },
           { date: new Date("2026-01-19"), etat: "TRANSMIS", auteur: "Aïssatou Diallo", note: "Dossier transmis à la Sorbonne Université." },
           { date: new Date("2026-02-03"), etat: "PRE_ADMISSION", auteur: "Sorbonne Université", note: "Pré-admission accordée pour le Master 1." },

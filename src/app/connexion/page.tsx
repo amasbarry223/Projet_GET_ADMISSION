@@ -73,7 +73,6 @@ function ConnexionInner() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
-  const [unverifiedHint, setUnverifiedHint] = React.useState(false);
   const [suggestStudentPortal, setSuggestStudentPortal] = React.useState(false);
   const [fieldErrors, setFieldErrors] = React.useState<{ email?: string; password?: string }>({});
 
@@ -113,7 +112,6 @@ function ConnexionInner() {
       return;
     }
     setLoading(true);
-    setUnverifiedHint(false);
     setSuggestStudentPortal(false);
 
     const res = await signIn("credentials", {
@@ -125,14 +123,6 @@ function ConnexionInner() {
 
     setLoading(false);
     if (res?.error) {
-      const errMsg = String(res.error);
-      if (isStudent && (errMsg.includes("EMAIL_NOT_VERIFIED") || errMsg === "EMAIL_NOT_VERIFIED")) {
-        setUnverifiedHint(true);
-        toast.error("E-mail non vérifié", {
-          description: "Validez votre adresse avant de vous connecter.",
-        });
-        return;
-      }
       if (!isStudent) {
         setSuggestStudentPortal(true);
       }
@@ -155,36 +145,6 @@ function ConnexionInner() {
     await redirectAfterLogin(role);
   };
 
-  const resendVerification = async () => {
-    if (!email.trim()) {
-      toast.error("Indiquez votre e-mail");
-      return;
-    }
-    const emailNorm = email.toLowerCase().trim();
-    try {
-      const res = await fetch("/api/auth/send-verification-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailNorm }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.emailSent === false) {
-        toast.error("Envoi impossible", {
-          description: data.error || "Réessayez dans une minute.",
-        });
-        return;
-      }
-      toast.success("E-mail renvoyé", {
-        description: "Consultez votre boîte mail (lien ou code).",
-      });
-      const q = new URLSearchParams({ email: emailNorm, mode: "register" });
-      if (callbackUrl) q.set("callbackUrl", callbackUrl);
-      router.push(`/verification-otp?${q.toString()}`);
-    } catch {
-      toast.error("Erreur", { description: "Impossible de renvoyer l'e-mail." });
-    }
-  };
-
   return (
     <div className="rounded-lg border border-ligne bg-blanc p-8 shadow-md">
       <Link href="/" className="mb-6 flex items-center justify-center">
@@ -195,7 +155,6 @@ function ConnexionInner() {
         value={portalTab}
         onValueChange={(v) => {
           setPortalTab(v as PortalTab);
-          setUnverifiedHint(false);
           setSuggestStudentPortal(false);
           setFieldErrors({});
         }}
@@ -229,15 +188,6 @@ function ConnexionInner() {
           : "Réservé aux conseillers, finance et administrateurs."}
       </p>
 
-      {unverifiedHint && isStudent && (
-        <div className="mt-4 rounded-md border border-ambre/40 bg-ambre/5 p-3 text-sm text-ardoise">
-          Votre e-mail n&apos;est pas encore vérifié.{" "}
-          <button type="button" className="font-medium text-lapis underline" onClick={resendVerification}>
-            Renvoyer le lien / code
-          </button>
-        </div>
-      )}
-
       {suggestStudentPortal && !isStudent && (
         <div className="mt-4 rounded-md border border-ligne bg-porcelaine p-3 text-sm text-ardoise">
           Compte étudiant ?{" "}
@@ -247,7 +197,6 @@ function ConnexionInner() {
             onClick={() => {
               setPortalTab("etudiant");
               setSuggestStudentPortal(false);
-              setUnverifiedHint(false);
             }}
           >
             Accéder à l&apos;espace étudiant

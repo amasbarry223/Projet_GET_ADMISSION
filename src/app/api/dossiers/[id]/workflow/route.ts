@@ -4,48 +4,15 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
-import { EtatDossier } from "@prisma/client";
 import { workflowSchema, validate } from "@/lib/validations";
 import { hasPermission } from "@/lib/rbac";
 import { notifyDossierTransition } from "@/lib/notifications";
 import { sendMail, workflowEmailHtml } from "@/lib/mail";
-
-const ETAPE_MAP: Record<EtatDossier, number> = {
-  BROUILLON: 1,
-  SOUMIS: 2,
-  VERIFICATION: 3,
-  CORRECTION: 4,
-  PAIEMENT_ATTENTE: 5,
-  PAIEMENT_CONFIRME: 6,
-  TRANSMIS: 7,
-  ATTENTE_REPONSE: 8,
-  PRE_ADMISSION: 9,
-  REFUSE: 10,
-  ATTESTATION: 11,
-  CLOTURE: 12,
-};
-
-/** Transitions autorisées : action → { from[], to, permission? } */
-const TRANSITIONS: Record<
-  string,
-  { from: EtatDossier[]; to: EtatDossier; permission?: "dossiers.write" | "dossiers.transmettre" | "attestations.emit" | "finance.write" }
-> = {
-  // SOUMIS → VERIFICATION
-  demarrer_verification: { from: ["SOUMIS"], to: "VERIFICATION", permission: "dossiers.write" },
-  // VERIFICATION → PAIEMENT_ATTENTE (pièces OK)
-  valider_dossier: { from: ["VERIFICATION"], to: "PAIEMENT_ATTENTE", permission: "dossiers.write" },
-  // Alias UI historique : SOUMIS démarre la vérif ; VERIFICATION valide
-  verifier: { from: ["SOUMIS", "VERIFICATION"], to: "PAIEMENT_ATTENTE", permission: "dossiers.write" },
-  correction: { from: ["SOUMIS", "VERIFICATION"], to: "CORRECTION", permission: "dossiers.write" },
-  verifier_corrections: { from: ["CORRECTION"], to: "VERIFICATION", permission: "dossiers.write" },
-  confirmer_paiement: { from: ["PAIEMENT_ATTENTE"], to: "PAIEMENT_CONFIRME", permission: "finance.write" },
-  transmettre: { from: ["PAIEMENT_CONFIRME"], to: "TRANSMIS", permission: "dossiers.transmettre" },
-  attendre_reponse: { from: ["TRANSMIS"], to: "ATTENTE_REPONSE", permission: "dossiers.write" },
-  accepter: { from: ["ATTENTE_REPONSE", "TRANSMIS"], to: "PRE_ADMISSION", permission: "dossiers.write" },
-  refuser: { from: ["ATTENTE_REPONSE", "TRANSMIS"], to: "REFUSE", permission: "dossiers.write" },
-  emettre_attestation: { from: ["PRE_ADMISSION"], to: "ATTESTATION", permission: "attestations.emit" },
-  cloturer: { from: ["ATTESTATION", "REFUSE"], to: "CLOTURE", permission: "dossiers.write" },
-};
+import {
+  ETAPE_PAR_ETAT,
+  WORKFLOW_TRANSITIONS,
+} from "@/lib/dossier/workflow";
+import { APP_NAME, PAYMENT_STATUSES } from "@/shared/constants";
 
 export async function POST(
   request: Request,
@@ -69,7 +36,7 @@ export async function POST(
   }
   const { action, note } = parsed.data;
 
-  const rule = TRANSITIONS[action];
+  const rule = WORKFLOW_TRANSITIONS[action];
   if (!rule) {
     return NextResponse.json({ error: "Action inconnue" }, { status: 400 });
   }
@@ -153,7 +120,7 @@ export async function POST(
         { status: 400 }
       );
     }
-    if (dossier.paiementStatut !== "complet") {
+    if (dossier.paiementStatut !== PAYMENT_STATUSES.COMPLET) {
       return NextResponse.json(
         { error: "Transmission refusée : paiement des frais d'agence non confirmé" },
         { status: 400 }
@@ -175,8 +142,10 @@ export async function POST(
     where: { id },
     data: {
       etat: nouvelEtat,
-      etapeActuelle: ETAPE_MAP[nouvelEtat],
-      ...(nouvelEtat === "PAIEMENT_CONFIRME" ? { paiementStatut: "complet" } : {}),
+      etapeActuelle: ETAPE_PAR_ETAT[nouvelEtat],
+      ...(nouvelEtat === "PAIEMENT_CONFIRME"
+        ? { paiementStatut: PAYMENT_STATUSES.COMPLET }
+        : {}),
     },
   });
 
@@ -242,7 +211,7 @@ export async function POST(
     if (paramsAgence?.notifEmail !== false && dossier.candidat.email) {
       await sendMail({
         to: dossier.candidat.email,
-        subject: `GET Admission — Dossier ${dossier.reference}`,
+        subject: `${APP_NAME} — Dossier ${dossier.reference}`,
         html: workflowEmailHtml(
           dossier.candidat.prenom,
           dossier.reference,

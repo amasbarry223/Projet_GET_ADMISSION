@@ -6,6 +6,7 @@ import { universiteSchema, validate } from "@/lib/validations";
 import { uniqueSlug } from "@/lib/utils";
 import { logAudit } from "@/lib/audit";
 import { requirePermission } from "@/lib/rbac";
+import { resolveFraisAgence, resolveFraisRange } from "@/lib/dossier/frais-agence";
 
 // GET /api/universites — liste publique (catalogue)
 export async function GET(request: Request) {
@@ -32,19 +33,28 @@ export async function GET(request: Request) {
     orderBy: { nom: "asc" },
   });
 
-  // Parse JSON string fields
-  const result = universites.map((u) => ({
-    ...u,
-    domaines: JSON.parse(u.domaines),
-    pointsForts: JSON.parse(u.pointsForts),
-    galleryUrls: (() => {
-      try {
-        return JSON.parse(u.galleryUrls || "[]");
-      } catch {
-        return [];
-      }
-    })(),
-  }));
+  // Parse JSON string fields + frais dérivés du type
+  const result = universites.map((u) => {
+    const frais = resolveFraisAgence(u.typeEtablissement);
+    return {
+      ...u,
+      fraisMin: frais,
+      fraisMax: frais,
+      domaines: JSON.parse(u.domaines),
+      pointsForts: JSON.parse(u.pointsForts),
+      galleryUrls: (() => {
+        try {
+          return JSON.parse(u.galleryUrls || "[]");
+        } catch {
+          return [];
+        }
+      })(),
+      formations: u.formations.map((f) => ({
+        ...f,
+        fraisAgence: frais,
+      })),
+    };
+  });
 
   return NextResponse.json(result);
 }
@@ -79,7 +89,7 @@ export async function POST(request: Request) {
   const {
     nom, pays, drapeau, ville, ecusson, domaines,
     description, pointsForts, imageCouleur, fraisMin, fraisMax, partenaire,
-    siteUrl, logoUrl, coverUrl, galleryUrls,
+    siteUrl, logoUrl, coverUrl, galleryUrls, typeEtablissement,
   } = parsed.data;
 
   // Validation : fraisMax >= fraisMin
@@ -102,6 +112,9 @@ export async function POST(request: Request) {
       ? galleryUrls
       : "[]";
 
+  const type = typeEtablissement ?? "PRIVE";
+  const range = resolveFraisRange(type);
+
   const created = await db.universite.create({
     data: {
       slug,
@@ -118,8 +131,9 @@ export async function POST(request: Request) {
       logoUrl: logoUrl || null,
       coverUrl: coverUrl || null,
       galleryUrls: galleryStr,
-      fraisMin,
-      fraisMax,
+      typeEtablissement: type,
+      fraisMin: range.fraisMin,
+      fraisMax: range.fraisMax,
       partenaire: partenaire ?? true,
     },
   });

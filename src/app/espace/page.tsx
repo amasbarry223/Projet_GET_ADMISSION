@@ -34,6 +34,80 @@ type Dossier = {
   conversation: { nonLusCandidat: number } | null;
 };
 
+type CandidateNextAction = {
+  titre: string;
+  desc: string;
+  href: string;
+  cta: string;
+};
+
+function getNextCandidateAction(params: {
+  etatUpper: string;
+  etatInfo: { libelle: string; description: string };
+  payePartiel: boolean;
+  fraisAgence: number;
+  universiteNom: string;
+  attestationPret: boolean;
+}): CandidateNextAction {
+  const { etatUpper, etatInfo, payePartiel, fraisAgence, universiteNom, attestationPret } =
+    params;
+
+  if (etatUpper === "BROUILLON") {
+    return {
+      titre: "Finalisez votre dossier",
+      desc: "Complétez les étapes du formulaire et soumettez pour entrer en file de traitement.",
+      href: "/espace/dossier",
+      cta: "Continuer mon dossier",
+    };
+  }
+  if (etatUpper === "CORRECTION") {
+    return {
+      titre: "Corrections demandées",
+      desc: "Votre conseiller a renvoyé le dossier. Corrigez les pièces concernées puis renvoyez.",
+      href: "/espace/dossier",
+      cta: "Corriger mon dossier",
+    };
+  }
+  if (etatUpper === "PAIEMENT_ATTENTE" || payePartiel) {
+    return {
+      titre: payePartiel ? "Solde de paiement restant" : "Paiement des frais d'agence",
+      desc: `Réglez ${formatFCFA(fraisAgence)} pour poursuivre le traitement.`,
+      href: "/espace/paiement",
+      cta: payePartiel ? "Payer la suite" : "Payer maintenant",
+    };
+  }
+  if (etatUpper === "PRE_ADMISSION") {
+    return {
+      titre: "Pré-admission accordée",
+      desc: `${universiteNom} a accepté votre candidature. L'attestation sera émise prochainement.`,
+      href: "/espace/attestation",
+      cta: "Suivre l'attestation",
+    };
+  }
+  if (attestationPret) {
+    return {
+      titre: "Attestation disponible",
+      desc: "Votre attestation de pré-inscription est prête à télécharger ou à retirer.",
+      href: "/espace/attestation",
+      cta: "Voir l'attestation",
+    };
+  }
+  if (etatUpper === "REFUSE") {
+    return {
+      titre: "Candidature refusée",
+      desc: "L'université a décliné ce dossier. Contactez votre conseiller pour les options.",
+      href: "/espace/messages",
+      cta: "Écrire au conseiller",
+    };
+  }
+  return {
+    titre: etatInfo.libelle,
+    desc: etatInfo.description,
+    href: "/espace/dossier",
+    cta: "Voir mon dossier",
+  };
+}
+
 export default function EspaceDashboard() {
   const [dossier, setDossier] = React.useState<Dossier | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -125,62 +199,14 @@ export default function EspaceDashboard() {
   const attestationPret = etatUpper === "ATTESTATION" || etatUpper === "CLOTURE";
   const coverSrc = univ.coverUrl || "/images/campus-sorbonne.jpg";
 
-  const prochaine = (() => {
-    if (etatUpper === "BROUILLON") {
-      return {
-        titre: "Finalisez votre dossier",
-        desc: "Complétez les étapes du formulaire et soumettez pour entrer en file de traitement.",
-        href: "/espace/dossier",
-        cta: "Continuer mon dossier",
-      };
-    }
-    if (etatUpper === "CORRECTION") {
-      return {
-        titre: "Corrections demandées",
-        desc: "Votre conseiller a renvoyé le dossier. Corrigez les pièces concernées puis renvoyez.",
-        href: "/espace/dossier",
-        cta: "Corriger mon dossier",
-      };
-    }
-    if (etatUpper === "PAIEMENT_ATTENTE" || payePartiel) {
-      return {
-        titre: payePartiel ? "Solde de paiement restant" : "Paiement des frais d'agence",
-        desc: `Réglez ${formatFCFA(d.fraisAgence)} pour poursuivre le traitement.`,
-        href: "/espace/paiement",
-        cta: payePartiel ? "Payer la suite" : "Payer maintenant",
-      };
-    }
-    if (etatUpper === "PRE_ADMISSION") {
-      return {
-        titre: "Pré-admission accordée",
-        desc: `${univ.nom} a accepté votre candidature. L'attestation sera émise prochainement.`,
-        href: "/espace/attestation",
-        cta: "Suivre l'attestation",
-      };
-    }
-    if (attestationPret) {
-      return {
-        titre: "Attestation disponible",
-        desc: "Votre attestation de pré-inscription est prête à télécharger ou à retirer.",
-        href: "/espace/attestation",
-        cta: "Voir l'attestation",
-      };
-    }
-    if (etatUpper === "REFUSE") {
-      return {
-        titre: "Candidature refusée",
-        desc: "L'université a décliné ce dossier. Contactez votre conseiller pour les options.",
-        href: "/espace/messages",
-        cta: "Écrire au conseiller",
-      };
-    }
-    return {
-      titre: etatInfo.libelle,
-      desc: etatInfo.description,
-      href: "/espace/dossier",
-      cta: "Voir mon dossier",
-    };
-  })();
+  const prochaine = getNextCandidateAction({
+    etatUpper,
+    etatInfo,
+    payePartiel,
+    fraisAgence: d.fraisAgence,
+    universiteNom: univ.nom,
+    attestationPret,
+  });
 
   const primaryCta =
     etatUpper === "BROUILLON" || etatUpper === "CORRECTION"

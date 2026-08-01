@@ -61,9 +61,15 @@ model User {
   conversationsCandidat   Conversation[] @relation("ConvCandidat")
   conversationsConseiller Conversation[] @relation("ConvConseiller")
   notifications        Notification[]
+  profilAcademique     ProfilAcademique?
 }
 
 /* --------------------------- Catalogue --------------------------- */
+
+enum TypeEtablissement {
+  PUBLIC
+  PRIVE
+}
 
 model Universite {
   id          String      @id @default(cuid())
@@ -81,6 +87,7 @@ model Universite {
   logoUrl     String?
   coverUrl    String?
   galleryUrls String      @default("[]") // JSON array of image paths
+  typeEtablissement TypeEtablissement @default(PRIVE)
   fraisMin    Int
   fraisMax    Int
   partenaire  Boolean     @default(true)
@@ -88,6 +95,50 @@ model Universite {
   updatedAt   DateTime    @updatedAt
   formations  Formation[]
   dossiers    Dossier[]
+}
+
+/* --------------------- Profil académique candidat --------------------- */
+
+enum StatutCandidat {
+  LYCEEN
+  BACHELIER
+}
+
+enum NiveauEtudesSuperieures {
+  AUCUN
+  L1
+  L2
+  L3
+  DUT_BTS
+  MASTER_PLUS
+}
+
+model ProfilAcademique {
+  id                            String                   @id @default(cuid())
+  userId                        String                   @unique
+  statutCandidat                StatutCandidat
+  /// Lycéen : TERMINALE (principale)
+  classeActuelle                String?
+  aObtenuBac                    Boolean                  @default(false)
+  trimestresSeconde             Int                      @default(3)
+  trimestresPremiere            Int                      @default(3)
+  trimestresTerminale           Int                      @default(2)
+  attestationScolariteDisponible Boolean                 @default(false)
+  /// Bachelier / supérieur
+  niveauEtudesSuperieures       NiveauEtudesSuperieures  @default(AUCUN)
+  formationEnCours              Boolean                  @default(false)
+  /// JSON string array — ex. ["DUT","Licence"]
+  diplomesObtenus               String                   @default("[]")
+  /// JSON [{ niveau, anneeScolaire }]
+  redoublements                 String                   @default("[]")
+  /// JSON [{ type, anneeDebut, anneeFin, libelle? }]
+  interruptions                 String                   @default("[]")
+  createdAt                     DateTime                 @default(now())
+  updatedAt                     DateTime                 @updatedAt
+
+  user                          User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([statutCandidat])
 }
 
 model Formation {
@@ -157,7 +208,12 @@ model Dossier {
 model Piece {
   id           String    @id @default(cuid())
   dossierId    String
+  /// Clé stable pour sync dynamique (ex. BULLETIN_SECONDE_T1)
+  code         String?
   libelle      String
+  /// academique | identite | justificatif | complementaire
+  categorie    String    @default("academique")
+  obligatoire  Boolean   @default(true)
   statut       String    @default("manquante") // manquante | televersee | a_corriger | validee
   type         String    @default("pdf") // pdf | image | autre
   taille       String?
@@ -167,6 +223,8 @@ model Piece {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   dossier      Dossier   @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+
+  @@index([dossierId, code])
 }
 
 model Historique {
@@ -342,13 +400,13 @@ model ContactMessage {
 
 model Parametre {
   id               Int     @id @default(1)
-  fraisMin         Int     @default(350000)
-  fraisMax         Int     @default(1750000)
+  fraisMin         Int     @default(65000)
+  fraisMax         Int     @default(110000)
   paiementTranches Boolean @default(true)
   notifEmail       Boolean @default(true)
   notifInApp       Boolean @default(true)
   workflowStrict   Boolean @default(true)
-  exigerEmailVerifie Boolean @default(true)
+  exigerEmailVerifie Boolean @default(false)
   mentionsLegales  String  @default("")
   politiqueConfidentialite String @default("")
 }

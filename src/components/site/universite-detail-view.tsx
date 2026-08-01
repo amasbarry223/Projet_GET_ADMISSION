@@ -20,6 +20,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { formatFCFA, formatFCFACompact } from "@/lib/format";
+import { resolveFraisAgence } from "@/lib/dossier/frais-agence";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MotionButton } from "@/components/site/motion-button";
@@ -37,6 +38,7 @@ export type UniversiteDetailData = {
   domaines: string[];
   pointsForts: string[];
   imageCouleur: string;
+  typeEtablissement?: "PUBLIC" | "PRIVE";
   fraisMin: number;
   fraisMax: number;
   coverUrl?: string | null;
@@ -86,6 +88,7 @@ export function UniversiteDetailView({
     formations.length === 1 ? formations[0]!.id : null,
   );
   const [activeSection, setActiveSection] = React.useState("presentation");
+  const fraisAgence = resolveFraisAgence(universite.typeEtablissement);
 
   const filtered = React.useMemo(() => {
     if (!domaineFilter) return formations;
@@ -434,9 +437,12 @@ export function UniversiteDetailView({
                                   {f.intitule}
                                 </p>
                                 <p className="mt-1 font-mono text-sm font-semibold text-lapis">
-                                  {formatFCFA(f.fraisAgence)}{" "}
+                                  {formatFCFA(fraisAgence)}{" "}
                                   <span className="font-sans text-xs font-normal text-ardoise">
                                     frais d&apos;agence
+                                    {universite.typeEtablissement === "PUBLIC"
+                                      ? " (public)"
+                                      : " (privé)"}
                                   </span>
                                 </p>
                               </div>
@@ -482,23 +488,33 @@ export function UniversiteDetailView({
                                         </ul>
                                       </div>
                                     )}
-                                    {f.piecesRequises.length > 0 && (
-                                      <div className={f.prerequis.length ? "mt-4" : undefined}>
-                                        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
-                                          Pièces pour cette formation
-                                        </p>
-                                        <ul className="mt-2 flex flex-wrap gap-2">
-                                          {f.piecesRequises.map((p) => (
-                                            <li
-                                              key={p}
-                                              className="rounded-md bg-porcelaine px-2.5 py-1 text-xs text-encre"
-                                            >
-                                              {p}
-                                            </li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                    )}
+                                    <div className={f.prerequis.length ? "mt-4" : undefined}>
+                                      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                                        Documents du dossier
+                                      </p>
+                                      <p className="mt-2 text-sm text-ardoise">
+                                        Les pièces académiques (bulletins, bac, relevés) sont
+                                        adaptées automatiquement à votre profil lors de la
+                                        constitution du dossier.
+                                      </p>
+                                      {f.piecesRequises.length > 0 && (
+                                        <>
+                                          <p className="mt-3 font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                                            Compléments demandés pour cette formation
+                                          </p>
+                                          <ul className="mt-2 flex flex-wrap gap-2">
+                                            {f.piecesRequises.map((p) => (
+                                              <li
+                                                key={p}
+                                                className="rounded-md bg-porcelaine px-2.5 py-1 text-xs text-encre"
+                                              >
+                                                {p}
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        </>
+                                      )}
+                                    </div>
                                     <MotionButton asChild size="lg" className="mt-5">
                                       <Link href={formationHrefs[f.id] ?? dossierBaseHref}>
                                         Choisir cette formation
@@ -529,38 +545,44 @@ export function UniversiteDetailView({
             </section>
 
             {/* Pièces */}
-            {piecesUniques.length > 0 && (
-              <section aria-labelledby="pieces-title">
-                <Reveal>
-                  <p className="eyebrow">Dossier</p>
-                  <h3
-                    id="pieces-title"
-                    className="mt-3 font-display text-2xl font-bold text-encre sm:text-3xl"
-                  >
-                    Préparez vos pièces en amont.
-                  </h3>
-                  <ul className="mt-8 columns-1 gap-x-10 sm:columns-2">
-                    {piecesUniques.map((piece) => (
-                      <li
-                        key={piece}
-                        className="mb-3 flex break-inside-avoid items-start gap-2.5 text-sm text-encre"
-                      >
-                        <FileText
-                          className="mt-0.5 h-4 w-4 shrink-0 text-or"
-                          strokeWidth={1.75}
-                          aria-hidden
-                        />
-                        {piece}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="mt-4 text-xs text-ardoise">
-                    Liste indicative. Votre conseiller confirmera les pièces exactes selon la
-                    formation.
-                  </p>
-                </Reveal>
-              </section>
-            )}
+            <section aria-labelledby="pieces-title">
+              <Reveal>
+                <p className="eyebrow">Dossier</p>
+                <h3
+                  id="pieces-title"
+                  className="mt-3 font-display text-2xl font-bold text-encre sm:text-3xl"
+                >
+                  Un dossier adapté à votre parcours.
+                </h3>
+                <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ardoise">
+                  Les pièces académiques demandées dépendent de votre profil (lycéen ou bachelier,
+                  redoublements, interruptions). Elles sont générées automatiquement à la
+                  constitution du dossier.
+                </p>
+                {piecesUniques.length > 0 && (
+                  <>
+                    <p className="mt-6 font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                      Compléments fréquents pour ces formations
+                    </p>
+                    <ul className="mt-3 columns-1 gap-x-10 sm:columns-2">
+                      {piecesUniques.map((piece) => (
+                        <li
+                          key={piece}
+                          className="mb-3 flex break-inside-avoid items-start gap-2.5 text-sm text-encre"
+                        >
+                          <FileText
+                            className="mt-0.5 h-4 w-4 shrink-0 text-or"
+                            strokeWidth={1.75}
+                            aria-hidden
+                          />
+                          {piece}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </Reveal>
+            </section>
           </div>
 
           {/* Rail CTA — en flux mobile, sticky desktop */}
@@ -587,10 +609,13 @@ export function UniversiteDetailView({
 
               <div className="relative mt-5 border-y border-ligne py-4">
                 <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
-                  Fourchette frais d&apos;agence
+                  Frais d&apos;agence
                 </p>
                 <p className="mt-1 font-mono text-base font-semibold text-encre">
-                  {formatFCFACompact(universite.fraisMin)} – {formatFCFACompact(universite.fraisMax)}
+                  {formatFCFA(fraisAgence)}
+                  <span className="ml-2 font-sans text-xs font-normal text-ardoise">
+                    {universite.typeEtablissement === "PUBLIC" ? "établissement public" : "établissement privé"}
+                  </span>
                 </p>
               </div>
 
@@ -637,7 +662,7 @@ export function UniversiteDetailView({
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs text-ardoise">{universite.ville}</p>
             <p className="truncate font-mono text-sm font-semibold text-encre">
-              {formatFCFACompact(universite.fraisMin)} – {formatFCFACompact(universite.fraisMax)}
+              {formatFCFACompact(fraisAgence)}
             </p>
           </div>
           <MotionButton asChild size="lg" className="shrink-0">

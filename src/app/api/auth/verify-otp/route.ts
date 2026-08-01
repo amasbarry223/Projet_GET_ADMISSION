@@ -5,6 +5,7 @@ import { otpVerifySchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { createOtpBridgeToken } from "@/lib/otp-bridge";
 import { isStaff } from "@/lib/rbac";
+import { API_ROUTES } from "@/shared/constants";
 
 function supabaseAuthClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -17,12 +18,8 @@ function supabaseAuthClient() {
   });
 }
 
-/**
- * POST /api/auth/verify-otp
- * Après OTP/lien d'inscription : active emailVerified sur le User Prisma existant.
- */
 export async function POST(request: Request) {
-  const rateLimited = checkRateLimit(getClientId(request), "/api/auth/verify-otp");
+  const rateLimited = checkRateLimit(getClientId(request), API_ROUTES.AUTH_VERIFY_OTP);
   if (rateLimited) return rateLimited;
 
   try {
@@ -44,14 +41,7 @@ export async function POST(request: Request) {
     }
 
     const supabaseUser = authData.user;
-    const emailRaw = supabaseUser.email;
-    if (!emailRaw) {
-      return NextResponse.json(
-        { error: "Session OTP invalide ou expirée" },
-        { status: 401 },
-      );
-    }
-    const email = emailRaw.toLowerCase().trim();
+    const email = supabaseUser.email!.toLowerCase().trim();
 
     let user = await db.user.findFirst({
       where: {

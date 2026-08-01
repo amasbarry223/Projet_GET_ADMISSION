@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { resolveFraisAgence } from "@/lib/dossier/frais-agence";
 import {
   CatalogueClient,
   type CatalogueUniversite,
@@ -8,44 +9,45 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function CatalogueUniversitesPage() {
-  // Récupère toutes les universités avec leurs formations depuis la DB.
   const rows = await db.universite.findMany({
     include: { formations: true },
     orderBy: { nom: "asc" },
   });
 
-  // Transforme : parse les champs JSON string (SQLite limitation).
-  const universites: CatalogueUniversite[] = rows.map((u) => ({
-    id: u.id,
-    slug: u.slug,
-    nom: u.nom,
-    pays: u.pays,
-    drapeau: u.drapeau,
-    ville: u.ville,
-    ecusson: u.ecusson,
-    domaines: JSON.parse(u.domaines) as string[],
-    description: u.description,
-    pointsForts: JSON.parse(u.pointsForts) as string[],
-    imageCouleur: u.imageCouleur,
-    fraisMin: u.fraisMin,
-    fraisMax: u.fraisMax,
-    partenaire: u.partenaire,
-    partenaires: u.partenaire,
-    coverUrl: u.coverUrl,
-    logoUrl: u.logoUrl,
-    siteUrl: u.siteUrl,
-    formations: u.formations.map((f) => ({
-      id: f.id,
-      universiteId: f.universiteId,
-      intitule: f.intitule,
-      niveau: f.niveau as Niveau,
-      domaine: f.domaine,
-      duree: f.duree,
-      fraisAgence: f.fraisAgence,
-      prerequis: JSON.parse(f.prerequis) as string[],
-      piecesRequises: JSON.parse(f.piecesRequises) as string[],
-    })),
-  }));
+  const universites: CatalogueUniversite[] = rows.map((u) => {
+    const frais = resolveFraisAgence(u.typeEtablissement);
+    return {
+      id: u.id,
+      slug: u.slug,
+      nom: u.nom,
+      pays: u.pays,
+      drapeau: u.drapeau,
+      ville: u.ville,
+      ecusson: u.ecusson,
+      domaines: JSON.parse(u.domaines) as string[],
+      description: u.description,
+      pointsForts: JSON.parse(u.pointsForts) as string[],
+      imageCouleur: u.imageCouleur,
+      fraisMin: frais,
+      fraisMax: frais,
+      partenaire: u.partenaire,
+      partenaires: u.partenaire,
+      coverUrl: u.coverUrl,
+      logoUrl: u.logoUrl,
+      siteUrl: u.siteUrl,
+      formations: u.formations.map((f) => ({
+        id: f.id,
+        universiteId: f.universiteId,
+        intitule: f.intitule,
+        niveau: f.niveau as Niveau,
+        domaine: f.domaine,
+        duree: f.duree,
+        fraisAgence: frais,
+        prerequis: JSON.parse(f.prerequis) as string[],
+        piecesRequises: JSON.parse(f.piecesRequises) as string[],
+      })),
+    };
+  });
 
   return <CatalogueClient universites={universites} />;
 }

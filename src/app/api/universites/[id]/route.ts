@@ -6,6 +6,7 @@ import { universiteSchema, validate } from "@/lib/validations";
 import { uniqueSlug } from "@/lib/utils";
 import { logAudit } from "@/lib/audit";
 import { requirePermission } from "@/lib/rbac";
+import { resolveFraisAgence, resolveFraisRange } from "@/lib/dossier/frais-agence";
 
 // GET /api/universites/[id] — détail par ID (staff) — alias de la route /by-slug
 export async function GET(
@@ -28,8 +29,11 @@ export async function GET(
     ...universite,
     domaines: JSON.parse(universite.domaines),
     pointsForts: JSON.parse(universite.pointsForts),
+    fraisMin: resolveFraisAgence(universite.typeEtablissement),
+    fraisMax: resolveFraisAgence(universite.typeEtablissement),
     formations: universite.formations.map((f) => ({
       ...f,
+      fraisAgence: resolveFraisAgence(universite.typeEtablissement),
       prerequis: JSON.parse(f.prerequis),
       piecesRequises: JSON.parse(f.piecesRequises),
     })),
@@ -57,7 +61,7 @@ export async function PUT(
 
   const existing = await db.universite.findFirst({
     where: { OR: [{ id }, { slug: id }] },
-    select: { id: true, slug: true, nom: true },
+    select: { id: true, slug: true, nom: true, typeEtablissement: true },
   });
   if (!existing) {
     return NextResponse.json({ error: "Université non trouvée" }, { status: 404 });
@@ -77,7 +81,7 @@ export async function PUT(
   const {
     nom, pays, drapeau, ville, ecusson, domaines,
     description, pointsForts, imageCouleur, fraisMin, fraisMax, partenaire,
-    siteUrl, logoUrl, coverUrl, galleryUrls,
+    siteUrl, logoUrl, coverUrl, galleryUrls, typeEtablissement,
   } = parsed.data;
 
   if (fraisMax < fraisMin) {
@@ -105,27 +109,50 @@ export async function PUT(
       ? galleryUrls
       : undefined;
 
-  const updated = await db.universite.update({
-    where: { id: existing.id },
-    data: {
-      slug: newSlug,
-      nom: nom.trim(),
-      pays: pays.trim(),
-      drapeau,
-      ville: ville.trim(),
-      ecusson,
-      domaines: JSON.stringify(domaines),
-      description,
-      pointsForts: JSON.stringify(pointsForts),
-      imageCouleur,
-      fraisMin,
-      fraisMax,
-      ...(partenaire !== undefined ? { partenaire } : {}),
-      ...(siteUrl !== undefined ? { siteUrl: siteUrl || null } : {}),
-      ...(logoUrl !== undefined ? { logoUrl: logoUrl || null } : {}),
-      ...(coverUrl !== undefined ? { coverUrl: coverUrl || null } : {}),
-      ...(galleryStr !== undefined ? { galleryUrls: galleryStr } : {}),
-    },
+  const type = typeEtablissement ?? existing.typeEtablissement ?? "PRIVE";
+  const range = resolveFraisRange(type);
+  const fraisFormation = resolveFraisAgence(type);
+
+  const updated = await db.$transaction(async (tx) => {
+    const univ = await tx.universite.update({
+      where: { id: existing.id },
+      data: {
+        slug: newSlug,
+        nom: nom.trim(),
+        pays: pays.trim(),
+        drapeau,
+        ville: ville.trim(),
+        ecusson,
+        domaines: JSON.stringify(domaines),
+        description,
+        pointsForts: JSON.stringify(pointsForts),
+        imageCouleur,
+        fraisMin: range.fraisMin,
+        fraisMax: range.fraisMax,
+        typeEtablissement: type,
+        ...(partenaire !== undefined ? { partenaire } : {}),
+        ...(siteUrl !== undefined ? { siteUrl: siteUrl || null } : {}),
+        ...(logoUrl !== undefined ? { logoUrl: logoUrl || null } : {}),
+        ...(coverUrl !== undefined ? { coverUrl: coverUrl || null } : {}),
+        ...(galleryStr !== undefined ? { galleryUrls: galleryStr } : {}),
+      },
+    });
+
+    await tx.formation.updateMany({
+      where: { universiteId: existing.id },
+      data: { fraisAgence: fraisFormation },
+    });
+
+    // Aligner les dossiers encore éditables
+    await tx.dossier.updateMany({
+      where: {
+        universiteId: existing.id,
+        etat: { in: ["BROUILLON", "CORRECTION"] },
+      },
+      data: { fraisAgence: fraisFormation },
+    });
+
+    return univ;
   });
 
   await logAudit({

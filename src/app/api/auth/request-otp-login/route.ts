@@ -3,13 +3,13 @@ import { db } from "@/lib/db";
 import { otpRequestLoginSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { API_ROUTES } from "@/shared/constants";
 
-/**
- * POST /api/auth/request-otp-login
- * Vérifie qu'un candidat Prisma existe et provisionne auth.users si besoin (comptes legacy).
- */
 export async function POST(request: Request) {
-  const rateLimited = checkRateLimit(getClientId(request), "/api/auth/request-otp-login");
+  const rateLimited = checkRateLimit(
+    getClientId(request),
+    API_ROUTES.AUTH_REQUEST_OTP_LOGIN,
+  );
   if (rateLimited) return rateLimited;
 
   try {

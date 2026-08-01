@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { resolveFraisAgence } from "@/lib/dossier/frais-agence";
 import {
   UniversiteDetailView,
   type FormationDetailData,
@@ -55,6 +56,8 @@ export default async function UniversiteDetailPage({
   });
   if (!row) notFound();
 
+  const frais = resolveFraisAgence(row.typeEtablissement);
+
   const universite: UniversiteDetailData = {
     id: row.id,
     slug: row.slug,
@@ -67,8 +70,9 @@ export default async function UniversiteDetailPage({
     domaines: parseStringArray(row.domaines),
     pointsForts: parseStringArray(row.pointsForts),
     imageCouleur: row.imageCouleur,
-    fraisMin: row.fraisMin,
-    fraisMax: row.fraisMax,
+    typeEtablissement: row.typeEtablissement,
+    fraisMin: frais,
+    fraisMax: frais,
     coverUrl: row.coverUrl,
     logoUrl: row.logoUrl,
     siteUrl: row.siteUrl,
@@ -81,7 +85,7 @@ export default async function UniversiteDetailPage({
     niveau: f.niveau,
     domaine: f.domaine,
     duree: f.duree,
-    fraisAgence: f.fraisAgence,
+    fraisAgence: frais,
     prerequis: parseStringArray(f.prerequis),
     piecesRequises: parseStringArray(f.piecesRequises),
   }));

@@ -4,11 +4,10 @@ import { db } from "@/lib/db";
 import { registerSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { isStaff } from "@/lib/rbac";
-import { provisionAndSendEmailOtp } from "@/lib/supabase/send-otp";
 
 /**
  * POST /api/register — crée le compte candidat (passwordHash),
- * provisionne Supabase Auth, envoie OTP / lien magique.
+ * immédiatement utilisable (sans vérification e-mail OTP).
  */
 export async function POST(request: Request) {
   const rateLimited = checkRateLimit(getClientId(request), "/api/register");
@@ -51,23 +50,10 @@ export async function POST(request: Request) {
         nationalite: nationalite || null,
         role: "CANDIDAT",
         actif: true,
-        emailVerified: null,
+        emailVerified: new Date(),
         verifyToken: null,
       },
       select: { id: true, email: true, prenom: true, nom: true, role: true },
-    });
-
-    const origin = new URL(request.url).origin;
-    const site = (process.env.NEXTAUTH_URL || origin).replace(/\/$/, "");
-    const sent = await provisionAndSendEmailOtp({
-      email: user.email,
-      prismaUserId: user.id,
-      meta: {
-        prenom: user.prenom,
-        nom: user.nom,
-        nationalite,
-      },
-      redirectTo: `${site}/auth/callback`,
     });
 
     return NextResponse.json(
@@ -78,11 +64,7 @@ export async function POST(request: Request) {
         nom: user.nom,
         nationalite,
         user,
-        emailSent: sent.ok,
-        emailError: sent.ok ? undefined : sent.error,
-        message: sent.ok
-          ? "Compte créé. Vérifiez votre e-mail pour l'activer."
-          : "Compte créé, mais l'e-mail de vérification n'a pas pu être envoyé.",
+        message: "Compte créé. Vous pouvez vous connecter.",
       },
       { status: 201 },
     );

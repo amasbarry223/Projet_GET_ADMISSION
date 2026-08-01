@@ -3,8 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
+import {
+  ACCEPTED_DOSSIER_STATES,
+  PIPELINE_DOSSIER_STATES,
+} from "@/shared/constants";
 
-// GET /api/admin/stats — KPIs + chart data + file prioritaire (staff uniquement)
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
@@ -16,14 +19,15 @@ export async function GET() {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
-  // --- KPIs ---
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const pipelineStates = [...PIPELINE_DOSSIER_STATES];
+  const acceptedStates = [...ACCEPTED_DOSSIER_STATES];
 
   const [totalDossiers, dossiersEnCours, dossiersAcceptes, dossiersRefuses, paiementsMois, attestationsMois] = await Promise.all([
     db.dossier.count(),
-    db.dossier.count({ where: { etat: { in: ["SOUMIS", "VERIFICATION", "CORRECTION", "PAIEMENT_ATTENTE", "PAIEMENT_CONFIRME", "TRANSMIS", "ATTENTE_REPONSE"] } } }),
-    db.dossier.count({ where: { etat: { in: ["PRE_ADMISSION", "ATTESTATION", "CLOTURE"] } } }),
+    db.dossier.count({ where: { etat: { in: pipelineStates } } }),
+    db.dossier.count({ where: { etat: { in: acceptedStates } } }),
     db.dossier.count({ where: { etat: "REFUSE" } }),
     db.paiement.aggregate({ _sum: { montant: true }, where: { date: { gte: startOfMonth }, statut: "reussi" } }),
     db.attestation.count({ where: { dateEmission: { gte: startOfMonth } } }),
@@ -208,21 +212,21 @@ export async function GET() {
     db.dossier.count({ where: { createdAt: { gte: startPrevMonth, lte: endPrevMonth } } }),
     db.dossier.count({
       where: {
-        etat: { in: ["SOUMIS", "VERIFICATION", "CORRECTION", "PAIEMENT_ATTENTE", "PAIEMENT_CONFIRME", "TRANSMIS", "ATTENTE_REPONSE"] },
+        etat: { in: pipelineStates },
         updatedAt: { gte: startOfMonth },
       },
     }),
     db.dossier.count({
       where: {
-        etat: { in: ["SOUMIS", "VERIFICATION", "CORRECTION", "PAIEMENT_ATTENTE", "PAIEMENT_CONFIRME", "TRANSMIS", "ATTENTE_REPONSE"] },
+        etat: { in: pipelineStates },
         updatedAt: { gte: startPrevMonth, lte: endPrevMonth },
       },
     }),
     db.dossier.count({
-      where: { etat: { in: ["PRE_ADMISSION", "ATTESTATION", "CLOTURE"] }, updatedAt: { gte: startOfMonth } },
+      where: { etat: { in: acceptedStates }, updatedAt: { gte: startOfMonth } },
     }),
     db.dossier.count({
-      where: { etat: { in: ["PRE_ADMISSION", "ATTESTATION", "CLOTURE"] }, updatedAt: { gte: startPrevMonth, lte: endPrevMonth } },
+      where: { etat: { in: acceptedStates }, updatedAt: { gte: startPrevMonth, lte: endPrevMonth } },
     }),
     db.dossier.count({ where: { etat: "REFUSE", updatedAt: { gte: startOfMonth } } }),
     db.dossier.count({ where: { etat: "REFUSE", updatedAt: { gte: startPrevMonth, lte: endPrevMonth } } }),
