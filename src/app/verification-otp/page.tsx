@@ -122,7 +122,7 @@ function VerificationOtpInner() {
 
       await supabase.auth.signOut().catch(() => undefined);
 
-      toast.success(mode === "register" ? "Compte activé" : "Connexion réussie", {
+      toast.success("Compte activé", {
         description: `Bienvenue${payload.user?.prenom ? `, ${payload.user.prenom}` : ""}.`,
       });
       await redirectAfterLogin(payload.user?.role);
@@ -200,16 +200,16 @@ function VerificationOtpInner() {
           <BrandLogo height={48} priority />
         </Link>
 
-        <p className="eyebrow mb-2">Vérification</p>
+        <p className="eyebrow mb-2">Activation</p>
         <h1 className="font-display text-2xl font-bold text-encre">
-          Entrez votre code.
+          Activez votre compte.
         </h1>
         <p className="mt-2 text-sm text-ardoise">
           Un e-mail a été envoyé à{" "}
           <span className="font-medium text-encre">{email}</span>.
           Saisissez le code à 6 chiffres s&apos;il apparaît, ou{" "}
           <strong className="font-medium text-encre">cliquez sur le lien</strong>{" "}
-          dans le message pour vous connecter.
+          dans le message pour activer votre compte.
         </p>
 
         <form onSubmit={onSubmit} className="mt-6 space-y-6">

@@ -3,18 +3,19 @@ import { z } from "zod";
 // ===================== Schémas de validation API =====================
 
 // --- Auth ---
-/** Inscription candidat OTP — plus de mot de passe (auth via Supabase Email OTP). */
+/** Inscription candidat : mot de passe + vérification e-mail OTP Supabase. */
 export const registerSchema = z.object({
   prenom: z.string().min(1, "Le prénom est requis").max(50),
   nom: z.string().min(1, "Le nom est requis").max(50),
   email: z.string().email("L'e-mail saisi n'est pas valide"),
+  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères"),
   nationalite: z.string().min(1, "La nationalité est requise").max(50),
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
 
 export const otpVerifySchema = z.object({
   accessToken: z.string().min(1, "Token manquant"),
-  mode: z.enum(["register", "login"]).default("login"),
+  mode: z.enum(["register", "login"]).default("register"),
   prenom: z.string().min(1).max(50).optional(),
   nom: z.string().min(1).max(50).optional(),
   nationalite: z.string().max(50).optional(),

@@ -128,11 +128,6 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        // Les candidats se connectent uniquement par OTP
-        if (portal === "candidat") {
-          return null;
-        }
-
         const email = credentials.email.toLowerCase().trim();
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
           return null;
@@ -156,8 +151,24 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        if (!isStaff(user.role)) {
+        // Intention portail : refus silencieux si rôle incompatible (pas d’énumération)
+        if (portal === "candidat" && user.role !== "CANDIDAT") {
           return null;
+        }
+        if (portal === "staff" && !isStaff(user.role)) {
+          return null;
+        }
+
+        // Exiger la vérification e-mail pour les candidats
+        let exigerVerif = true;
+        try {
+          const params = await db.parametre.findUnique({ where: { id: 1 } });
+          if (params) exigerVerif = params.exigerEmailVerifie;
+        } catch {
+          exigerVerif = process.env.NODE_ENV === "production";
+        }
+        if (exigerVerif && user.role === "CANDIDAT" && !user.emailVerified) {
+          throw new Error("EMAIL_NOT_VERIFIED");
         }
 
         void db.user

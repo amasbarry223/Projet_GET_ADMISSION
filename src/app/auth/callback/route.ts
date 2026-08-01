@@ -74,11 +74,6 @@ export async function GET(request: Request) {
 
   const supabaseUser = authData.user;
   const email = supabaseUser.email!.toLowerCase().trim();
-  const meta = (supabaseUser.user_metadata ?? {}) as Record<string, unknown>;
-  const prenom = typeof meta.prenom === "string" ? meta.prenom : "";
-  const nom = typeof meta.nom === "string" ? meta.nom : "";
-  const nationalite =
-    typeof meta.nationalite === "string" ? meta.nationalite : null;
 
   let user = await db.user.findFirst({
     where: {
@@ -91,37 +86,24 @@ export async function GET(request: Request) {
   }
 
   if (!user) {
-    if (!prenom || !nom) {
-      // Connexion sans profil inscription
-      return NextResponse.redirect(
-        `${origin}/inscription?error=not_registered&email=${encodeURIComponent(email)}`,
-      );
-    }
-    user = await db.user.create({
-      data: {
-        email,
-        prenom,
-        nom,
-        nationalite,
-        role: "CANDIDAT",
-        actif: true,
-        passwordHash: null,
-        supabaseUserId: supabaseUser.id,
-        emailVerified: new Date(),
-        lastLoginAt: new Date(),
-      },
-    });
-  } else {
-    user = await db.user.update({
-      where: { id: user.id },
-      data: {
-        supabaseUserId: supabaseUser.id,
-        emailVerified: user.emailVerified ?? new Date(),
-        lastLoginAt: new Date(),
-        verifyToken: null,
-      },
-    });
+    return NextResponse.redirect(
+      `${origin}/inscription?error=not_registered&email=${encodeURIComponent(email)}`,
+    );
   }
+
+  if (user.role !== "CANDIDAT") {
+    return NextResponse.redirect(`${origin}/connexion?error=invalid`);
+  }
+
+  user = await db.user.update({
+    where: { id: user.id },
+    data: {
+      supabaseUserId: supabaseUser.id,
+      emailVerified: user.emailVerified ?? new Date(),
+      lastLoginAt: new Date(),
+      verifyToken: null,
+    },
+  });
 
   if (!user.actif) {
     return NextResponse.redirect(`${origin}/connexion?error=disabled`);

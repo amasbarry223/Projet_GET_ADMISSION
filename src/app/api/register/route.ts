@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { registerSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { isStaff } from "@/lib/rbac";
 
 /**
- * POST /api/register — prépare l'inscription candidat OTP.
- * Ne crée pas encore le User Prisma (créé après verifyOtp).
- * Pas d'envoi Resend : le client envoie l'OTP via Supabase Auth.
+ * POST /api/register — crée le compte candidat (passwordHash).
+ * La vérification e-mail se fait ensuite via OTP / lien magique Supabase.
  */
 export async function POST(request: Request) {
   const rateLimited = checkRateLimit(getClientId(request), "/api/register");
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
-    const { prenom, nom, email, nationalite } = parsed.data;
+    const { prenom, nom, email, password, nationalite } = parsed.data;
     const emailNorm = email.toLowerCase().trim();
 
     const existing = await db.user.findUnique({ where: { email: emailNorm } });
@@ -32,21 +32,42 @@ export async function POST(request: Request) {
       }
       return NextResponse.json(
         {
-          error: "Un compte existe déjà avec cet e-mail. Connectez-vous avec un code OTP.",
+          error: "Un compte existe déjà avec cet e-mail. Connectez-vous.",
           code: "ALREADY_REGISTERED",
         },
         { status: 409 },
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      email: emailNorm,
-      prenom,
-      nom,
-      nationalite,
-      message: "Vous allez recevoir un code à 6 chiffres par e-mail.",
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = await db.user.create({
+      data: {
+        email: emailNorm,
+        passwordHash,
+        prenom: prenom.trim(),
+        nom: nom.trim(),
+        nationalite: nationalite || null,
+        role: "CANDIDAT",
+        actif: true,
+        emailVerified: null,
+        verifyToken: null,
+      },
+      select: { id: true, email: true, prenom: true, nom: true, role: true },
     });
+
+    return NextResponse.json(
+      {
+        success: true,
+        email: user.email,
+        prenom: user.prenom,
+        nom: user.nom,
+        nationalite,
+        user,
+        message: "Compte créé. Vérifiez votre e-mail pour l'activer.",
+      },
+      { status: 201 },
+    );
   } catch (error) {
     console.error("Register error:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

@@ -19,7 +19,7 @@ function supabaseAuthClient() {
 
 /**
  * POST /api/auth/verify-otp
- * Valide le access_token Supabase, upsert User Prisma CANDIDAT, renvoie bridgeToken NextAuth.
+ * Après OTP/lien d'inscription : active emailVerified sur le User Prisma existant.
  */
 export async function POST(request: Request) {
   const rateLimited = checkRateLimit(getClientId(request), "/api/auth/verify-otp");
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
 
-    const { accessToken, mode, prenom, nom, nationalite } = parsed.data;
+    const { accessToken } = parsed.data;
 
     const supabase = supabaseAuthClient();
     const { data: authData, error: authError } = await supabase.auth.getUser(accessToken);
@@ -52,27 +52,6 @@ export async function POST(request: Request) {
       );
     }
     const email = emailRaw.toLowerCase().trim();
-    const meta = (supabaseUser.user_metadata ?? {}) as Record<string, unknown>;
-
-    const resolvedPrenom =
-      (typeof prenom === "string" && prenom.trim()) ||
-      (typeof meta.prenom === "string" && meta.prenom) ||
-      "";
-    const resolvedNom =
-      (typeof nom === "string" && nom.trim()) ||
-      (typeof meta.nom === "string" && meta.nom) ||
-      "";
-    const resolvedNationalite =
-      (typeof nationalite === "string" && nationalite) ||
-      (typeof meta.nationalite === "string" && meta.nationalite) ||
-      null;
-
-    if (mode === "register" && (!resolvedPrenom || !resolvedNom)) {
-      return NextResponse.json(
-        { error: "Prénom et nom requis pour l'inscription" },
-        { status: 400 },
-      );
-    }
 
     let user = await db.user.findFirst({
       where: {
@@ -87,46 +66,29 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!user && mode === "login") {
+    if (!user) {
       return NextResponse.json(
         {
-          error: "Aucun compte candidat trouvé. Créez un compte d'abord.",
+          error: "Aucun compte trouvé. Inscrivez-vous d'abord.",
           code: "NOT_REGISTERED",
         },
         { status: 404 },
       );
     }
 
-    if (!user) {
-      user = await db.user.create({
-        data: {
-          email,
-          prenom: resolvedPrenom,
-          nom: resolvedNom,
-          nationalite: resolvedNationalite,
-          role: "CANDIDAT",
-          actif: true,
-          passwordHash: null,
-          supabaseUserId: supabaseUser.id,
-          emailVerified: new Date(),
-          verifyToken: null,
-          lastLoginAt: new Date(),
-        },
-      });
-    } else {
-      user = await db.user.update({
-        where: { id: user.id },
-        data: {
-          supabaseUserId: supabaseUser.id,
-          emailVerified: user.emailVerified ?? new Date(),
-          verifyToken: null,
-          lastLoginAt: new Date(),
-          ...(resolvedPrenom ? { prenom: resolvedPrenom } : {}),
-          ...(resolvedNom ? { nom: resolvedNom } : {}),
-          ...(resolvedNationalite ? { nationalite: resolvedNationalite } : {}),
-        },
-      });
+    if (user.role !== "CANDIDAT") {
+      return NextResponse.json({ error: "Compte invalide" }, { status: 403 });
     }
+
+    user = await db.user.update({
+      where: { id: user.id },
+      data: {
+        supabaseUserId: supabaseUser.id,
+        emailVerified: user.emailVerified ?? new Date(),
+        verifyToken: null,
+        lastLoginAt: new Date(),
+      },
+    });
 
     if (!user.actif) {
       return NextResponse.json({ error: "Compte désactivé" }, { status: 403 });
