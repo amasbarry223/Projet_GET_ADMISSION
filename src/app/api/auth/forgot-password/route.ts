@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   const user = await db.user.findUnique({ where: { email } });
 
   // Toujours répondre OK (anti-énumération)
-  if (!user || !user.actif) {
+  if (!user || !user.actif || !user.passwordHash) {
     return NextResponse.json({
       success: true,
       message: "Si un compte existe, un e-mail a été envoyé.",

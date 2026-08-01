@@ -19,6 +19,8 @@ const LIMITS: Record<string, Limit> = {
   "/api/auth/forgot-password": { limit: 3, windowMs: WINDOW_MS },       // 3 demandes reset/min
   "/api/auth/reset-password": { limit: 5, windowMs: WINDOW_MS },        // 5 resets/min
   "/api/auth/resend-verification": { limit: 3, windowMs: WINDOW_MS },   // 3 renvois vérif/min
+  "/api/auth/verify-otp": { limit: 10, windowMs: WINDOW_MS },          // 10 vérifs OTP/min
+  "/api/auth/request-otp-login": { limit: 5, windowMs: WINDOW_MS },    // 5 demandes OTP login/min
   "/api/verifier": { limit: 20, windowMs: WINDOW_MS },                  // anti brute-force codes
   "/api/register": { limit: 3, windowMs: WINDOW_MS },                    // 3 inscriptions/min
   "/api/messages": { limit: 30, windowMs: WINDOW_MS },                   // 30 messages/min

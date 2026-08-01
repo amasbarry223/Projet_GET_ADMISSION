@@ -23,7 +23,10 @@ enum Role {
 model User {
   id            String   @id @default(cuid())
   email         String   @unique
-  passwordHash  String
+  /// Null pour candidats auth OTP Supabase ; requis pour le staff (NextAuth credentials)
+  passwordHash  String?
+  /// UUID auth.users (Supabase Auth) — candidats OTP
+  supabaseUserId String? @unique
   prenom        String
   nom           String
   telephone     String?
@@ -40,7 +43,7 @@ model User {
   isDemo        Boolean  @default(false)
   emailVerified DateTime? // date de vérification de l'e-mail (BF-06)
   lastLoginAt   DateTime?
-  verifyToken   String?  // token de vérification e-mail
+  verifyToken   String?  // token de vérification e-mail (legacy Resend)
   resetToken    String?  // token reset MDP (BF-08)
   resetTokenExpires DateTime?
   role          Role     @default(CANDIDAT)

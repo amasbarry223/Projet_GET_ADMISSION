@@ -47,6 +47,16 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
   }
 
+  if (!user.passwordHash) {
+    return NextResponse.json(
+      {
+        error:
+          "Ce compte utilise la connexion par code OTP. Aucun mot de passe à modifier.",
+      },
+      { status: 400 },
+    );
+  }
+
   // Vérifier le mot de passe actuel
   const valid = await bcrypt.compare(currentPassword, user.passwordHash);
   if (!valid) {

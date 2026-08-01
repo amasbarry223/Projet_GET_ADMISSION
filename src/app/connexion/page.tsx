@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
 import { FieldError } from "@/components/ui/field-error";
 import { defaultAdminRoute, isStaff } from "@/lib/rbac";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type PortalTab = "etudiant" | "staff";
 
@@ -73,12 +74,10 @@ function ConnexionInner() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
-  const [unverifiedHint, setUnverifiedHint] = React.useState(false);
   const [suggestStudentPortal, setSuggestStudentPortal] = React.useState(false);
   const [fieldErrors, setFieldErrors] = React.useState<{ email?: string; password?: string }>({});
 
   const isStudent = portalTab === "etudiant";
-  const authPortal = isStudent ? "candidat" : "staff";
 
   const redirectAfterLogin = async (role: string | undefined) => {
     const allowedCallback = callbackForRole(role, callbackUrl);
@@ -99,7 +98,80 @@ function ConnexionInner() {
     router.push(defaultAdminRoute(role ?? "ADMIN"));
   };
 
-  const onSubmit = async (e: React.FormEvent) => {
+  const onSubmitStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const errs: { email?: string } = {};
+    if (!email.trim()) errs.email = "L'e-mail est requis.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      errs.email = "Indiquez une adresse e-mail valide.";
+    }
+    setFieldErrors(errs);
+    if (Object.keys(errs).length) {
+      toast.error("Champs requis", { description: "Corrigez les champs indiqués." });
+      return;
+    }
+
+    setLoading(true);
+    setSuggestStudentPortal(false);
+    const emailNorm = email.toLowerCase().trim();
+
+    try {
+      const prep = await fetch("/api/auth/request-otp-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailNorm }),
+      });
+      const prepData = await prep.json().catch(() => ({}));
+      const knownCandidat = typeof prepData.email === "string";
+
+      const supabase = createSupabaseBrowserClient();
+      let { error } = await supabase.auth.signInWithOtp({
+        email: emailNorm,
+        options: {
+          shouldCreateUser: false,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      // Compte Auth absent mais candidat Prisma connu (legacy) → créer puis renvoyer OTP
+      if (error && knownCandidat) {
+        const retry = await supabase.auth.signInWithOtp({
+          email: emailNorm,
+          options: {
+            shouldCreateUser: true,
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            data: {
+              prenom: prepData.prenom,
+              nom: prepData.nom,
+            },
+          },
+        });
+        error = retry.error;
+      }
+
+      if (error) {
+        toast.error("Envoi impossible", {
+          description: knownCandidat
+            ? error.message || "Réessayez dans une minute."
+            : "Aucun compte trouvé pour cet e-mail, ou délai d'attente. Créez un compte si besoin.",
+        });
+        setLoading(false);
+        return;
+      }
+
+      toast.success("Code envoyé", {
+        description: "Saisissez le code reçu par e-mail.",
+      });
+      const q = new URLSearchParams({ email: emailNorm, mode: "login" });
+      if (callbackUrl) q.set("callbackUrl", callbackUrl);
+      router.push(`/verification-otp?${q.toString()}`);
+    } catch {
+      toast.error("Erreur", { description: "Une erreur est survenue. Réessayez." });
+      setLoading(false);
+    }
+  };
+
+  const onSubmitStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs: { email?: string; password?: string } = {};
     if (!email.trim()) errs.email = "L'e-mail est requis.";
@@ -113,74 +185,33 @@ function ConnexionInner() {
       return;
     }
     setLoading(true);
-    setUnverifiedHint(false);
     setSuggestStudentPortal(false);
 
     const res = await signIn("credentials", {
       email,
       password,
-      portal: authPortal,
+      portal: "staff",
       redirect: false,
     });
 
     setLoading(false);
     if (res?.error) {
-      // NextAuth peut remonter EMAIL_NOT_VERIFIED comme message d'erreur
-      const errMsg = String(res.error);
-      if (isStudent && (errMsg.includes("EMAIL_NOT_VERIFIED") || errMsg === "EMAIL_NOT_VERIFIED")) {
-        setUnverifiedHint(true);
-        toast.error("E-mail non vérifié", {
-          description: "Validez votre adresse avant de vous connecter.",
-        });
-        return;
-      }
-      if (!isStudent) {
-        setSuggestStudentPortal(true);
-      }
+      setSuggestStudentPortal(true);
       toast.error("Connexion échouée", { description: "E-mail ou mot de passe incorrect." });
       return;
     }
     const sess = await fetch("/api/auth/session").then((r) => r.json());
     const role = sess?.user?.role as string | undefined;
 
-    // Filet client : rôle incompatible avec l’onglet → pas de session utile
-    const roleOk =
-      (isStudent && role === "CANDIDAT") || (!isStudent && isStaff(role));
-    if (!roleOk) {
+    if (!isStaff(role)) {
       await signOut({ redirect: false });
-      if (!isStudent) setSuggestStudentPortal(true);
+      setSuggestStudentPortal(true);
       toast.error("Connexion échouée", { description: "E-mail ou mot de passe incorrect." });
       return;
     }
 
     toast.success("Connexion réussie", { description: `Bienvenue, ${sess?.user?.name}.` });
     await redirectAfterLogin(role);
-  };
-
-  const resendVerification = async () => {
-    if (!email) {
-      toast.error("Indiquez votre e-mail");
-      return;
-    }
-    const r = await fetch("/api/auth/resend-verification", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) {
-      toast.error("Envoi impossible", { description: data.error || "Réessayez." });
-      return;
-    }
-    toast.success("E-mail renvoyé", {
-      description: data.verifyUrl
-        ? "Lien de vérification disponible (environnement de développement)."
-        : "Consultez votre boîte mail.",
-      action: data.verifyUrl
-        ? { label: "Vérifier", onClick: () => window.open(data.verifyUrl, "_blank") }
-        : undefined,
-      duration: 12000,
-    });
   };
 
   return (
@@ -193,8 +224,8 @@ function ConnexionInner() {
         value={portalTab}
         onValueChange={(v) => {
           setPortalTab(v as PortalTab);
-          setUnverifiedHint(false);
           setSuggestStudentPortal(false);
+          setFieldErrors({});
         }}
         className="w-full"
       >
@@ -222,18 +253,9 @@ function ConnexionInner() {
       </h1>
       <p className="mt-1.5 text-sm text-ardoise">
         {isStudent
-          ? "Connectez-vous pour suivre votre dossier d’admission."
+          ? "Recevez un code à 6 chiffres par e-mail pour vous connecter."
           : "Réservé aux conseillers, finance et administrateurs."}
       </p>
-
-      {unverifiedHint && isStudent && (
-        <div className="mt-4 rounded-md border border-ambre/40 bg-ambre/5 p-3 text-sm text-ardoise">
-          Votre e-mail n&apos;est pas encore vérifié.{" "}
-          <button type="button" className="font-medium text-lapis underline" onClick={resendVerification}>
-            Renvoyer le lien
-          </button>
-        </div>
-      )}
 
       {suggestStudentPortal && !isStudent && (
         <div className="mt-4 rounded-md border border-ligne bg-porcelaine p-3 text-sm text-ardoise">
@@ -244,7 +266,6 @@ function ConnexionInner() {
             onClick={() => {
               setPortalTab("etudiant");
               setSuggestStudentPortal(false);
-              setUnverifiedHint(false);
             }}
           >
             Accéder à l&apos;espace étudiant
@@ -252,79 +273,121 @@ function ConnexionInner() {
         </div>
       )}
 
-      <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
-        <div className="space-y-1.5">
-          <Label htmlFor="email" className="text-sm font-medium text-encre">
-            E-mail
-          </Label>
-          <div className="relative">
-            <Mail
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise"
-              strokeWidth={1.5}
-            />
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setFieldErrors((prev) => ({ ...prev, email: undefined }));
-              }}
-              className="pl-9"
-              placeholder={isStudent ? "vous@exemple.com" : "prenom.nom@getadm.com"}
-              autoComplete="email"
-              aria-invalid={!!fieldErrors.email}
-              aria-describedby={fieldErrors.email ? "err-login-email" : undefined}
-            />
-          </div>
-          <FieldError id="err-login-email" message={fieldErrors.email} />
-        </div>
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="password" className="text-sm font-medium text-encre">
-              Mot de passe
+      {isStudent ? (
+        <form onSubmit={onSubmitStudent} className="mt-6 space-y-4" noValidate>
+          <div className="space-y-1.5">
+            <Label htmlFor="email" className="text-sm font-medium text-encre">
+              E-mail
             </Label>
-            <Link
-              href="/mot-de-passe-oublie"
-              className="text-xs font-medium text-lapis-clair hover:underline"
-            >
-              Mot de passe oublié ?
-            </Link>
+            <div className="relative">
+              <Mail
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise"
+                strokeWidth={1.5}
+              />
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                }}
+                className="pl-9"
+                placeholder="vous@exemple.com"
+                autoComplete="email"
+                aria-invalid={!!fieldErrors.email}
+                aria-describedby={fieldErrors.email ? "err-login-email" : undefined}
+              />
+            </div>
+            <FieldError id="err-login-email" message={fieldErrors.email} />
           </div>
-          <div className="relative">
-            <Lock
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise"
-              strokeWidth={1.5}
-            />
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                setFieldErrors((prev) => ({ ...prev, password: undefined }));
-              }}
-              className="pl-9"
-              placeholder="••••••••"
-              autoComplete="current-password"
-              aria-invalid={!!fieldErrors.password}
-              aria-describedby={fieldErrors.password ? "err-login-password" : undefined}
-            />
+          <Button type="submit" className="w-full bg-lapis text-blanc hover:bg-lapis/90" disabled={loading}>
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Envoi du code…
+              </>
+            ) : (
+              <>
+                Recevoir mon code <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} />
+              </>
+            )}
+          </Button>
+        </form>
+      ) : (
+        <form onSubmit={onSubmitStaff} className="mt-6 space-y-4" noValidate>
+          <div className="space-y-1.5">
+            <Label htmlFor="email-staff" className="text-sm font-medium text-encre">
+              E-mail
+            </Label>
+            <div className="relative">
+              <Mail
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise"
+                strokeWidth={1.5}
+              />
+              <Input
+                id="email-staff"
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                }}
+                className="pl-9"
+                placeholder="prenom.nom@getadm.com"
+                autoComplete="email"
+                aria-invalid={!!fieldErrors.email}
+                aria-describedby={fieldErrors.email ? "err-login-email" : undefined}
+              />
+            </div>
+            <FieldError id="err-login-email" message={fieldErrors.email} />
           </div>
-          <FieldError id="err-login-password" message={fieldErrors.password} />
-        </div>
-        <Button type="submit" className="w-full bg-lapis text-blanc hover:bg-lapis/90" disabled={loading}>
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Connexion…
-            </>
-          ) : (
-            <>
-              Se connecter <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} />
-            </>
-          )}
-        </Button>
-      </form>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password" className="text-sm font-medium text-encre">
+                Mot de passe
+              </Label>
+              <Link
+                href="/mot-de-passe-oublie"
+                className="text-xs font-medium text-lapis-clair hover:underline"
+              >
+                Mot de passe oublié ?
+              </Link>
+            </div>
+            <div className="relative">
+              <Lock
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise"
+                strokeWidth={1.5}
+              />
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                }}
+                className="pl-9"
+                placeholder="••••••••"
+                autoComplete="current-password"
+                aria-invalid={!!fieldErrors.password}
+                aria-describedby={fieldErrors.password ? "err-login-password" : undefined}
+              />
+            </div>
+            <FieldError id="err-login-password" message={fieldErrors.password} />
+          </div>
+          <Button type="submit" className="w-full bg-lapis text-blanc hover:bg-lapis/90" disabled={loading}>
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Connexion…
+              </>
+            ) : (
+              <>
+                Se connecter <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} />
+              </>
+            )}
+          </Button>
+        </form>
+      )}
 
       {isStudent ? (
         <p className="mt-6 text-center text-sm text-ardoise">

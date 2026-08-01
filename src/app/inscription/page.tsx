@@ -9,10 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { User, Mail, Lock, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
+import { User, Mail, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/components/brand-logo";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function InscriptionPage() {
   return (
@@ -31,7 +32,13 @@ function InscriptionInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = safeCallback(searchParams.get("callbackUrl"));
-  const [form, setForm] = React.useState({ prenom: "", nom: "", email: "", password: "", confirm: "", nationalite: "", consent: false });
+  const [form, setForm] = React.useState({
+    prenom: "",
+    nom: "",
+    email: "",
+    nationalite: "",
+    consent: false,
+  });
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [loading, setLoading] = React.useState(false);
   const [nationalites, setNationalites] = React.useState<string[]>([]);
@@ -62,9 +69,6 @@ function InscriptionInner() {
     if (!form.nom.trim()) e.nom = "Veuillez renseigner votre nom.";
     if (!form.email.trim()) e.email = "Veuillez renseigner votre e-mail.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = "L'e-mail saisi n'est pas valide.";
-    if (!form.password) e.password = "Veuillez choisir un mot de passe.";
-    else if (form.password.length < 8) e.password = "Le mot de passe doit contenir au moins 8 caractères.";
-    if (form.confirm !== form.password) e.confirm = "Les mots de passe ne correspondent pas.";
     if (!form.nationalite) e.nationalite = "Sélectionnez votre nationalité.";
     if (!form.consent) e.consent = "Vous devez accepter les conditions d'agence.";
     setErrors(e);
@@ -86,37 +90,63 @@ function InscriptionInner() {
           prenom: form.prenom,
           nom: form.nom,
           email: form.email,
-          password: form.password,
           nationalite: form.nationalite,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error("Inscription échouée", { description: data.error || "Erreur lors de la création du compte." });
+        if (data.code === "ALREADY_REGISTERED") {
+          toast.error("Compte existant", {
+            description: data.error,
+            action: {
+              label: "Se connecter",
+              onClick: () => router.push("/connexion"),
+            },
+          });
+        } else {
+          toast.error("Inscription échouée", {
+            description: data.error || "Erreur lors de la création du compte.",
+          });
+        }
         setLoading(false);
         return;
       }
-      // BF-06 : Vérification de l'e-mail requise
-      const emailSent = data.emailSent !== false;
-      const q = new URLSearchParams({
-        status: "pending",
-        email: form.email,
-        message: emailSent
-          ? "Un e-mail de vérification vient d'être envoyé. Consultez votre boîte mail pour activer votre compte."
-          : (data.message as string) ||
-            "Compte créé, mais l'e-mail n'a pas pu être envoyé. Cliquez sur « Renvoyer l'e-mail » ou contactez le support.",
+
+      const supabase = createSupabaseBrowserClient();
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email: form.email.toLowerCase().trim(),
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            prenom: form.prenom.trim(),
+            nom: form.nom.trim(),
+            nationalite: form.nationalite,
+          },
+        },
       });
-      if (!emailSent) q.set("emailFailed", "1");
-      if (data.verifyUrl) q.set("verifyUrl", data.verifyUrl);
-      if (callbackUrl) q.set("callbackUrl", callbackUrl);
-      if (!emailSent) {
-        toast.error("E-mail non envoyé", {
-          description: data.mailError || "Utilisez le bouton « Renvoyer l'e-mail » sur la page suivante.",
+
+      if (otpError) {
+        toast.error("Envoi du code impossible", {
+          description: otpError.message || "Réessayez dans une minute.",
         });
-      } else {
-        toast.success("Compte créé", { description: "Vérifiez votre boîte mail." });
+        setLoading(false);
+        return;
       }
-      router.push(`/verification-email?${q.toString()}`);
+
+      toast.success("Code envoyé", {
+        description: "Saisissez le code à 6 chiffres reçu par e-mail.",
+      });
+
+      const q = new URLSearchParams({
+        email: form.email.toLowerCase().trim(),
+        mode: "register",
+        prenom: form.prenom.trim(),
+        nom: form.nom.trim(),
+        nationalite: form.nationalite,
+      });
+      if (callbackUrl) q.set("callbackUrl", callbackUrl);
+      router.push(`/verification-otp?${q.toString()}`);
       return;
     } catch {
       toast.error("Erreur", { description: "Une erreur est survenue. Réessayez." });
@@ -126,7 +156,6 @@ function InscriptionInner() {
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      {/* Left: editorial */}
       <div className="relative hidden flex-col justify-between bg-porcelaine p-10 lg:flex">
         <div className="rule-or absolute inset-x-0 top-0" aria-hidden />
         <Link href="/" className="inline-flex">
@@ -139,7 +168,7 @@ function InscriptionInner() {
             Créez votre compte<br />en quelques minutes.
           </h1>
           <p className="mt-4 text-ardoise">
-            Ouvrez votre espace candidat. Ensuite, choisissez votre université et composez votre dossier.
+            Un code à 6 chiffres sera envoyé à votre e-mail pour confirmer votre inscription — sans mot de passe.
           </p>
 
           <ul className="mt-6 space-y-2.5">
@@ -154,7 +183,7 @@ function InscriptionInner() {
           <div className="mt-8 rounded-md border border-ligne bg-blanc p-4">
             <p className="font-mono text-[10px] uppercase tracking-eyebrow text-lapis">Déjà un compte ?</p>
             <p className="mt-1 text-sm text-encre">
-              Connectez-vous pour reprendre votre parcours ou composer votre dossier.
+              Connectez-vous avec un code OTP pour reprendre votre parcours.
             </p>
             <Button asChild variant="outline" size="sm" className="mt-3">
               <Link href={callbackUrl ? `/connexion?callbackUrl=${encodeURIComponent(callbackUrl)}` : "/connexion"}>
@@ -167,7 +196,6 @@ function InscriptionInner() {
         <p className="font-mono text-[11px] uppercase tracking-eyebrow text-ardoise">Confidentiel — GET Admission</p>
       </div>
 
-      {/* Right: form */}
       <div className="flex items-center justify-center bg-blanc p-6 sm:p-10">
         <div className="w-full max-w-sm">
           <div className="lg:hidden mb-8 flex items-center">
@@ -176,7 +204,9 @@ function InscriptionInner() {
 
           <p className="eyebrow mb-2">Inscription</p>
           <h2 className="font-display text-2xl font-bold text-encre">Créer mon compte.</h2>
-          <p className="mt-1.5 text-sm text-ardoise">Quelques informations pour ouvrir votre espace candidat.</p>
+          <p className="mt-1.5 text-sm text-ardoise">
+            Quelques informations, puis un code reçu par e-mail.
+          </p>
 
           <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
             <div className="grid grid-cols-2 gap-3">
@@ -217,25 +247,6 @@ function InscriptionInner() {
               {errors.nationalite && <p className="text-xs text-carmin">{errors.nationalite}</p>}
             </div>
 
-            <div className="grid grid-cols-1 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="password" className="text-sm font-medium text-encre">Mot de passe</Label>
-                <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise" strokeWidth={1.5} />
-                  <Input id="password" type="password" value={form.password} onChange={(e) => set("password", e.target.value)} className={cn("pl-9", errors.password && "border-carmin")} placeholder="Minimum 8 caractères" aria-invalid={!!errors.password} />
-                </div>
-                {errors.password && <p className="text-xs text-carmin">{errors.password}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="confirm" className="text-sm font-medium text-encre">Confirmer le mot de passe</Label>
-                <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise" strokeWidth={1.5} />
-                  <Input id="confirm" type="password" value={form.confirm} onChange={(e) => set("confirm", e.target.value)} className={cn("pl-9", errors.confirm && "border-carmin")} placeholder="••••••••" aria-invalid={!!errors.confirm} />
-                </div>
-                {errors.confirm && <p className="text-xs text-carmin">{errors.confirm}</p>}
-              </div>
-            </div>
-
             <div className="space-y-1.5">
               <label htmlFor="consent" className="flex items-start gap-2.5 cursor-pointer">
                 <Checkbox id="consent" checked={form.consent} onCheckedChange={(v) => set("consent", !!v)} className="mt-0.5" />
@@ -255,7 +266,7 @@ function InscriptionInner() {
             </div>
 
             <Button type="submit" className="w-full bg-lapis text-blanc hover:bg-lapis/90" disabled={loading}>
-              {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Création…</> : <>Créer mon compte <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} /></>}
+              {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Envoi du code…</> : <>Recevoir mon code <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} /></>}
             </Button>
           </form>
 

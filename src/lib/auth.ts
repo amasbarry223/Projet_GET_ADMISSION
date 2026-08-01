@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import type { Role } from "@prisma/client";
 import { isStaff } from "@/lib/rbac";
 import { isRateLimited } from "@/lib/rate-limit";
+import { verifyOtpBridgeToken } from "@/lib/otp-bridge";
 
 // Type étendu pour l'utilisateur retourné par authorize()
 type AuthUser = {
@@ -36,6 +37,25 @@ const callbackCookieName = isProd
 const csrfCookieName = isProd
   ? "__Host-next-auth.csrf-token"
   : "next-auth.csrf-token";
+
+function toAuthUser(user: {
+  id: string;
+  email: string;
+  prenom: string;
+  nom: string;
+  role: Role;
+  photoUrl: string | null;
+}): AuthUser {
+  return {
+    id: user.id,
+    email: user.email,
+    name: `${user.prenom} ${user.nom}`,
+    role: user.role,
+    prenom: user.prenom,
+    nom: user.nom,
+    image: user.photoUrl,
+  };
+}
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -81,14 +101,35 @@ export const authOptions: NextAuthOptions = {
         email: { label: "E-mail", type: "email" },
         password: { label: "Mot de passe", type: "password" },
         portal: { label: "Portail", type: "text" },
+        bridgeToken: { label: "OTP Bridge", type: "text" },
       },
       async authorize(credentials): Promise<AuthUser | null> {
+        // --- Bridge OTP Supabase → session NextAuth (candidats) ---
+        if (credentials?.bridgeToken) {
+          const userId = verifyOtpBridgeToken(credentials.bridgeToken);
+          if (!userId) return null;
+
+          const user = await db.user.findUnique({ where: { id: userId } });
+          if (!user || !user.actif || user.role !== "CANDIDAT") return null;
+
+          void db.user
+            .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+            .catch(() => undefined);
+
+          return toAuthUser(user);
+        }
+
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
 
         const portal = parsePortal(credentials.portal);
         if (!portal) {
+          return null;
+        }
+
+        // Les candidats se connectent uniquement par OTP
+        if (portal === "candidat") {
           return null;
         }
 
@@ -106,7 +147,7 @@ export const authOptions: NextAuthOptions = {
           where: { email },
         });
 
-        if (!user || !user.actif) {
+        if (!user || !user.actif || !user.passwordHash) {
           return null;
         }
 
@@ -115,40 +156,15 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        // Intention portail : refus silencieux si rôle incompatible (pas d’énumération)
-        if (portal === "candidat" && user.role !== "CANDIDAT") {
-          return null;
-        }
-        if (portal === "staff" && !isStaff(user.role)) {
+        if (!isStaff(user.role)) {
           return null;
         }
 
-        // BF-06 : exiger la vérification e-mail (défaut ON si paramètre absent / erreur)
-        let exigerVerif = true;
-        try {
-          const params = await db.parametre.findUnique({ where: { id: 1 } });
-          if (params) exigerVerif = params.exigerEmailVerifie;
-        } catch {
-          exigerVerif = process.env.NODE_ENV === "production";
-        }
-        if (exigerVerif && user.role === "CANDIDAT" && !user.emailVerified) {
-          throw new Error("EMAIL_NOT_VERIFIED");
-        }
-
-        // Trace dernière connexion (best-effort)
         void db.user
           .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
           .catch(() => undefined);
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: `${user.prenom} ${user.nom}`,
-          role: user.role,
-          prenom: user.prenom,
-          nom: user.nom,
-          image: user.photoUrl,
-        };
+        return toAuthUser(user);
       },
     }),
   ],
@@ -173,7 +189,10 @@ export const authOptions: NextAuthOptions = {
           select: { role: true, actif: true, prenom: true, nom: true, photoUrl: true },
         });
         if (!dbUser || !dbUser.actif) {
-          return { ...token, role: undefined, error: "inactive", lastValidated: Date.now() };
+          token.error = "inactive";
+          token.lastValidated = Date.now();
+          delete (token as { role?: unknown }).role;
+          return token;
         }
         token.role = dbUser.role;
         token.prenom = dbUser.prenom;
@@ -201,5 +220,3 @@ export const authOptions: NextAuthOptions = {
     },
   },
 };
-
-export { authOptions };
