@@ -100,6 +100,12 @@ async function authorizeViaPasswordCredentials(params: {
   if (params.portal === "candidat" && user.role !== "CANDIDAT") return null;
   if (params.portal === "staff" && !isStaff(user.role)) return null;
 
+  // BF-06 : bloquer la connexion si e-mail non vérifié (paramètre agence)
+  if (user.role === "CANDIDAT" && !user.emailVerified) {
+    const parametres = await db.parametre.findUnique({ where: { id: 1 } });
+    if (parametres?.exigerEmailVerifie) return null;
+  }
+
   markLastLogin(user.id);
   return toAuthUser(user);
 }

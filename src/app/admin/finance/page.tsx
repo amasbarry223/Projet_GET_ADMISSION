@@ -12,12 +12,16 @@ export default async function AdminFinancePage() {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  // Transactions + finance KPIs computed in parallel (single round-trip batch).
   const [transactions, encaisseMoisAgg, enAttenteAgg, impayesAgg, totalEncaisseAgg] = await Promise.all([
     db.paiement.findMany({
       include: {
         candidat: { select: { prenom: true, nom: true } },
-        dossier: { select: { reference: true } },
+        dossier: {
+          select: {
+            reference: true,
+            universite: { select: { typeEtablissement: true } },
+          },
+        },
       },
       orderBy: { date: "desc" },
     }),
@@ -34,6 +38,14 @@ export default async function AdminFinancePage() {
     return "en_attente";
   };
 
+  let encaissePublic = 0;
+  let encaissePrive = 0;
+  for (const t of transactions) {
+    if (t.statut !== "reussi") continue;
+    if (t.dossier.universite.typeEtablissement === "PUBLIC") encaissePublic += t.montant;
+    else encaissePrive += t.montant;
+  }
+
   const rows: TransactionRow[] = transactions.map((t) => ({
     id: t.id,
     reference: t.reference,
@@ -44,6 +56,7 @@ export default async function AdminFinancePage() {
     moyen: t.moyen + (t.tranche ? ` · ${t.tranche}` : ""),
     montant: t.montant,
     statut: normalizeStatut(t.statut),
+    typeEtablissement: t.dossier.universite.typeEtablissement as "PUBLIC" | "PRIVE",
   }));
 
   const kpis: FinanceKpis = {
@@ -51,6 +64,8 @@ export default async function AdminFinancePage() {
     enAttente: enAttenteAgg._sum.montant ?? 0,
     impayes: impayesAgg._sum.montant ?? 0,
     totalEncaisse: totalEncaisseAgg._sum.montant ?? 0,
+    encaissePublic,
+    encaissePrive,
   };
 
   return <FinanceClient initialTransactions={rows} initialKpis={kpis} />;

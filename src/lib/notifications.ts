@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import { etatParCode } from "@/lib/etats";
+import { broadcastDossierLive } from "@/lib/dossier/live-broadcast";
 
 type CreateNotifInput = {
   userId: string;
@@ -39,13 +41,24 @@ export async function notifyDossierTransition(opts: {
   nouvelEtat: string;
   note?: string;
 }) {
-  const libelle = opts.nouvelEtat.replace(/_/g, " ").toLowerCase();
-  return createNotification({
+  const info = etatParCode(opts.nouvelEtat);
+  const notif = await createNotification({
     userId: opts.candidatId,
-    titre: `Dossier ${opts.reference}`,
-    message: opts.note || `Votre dossier est passé à l'état « ${libelle} ».`,
+    titre: `Dossier ${opts.reference} — ${info.libelle}`,
+    message:
+      opts.note ||
+      `Étape ${info.ordre}/12 : ${info.description}`,
     type: "workflow",
     lien: "/espace",
     dossierId: opts.dossierId,
   });
+
+  // Wake-up temps réel (Broadcast Supabase) — non bloquant
+  void broadcastDossierLive({
+    dossierId: opts.dossierId,
+    candidatId: opts.candidatId,
+    etat: opts.nouvelEtat,
+  });
+
+  return notif;
 }

@@ -39,8 +39,15 @@ function VerifierForm() {
 
   React.useEffect(() => {
     const initial = params.get("code");
-    if (initial) verify(initial);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!initial) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void verify(initial);
+    });
+    return () => {
+      cancelled = true;
+    };
+     
   }, []);
 
   return (

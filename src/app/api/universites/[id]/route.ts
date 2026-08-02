@@ -6,7 +6,7 @@ import { universiteSchema, validate } from "@/lib/validations";
 import { uniqueSlug } from "@/lib/utils";
 import { logAudit } from "@/lib/audit";
 import { requirePermission } from "@/lib/rbac";
-import { resolveFraisAgence, resolveFraisRange } from "@/lib/dossier/frais-agence";
+import { resolveFraisAgence, resolveFraisRange, getFraisAgenceConfig } from "@/lib/dossier/frais-agence-server";
 
 // GET /api/universites/[id] — détail par ID (staff) — alias de la route /by-slug
 export async function GET(
@@ -25,15 +25,17 @@ export async function GET(
     return NextResponse.json({ error: "Université non trouvée" }, { status: 404 });
   }
 
+  const fraisConfig = await getFraisAgenceConfig();
+  const frais = resolveFraisAgence(universite.typeEtablissement, fraisConfig);
   const result = {
     ...universite,
     domaines: JSON.parse(universite.domaines),
     pointsForts: JSON.parse(universite.pointsForts),
-    fraisMin: resolveFraisAgence(universite.typeEtablissement),
-    fraisMax: resolveFraisAgence(universite.typeEtablissement),
+    fraisMin: frais,
+    fraisMax: frais,
     formations: universite.formations.map((f) => ({
       ...f,
-      fraisAgence: resolveFraisAgence(universite.typeEtablissement),
+      fraisAgence: frais,
       prerequis: JSON.parse(f.prerequis),
       piecesRequises: JSON.parse(f.piecesRequises),
     })),
@@ -110,8 +112,9 @@ export async function PUT(
       : undefined;
 
   const type = typeEtablissement ?? existing.typeEtablissement ?? "PRIVE";
-  const range = resolveFraisRange(type);
-  const fraisFormation = resolveFraisAgence(type);
+  const fraisConfig = await getFraisAgenceConfig();
+  const range = resolveFraisRange(type, fraisConfig);
+  const fraisFormation = resolveFraisAgence(type, fraisConfig);
 
   const updated = await db.$transaction(async (tx) => {
     const univ = await tx.universite.update({

@@ -6,6 +6,7 @@ import { paiementSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { logAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notifications";
+import { broadcastDossierLive } from "@/lib/dossier/live-broadcast";
 import { sendMail } from "@/lib/mail";
 import { hasPermission, requirePermission } from "@/lib/rbac";
 import { randomBytes } from "node:crypto";
@@ -69,6 +70,12 @@ async function applyPaiementReussi(opts: {
     dossierId: dossier.id,
   });
 
+  void broadcastDossierLive({
+    dossierId: dossier.id,
+    candidatId: dossier.candidatId,
+    etat: updateData.etat ?? dossier.etat,
+  });
+
   if (dossier.candidat.email) {
     await sendMail({
       to: dossier.candidat.email,
@@ -117,42 +124,18 @@ export async function POST(request: Request) {
     if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
+  // Candidat : uniquement phase paiement (pas après transmission)
   if (role === "CANDIDAT") {
     const etatOk =
-      dossier.etat === "PAIEMENT_ATTENTE" || dossier.paiementStatut === "partiel";
+      dossier.etat === "PAIEMENT_ATTENTE" || dossier.etat === "PAIEMENT_CONFIRME";
     if (!etatOk) {
       return NextResponse.json(
         { error: "Dossier non encore en phase paiement" },
         { status: 403 }
       );
     }
-
-    const [totalConfirme, totalPending] = await Promise.all([
-      db.paiement.aggregate({
-        where: { dossierId: dossier.id, statut: "reussi" },
-        _sum: { montant: true },
-      }),
-      db.paiement.aggregate({
-        where: { dossierId: dossier.id, statut: "en_attente" },
-        _sum: { montant: true },
-      }),
-    ]);
-    const engage = (totalConfirme._sum.montant ?? 0) + (totalPending._sum.montant ?? 0);
-    const reste = Math.max(0, dossier.fraisAgence - engage);
     if (montant <= 0) {
       return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
-    }
-    if (reste <= 0) {
-      return NextResponse.json(
-        { error: "Aucun reste dû (paiements confirmés ou déjà en attente)" },
-        { status: 400 }
-      );
-    }
-    if (montant > reste) {
-      return NextResponse.json(
-        { error: `Montant supérieur au reste dû (${reste} FCFA)` },
-        { status: 400 }
-      );
     }
   }
 
@@ -169,17 +152,74 @@ export async function POST(request: Request) {
 
   const ref = `REC-${new Date().getFullYear()}-${randomBytes(3).toString("hex").toUpperCase()}`;
 
-  const paiement = await db.paiement.create({
-    data: {
-      reference: ref,
-      dossierId,
-      candidatId: dossier.candidatId,
-      montant,
-      moyen,
-      statut,
-      tranche: tranche || "Solde",
-    },
-  });
+  let paiement;
+  try {
+    paiement = await db.$transaction(async (tx) => {
+      const locked = await tx.dossier.findUnique({
+        where: { id: dossierId },
+        select: { id: true, etat: true, fraisAgence: true, candidatId: true },
+      });
+      if (!locked) throw new Error("DOSSIER_NOT_FOUND");
+
+      if (role === "CANDIDAT") {
+        if (locked.etat !== "PAIEMENT_ATTENTE" && locked.etat !== "PAIEMENT_CONFIRME") {
+          throw new Error("NOT_PAYABLE");
+        }
+        const [totalConfirme, totalPending] = await Promise.all([
+          tx.paiement.aggregate({
+            where: { dossierId: locked.id, statut: "reussi" },
+            _sum: { montant: true },
+          }),
+          tx.paiement.aggregate({
+            where: { dossierId: locked.id, statut: "en_attente" },
+            _sum: { montant: true },
+          }),
+        ]);
+        const engage =
+          (totalConfirme._sum.montant ?? 0) + (totalPending._sum.montant ?? 0);
+        const reste = Math.max(0, locked.fraisAgence - engage);
+        if (reste <= 0) throw new Error("NO_RESTE");
+        if (montant > reste) throw new Error(`RESTE:${reste}`);
+      }
+
+      return tx.paiement.create({
+        data: {
+          reference: ref,
+          dossierId,
+          candidatId: locked.candidatId,
+          montant,
+          moyen,
+          statut,
+          tranche: tranche || "Solde",
+        },
+      });
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg === "DOSSIER_NOT_FOUND") {
+      return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
+    }
+    if (msg === "NOT_PAYABLE") {
+      return NextResponse.json(
+        { error: "Dossier non encore en phase paiement" },
+        { status: 403 }
+      );
+    }
+    if (msg === "NO_RESTE") {
+      return NextResponse.json(
+        { error: "Aucun reste dû (paiements confirmés ou déjà en attente)" },
+        { status: 400 }
+      );
+    }
+    if (msg.startsWith("RESTE:")) {
+      const reste = msg.slice(6);
+      return NextResponse.json(
+        { error: `Montant supérieur au reste dû (${reste} FCFA)` },
+        { status: 400 }
+      );
+    }
+    throw e;
+  }
 
   await logAudit({
     session,
@@ -267,6 +307,51 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ success: true, paiement: existing, idempotent: true });
   }
 
+  // Transitions transaction autorisées
+  const from = existing.statut;
+  const allowed: Record<string, string[]> = {
+    en_attente: ["reussi", "echoue", "en_attente"],
+    reussi: ["rembourse"],
+    echoue: ["en_attente", "reussi"],
+    rembourse: [],
+  };
+  if (!(allowed[from] ?? []).includes(statut)) {
+    return NextResponse.json(
+      { error: `Transition paiement interdite : ${from} → ${statut}` },
+      { status: 400 }
+    );
+  }
+
+  const dossierBefore = await db.dossier.findUnique({
+    where: { id: existing.dossierId },
+    include: { candidat: { select: { email: true, prenom: true } } },
+  });
+  if (!dossierBefore) {
+    return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
+  }
+
+  // Après transmission : interdire rembourse/échec (désync métier)
+  const postTransmission = [
+    "TRANSMIS",
+    "ATTENTE_REPONSE",
+    "PRE_ADMISSION",
+    "ATTESTATION",
+    "CLOTURE",
+    "REFUSE",
+  ];
+  if (
+    (statut === "rembourse" || statut === "echoue") &&
+    postTransmission.includes(dossierBefore.etat)
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "Impossible de rembourser ou rejeter un paiement : le dossier a déjà été transmis ou clôturé. Annulez d'abord l'avancement workflow.",
+      },
+      { status: 400 }
+    );
+  }
+
   const paiement = await db.paiement.update({
     where: { id },
     data: { statut },
@@ -276,56 +361,68 @@ export async function PATCH(request: Request) {
   const auteurLabel = `${(session.user as { prenom: string }).prenom} ${(session.user as { nom: string }).nom}`;
 
   if (statut === "reussi") {
-    const dossier = await db.dossier.findUnique({
-      where: { id: paiement.dossierId },
-      include: { candidat: { select: { email: true, prenom: true } } },
+    await applyPaiementReussi({
+      paiement,
+      dossier: dossierBefore,
+      userId,
+      auteurLabel,
     });
-    if (dossier) {
-      await applyPaiementReussi({
-        paiement,
-        dossier,
-        userId,
-        auteurLabel,
-      });
-    }
   } else if (statut === "rembourse" || statut === "echoue") {
-    const dossier = await db.dossier.findUnique({ where: { id: paiement.dossierId } });
-    if (dossier) {
-      const totalPaye = await db.paiement.aggregate({
-        where: { dossierId: dossier.id, statut: "reussi" },
-        _sum: { montant: true },
-      });
-      const paye = totalPaye._sum.montant ?? 0;
-      const paiementStatut = paye >= dossier.fraisAgence ? "complet" : paye > 0 ? "partiel" : "aucun";
-      await db.dossier.update({
-        where: { id: dossier.id },
+    const totalPaye = await db.paiement.aggregate({
+      where: { dossierId: dossierBefore.id, statut: "reussi" },
+      _sum: { montant: true },
+    });
+    const paye = totalPaye._sum.montant ?? 0;
+    const paiementStatut =
+      paye >= dossierBefore.fraisAgence ? "complet" : paye > 0 ? "partiel" : "aucun";
+    const shouldRollback =
+      paiementStatut !== "complet" &&
+      (dossierBefore.etat === "PAIEMENT_CONFIRME" ||
+        dossierBefore.etat === "PAIEMENT_ATTENTE");
+
+    await db.dossier.update({
+      where: { id: dossierBefore.id },
+      data: {
+        paiementStatut,
+        ...(shouldRollback
+          ? {
+              etat: "PAIEMENT_ATTENTE" as const,
+              etapeActuelle: ETAPE_PAR_ETAT.PAIEMENT_ATTENTE,
+            }
+          : {}),
+      },
+    });
+
+    if (shouldRollback && dossierBefore.etat === "PAIEMENT_CONFIRME") {
+      await db.historique.create({
         data: {
-          paiementStatut,
-          // Rétrograde si le solde n'est plus complet après remboursement
-          ...(dossier.etat === "PAIEMENT_CONFIRME" && paiementStatut !== "complet"
-            ? { etat: "PAIEMENT_ATTENTE", etapeActuelle: 5 }
-            : {}),
+          dossierId: dossierBefore.id,
+          etat: "PAIEMENT_ATTENTE",
+          auteur: auteurLabel,
+          auteurId: userId,
+          note: `Solde insuffisant après ${statut} — retour en attente de paiement.`,
         },
       });
-      if (statut === "rembourse") {
-        await createNotification({
-          userId: dossier.candidatId,
-          titre: "Remboursement effectué",
-          message: `Le paiement ${paiement.reference} a été remboursé.`,
-          type: "paiement",
-          lien: "/espace/paiement",
-          dossierId: dossier.id,
-        });
-      } else {
-        await createNotification({
-          userId: dossier.candidatId,
-          titre: "Paiement rejeté",
-          message: `Le paiement ${paiement.reference} a été rejeté. Veuillez réessayer ou contacter l'agence.`,
-          type: "alerte",
-          lien: "/espace/paiement",
-          dossierId: dossier.id,
-        });
-      }
+    }
+
+    if (statut === "rembourse") {
+      await createNotification({
+        userId: dossierBefore.candidatId,
+        titre: "Remboursement effectué",
+        message: `Le paiement ${paiement.reference} a été remboursé.`,
+        type: "paiement",
+        lien: "/espace/paiement",
+        dossierId: dossierBefore.id,
+      });
+    } else {
+      await createNotification({
+        userId: dossierBefore.candidatId,
+        titre: "Paiement rejeté",
+        message: `Le paiement ${paiement.reference} a été rejeté. Veuillez réessayer ou contacter l'agence.`,
+        type: "alerte",
+        lien: "/espace/paiement",
+        dossierId: dossierBefore.id,
+      });
     }
   }
 

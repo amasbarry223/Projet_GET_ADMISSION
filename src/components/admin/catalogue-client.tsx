@@ -124,7 +124,7 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
         },
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleDelete stable enough via refresh
+     
     [router],
   );
 

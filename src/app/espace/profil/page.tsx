@@ -82,7 +82,13 @@ export default function ProfilPage() {
   }, []);
 
   React.useEffect(() => {
-    loadProfile();
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) loadProfile();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [loadProfile]);
 
   const setField = <K extends keyof Profile>(key: K, value: Profile[K]) => {

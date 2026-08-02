@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { resolveFraisAgence } from "@/lib/dossier/frais-agence";
+import { getFraisAgenceConfig, resolveFraisAgence } from "@/lib/dossier/frais-agence-server";
 import {
   CatalogueClient,
   type CatalogueUniversite,
@@ -9,13 +9,16 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function CatalogueUniversitesPage() {
-  const rows = await db.universite.findMany({
-    include: { formations: true },
-    orderBy: { nom: "asc" },
-  });
+  const [rows, fraisConfig] = await Promise.all([
+    db.universite.findMany({
+      include: { formations: true },
+      orderBy: { nom: "asc" },
+    }),
+    getFraisAgenceConfig(),
+  ]);
 
   const universites: CatalogueUniversite[] = rows.map((u) => {
-    const frais = resolveFraisAgence(u.typeEtablissement);
+    const frais = resolveFraisAgence(u.typeEtablissement, fraisConfig);
     return {
       id: u.id,
       slug: u.slug,
@@ -32,6 +35,7 @@ export default async function CatalogueUniversitesPage() {
       fraisMax: frais,
       partenaire: u.partenaire,
       partenaires: u.partenaire,
+      typeEtablissement: u.typeEtablissement,
       coverUrl: u.coverUrl,
       logoUrl: u.logoUrl,
       siteUrl: u.siteUrl,

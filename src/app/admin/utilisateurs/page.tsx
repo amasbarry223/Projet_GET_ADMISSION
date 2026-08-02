@@ -1,11 +1,15 @@
 import { db } from "@/lib/db";
 import { UtilisateursClient, type UserRow } from "@/components/admin/utilisateurs-client";
 import { requireAdminPage } from "@/lib/admin-page-auth";
+import { INTERNAL_ROLES } from "@/lib/admin-users";
 
 export default async function AdminUtilisateursPage() {
-  await requireAdminPage("users.write");
+  const session = await requireAdminPage("users.write");
+  const currentRole = (session.user as { role?: string }).role ?? "ADMIN";
+  const currentUserId = (session.user as { id?: string }).id ?? "";
 
   const users = await db.user.findMany({
+    where: { role: { in: INTERNAL_ROLES } },
     select: {
       id: true,
       email: true,
@@ -25,30 +29,17 @@ export default async function AdminUtilisateursPage() {
         select: { id: true },
       },
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ role: "asc" }, { createdAt: "asc" }],
   });
-
-  const mapRole = (dbRole: string): UserRow["role"] => {
-    switch (dbRole) {
-      case "CONSEILLER":
-        return "Conseiller";
-      case "FINANCIER":
-        return "Financier";
-      case "ADMIN":
-        return "Admin";
-      case "SUPER_ADMIN":
-        return "Super Admin";
-      default:
-        return "Conseiller";
-    }
-  };
 
   const rows: UserRow[] = users.map((u) => ({
     id: u.id,
     email: u.email,
+    prenom: u.prenom,
+    nomFamille: u.nom,
     nom: `${u.prenom} ${u.nom}`,
     initiales: `${u.prenom[0] ?? ""}${u.nom[0] ?? ""}`,
-    role: mapRole(u.role),
+    role: u.role as UserRow["role"],
     dossiers: u._count.dossiersConseiller,
     dossiersOuverts: u.dossiersConseiller.length,
     date: u.createdAt.toISOString(),
@@ -56,5 +47,11 @@ export default async function AdminUtilisateursPage() {
     actif: u.actif,
   }));
 
-  return <UtilisateursClient initialData={rows} />;
+  return (
+    <UtilisateursClient
+      initialData={rows}
+      currentRole={currentRole as "ADMIN" | "SUPER_ADMIN"}
+      currentUserId={currentUserId}
+    />
+  );
 }

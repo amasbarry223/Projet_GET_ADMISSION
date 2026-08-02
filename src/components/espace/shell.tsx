@@ -84,9 +84,15 @@ function useUnreadCounts() {
   }, []);
 
   React.useEffect(() => {
-    refresh();
-    const t = setInterval(refresh, 30000);
-    return () => clearInterval(t);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void refresh();
+    });
+    const t = setInterval(() => void refresh(), 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
   }, [refresh]);
 
   return { messages, notifs, items, refresh };

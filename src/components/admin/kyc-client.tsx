@@ -5,9 +5,13 @@ import { useRouter } from "next/navigation";
 import type { ColumnDef, Table } from "@tanstack/react-table";
 import {
   CheckCircle2,
+  ExternalLink,
   Eye,
   FileImage,
   IdCard,
+  Mail,
+  MapPin,
+  Phone,
   ShieldOff,
   ShieldCheck,
   XCircle,
@@ -34,6 +38,8 @@ import {
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -68,10 +74,34 @@ const STATUT_TONE: Record<KycRow["statut"], string> = {
   incomplet: "bg-ardoise/10 text-ardoise border-ardoise/30",
 };
 
+const STATUT_HINT: Record<KycRow["statut"], string> = {
+  en_attente: "Pièces déposées — à contrôler avant validation.",
+  verifie: "Identité confirmée. Vous pouvez invalider si nécessaire.",
+  incomplet: "Le candidat n’a pas encore déposé toutes les faces requises.",
+};
+
 function typeLabel(type: string | null) {
   if (type === "cni") return "CNI";
   if (type === "passeport") return "Passeport";
-  return "—";
+  return "Non renseigné";
+}
+
+function displayName(row: Pick<KycRow, "prenom" | "nom" | "email">) {
+  const full = `${row.prenom ?? ""} ${row.nom ?? ""}`.trim();
+  if (full) return full;
+  const local = row.email.split("@")[0]?.trim();
+  return local || "Candidat";
+}
+
+function initials(row: Pick<KycRow, "prenom" | "nom" | "email">) {
+  const full = `${row.prenom ?? ""} ${row.nom ?? ""}`.trim();
+  if (full) {
+    const parts = full.split(/\s+/);
+    const a = parts[0]?.[0] ?? "";
+    const b = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
+    return `${a}${b}`.toUpperCase() || "?";
+  }
+  return (row.email.charAt(0) || "?").toUpperCase();
 }
 
 function StatutBadge({ statut }: { statut: KycRow["statut"] }) {
@@ -79,6 +109,93 @@ function StatutBadge({ statut }: { statut: KycRow["statut"] }) {
     <Badge className={cn("font-mono text-[10px] uppercase border", STATUT_TONE[statut])}>
       {STATUT_LABEL[statut]}
     </Badge>
+  );
+}
+
+function PieceSlot({
+  side,
+  present,
+  userId,
+  needsVerso,
+}: {
+  side: "recto" | "verso";
+  present: boolean;
+  userId: string;
+  needsVerso: boolean;
+}) {
+  const label = side === "recto" ? "Recto" : "Verso";
+  const optionalPass = side === "verso" && !needsVerso;
+
+  if (optionalPass && !present) {
+    return (
+      <div className="flex min-h-[140px] flex-col items-center justify-center gap-2 rounded-xl border border-ligne bg-porcelaine/70 px-3 py-4 text-center">
+        <IdCard className="h-7 w-7 text-ardoise/35" strokeWidth={1.25} aria-hidden />
+        <div>
+          <p className="text-sm font-medium text-encre">{label}</p>
+          <p className="mt-0.5 text-xs text-ardoise">Non requis (passeport)</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (present) {
+    return (
+      <a
+        href={`/api/profile/kyc?side=${side}&userId=${userId}`}
+        target="_blank"
+        rel="noreferrer"
+        className={cn(
+          "group relative flex min-h-[140px] flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-lapis/25 bg-or-pale/60 px-3 py-4 text-center outline-none transition-colors duration-200",
+          "hover:border-lapis/50 hover:bg-or-pale focus-visible:ring-2 focus-visible:ring-lapis/40 focus-visible:ring-offset-2",
+        )}
+      >
+        <span className="absolute right-2.5 top-2.5 rounded-md bg-blanc/95 p-1 text-ardoise opacity-0 shadow-sm transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+          <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+        </span>
+        <FileImage className="h-8 w-8 text-lapis" strokeWidth={1.25} aria-hidden />
+        <div>
+          <p className="text-sm font-medium text-encre">{label}</p>
+          <p className="mt-0.5 text-xs font-medium text-vert">Ouvrir la pièce</p>
+        </div>
+      </a>
+    );
+  }
+
+  return (
+    <div
+      className="flex min-h-[140px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-ambre/50 bg-jaune-pale/50 px-3 py-4 text-center"
+      role="status"
+    >
+      <XCircle className="h-7 w-7 text-ambre" strokeWidth={1.25} aria-hidden />
+      <div>
+        <p className="text-sm font-medium text-encre">{label} manquant</p>
+        <p className="mt-0.5 text-xs text-ardoise">Pas encore déposé</p>
+      </div>
+    </div>
+  );
+}
+
+function ChecklistRow({
+  done,
+  label,
+  detail,
+}: {
+  done: boolean;
+  label: string;
+  detail: string;
+}) {
+  return (
+    <li className="flex items-start gap-2.5">
+      {done ? (
+        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-vert" strokeWidth={1.75} aria-hidden />
+      ) : (
+        <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-ambre" strokeWidth={1.75} aria-hidden />
+      )}
+      <div className="min-w-0">
+        <p className={cn("text-sm font-medium", done ? "text-encre" : "text-encre")}>{label}</p>
+        <p className="text-xs text-ardoise">{detail}</p>
+      </div>
+    </li>
   );
 }
 
@@ -91,97 +208,199 @@ function DetailPanel({
   onValidate: (id: string) => void;
   onInvalidate: (id: string) => void;
 }) {
+  const needsVerso = row.kycType === "cni" || !row.kycType;
+  const canValidate = !row.kycVerifie && (row.hasRecto || row.hasVerso);
+  const isEmptyDossier = !row.hasRecto && !row.hasVerso && !row.kycType && !row.kycNumero;
+  const name = displayName(row);
+  const dateLabel = row.kycVerifie ? "Vérifié le" : "Mis à jour";
+  const dateValue =
+    row.kycVerifie && row.kycVerifieLe
+      ? formatDateTime(row.kycVerifieLe)
+      : formatDateTime(row.updatedAt);
+
+  const checks = [
+    {
+      done: Boolean(row.kycType),
+      label: "Type de pièce",
+      detail: row.kycType ? typeLabel(row.kycType) : "CNI ou passeport non choisi",
+    },
+    {
+      done: Boolean(row.kycNumero?.trim()),
+      label: "Numéro d’identité",
+      detail: row.kycNumero?.trim() || "Numéro absent du profil",
+    },
+    {
+      done: row.hasRecto,
+      label: "Face recto",
+      detail: row.hasRecto ? "Fichier disponible" : "Upload manquant",
+    },
+    ...(needsVerso
+      ? [
+          {
+            done: row.hasVerso,
+            label: "Face verso",
+            detail: row.hasVerso ? "Fichier disponible" : "Upload manquant",
+          },
+        ]
+      : []),
+  ];
+  const doneCount = checks.filter((c) => c.done).length;
+  const progress = Math.round((doneCount / checks.length) * 100);
+
   return (
-    <div className="space-y-5">
-      <div>
-        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Candidat</p>
-        <p className="mt-1 text-lg font-medium text-encre">
-          {row.prenom} {row.nom}
-        </p>
-        <p className="text-sm text-ardoise">{row.email}</p>
-        {(row.telephone || row.nationalite) && (
-          <p className="mt-1 text-xs text-ardoise">
-            {[row.telephone, row.nationalite].filter(Boolean).join(" · ")}
-          </p>
-        )}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex-1 space-y-5 overflow-y-auto pb-4 pr-0.5">
+        {/* Identité */}
+        <section className="flex items-start gap-3.5">
+          <div
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-encre font-display text-sm font-bold tracking-tight text-blanc"
+            aria-hidden
+          >
+            {initials(row)}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-semibold tracking-tight text-encre text-balance">{name}</h2>
+              <StatutBadge statut={row.statut} />
+            </div>
+            <p className="mt-1 text-sm text-ardoise">{STATUT_HINT[row.statut]}</p>
+          </div>
+        </section>
+
+        {isEmptyDossier ? (
+          <div
+            className="rounded-xl border border-ambre/30 bg-jaune-pale/60 px-3.5 py-3"
+            role="status"
+          >
+            <p className="text-sm font-medium text-encre">Aucun document déposé</p>
+            <p className="mt-1 text-xs leading-relaxed text-ardoise">
+              Ce candidat n’a encore renseigné ni type de pièce, ni numéro, ni scan. Aucune
+              validation n’est possible tant que le profil KYC n’est pas complété.
+            </p>
+          </div>
+        ) : null}
+
+        {/* Coordonnées */}
+        <ul className="space-y-2.5 rounded-xl bg-porcelaine px-3.5 py-3 text-sm">
+          <li className="flex items-start gap-2.5">
+            <Mail className="mt-0.5 h-4 w-4 shrink-0 text-ardoise" strokeWidth={1.5} aria-hidden />
+            <a
+              href={`mailto:${row.email}`}
+              className="break-all text-encre underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis/40"
+            >
+              {row.email}
+            </a>
+          </li>
+          {row.telephone ? (
+            <li className="flex items-center gap-2.5 text-encre">
+              <Phone className="h-4 w-4 shrink-0 text-ardoise" strokeWidth={1.5} aria-hidden />
+              <span>{row.telephone}</span>
+            </li>
+          ) : null}
+          {row.nationalite ? (
+            <li className="flex items-center gap-2.5 text-encre">
+              <MapPin className="h-4 w-4 shrink-0 text-ardoise" strokeWidth={1.5} aria-hidden />
+              <span className="capitalize">{row.nationalite}</span>
+            </li>
+          ) : null}
+        </ul>
+
+        {/* Progression */}
+        <section>
+          <div className="flex items-baseline justify-between gap-2">
+            <h3 className="text-xs font-medium uppercase tracking-wide text-ardoise">
+              Complétude
+            </h3>
+            <span className="font-mono text-[11px] text-ardoise">
+              {doneCount}/{checks.length} · {progress}%
+            </span>
+          </div>
+          <div
+            className="mt-2 h-1.5 overflow-hidden rounded-full bg-ligne"
+            role="progressbar"
+            aria-valuenow={progress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Complétude du dossier KYC"
+          >
+            <div
+              className={cn(
+                "h-full rounded-full transition-[width] duration-300 ease-out",
+                progress === 100 ? "bg-vert" : progress > 0 ? "bg-ambre" : "bg-ardoise/40",
+              )}
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <ul className="mt-3 space-y-2.5 rounded-xl border border-ligne bg-blanc px-3.5 py-3">
+            {checks.map((c) => (
+              <ChecklistRow key={c.label} done={c.done} label={c.label} detail={c.detail} />
+            ))}
+          </ul>
+        </section>
+
+        {/* Métadonnées */}
+        <section>
+          <h3 className="text-xs font-medium uppercase tracking-wide text-ardoise">Document</h3>
+          <dl className="mt-2.5 grid grid-cols-2 gap-2.5">
+            <div className="rounded-lg border border-ligne bg-blanc px-3 py-2.5">
+              <dt className="text-[11px] text-ardoise">Type</dt>
+              <dd className="mt-0.5 text-sm font-medium text-encre">{typeLabel(row.kycType)}</dd>
+            </div>
+            <div className="rounded-lg border border-ligne bg-blanc px-3 py-2.5">
+              <dt className="text-[11px] text-ardoise">Numéro</dt>
+              <dd className="mt-0.5 truncate font-mono text-sm font-medium tracking-wide text-encre">
+                {row.kycNumero?.trim() || "—"}
+              </dd>
+            </div>
+            <div className="col-span-2 rounded-lg border border-ligne bg-blanc px-3 py-2.5">
+              <dt className="text-[11px] text-ardoise">{dateLabel}</dt>
+              <dd className="mt-0.5 font-mono text-xs text-encre">{dateValue}</dd>
+            </div>
+          </dl>
+        </section>
+
+        {/* Slots pièces */}
+        <section>
+          <div className="flex items-baseline justify-between gap-2">
+            <h3 className="text-xs font-medium uppercase tracking-wide text-ardoise">Pièces</h3>
+            <span className="font-mono text-[10px] text-ardoise">
+              {[row.hasRecto, needsVerso ? row.hasVerso : row.hasRecto].filter(Boolean).length}/
+              {needsVerso ? 2 : 1}
+            </span>
+          </div>
+          <div className="mt-2.5 grid grid-cols-2 gap-2.5">
+            <PieceSlot side="recto" present={row.hasRecto} userId={row.id} needsVerso={needsVerso} />
+            <PieceSlot side="verso" present={row.hasVerso} userId={row.id} needsVerso={needsVerso} />
+          </div>
+        </section>
       </div>
 
-      <dl className="space-y-3 border-y border-ligne py-4 text-sm">
-        <div className="flex justify-between gap-3">
-          <dt className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Type</dt>
-          <dd className="font-medium text-encre">{typeLabel(row.kycType)}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Numéro</dt>
-          <dd className="font-mono text-xs text-encre">{row.kycNumero || "—"}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Statut</dt>
-          <dd>
-            <StatutBadge statut={row.statut} />
-          </dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
-            {row.kycVerifie ? "Vérifié le" : "Mis à jour"}
-          </dt>
-          <dd className="font-mono text-xs text-ardoise">
-            {row.kycVerifie && row.kycVerifieLe
-              ? formatDateTime(row.kycVerifieLe)
-              : formatDateTime(row.updatedAt)}
-          </dd>
-        </div>
-      </dl>
-
-      <div className="space-y-2">
-        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Pièces</p>
-        <div className="flex flex-wrap gap-2">
-          {row.hasRecto ? (
-            <Button variant="outline" size="sm" asChild>
-              <a href={`/api/profile/kyc?side=recto&userId=${row.id}`} target="_blank" rel="noreferrer">
-                <FileImage className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
-                Recto
-              </a>
-            </Button>
-          ) : (
-            <span className="text-xs text-ardoise">Recto manquant</span>
-          )}
-          {row.hasVerso ? (
-            <Button variant="outline" size="sm" asChild>
-              <a href={`/api/profile/kyc?side=verso&userId=${row.id}`} target="_blank" rel="noreferrer">
-                <FileImage className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
-                Verso
-              </a>
-            </Button>
-          ) : (
-            <span className="text-xs text-ardoise">Verso manquant</span>
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2 pt-2">
-        {!row.kycVerifie && (row.hasRecto || row.hasVerso) && (
+      <SheetFooter className="shrink-0 gap-2 border-t border-ligne bg-blanc px-0 pt-4 sm:flex-col">
+        {canValidate ? (
           <Button
-            size="sm"
-            className="bg-vert text-blanc hover:bg-vert/90"
+            className="w-full bg-vert text-blanc hover:bg-vert/90"
             onClick={() => onValidate(row.id)}
           >
-            <ShieldCheck className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
+            <ShieldCheck className="mr-1.5 h-4 w-4" strokeWidth={1.5} />
             Valider le KYC
           </Button>
-        )}
-        {row.kycVerifie && (
+        ) : null}
+        {row.kycVerifie ? (
           <Button
-            size="sm"
             variant="outline"
-            className="border-carmin/40 text-carmin hover:bg-carmin/5"
+            className="w-full border-carmin/35 text-carmin hover:bg-carmin/5"
             onClick={() => onInvalidate(row.id)}
           >
-            <ShieldOff className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
-            Invalider
+            <ShieldOff className="mr-1.5 h-4 w-4" strokeWidth={1.5} />
+            Invalider la vérification
           </Button>
-        )}
-      </div>
+        ) : null}
+        {!canValidate && !row.kycVerifie ? (
+          <p className="text-center text-xs leading-relaxed text-ardoise">
+            Validation indisponible tant qu’aucune face n’est déposée.
+          </p>
+        ) : null}
+      </SheetFooter>
     </div>
   );
 }
@@ -430,11 +649,19 @@ export function KycClient({ initialData }: { initialData: KycRow[] }) {
       />
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent side="right" className="w-full max-w-md bg-blanc sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle className="font-display text-left">Détail KYC</SheetTitle>
+        <SheetContent
+          side="right"
+          className="flex w-full max-w-md flex-col gap-0 overflow-hidden bg-blanc p-0 sm:max-w-lg"
+        >
+          <SheetHeader className="shrink-0 space-y-1 border-b border-ligne px-5 py-4 pr-12 text-left">
+            <SheetTitle className="font-display text-left text-xl font-bold tracking-tight text-encre">
+              Contrôle KYC
+            </SheetTitle>
+            <SheetDescription className="text-left text-sm text-ardoise">
+              Vérifiez l&apos;identité et les faces déposées avant validation.
+            </SheetDescription>
           </SheetHeader>
-          <div className="overflow-y-auto px-1 pb-6 pt-2">
+          <div className="flex min-h-0 flex-1 flex-col px-5 py-4">
             {selected ? (
               <DetailPanel
                 row={selected}

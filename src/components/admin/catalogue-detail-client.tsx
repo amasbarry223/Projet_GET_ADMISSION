@@ -77,7 +77,7 @@ function MediaPreview({
     );
   }
   return (
-    // eslint-disable-next-line @next/next/no-img-element
+     
     <img src={trimmed} alt={alt} className={cn("object-cover", className)} />
   );
 }
@@ -106,7 +106,9 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
   const [logoUrl, setLogoUrl] = React.useState(universite.logoUrl ?? "");
   const [galleryList, setGalleryList] = React.useState<string[]>(universite.galleryUrls ?? []);
 
-  React.useEffect(() => {
+  const [prevUniversite, setPrevUniversite] = React.useState(universite);
+  if (universite !== prevUniversite) {
+    setPrevUniversite(universite);
     setDescription(universite.description ?? "");
     setVille(universite.ville ?? "");
     setPays(universite.pays ?? "");
@@ -119,7 +121,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
     setCoverUrl(universite.coverUrl ?? "");
     setLogoUrl(universite.logoUrl ?? "");
     setGalleryList(universite.galleryUrls ?? []);
-  }, [universite]);
+  }
 
   const mediaBusy = uploadingKind !== null || removingMedia;
 

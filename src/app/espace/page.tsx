@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,27 +14,17 @@ import { KpiCard, ChartSectionHeader } from "@/components/admin/kpi-card";
 import { TimelinePassage } from "@/components/espace/timeline-passage";
 import { ETATS, etatParCode } from "@/lib/etats";
 import { formatFCFA, formatFCFACompact, formatDate } from "@/lib/format";
-import { CreditCard, MessageSquare, Stamp, ArrowRight, CheckCircle2, MapPin, GraduationCap, FileText, Wallet, Sparkles, AlertCircle } from "lucide-react";
+import { CreditCard, MessageSquare, Stamp, ArrowRight, CheckCircle2, MapPin, GraduationCap, FileText, Wallet, Sparkles, AlertCircle, Radio } from "lucide-react";
 import { EspaceDashboardSkeleton } from "@/components/ui/skeleton-card";
 import { cn } from "@/lib/utils";
+import { useDossierLive, type LiveStatus } from "@/hooks/use-dossier-live";
 
-type Dossier = {
-  id: string;
-  reference: string;
-  etat: string;
-  etapeActuelle: number;
-  fraisAgence: number;
-  mrz: string;
-  paiementStatut?: string | null;
-  candidat: { prenom: string; nom: string; nationalite: string };
-  universite: { nom: string; pays: string; drapeau: string; ville: string; slug: string; coverUrl?: string | null };
-  formation: { intitule: string; niveau: string; domaine: string };
-  conseiller: { prenom: string; nom: string; photoUrl?: string | null } | null;
-  pieces: { id: string; libelle: string; statut: string }[];
-  paiements: { id: string; reference: string; date: string; montant: number; moyen: string; statut: string }[];
-  historiques: { id: string; date: string; etat: string; auteur: string; note: string }[];
-  conversation: { nonLusCandidat: number } | null;
-};
+function liveLabel(status: LiveStatus): { text: string; tone: string } {
+  if (status === "live") return { text: "Temps réel", tone: "bg-primary/15 text-primary border-primary/25" };
+  if (status === "polling") return { text: "Actualisation auto", tone: "bg-ambre/15 text-ambre border-ambre/25" };
+  if (status === "offline") return { text: "Hors ligne", tone: "bg-destructive/10 text-destructive border-destructive/20" };
+  return { text: "Connexion…", tone: "bg-muted text-muted-foreground border-border" };
+}
 
 type CandidateNextAction = {
   titre: string;
@@ -109,39 +101,33 @@ function getNextCandidateAction(params: {
 }
 
 export default function EspaceDashboard() {
-  const [dossier, setDossier] = React.useState<Dossier | null>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
+  return (
+    <Suspense fallback={<EspaceDashboardSkeleton />}>
+      <EspaceDashboardInner />
+    </Suspense>
+  );
+}
 
-  React.useEffect(() => {
-    fetch("/api/dossiers")
-      .then((r) => {
-        if (!r.ok) throw new Error("Erreur");
-        return r.json();
-      })
-      .then((data: Dossier[]) => {
-        setDossier(data[0] ?? null);
-        setLoading(false);
-      })
-      .catch((e) => {
-        console.error("fetch error:", e);
-        setError("Impossible de charger votre dossier.");
-        setLoading(false);
-      });
-  }, []);
+function EspaceDashboardInner() {
+  const searchParams = useSearchParams();
+  const dossierIdParam = searchParams.get("dossierId");
+  const { dossier, loading, error, liveStatus, lastSyncedAt, refresh } = useDossierLive({
+    dossierId: dossierIdParam,
+  });
+  const liveMeta = liveLabel(liveStatus);
 
   if (loading) {
     return <EspaceDashboardSkeleton />;
   }
 
-  if (error) {
+  if (error && !dossier) {
     return (
       <Alert className="border-destructive/40 bg-destructive/10">
         <AlertCircle className="h-4 w-4 text-destructive" strokeWidth={1.5} />
         <AlertTitle className="font-display text-sm font-bold text-foreground">Connexion impossible</AlertTitle>
         <AlertDescription className="text-sm text-muted-foreground">
           {error}{" "}
-          <button type="button" className="font-medium text-primary underline" onClick={() => window.location.reload()}>
+          <button type="button" className="font-medium text-primary underline" onClick={() => void refresh()}>
             Réessayer
           </button>
         </AlertDescription>
@@ -192,6 +178,9 @@ export default function EspaceDashboard() {
   const dateParEtat = new Map(d.historiques.map((h) => [h.etat.toLowerCase(), h.date]));
   const etatInfo = etatParCode(d.etat);
   const workflowStep = etatInfo.ordre; // toujours dérivé de l'état (1–12), pas du wizard
+  const noteCourante = [...d.historiques]
+    .reverse()
+    .find((h) => h.etat.toLowerCase() === d.etat.toLowerCase())?.note;
   const piecesManquantes = d.pieces.filter((p) => p.statut === "manquante" || p.statut === "a_corriger");
   const etatUpper = d.etat.toUpperCase();
   const payeComplet = d.paiementStatut === "complet";
@@ -352,17 +341,31 @@ export default function EspaceDashboard() {
         <div className="space-y-4">
           {/* Timeline verticale */}
           <Card className="overflow-hidden border-border bg-card/60 backdrop-blur-md p-0 shadow-sm">
-            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-4">
               <ChartSectionHeader eyebrow="Suivi temps réel" title="Les 12 étapes de votre dossier" />
-              <Badge className="bg-primary/20 font-mono text-[11px] uppercase text-primary">
-                Étape {workflowStep} / 12
-              </Badge>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className={cn("border font-mono text-[10px] uppercase tracking-wider", liveMeta.tone)}>
+                  <Radio className={cn("mr-1 h-3 w-3", liveStatus === "live" && "animate-pulse")} strokeWidth={2} />
+                  {liveMeta.text}
+                </Badge>
+                <Badge className="bg-primary/20 font-mono text-[11px] uppercase text-primary">
+                  Étape {workflowStep} / 12
+                </Badge>
+              </div>
             </div>
-            <div className="max-h-[560px] overflow-y-auto scroll-fine px-6 py-5">
+            {lastSyncedAt && (
+              <p className="border-b border-border/60 px-6 py-2 font-mono text-[10px] text-muted-foreground">
+                Dernière synchro {formatDate(lastSyncedAt.toISOString())} ·{" "}
+                {lastSyncedAt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              </p>
+            )}
+            <div className="max-h-[640px] overflow-y-auto scroll-fine px-6 py-5">
               <TimelinePassage
                 etats={ETATS}
                 etapeActuelle={workflowStep}
                 dateParEtat={dateParEtat}
+                noteCourante={noteCourante}
+                live={liveStatus === "live" || liveStatus === "polling"}
               />
             </div>
           </Card>

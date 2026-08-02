@@ -6,8 +6,8 @@ import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { isStaff } from "@/lib/rbac";
 
 /**
- * POST /api/register — crée le compte candidat (passwordHash),
- * immédiatement utilisable (sans vérification e-mail OTP).
+ * POST /api/register — crée le compte candidat (passwordHash).
+ * Si Parametre.exigerEmailVerifie : emailVerified reste null (BF-06).
  */
 export async function POST(request: Request) {
   const rateLimited = checkRateLimit(getClientId(request), "/api/register");
@@ -41,6 +41,9 @@ export async function POST(request: Request) {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
+    const parametres = await db.parametre.findUnique({ where: { id: 1 } });
+    const requireEmail = !!parametres?.exigerEmailVerifie;
+
     const user = await db.user.create({
       data: {
         email: emailNorm,
@@ -50,7 +53,7 @@ export async function POST(request: Request) {
         nationalite: nationalite || null,
         role: "CANDIDAT",
         actif: true,
-        emailVerified: new Date(),
+        emailVerified: requireEmail ? null : new Date(),
         verifyToken: null,
       },
       select: { id: true, email: true, prenom: true, nom: true, role: true },
@@ -64,7 +67,10 @@ export async function POST(request: Request) {
         nom: user.nom,
         nationalite,
         user,
-        message: "Compte créé. Vous pouvez vous connecter.",
+        emailVerificationRequired: requireEmail,
+        message: requireEmail
+          ? "Compte créé. Vérifiez votre e-mail avant de vous connecter."
+          : "Compte créé. Vous pouvez vous connecter.",
       },
       { status: 201 },
     );

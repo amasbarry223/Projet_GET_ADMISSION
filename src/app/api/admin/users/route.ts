@@ -9,6 +9,11 @@ import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { logAudit } from "@/lib/audit";
 import { requirePermission } from "@/lib/rbac";
 import { sendMail, invitationEmailHtml } from "@/lib/mail";
+import {
+  canAssignRole,
+  INTERNAL_ROLES,
+  isStaffManagementRole,
+} from "@/lib/admin-users";
 
 function generateTempPassword(length = 14): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@$%";
@@ -20,7 +25,7 @@ function generateTempPassword(length = 14): string {
   return out;
 }
 
-// GET /api/admin/users — liste des utilisateurs (ADMIN / SUPER_ADMIN)
+// GET /api/admin/users — liste du personnel interne
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
@@ -32,12 +37,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
-  // --- Params de pagination (optionnels) ---
   const { searchParams } = new URL(request.url);
   const hasPagination = searchParams.has("page");
   const page = Math.max(1, Number(searchParams.get("page") ?? "1"));
   const pageSize = Math.min(50, Math.max(1, Number(searchParams.get("pageSize") ?? "20")));
 
+  const where = { role: { in: INTERNAL_ROLES } };
   const orderBy = { createdAt: "asc" as const };
   const select = {
     id: true,
@@ -47,55 +52,64 @@ export async function GET(request: Request) {
     role: true,
     actif: true,
     createdAt: true,
+    lastLoginAt: true,
     _count: { select: { dossiersConseiller: true } },
   };
 
-  const mapToRow = (u: any) => ({
+  const mapToRow = (u: {
+    id: string;
+    email: string;
+    prenom: string;
+    nom: string;
+    role: string;
+    actif: boolean;
+    createdAt: Date;
+    lastLoginAt: Date | null;
+    _count: { dossiersConseiller: number };
+  }) => ({
     id: u.id,
     email: u.email,
-    nom: `${u.prenom} ${u.nom}`,
+    prenom: u.prenom,
+    nom: u.nom,
+    displayName: `${u.prenom} ${u.nom}`,
     initiales: `${u.prenom[0] ?? ""}${u.nom[0] ?? ""}`,
     role: u.role,
     actif: u.actif,
     date: u.createdAt.toISOString(),
+    lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
     dossiers: u._count.dossiersConseiller,
   });
 
   if (hasPagination) {
     const [users, total] = await Promise.all([
       db.user.findMany({
+        where,
         select,
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy,
       }),
-      db.user.count(),
+      db.user.count({ where }),
     ]);
     return NextResponse.json({ data: users.map(mapToRow), total, page, pageSize });
   }
 
-  const users = await db.user.findMany({ select, orderBy });
+  const users = await db.user.findMany({ where, select, orderBy });
   return NextResponse.json(users.map(mapToRow));
 }
 
-// POST /api/admin/users — inviter un nouvel utilisateur (admin uniquement)
-//
-// Body: { prenom, nom, email, role }
-// - Mot de passe temporaire aléatoire (renvoyé une seule fois + e-mail)
-// - Email doit être unique
-// - Rôle peut être CANDIDAT, CONSEILLER, FINANCIER, ADMIN, SUPER_ADMIN
+// POST /api/admin/users — créer / inviter un membre du personnel
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const role = (session.user as any).role;
-  if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
+  const role = (session.user as { role?: string }).role ?? "";
+  if (!isStaffManagementRole(role)) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
-  // Rate limiting (10 invitations / min / IP)
   const rateLimited = checkRateLimit(getClientId(request), "/api/admin/users");
   if (rateLimited) return rateLimited;
 
@@ -112,17 +126,20 @@ export async function POST(request: Request) {
   }
   const { prenom, nom, email, role: newRole } = parsed.data;
 
-  // Un ADMIN non-SUPER_ADMIN ne peut pas créer de SUPER_ADMIN
-  if (newRole === "SUPER_ADMIN" && role !== "SUPER_ADMIN") {
+  if (!canAssignRole(role, newRole)) {
     return NextResponse.json(
-      { error: "Seul un super-administrateur peut créer un autre super-administrateur" },
-      { status: 403 }
+      {
+        error:
+          newRole === "SUPER_ADMIN"
+            ? "Seul un super-administrateur peut créer un super-administrateur"
+            : "Vous n'êtes pas autorisé à attribuer ce rôle",
+      },
+      { status: 403 },
     );
   }
 
   const normalizedEmail = email.toLowerCase().trim();
 
-  // Vérifier que l'email n'existe pas déjà
   const existing = await db.user.findUnique({
     where: { email: normalizedEmail },
     select: { id: true },
@@ -130,11 +147,10 @@ export async function POST(request: Request) {
   if (existing) {
     return NextResponse.json(
       { error: "Un compte existe déjà avec cet e-mail" },
-      { status: 409 }
+      { status: 409 },
     );
   }
 
-  // Mot de passe temporaire aléatoire
   const defaultPassword = generateTempPassword();
   const passwordHash = await bcrypt.hash(defaultPassword, 10);
 
@@ -177,8 +193,8 @@ export async function POST(request: Request) {
   return NextResponse.json(
     {
       ...user,
-      defaultPassword, // retourné une seule fois pour communication à l'utilisateur
+      defaultPassword,
     },
-    { status: 201 }
+    { status: 201 },
   );
 }

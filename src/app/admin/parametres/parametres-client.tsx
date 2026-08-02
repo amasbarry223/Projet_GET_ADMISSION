@@ -16,6 +16,8 @@ import { Lock, Save, ShieldCheck, CreditCard, Bell, GitBranch, Loader2, FileText
 type ParamsState = {
   fraisMin: string;
   fraisMax: string;
+  fraisAgencePublic: string;
+  fraisAgencePrive: string;
   paiementTranches: boolean;
   notifEmail: boolean;
   notifInApp: boolean;
@@ -32,6 +34,8 @@ export default function AdminParametresClient() {
   const [form, setForm] = React.useState<ParamsState>({
     fraisMin: "",
     fraisMax: "",
+    fraisAgencePublic: "65000",
+    fraisAgencePrive: "110000",
     paiementTranches: true,
     notifEmail: true,
     notifInApp: true,
@@ -57,6 +61,8 @@ export default function AdminParametresClient() {
         setForm({
           fraisMin: String(data.fraisMin ?? ""),
           fraisMax: String(data.fraisMax ?? ""),
+          fraisAgencePublic: String(data.fraisAgencePublic ?? data.fraisMin ?? 65000),
+          fraisAgencePrive: String(data.fraisAgencePrive ?? data.fraisMax ?? 110000),
           paiementTranches: !!data.paiementTranches,
           notifEmail: data.notifEmail !== false,
           notifInApp: data.notifInApp !== false,
@@ -82,12 +88,16 @@ export default function AdminParametresClient() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const publicAmt = Number(form.fraisAgencePublic) || 0;
+      const priveAmt = Number(form.fraisAgencePrive) || 0;
       const res = await fetch("/api/admin/parametres", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fraisMin: Number(form.fraisMin) || 0,
-          fraisMax: Number(form.fraisMax) || 0,
+          fraisAgencePublic: publicAmt,
+          fraisAgencePrive: priveAmt,
+          fraisMin: publicAmt,
+          fraisMax: priveAmt,
           paiementTranches: form.paiementTranches,
           notifEmail: form.notifEmail,
           notifInApp: form.notifInApp,
@@ -147,22 +157,25 @@ export default function AdminParametresClient() {
 
         <TabsContent value="frais" className="space-y-4">
           <Card className={cardLocked(isSuperAdmin)}>
-            <SectionHeader icon={CreditCard} title="Frais d'agence par défaut" />
+            <SectionHeader icon={CreditCard} title="Frais d'agence (CDC)" />
+            <p className="mb-4 text-xs text-ardoise">
+              Montants appliqués selon le type d&apos;établissement (public / privé).
+            </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Frais minimum (FCFA)</Label>
+                <Label>Établissement public (FCFA)</Label>
                 <Input
-                  value={form.fraisMin}
-                  onChange={(e) => set("fraisMin", e.target.value)}
+                  value={form.fraisAgencePublic}
+                  onChange={(e) => set("fraisAgencePublic", e.target.value)}
                   className="font-mono"
                   disabled={!isSuperAdmin || loading}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Frais maximum (FCFA)</Label>
+                <Label>Établissement privé (FCFA)</Label>
                 <Input
-                  value={form.fraisMax}
-                  onChange={(e) => set("fraisMax", e.target.value)}
+                  value={form.fraisAgencePrive}
+                  onChange={(e) => set("fraisAgencePrive", e.target.value)}
                   className="font-mono"
                   disabled={!isSuperAdmin || loading}
                 />

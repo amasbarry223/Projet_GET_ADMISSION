@@ -51,7 +51,7 @@ const ETAPES_DEFAUT = [
     icon: "CreditCard",
     titre: "Paiement des frais d'agence",
     description:
-      "Réglez les frais d'agence par Orange Money, Wave ou carte bancaire. Le reçu est disponible immédiatement.",
+      "Déclarez votre paiement (Mobile Money, Wave, virement ou espèces). L'agence confirme l'encaissement, puis le reçu est disponible dans votre espace.",
   },
   {
     numero: "04",

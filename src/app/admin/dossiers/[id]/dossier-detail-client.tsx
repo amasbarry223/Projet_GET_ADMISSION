@@ -144,7 +144,13 @@ export default function DossierDetailClient() {
   }, [params.id]);
 
   React.useEffect(() => {
-    loadDossier();
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) loadDossier();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [loadDossier]);
 
   if (loading) {

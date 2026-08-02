@@ -1,4 +1,5 @@
-import { parseJsonArray } from "@/lib/types";
+import { parseJsonArray } from "@/lib/parse-json";
+import { buildPiecesFromRegles } from "@/lib/dossier/matrice-engine";
 import {
   TRIMESTRES_DEFAULT_PREMIERE,
   TRIMESTRES_DEFAULT_SECONDE,
@@ -259,7 +260,8 @@ function slugifyCode(raw: string): string {
 }
 
 /**
- * Génère la liste dynamique des pièces selon le profil académique du candidat.
+ * Génère la liste dynamique des pièces selon le profil (fallback hardcodé).
+ * Préférer `buildPiecesRequisesAsync` côté serveur pour utiliser la matrice ACTIVE.
  */
 export function buildPiecesRequises(profil: ProfilAcademiqueInput): PieceRequise[] {
   const list: PieceRequise[] = [];
@@ -384,6 +386,28 @@ export function buildPiecesDossier(
   formationPiecesRequises?: string[] | string | null
 ): PieceRequise[] {
   return mergePiecesFormation(buildPiecesRequises(profil), formationPiecesRequises);
+}
+
+/** Variante serveur : matrice ACTIVE si disponible, sinon fallback hardcodé. */
+export async function buildPiecesRequisesAsync(
+  profil: ProfilAcademiqueInput,
+): Promise<PieceRequise[]> {
+  // Import dynamique : évite de tirer Prisma dans les bundles client
+  // (ex. wizard / admin matrice qui utilisent le fallback sync).
+  const { loadActiveMatriceRegles } = await import("@/lib/dossier/matrice-loader");
+  const regles = await loadActiveMatriceRegles();
+  if (regles && regles.length > 0) {
+    return buildPiecesFromRegles(profil, regles);
+  }
+  return buildPiecesRequises(profil);
+}
+
+export async function buildPiecesDossierAsync(
+  profil: ProfilAcademiqueInput,
+  formationPiecesRequises?: string[] | string | null,
+): Promise<PieceRequise[]> {
+  const base = await buildPiecesRequisesAsync(profil);
+  return mergePiecesFormation(base, formationPiecesRequises);
 }
 
 function isTrimestresValid(n: number | undefined): boolean {

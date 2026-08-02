@@ -49,6 +49,7 @@ export type CatalogueUniversite = {
   fraisMax: number;
   partenaire: boolean;
   partenaires: boolean;
+  typeEtablissement?: "PUBLIC" | "PRIVE" | string;
   coverUrl?: string | null;
   logoUrl?: string | null;
   siteUrl?: string | null;
@@ -80,6 +81,7 @@ export function CatalogueClient({ universites }: Props) {
   const [pays, setPays] = React.useState<string>("tous");
   const [domaine, setDomaine] = React.useState<string>("tous");
   const [niveau, setNiveau] = React.useState<string>("tous");
+  const [typeEtab, setTypeEtab] = React.useState<string>("tous");
   const [tri, setTri] = React.useState<Tri>("nom");
   const [visibleCount, setVisibleCount] = React.useState(PAGE_SIZE);
 
@@ -99,10 +101,13 @@ export function CatalogueClient({ universites }: Props) {
     [universites]
   );
 
-  // Réinitialise le "charger plus" à chaque changement de filtre.
-  React.useEffect(() => {
+  // Réinitialise le "charger plus" à chaque changement de filtre (ajustement pendant le render).
+  const filterKey = `${recherche}|${pays}|${domaine}|${niveau}|${typeEtab}|${tri}`;
+  const [prevFilterKey, setPrevFilterKey] = React.useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
     setVisibleCount(PAGE_SIZE);
-  }, [recherche, pays, domaine, niveau, tri]);
+  }
 
   // Pour chaque université, calculer les niveaux effectivement disponibles (via formations).
   const niveauxParUniversite = React.useMemo(() => {
@@ -122,6 +127,7 @@ export function CatalogueClient({ universites }: Props) {
     const liste = universites.filter((u) => {
       if (pays !== "tous" && u.pays !== pays) return false;
       if (domaine !== "tous" && !u.domaines.includes(domaine)) return false;
+      if (typeEtab !== "tous" && (u.typeEtablissement ?? "PRIVE") !== typeEtab) return false;
       if (niveau !== "tous") {
         const nv = niveauxParUniversite.get(u.id);
         if (!nv || !nv.has(niveau as Niveau)) return false;
@@ -139,7 +145,7 @@ export function CatalogueClient({ universites }: Props) {
       if (tri === "frais_desc") return b.fraisMax - a.fraisMax;
       return 0;
     });
-  }, [recherche, pays, domaine, niveau, tri, niveauxParUniversite, universites]);
+  }, [recherche, pays, domaine, niveau, typeEtab, tri, niveauxParUniversite, universites]);
 
   const visible = resultat.slice(0, visibleCount);
   const hasMore = visibleCount < resultat.length;
@@ -149,6 +155,7 @@ export function CatalogueClient({ universites }: Props) {
     setPays("tous");
     setDomaine("tous");
     setNiveau("tous");
+    setTypeEtab("tous");
     setTri("nom");
   };
 
@@ -157,6 +164,7 @@ export function CatalogueClient({ universites }: Props) {
     pays !== "tous" ||
     domaine !== "tous" ||
     niveau !== "tous" ||
+    typeEtab !== "tous" ||
     tri !== "nom";
 
   return (
@@ -204,7 +212,7 @@ export function CatalogueClient({ universites }: Props) {
             </div>
 
             {/* Filtres select */}
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex lg:items-center">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:items-center lg:flex-wrap">
               <Select value={pays} onValueChange={setPays}>
                 <SelectTrigger className="w-full bg-blanc lg:w-[160px]" aria-label="Filtrer par pays">
                   <SelectValue placeholder="Pays" />
@@ -244,6 +252,17 @@ export function CatalogueClient({ universites }: Props) {
                       {n}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={typeEtab} onValueChange={setTypeEtab}>
+                <SelectTrigger className="w-full bg-blanc lg:w-[160px]" aria-label="Filtrer par type">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tous">Public & privé</SelectItem>
+                  <SelectItem value="PUBLIC">Public</SelectItem>
+                  <SelectItem value="PRIVE">Privé</SelectItem>
                 </SelectContent>
               </Select>
 

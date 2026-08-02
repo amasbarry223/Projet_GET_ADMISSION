@@ -11,5 +11,7 @@ export async function GET() {
     paiementTranches: parametres.paiementTranches,
     fraisMin: parametres.fraisMin,
     fraisMax: parametres.fraisMax,
+    fraisAgencePublic: parametres.fraisAgencePublic ?? parametres.fraisMin,
+    fraisAgencePrive: parametres.fraisAgencePrive ?? parametres.fraisMax,
   });
 }

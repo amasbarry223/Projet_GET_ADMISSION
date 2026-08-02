@@ -91,15 +91,21 @@ export function AttestationsClient({
   const [modeleDesc, setModeleDesc] = React.useState("");
   const [creatingModele, setCreatingModele] = React.useState(false);
 
-  React.useEffect(() => {
+  const [prevInitialA, setPrevInitialA] = React.useState(initialAEmettre);
+  if (initialAEmettre !== prevInitialA) {
+    setPrevInitialA(initialAEmettre);
     setAEmettre(initialAEmettre);
-  }, [initialAEmettre]);
-  React.useEffect(() => {
+  }
+  const [prevInitialE, setPrevInitialE] = React.useState(initialEmises);
+  if (initialEmises !== prevInitialE) {
+    setPrevInitialE(initialEmises);
     setEmises(initialEmises);
-  }, [initialEmises]);
-  React.useEffect(() => {
+  }
+  const [prevInitialM, setPrevInitialM] = React.useState(initialModeles);
+  if (initialModeles !== prevInitialM) {
+    setPrevInitialM(initialModeles);
     setModeles(initialModeles);
-  }, [initialModeles]);
+  }
 
   const filterList = React.useCallback(
     (list: AttestationDossier[]) => {
@@ -129,12 +135,19 @@ export function AttestationsClient({
     : null;
 
   React.useEffect(() => {
-    if (tab === "a-emettre" && listAEmettre.length && !listAEmettre.some((d) => d.id === selectedId)) {
-      setSelectedId(listAEmettre[0]!.id);
-    }
-    if (tab === "emises" && listEmises.length && !listEmises.some((d) => d.id === selectedId)) {
-      setSelectedId(listEmises[0]!.id);
-    }
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      if (tab === "a-emettre" && listAEmettre.length && !listAEmettre.some((d) => d.id === selectedId)) {
+        setSelectedId(listAEmettre[0]!.id);
+      }
+      if (tab === "emises" && listEmises.length && !listEmises.some((d) => d.id === selectedId)) {
+        setSelectedId(listEmises[0]!.id);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [tab, listAEmettre, listEmises, selectedId]);
 
   const emettreAttestation = async (dossierId: string, reference: string) => {

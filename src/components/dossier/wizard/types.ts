@@ -37,6 +37,7 @@ export type DossierWizardData = {
   reference: string;
   etat: string;
   etapeActuelle: number;
+  updatedAt?: string;
   fraisAgence: number;
   mrz: string;
   candidat: {

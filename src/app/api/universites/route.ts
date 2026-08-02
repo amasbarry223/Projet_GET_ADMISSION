@@ -6,7 +6,7 @@ import { universiteSchema, validate } from "@/lib/validations";
 import { uniqueSlug } from "@/lib/utils";
 import { logAudit } from "@/lib/audit";
 import { requirePermission } from "@/lib/rbac";
-import { resolveFraisAgence, resolveFraisRange } from "@/lib/dossier/frais-agence";
+import { resolveFraisAgence, resolveFraisRange, getFraisAgenceConfig } from "@/lib/dossier/frais-agence-server";
 
 // GET /api/universites — liste publique (catalogue)
 export async function GET(request: Request) {
@@ -33,9 +33,10 @@ export async function GET(request: Request) {
     orderBy: { nom: "asc" },
   });
 
-  // Parse JSON string fields + frais dérivés du type
+  // Parse JSON string fields + frais dérivés du type (Parametre)
+  const fraisConfig = await getFraisAgenceConfig();
   const result = universites.map((u) => {
-    const frais = resolveFraisAgence(u.typeEtablissement);
+    const frais = resolveFraisAgence(u.typeEtablissement, fraisConfig);
     return {
       ...u,
       fraisMin: frais,
@@ -113,7 +114,8 @@ export async function POST(request: Request) {
       : "[]";
 
   const type = typeEtablissement ?? "PRIVE";
-  const range = resolveFraisRange(type);
+  const fraisConfig = await getFraisAgenceConfig();
+  const range = resolveFraisRange(type, fraisConfig);
 
   const created = await db.universite.create({
     data: {

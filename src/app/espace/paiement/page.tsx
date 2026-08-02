@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,12 +18,14 @@ import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FormPageSkeleton } from "@/components/ui/skeleton-card";
 import { getApiErrorMessageSync } from "@/lib/api-error";
+import { pickPrimaryDossier } from "@/lib/dossier/pick-dossier";
 import { CheckCircle2, Download, Loader2, Lock, CreditCard, Smartphone, ShieldCheck, AlertCircle, Clock, FolderOpen } from "lucide-react";
 
 type Dossier = {
   id: string;
   reference: string;
   etat: string;
+  updatedAt: string;
   fraisAgence: number;
   paiementStatut?: string;
   mrz: string;
@@ -47,6 +51,16 @@ function iconForMoyen(name: string) {
 }
 
 export default function PaiementPage() {
+  return (
+    <Suspense fallback={<FormPageSkeleton />}>
+      <PaiementInner />
+    </Suspense>
+  );
+}
+
+function PaiementInner() {
+  const searchParams = useSearchParams();
+  const preferredId = searchParams.get("dossierId");
   const [dossier, setDossier] = React.useState<Dossier | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -68,7 +82,7 @@ export default function PaiementPage() {
         return r.json();
       })
       .then((data: Dossier[]) => {
-        setDossier(data[0] ?? null);
+        setDossier(pickPrimaryDossier(Array.isArray(data) ? data : [], preferredId) ?? null);
         setError(null);
         setLoading(false);
       })
@@ -77,28 +91,38 @@ export default function PaiementPage() {
         setError(getApiErrorMessageSync(e, undefined, "Impossible de charger votre dossier."));
         setLoading(false);
       });
-  }, []);
+  }, [preferredId]);
 
   React.useEffect(() => {
-    loadDossier();
-    fetch("/api/public/moyens-paiement")
-      .then((r) => r.json())
-      .then((data: MoyenPaiement[]) => {
-        const list = Array.isArray(data) ? data : [];
-        setMethods(list);
-        if (list.length > 0) setMethod(list[0].nom);
-        setMethodsLoading(false);
-      })
-      .catch(() => setMethodsLoading(false));
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      loadDossier();
+      fetch("/api/public/moyens-paiement")
+        .then((r) => r.json())
+        .then((data: MoyenPaiement[]) => {
+          if (cancelled) return;
+          const list = Array.isArray(data) ? data : [];
+          setMethods(list);
+          if (list.length > 0) setMethod(list[0].nom);
+          setMethodsLoading(false);
+        })
+        .catch(() => {
+          if (!cancelled) setMethodsLoading(false);
+        });
 
-    fetch("/api/public/parametres")
-      .then((r) => r.json())
-      .then((data: { paiementTranches?: boolean }) => {
-        const allowed = data.paiementTranches !== false;
-        setTranchesAutorisees(allowed);
-        if (!allowed) setTranches(false);
-      })
-      .catch(() => {});
+      fetch("/api/public/parametres")
+        .then((r) => r.json())
+        .then((data: { paiementTranches?: boolean }) => {
+          if (cancelled) return;
+          const allowed = data.paiementTranches !== false;
+          setTranchesAutorisees(allowed);
+          if (!allowed) setTranches(false);
+        });
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [loadDossier]);
 
   if (loading) {
@@ -216,8 +240,11 @@ export default function PaiementPage() {
         <p className="eyebrow">Paiement & reçus</p>
         <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Réglez les frais d'agence.</h1>
         <p className="text-ardoise">
-          Déclaration de paiement (Mobile Money, Wave, carte…) — validation manuelle par l&apos;agence.
-          Le reçu est disponible après confirmation.
+          Déclarez un paiement déjà effectué (Mobile Money, Wave, virement ou espèces). L&apos;agence
+          valide l&apos;encaissement avant de délivrer le reçu.
+          {process.env.NEXT_PUBLIC_PAYMENT_GATEWAY_ENABLED === "true"
+            ? " Le paiement en ligne sécurisé est aussi disponible ci-dessous."
+            : ""}
         </p>
       </div>
 

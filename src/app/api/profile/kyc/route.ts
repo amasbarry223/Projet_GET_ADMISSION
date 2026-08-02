@@ -90,6 +90,33 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "userId requis" }, { status: 400 });
   }
 
+  const target = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      prenom: true,
+      nom: true,
+      role: true,
+      kycRectoPath: true,
+      kycVersoPath: true,
+    },
+  });
+  if (!target) {
+    return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
+  }
+  if (target.role !== "CANDIDAT") {
+    return NextResponse.json(
+      { error: "La validation KYC ne s'applique qu'aux candidats" },
+      { status: 400 }
+    );
+  }
+  if (verifie && (!target.kycRectoPath || !target.kycVersoPath)) {
+    return NextResponse.json(
+      { error: "Impossible de valider le KYC sans recto et verso téléversés" },
+      { status: 400 }
+    );
+  }
+
   const updated = await db.user.update({
     where: { id: userId },
     data: {

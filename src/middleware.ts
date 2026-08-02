@@ -37,14 +37,15 @@ export default withAuth(
     pages: { signIn: "/connexion" },
     callbacks: {
       authorized: ({ token, req }) => {
+        if (!token || token.error === "inactive") return false;
         const path = req.nextUrl.pathname;
         if (path.startsWith("/espace")) {
-          return !!token && token.role === "CANDIDAT";
+          return token.role === "CANDIDAT";
         }
         if (path.startsWith("/admin")) {
-          return isStaff(token?.role as string | undefined);
+          return isStaff(token.role as string | undefined);
         }
-        return !!token;
+        return true;
       },
     },
   }

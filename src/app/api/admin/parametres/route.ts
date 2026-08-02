@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { parametresSchema, validate } from "@/lib/validations";
 import { requirePermission } from "@/lib/rbac";
 import { logAudit } from "@/lib/audit";
+import { invalidateFraisCache } from "@/lib/dossier/frais-agence-server";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -54,8 +55,10 @@ export async function PUT(request: Request) {
   }
 
   const data = parsed.data;
-  const newFraisMin = data.fraisMin ?? existing.fraisMin;
-  const newFraisMax = data.fraisMax ?? existing.fraisMax;
+  const newPublic = data.fraisAgencePublic ?? existing.fraisAgencePublic ?? existing.fraisMin;
+  const newPrive = data.fraisAgencePrive ?? existing.fraisAgencePrive ?? existing.fraisMax;
+  const newFraisMin = data.fraisMin ?? newPublic;
+  const newFraisMax = data.fraisMax ?? newPrive;
   if (newFraisMax < newFraisMin) {
     return NextResponse.json(
       { error: "fraisMax doit être supérieur ou égal à fraisMin" },
@@ -66,8 +69,14 @@ export async function PUT(request: Request) {
   const updated = await db.parametre.update({
     where: { id: 1 },
     data: {
-      ...(data.fraisMin !== undefined ? { fraisMin: data.fraisMin } : {}),
-      ...(data.fraisMax !== undefined ? { fraisMax: data.fraisMax } : {}),
+      ...(data.fraisMin !== undefined ? { fraisMin: data.fraisMin } : { fraisMin: newPublic }),
+      ...(data.fraisMax !== undefined ? { fraisMax: data.fraisMax } : { fraisMax: newPrive }),
+      ...(data.fraisAgencePublic !== undefined
+        ? { fraisAgencePublic: data.fraisAgencePublic }
+        : {}),
+      ...(data.fraisAgencePrive !== undefined
+        ? { fraisAgencePrive: data.fraisAgencePrive }
+        : {}),
       ...(data.paiementTranches !== undefined ? { paiementTranches: data.paiementTranches } : {}),
       ...(data.notifEmail !== undefined ? { notifEmail: data.notifEmail } : {}),
       ...(data.notifInApp !== undefined ? { notifInApp: data.notifInApp } : {}),
@@ -79,6 +88,8 @@ export async function PUT(request: Request) {
         : {}),
     },
   });
+
+  invalidateFraisCache();
 
   await logAudit({
     session,

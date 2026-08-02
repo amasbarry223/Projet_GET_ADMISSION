@@ -297,7 +297,17 @@ function DossierWizard() {
               ? manquantes.join(" · ")
               : `${manquantes.slice(0, 5).join(" · ")} · +${manquantes.length - 5}`
             : data.error || "Échec de la soumission";
-        throw new Error(detail);
+        toast.error("Échec de la soumission", {
+          description: detail,
+          action:
+            manquantes.length > 0
+              ? {
+                  label: "Compléter",
+                  onClick: () => setStep(DOSSIER_WIZARD_STEPS.DOCUMENTS),
+                }
+              : undefined,
+        });
+        return;
       }
       toast.success(isResubmit ? "Corrections renvoyées" : "Dossier soumis");
       router.push("/espace");
@@ -491,6 +501,16 @@ function DossierWizard() {
             boardingEtape={boardingEtape}
             boardingMrz={boardingMrz}
             boardingConseiller={boardingConseiller}
+            onCompleterDocuments={(pieceCode) => {
+              setStep(DOSSIER_WIZARD_STEPS.DOCUMENTS);
+              if (pieceCode && typeof document !== "undefined") {
+                window.setTimeout(() => {
+                  document
+                    .getElementById(`piece-${pieceCode}`)
+                    ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                }, 120);
+              }
+            }}
           />
         )}
 

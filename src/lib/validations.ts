@@ -206,13 +206,16 @@ export const adminUserCreateSchema = z.object({
   prenom: z.string().min(1, "Le prénom est requis").max(50),
   nom: z.string().min(1, "Le nom est requis").max(50),
   email: z.string().email("L'e-mail saisi n'est pas valide"),
-  role: z.enum(["CANDIDAT", "CONSEILLER", "FINANCIER", "ADMIN", "SUPER_ADMIN"]),
+  role: z.enum(["CONSEILLER", "FINANCIER", "ADMIN", "SUPER_ADMIN"]),
 });
 export type AdminUserCreateInput = z.infer<typeof adminUserCreateSchema>;
 
 export const adminUserUpdateSchema = z.object({
+  prenom: z.string().min(1).max(50).optional(),
+  nom: z.string().min(1).max(50).optional(),
+  email: z.string().email("L'e-mail saisi n'est pas valide").optional(),
   actif: z.boolean().optional(),
-  role: z.enum(["CANDIDAT", "CONSEILLER", "FINANCIER", "ADMIN", "SUPER_ADMIN"]).optional(),
+  role: z.enum(["CONSEILLER", "FINANCIER", "ADMIN", "SUPER_ADMIN"]).optional(),
 });
 export type AdminUserUpdateInput = z.infer<typeof adminUserUpdateSchema>;
 
@@ -246,6 +249,8 @@ export type ManualTransactionInput = z.infer<typeof manualTransactionSchema>;
 export const parametresSchema = z.object({
   fraisMin: z.number().int().min(0).max(10_000_000).optional(),
   fraisMax: z.number().int().min(0).max(10_000_000).optional(),
+  fraisAgencePublic: z.number().int().min(0).max(10_000_000).optional(),
+  fraisAgencePrive: z.number().int().min(0).max(10_000_000).optional(),
   paiementTranches: z.boolean().optional(),
   notifEmail: z.boolean().optional(),
   notifInApp: z.boolean().optional(),

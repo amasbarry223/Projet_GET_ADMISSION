@@ -1,138 +1,209 @@
 "use client";
 
 import * as React from "react";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { CheckCircle2, Clock } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { usePrefersReducedMotion } from "@/lib/motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { Check, CircleDot, Lock, X } from "lucide-react";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
-
-gsap.registerPlugin(ScrollTrigger);
 
 type Etat = {
   code: string;
   ordre: number;
   libelle: string;
   description: string;
+  categorie?: "brouillon" | "attente" | "valide" | "refuse";
 };
 
 type Props = {
   etats: Etat[];
   etapeActuelle: number;
   dateParEtat: Map<string, string> | Record<string, string>;
+  /** Note de la dernière transition vers l’étape courante */
+  noteCourante?: string | null;
+  live?: boolean;
 };
 
-export function TimelinePassage({ etats, etapeActuelle, dateParEtat }: Props) {
-  const listRef = React.useRef<HTMLOListElement>(null);
-  const reduce = usePrefersReducedMotion();
+function datesMap(
+  dateParEtat: Map<string, string> | Record<string, string>,
+): Map<string, string> {
+  return dateParEtat instanceof Map
+    ? dateParEtat
+    : new Map(Object.entries(dateParEtat));
+}
 
-  const dates =
-    dateParEtat instanceof Map
-      ? dateParEtat
-      : new Map(Object.entries(dateParEtat));
+export function TimelinePassage({
+  etats,
+  etapeActuelle,
+  dateParEtat,
+  noteCourante,
+  live = false,
+}: Props) {
+  const reduce = useReducedMotion();
+  const dates = datesMap(dateParEtat);
+  const current = etats.find((e) => e.ordre === etapeActuelle) ?? etats[0];
+  const isRefuse = current?.code === "refuse" || current?.categorie === "refuse";
+  const progressPct = Math.min(100, Math.max(0, ((etapeActuelle - 1) / 11) * 100));
+
+  const listRef = React.useRef<HTMLOListElement>(null);
 
   React.useEffect(() => {
-    if (reduce || !listRef.current) return;
-    const items = listRef.current.querySelectorAll<HTMLElement>("[data-timeline-item]");
-    const ctx = gsap.context(() => {
-      items.forEach((el) => {
-        gsap.fromTo(
-          el,
-          { opacity: 0, y: 28, scale: 0.96 },
-          {
-            opacity: 1,
-            y: 0,
-            scale: 1,
-            duration: 0.55,
-            ease: "back.out(1.4)",
-            scrollTrigger: {
-              trigger: el,
-              start: "top 88%",
-              toggleActions: "play none none none",
-            },
-          }
-        );
-        const stamp = el.querySelector("[data-stamp]");
-        if (stamp) {
-          gsap.fromTo(
-            stamp,
-            { scale: 1.6, rotate: -20, opacity: 0 },
-            {
-              scale: 1,
-              rotate: 0,
-              opacity: 1,
-              duration: 0.45,
-              ease: "back.out(2)",
-              scrollTrigger: {
-                trigger: el,
-                start: "top 88%",
-                toggleActions: "play none none none",
-              },
-              delay: 0.12,
-            }
-          );
-        }
-      });
-    }, listRef);
-    return () => ctx.revert();
-  }, [reduce, etats.length]);
+    if (!listRef.current) return;
+    const active = listRef.current.querySelector<HTMLElement>("[data-current='true']");
+    active?.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
+  }, [etapeActuelle, reduce]);
 
   return (
-    <ol ref={listRef} className="relative space-y-1">
-      <span className="absolute left-[15px] top-2 bottom-2 w-px bg-border" aria-hidden />
-      {etats.map((etat) => {
-        const isPast = etat.ordre < etapeActuelle;
-        const isCurrent = etat.ordre === etapeActuelle;
-        const isFuture = etat.ordre > etapeActuelle;
-        const date = dates.get(etat.code.toLowerCase()) ?? dates.get(etat.code);
-        return (
-          <li
-            key={etat.code}
-            data-timeline-item
-            className="relative flex gap-4 py-2"
-            style={reduce ? undefined : { opacity: 0 }}
-          >
-            <span
-              data-stamp
+    <div className="space-y-5">
+      {/* Rail de progression — boarding pass */}
+      <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/[0.08] via-card to-primary/[0.03] p-4 sm:p-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary/80">
+              Embarquement dossier
+            </p>
+            <AnimatePresence mode="wait">
+              <motion.h3
+                key={current?.code}
+                initial={reduce ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={reduce ? undefined : { opacity: 0, y: -6 }}
+                transition={{ duration: 0.28 }}
+                className="mt-1 font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl"
+              >
+                {current?.libelle}
+              </motion.h3>
+            </AnimatePresence>
+            <p className="mt-1 max-w-md text-sm text-muted-foreground">
+              {noteCourante?.trim() || current?.description}
+            </p>
+          </div>
+          <div className="text-right">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1">
+              <span
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full bg-primary",
+                  live && "animate-pulse",
+                )}
+              />
+              <span className="font-mono text-[10px] uppercase tracking-wider text-primary">
+                {live ? "Live" : "Sync"} · {String(etapeActuelle).padStart(2, "0")}/12
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <div className="relative h-2 overflow-hidden rounded-full bg-border/70">
+            <motion.div
+              className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-primary/80 to-primary"
+              initial={false}
+              animate={{ width: `${progressPct}%` }}
+              transition={{ type: "spring", stiffness: 120, damping: 22 }}
+            />
+          </div>
+          <div className="mt-2 flex justify-between font-mono text-[10px] text-muted-foreground">
+            <span>Départ</span>
+            <span>Attestation</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Liste des 12 étapes */}
+      <ol ref={listRef} className="relative space-y-0">
+        <span
+          className="absolute left-[19px] top-3 bottom-3 w-px bg-gradient-to-b from-primary/50 via-border to-border"
+          aria-hidden
+        />
+        {etats.map((etat, index) => {
+          const isPast = etat.ordre < etapeActuelle;
+          const isCurrent = etat.ordre === etapeActuelle;
+          const skipped =
+            isRefuse && etat.ordre > etapeActuelle && etat.code !== "refuse";
+          const isFuture = etat.ordre > etapeActuelle && !skipped;
+          const date = dates.get(etat.code.toLowerCase()) ?? dates.get(etat.code);
+          const isTerminalRefuse = etat.code === "refuse" && isCurrent;
+
+          return (
+            <motion.li
+              key={etat.code}
+              data-timeline-item
+              data-current={isCurrent ? "true" : undefined}
+              initial={reduce ? false : { opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: reduce ? 0 : Math.min(index * 0.03, 0.35), duration: 0.35 }}
               className={cn(
-                "relative z-10 mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-full border-2 bg-card shadow-[0_2px_8px_rgba(60,169,54,0.25)]",
-                isPast && "border-primary bg-primary text-primary-foreground",
-                isCurrent && "border-primary bg-primary text-primary-foreground animate-pulse-soft ring-2 ring-primary/30",
-                isFuture && "border-border text-muted-foreground"
+                "relative flex gap-4 py-2.5 pl-0",
+                isCurrent && "rounded-xl bg-primary/[0.06] px-2 -mx-2 sm:px-3 sm:-mx-3",
               )}
             >
-              {isPast ? (
-                <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
-              ) : isCurrent ? (
-                <Clock className="h-3.5 w-3.5" strokeWidth={2} />
-              ) : (
-                <span className="h-3 w-3 rounded-full bg-muted-foreground/30" />
-              )}
-            </span>
-            <div className={cn("flex-1 pt-0.5", isFuture && "opacity-55")}>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                <span className="font-mono text-[10px] text-muted-foreground">
-                  {String(etat.ordre).padStart(2, "0")}
-                </span>
-                <p className={cn("text-sm font-semibold", isCurrent ? "text-primary" : "text-foreground")}>
-                  {etat.libelle}
+              <span
+                className={cn(
+                  "relative z-10 mt-0.5 flex h-10 w-10 flex-none items-center justify-center rounded-full border-2 text-xs font-semibold shadow-sm transition-colors",
+                  isPast && "border-primary bg-primary text-primary-foreground",
+                  isCurrent &&
+                    !isTerminalRefuse &&
+                    "border-primary bg-card text-primary ring-4 ring-primary/15",
+                  isTerminalRefuse && "border-destructive bg-destructive text-destructive-foreground",
+                  isFuture && "border-border bg-card text-muted-foreground",
+                  skipped && "border-dashed border-muted-foreground/40 bg-muted/40 text-muted-foreground",
+                )}
+              >
+                {isPast ? (
+                  <Check className="h-4 w-4" strokeWidth={2.5} />
+                ) : isTerminalRefuse ? (
+                  <X className="h-4 w-4" strokeWidth={2.5} />
+                ) : isCurrent ? (
+                  <CircleDot className={cn("h-4 w-4", live && "animate-pulse")} strokeWidth={2} />
+                ) : skipped ? (
+                  <Lock className="h-3.5 w-3.5" strokeWidth={2} />
+                ) : (
+                  <span className="font-mono text-[11px]">{String(etat.ordre).padStart(2, "0")}</span>
+                )}
+              </span>
+
+              <div className={cn("min-w-0 flex-1 pt-1", (isFuture || skipped) && "opacity-50")}>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <p
+                    className={cn(
+                      "text-sm font-semibold tracking-tight",
+                      isCurrent && "text-primary",
+                      isTerminalRefuse && "text-destructive",
+                      !isCurrent && "text-foreground",
+                    )}
+                  >
+                    {etat.libelle}
+                  </p>
+                  {date && (
+                    <time className="font-mono text-[10px] text-muted-foreground">
+                      {formatDate(date)}
+                    </time>
+                  )}
+                  {isCurrent && (
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider",
+                        isTerminalRefuse
+                          ? "bg-destructive/15 text-destructive"
+                          : "bg-primary/15 text-primary",
+                      )}
+                    >
+                      {isTerminalRefuse ? "Terminé" : "En cours"}
+                    </span>
+                  )}
+                  {skipped && (
+                    <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                      Non applicable
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                  {etat.description}
                 </p>
-                {date && (
-                  <span className="font-mono text-[10px] text-muted-foreground">{formatDate(date)}</span>
-                )}
-                {isCurrent && (
-                  <Badge className="bg-primary/20 font-mono text-[9px] uppercase tracking-eyebrow text-primary border-primary/20">
-                    En cours
-                  </Badge>
-                )}
               </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">{etat.description}</p>
-            </div>
-          </li>
-        );
-      })}
-    </ol>
+            </motion.li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }

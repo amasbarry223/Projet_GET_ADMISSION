@@ -1,7 +1,8 @@
 import type { Prisma } from "@prisma/client";
+import { resolveFraisAgence } from "@/lib/dossier/frais-agence";
+import { parseJsonArray } from "@/lib/parse-json";
 
-// ===================== Types Prisma dérivés =====================
-// Évite la duplication des types Dossier/Row dans 8+ fichiers.
+export { parseJsonArray };
 
 // Dossier avec toutes ses relations (pour espace candidat + admin détail)
 export type DossierWithRelations = Prisma.DossierGetPayload<{
@@ -64,26 +65,23 @@ export type UniversiteWithFormations = Prisma.UniversiteGetPayload<{
 
 // ===================== Helpers de transformation =====================
 
-/** Parse un champ JSON stocké en string (SQLite limitation). */
-export function parseJsonArray(field: string | null | undefined): string[] {
-  if (!field) return [];
-  try {
-    const parsed = JSON.parse(field);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
 /** Transforme une Universite DB (JSON strings) en objet avec arrays parsés. */
 export function normalizeUniversite(u: UniversiteWithFormations) {
+  const frais = resolveFraisAgence(u.typeEtablissement);
   return {
     ...u,
+    fraisMin: frais,
+    fraisMax: frais,
+    createdAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : u.createdAt,
+    updatedAt: u.updatedAt instanceof Date ? u.updatedAt.toISOString() : u.updatedAt,
     domaines: parseJsonArray(u.domaines),
     pointsForts: parseJsonArray(u.pointsForts),
     galleryUrls: parseJsonArray((u as { galleryUrls?: string }).galleryUrls ?? "[]"),
     formations: u.formations.map((f) => ({
       ...f,
+      fraisAgence: frais,
+      createdAt: f.createdAt instanceof Date ? f.createdAt.toISOString() : f.createdAt,
+      updatedAt: f.updatedAt instanceof Date ? f.updatedAt.toISOString() : f.updatedAt,
       prerequis: parseJsonArray(f.prerequis),
       piecesRequises: parseJsonArray(f.piecesRequises),
     })),

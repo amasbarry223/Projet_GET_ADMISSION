@@ -307,6 +307,12 @@ export async function PUT(
         { status: 400 },
       );
     }
+    if (error instanceof Error && error.message === "SUBMIT_RACE") {
+      return NextResponse.json(
+        { error: "Ce dossier a déjà été soumis. Actualisez la page." },
+        { status: 409 },
+      );
+    }
     throw error;
   }
 

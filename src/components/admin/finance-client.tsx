@@ -54,6 +54,7 @@ export type TransactionRow = {
   moyen: string;
   montant: number;
   statut: "réussi" | "en_attente" | "échoué";
+  typeEtablissement?: "PUBLIC" | "PRIVE";
 };
 
 export type FinanceKpis = {
@@ -61,6 +62,8 @@ export type FinanceKpis = {
   enAttente: number;
   impayes: number;
   totalEncaisse: number;
+  encaissePublic?: number;
+  encaissePrive?: number;
 };
 
 const STATUT_TONE: Record<string, string> = {
@@ -233,6 +236,18 @@ export function FinanceClient({
         cell: ({ row }) => <span className="text-sm text-encre">{row.original.moyen}</span>,
       },
       {
+        id: "typeEtablissement",
+        accessorKey: "typeEtablissement",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Type" />,
+        cell: ({ row }) => (
+          <span className="font-mono text-[10px] uppercase text-ardoise">
+            {row.original.typeEtablissement === "PUBLIC" ? "Public" : "Privé"}
+          </span>
+        ),
+        filterFn: (row, _id, value: string) =>
+          value === "tous" ? true : (row.original.typeEtablissement ?? "PRIVE") === value,
+      },
+      {
         id: "montant",
         accessorKey: "montant",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Montant" />,
@@ -382,6 +397,20 @@ export function FinanceClient({
         <FinanceKpi icon={XCircle} label="Impayés" value={formatFCFACompact(kpis.impayes)} tone="carmin" />
         <FinanceKpi icon={TrendingUp} label="Total encaissé" value={formatFCFACompact(kpis.totalEncaisse)} tone="lapis" />
       </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FinanceKpi
+          icon={Wallet}
+          label="Encaissé — public"
+          value={formatFCFACompact(kpis.encaissePublic ?? 0)}
+          tone="lapis"
+        />
+        <FinanceKpi
+          icon={Wallet}
+          label="Encaissé — privé"
+          value={formatFCFACompact(kpis.encaissePrive ?? 0)}
+          tone="vert"
+        />
+      </div>
 
       <DataTable
         columns={columns}
@@ -397,20 +426,35 @@ export function FinanceClient({
           </div>
         }
         toolbar={(table: Table<TransactionRow>) => (
-          <Select
-            value={(table.getColumn("statut")?.getFilterValue() as string) ?? "tous"}
-            onValueChange={(v) => table.getColumn("statut")?.setFilterValue(v)}
-          >
-            <SelectTrigger className="h-9 w-[170px]">
-              <SelectValue placeholder="Statut" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tous">Tous les statuts</SelectItem>
-              <SelectItem value="réussi">Réussi</SelectItem>
-              <SelectItem value="en_attente">En attente</SelectItem>
-              <SelectItem value="échoué">Échoué</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex flex-wrap gap-2">
+            <Select
+              value={(table.getColumn("statut")?.getFilterValue() as string) ?? "tous"}
+              onValueChange={(v) => table.getColumn("statut")?.setFilterValue(v)}
+            >
+              <SelectTrigger className="h-9 w-[170px]">
+                <SelectValue placeholder="Statut" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tous">Tous les statuts</SelectItem>
+                <SelectItem value="réussi">Réussi</SelectItem>
+                <SelectItem value="en_attente">En attente</SelectItem>
+                <SelectItem value="échoué">Échoué</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={(table.getColumn("typeEtablissement")?.getFilterValue() as string) ?? "tous"}
+              onValueChange={(v) => table.getColumn("typeEtablissement")?.setFilterValue(v)}
+            >
+              <SelectTrigger className="h-9 w-[170px]">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tous">Public & privé</SelectItem>
+                <SelectItem value="PUBLIC">Public</SelectItem>
+                <SelectItem value="PRIVE">Privé</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         )}
       />
 

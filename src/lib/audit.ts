@@ -2,7 +2,16 @@ import { db } from "@/lib/db";
 import type { Session } from "next-auth";
 
 type AuditAction = "CREATE" | "UPDATE" | "DELETE" | "LOGIN" | "LOGOUT" | "WORKFLOW" | "VERIFY_EMAIL";
-type AuditResource = "dossier" | "user" | "universite" | "paiement" | "attestation" | "parametre" | "message" | "auth";
+type AuditResource =
+  | "dossier"
+  | "user"
+  | "universite"
+  | "paiement"
+  | "attestation"
+  | "parametre"
+  | "message"
+  | "auth"
+  | "matrice";
 
 /**
  * Enregistre une action dans le journal d'audit (BF-26, §4.7).

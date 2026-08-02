@@ -6,6 +6,7 @@ import type { Formation, PersonalInfo, PieceRow, Universite } from "@/components
 import { formatFCFA } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function DossierStepRecap({
   personalInfo,
@@ -20,6 +21,7 @@ export function DossierStepRecap({
   boardingEtape,
   boardingMrz,
   boardingConseiller,
+  onCompleterDocuments,
 }: {
   personalInfo: PersonalInfo;
   universite: Universite | undefined;
@@ -33,6 +35,7 @@ export function DossierStepRecap({
   boardingEtape: number;
   boardingMrz: string;
   boardingConseiller: string;
+  onCompleterDocuments?: (pieceCode?: string | null) => void;
 }) {
   return (
     <div className="space-y-5">
@@ -81,9 +84,10 @@ export function DossierStepRecap({
         <ul className="mt-2 space-y-1.5">
           {pieceRows.map((piece) => {
             const statut = piece.statut ?? "manquante";
+            const incomplete = statut === "manquante" || statut === "a_corriger";
             return (
               <li key={piece.id} className="flex items-center gap-2 text-sm">
-                {statut === "manquante" || statut === "a_corriger" ? (
+                {incomplete ? (
                   <AlertCircle className="h-4 w-4 text-destructive" strokeWidth={1.5} />
                 ) : (
                   <CheckCircle2 className="h-4 w-4 text-vert-vif" strokeWidth={1.5} />
@@ -96,9 +100,21 @@ export function DossierStepRecap({
                   {piece.libelle}
                   {piece.obligatoire === false ? " (optionnel)" : ""}
                 </span>
-                <span className="ml-auto font-mono text-[10px] uppercase text-muted-foreground">
-                  {statut.replace("_", " ")}
-                </span>
+                {incomplete && onCompleterDocuments ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="ml-auto h-auto p-0 text-xs text-primary"
+                    onClick={() => onCompleterDocuments(piece.code)}
+                  >
+                    Compléter
+                  </Button>
+                ) : (
+                  <span className="ml-auto font-mono text-[10px] uppercase text-muted-foreground">
+                    {statut.replace("_", " ")}
+                  </span>
+                )}
               </li>
             );
           })}
@@ -108,15 +124,37 @@ export function DossierStepRecap({
       {missingObligatoires.length > 0 && (
         <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3">
           <AlertCircle className="mt-0.5 h-4 w-4 flex-none text-destructive" strokeWidth={1.5} />
-          <div className="text-sm text-destructive">
+          <div className="flex-1 text-sm text-destructive">
             <p className="font-medium">
               {missingObligatoires.length} pièce(s) obligatoire(s) manquante(s) :
             </p>
             <ul className="mt-1 list-inside list-disc">
               {missingObligatoires.map((piece) => (
-                <li key={piece.id}>{piece.libelle}</li>
+                <li key={piece.id}>
+                  {piece.libelle}
+                  {onCompleterDocuments && (
+                    <button
+                      type="button"
+                      className="ml-2 underline underline-offset-2"
+                      onClick={() => onCompleterDocuments(piece.code)}
+                    >
+                      Compléter
+                    </button>
+                  )}
+                </li>
               ))}
             </ul>
+            {onCompleterDocuments && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3 border-destructive/40 text-destructive hover:bg-destructive/10"
+                onClick={() => onCompleterDocuments(missingObligatoires[0]?.code)}
+              >
+                Aller aux documents
+              </Button>
+            )}
           </div>
         </div>
       )}

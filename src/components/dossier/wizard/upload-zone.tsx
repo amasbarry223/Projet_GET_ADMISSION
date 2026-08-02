@@ -41,6 +41,7 @@ export function UploadZone({
   loading,
   disabled,
   obligatoire = true,
+  anchorId,
   onUpload,
 }: {
   libelle: string;
@@ -48,6 +49,7 @@ export function UploadZone({
   loading?: boolean;
   disabled?: boolean;
   obligatoire?: boolean;
+  anchorId?: string | null;
   onUpload: (file: File) => void;
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -90,6 +92,7 @@ export function UploadZone({
 
   return (
     <div
+      id={anchorId ?? undefined}
       className={cn(
         "rounded-md border p-4 transition-colors",
         config.border,

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { getApiErrorMessage, getApiErrorMessageSync, messageFromBody } from "@/lib/api-error";
+import { runAsyncEffect } from "@/lib/run-async-effect";
 
 type State<T> = {
   data: T | null;
@@ -26,48 +27,52 @@ export function useFetch<T>(url: string | null, options?: { deps?: unknown[] }):
 
   React.useEffect(() => {
     if (!url) {
-      setData(null);
-      setLoading(false);
-      return;
+      return runAsyncEffect(() => {
+        setData(null);
+        setLoading(false);
+        setError(null);
+      });
     }
 
     let cancelled = false;
-    setLoading(true);
-    setError(null);
+    const cancelSchedule = runAsyncEffect(() => {
+      if (cancelled) return;
+      setLoading(true);
+      setError(null);
 
-    fetch(url)
-      .then(async (r) => {
-        if (!r.ok) {
-          const msg = await getApiErrorMessage(r);
-          throw new Error(msg);
-        }
-        return r.json() as Promise<T>;
-      })
-      .then((d) => {
-        if (!cancelled) {
-          setData(d);
-          setLoading(false);
-        }
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setError(
-            e instanceof Error
-              ? getApiErrorMessageSync(e)
-              : "Une erreur est survenue. Réessayez.",
-          );
-          setLoading(false);
-        }
-      });
+      fetch(url)
+        .then(async (r) => {
+          if (!r.ok) {
+            const msg = await getApiErrorMessage(r);
+            throw new Error(msg);
+          }
+          return r.json() as Promise<T>;
+        })
+        .then((d) => {
+          if (!cancelled) {
+            setData(d);
+            setLoading(false);
+          }
+        })
+        .catch((e) => {
+          if (!cancelled) {
+            setError(
+              e instanceof Error
+                ? getApiErrorMessageSync(e)
+                : "Une erreur est survenue. Réessayez.",
+            );
+            setLoading(false);
+          }
+        });
+    });
 
     return () => {
       cancelled = true;
+      cancelSchedule();
     };
-    // depsKey sérialise options.deps pour refetch contrôlé
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url, nonce, depsKey]);
 
-  return { data, loading, error, refetch: () => setNonce((n) => n + 1) };
+  return { data, loading: url ? loading : false, error: url ? error : null, refetch: () => setNonce((n) => n + 1) };
 }
 
 /** Helper pour mutations : lit l'erreur API et la renvoie en string. */

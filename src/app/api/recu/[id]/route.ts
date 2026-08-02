@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatFCFA, formatDate } from "@/lib/format";
 import { requirePermission } from "@/lib/rbac";
+import { escapeHtml } from "@/lib/escape-html";
 
 // GET /api/recu/[id] — Reçu de paiement (HTML imprimable)
 export async function GET(
@@ -20,7 +21,14 @@ export async function GET(
     where: { id },
     include: {
       candidat: { select: { prenom: true, nom: true, email: true } },
-      dossier: { select: { reference: true, universite: { select: { nom: true } }, formation: { select: { intitule: true } } } },
+      dossier: {
+        select: {
+          reference: true,
+          fraisAgence: true,
+          universite: { select: { nom: true, typeEtablissement: true } },
+          formation: { select: { intitule: true } },
+        },
+      },
     },
   });
 
@@ -46,11 +54,13 @@ export async function GET(
     );
   }
 
+  const e = escapeHtml;
+  const moyenLabel = e(paiement.moyen) + (paiement.tranche ? ` · ${e(paiement.tranche)}` : "");
   const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<title>Reçu ${paiement.reference}</title>
+<title>Reçu ${e(paiement.reference)}</title>
 <style>
   body { font-family: 'General Sans', Inter, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; color: #1A1A1A; }
   .header { text-align: center; border-bottom: 2px solid #3CA936; padding-bottom: 20px; margin-bottom: 30px; }
@@ -75,20 +85,22 @@ export async function GET(
     <h1>Reçu de paiement</h1>
   </div>
   <div class="recu">
-    <h2>Référence : <span class="mono">${paiement.reference}</span></h2>
-    <div class="row"><span class="label">Date</span><span class="value">${formatDate(paiement.date.toISOString())}</span></div>
-    <div class="row"><span class="label">Candidat</span><span class="value">${paiement.candidat.prenom} ${paiement.candidat.nom}</span></div>
-    <div class="row"><span class="label">E-mail</span><span class="value">${paiement.candidat.email}</span></div>
-    <div class="row"><span class="label">Dossier</span><span class="value mono">${paiement.dossier.reference}</span></div>
-    <div class="row"><span class="label">Université</span><span class="value">${paiement.dossier.universite.nom}</span></div>
-    <div class="row"><span class="label">Formation</span><span class="value">${paiement.dossier.formation.intitule}</span></div>
-    <div class="row"><span class="label">Moyen de paiement</span><span class="value">${paiement.moyen}${paiement.tranche ? ` · ${paiement.tranche}` : ""}</span></div>
-    <div class="row"><span class="label">Statut</span><span class="value" style="color: #3CA936;">${paiement.statut}</span></div>
-    <div class="total"><span class="label">Montant</span><span class="value mono">${formatFCFA(paiement.montant)}</span></div>
+    <h2>Référence : <span class="mono">${e(paiement.reference)}</span></h2>
+    <div class="row"><span class="label">Date</span><span class="value">${e(formatDate(paiement.date.toISOString()))}</span></div>
+    <div class="row"><span class="label">Candidat</span><span class="value">${e(paiement.candidat.prenom)} ${e(paiement.candidat.nom)}</span></div>
+    <div class="row"><span class="label">E-mail</span><span class="value">${e(paiement.candidat.email)}</span></div>
+    <div class="row"><span class="label">Dossier</span><span class="value mono">${e(paiement.dossier.reference)}</span></div>
+    <div class="row"><span class="label">Université</span><span class="value">${e(paiement.dossier.universite.nom)}</span></div>
+    <div class="row"><span class="label">Type d'établissement</span><span class="value">${paiement.dossier.universite.typeEtablissement === "PUBLIC" ? "Public" : "Privé"}</span></div>
+    <div class="row"><span class="label">Formation</span><span class="value">${e(paiement.dossier.formation.intitule)}</span></div>
+    <div class="row"><span class="label">Frais d'agence (référence)</span><span class="value mono">${e(formatFCFA(paiement.dossier.fraisAgence))}</span></div>
+    <div class="row"><span class="label">Moyen de paiement</span><span class="value">${moyenLabel}</span></div>
+    <div class="row"><span class="label">Statut</span><span class="value" style="color: #3CA936;">${e(paiement.statut)}</span></div>
+    <div class="total"><span class="label">Montant payé</span><span class="value mono">${e(formatFCFA(paiement.montant))}</span></div>
   </div>
   <div class="footer">
     <p>GET Admission · Confidentiel</p>
-    <p>Document généré électroniquement le ${formatDate(new Date().toISOString())}</p>
+    <p>Document généré électroniquement le ${e(formatDate(new Date().toISOString()))}</p>
   </div>
   <script>window.onload = () => window.print();</script>
 </body>

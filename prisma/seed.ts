@@ -274,6 +274,10 @@ async function main() {
   });
 
   console.log("✓ Dossier démo créé (GETADM-2026-0048)");
+
+  const { seedMatriceDocumentaire } = await import("./seed-matrice");
+  await seedMatriceDocumentaire();
+
   console.log("🎉 Seed terminé !");
   console.log(`   Comptes démo (mot de passe: ${demoPassword}) — définir SEED_DEMO_PASSWORD pour personnaliser`);
   console.log("   - candidat:    fatou.diallo@demo.getadm");

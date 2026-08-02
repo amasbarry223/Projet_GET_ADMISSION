@@ -90,6 +90,15 @@ export async function PUT(request: Request) {
   const kycType = body.kycType;
   const kycNumero = body.kycNumero;
 
+  const current = await db.user.findUnique({
+    where: { id: userId },
+    select: { kycType: true, kycNumero: true, kycVerifie: true },
+  });
+
+  const kycIdentityChanged =
+    (kycType !== undefined && kycType !== current?.kycType) ||
+    (kycNumero !== undefined && kycNumero !== current?.kycNumero);
+
   const updated = await db.user.update({
     where: { id: userId },
     data: {
@@ -101,6 +110,8 @@ export async function PUT(request: Request) {
       ...(adresse !== undefined && { adresse }),
       ...(kycType !== undefined && { kycType }),
       ...(kycNumero !== undefined && { kycNumero }),
+      // Changement d'identité KYC → révoquer la validation
+      ...(kycIdentityChanged ? { kycVerifie: false, kycVerifieLe: null } : {}),
     },
     select: { id: true, email: true, prenom: true, nom: true, telephone: true, nationalite: true, dateNaissance: true, adresse: true, kycType: true, kycNumero: true, kycVerifie: true, kycVerifieLe: true },
   });

@@ -28,8 +28,13 @@ function Counter({ valeur, libelle }: { valeur: string; libelle: string }) {
   React.useEffect(() => {
     if (!inView) return;
     if (reduce || target === 0) {
-      setDisplay(valeur);
-      return;
+      let cancelled = false;
+      queueMicrotask(() => {
+        if (!cancelled) setDisplay(valeur);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
     motionVal.set(0);
     motionVal.set(target);

@@ -46,6 +46,7 @@ export function DossierStepDocuments({
                     state={piece.statut}
                     loading={togglingPiece === piece.libelle}
                     disabled={!isEditable}
+                    anchorId={piece.code ? `piece-${piece.code}` : undefined}
                     onUpload={(file) => onUpload(piece.libelle, file)}
                   />
                 ))}

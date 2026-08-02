@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { dossierCreateSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { requirePermission } from "@/lib/rbac";
-import { resolveFraisAgence } from "@/lib/dossier/frais-agence";
+import { resolveFraisAgenceAsync } from "@/lib/dossier/frais-agence-server";
 import { isProfilAcademiqueComplet } from "@/lib/dossier/pieces-requises";
 import { syncPiecesDossier } from "@/lib/dossier/sync-pieces";
 
@@ -154,21 +154,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const existing = await db.dossier.findFirst({
-    where: {
-      candidatId: userId,
-      formationId,
-      etat: { notIn: ["REFUSE", "CLOTURE"] },
-    },
-    select: { id: true },
-  });
-  if (existing) {
-    return NextResponse.json(
-      { error: "Vous avez déjà un dossier actif pour cette formation" },
-      { status: 409 }
-    );
-  }
-
   const candidat = await db.user.findUnique({
     where: { id: userId },
     select: { prenom: true, nom: true, profilAcademique: true },
@@ -190,20 +175,35 @@ export async function POST(request: Request) {
   }
 
   const year = new Date().getFullYear();
-  const countThisYear = await db.dossier.count({
-    where: { reference: { startsWith: `GETADM-${year}-` } },
-  });
-  const reference = `GETADM-${year}-${String(countThisYear + 1).padStart(4, "0")}`;
+  const fraisAgence = await resolveFraisAgenceAsync(formation.universite.typeEtablissement);
 
-  const mrz = generateMrz({
-    nom: candidat.nom,
-    prenom: candidat.prenom,
-    reference,
-  });
+  let dossier;
+  try {
+    dossier = await db.$transaction(async (tx) => {
+    // Anti-doublon atomique (race-safe dans la transaction)
+    const existing = await tx.dossier.findFirst({
+      where: {
+        candidatId: userId,
+        formationId,
+        etat: { notIn: ["REFUSE", "CLOTURE"] },
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new Error("DOSSIER_DUPLICATE");
+    }
 
-  const fraisAgence = resolveFraisAgence(formation.universite.typeEtablissement);
+    const countThisYear = await tx.dossier.count({
+      where: { reference: { startsWith: `GETADM-${year}-` } },
+    });
+    const reference = `GETADM-${year}-${String(countThisYear + 1).padStart(4, "0")}`;
 
-  const dossier = await db.$transaction(async (tx) => {
+    const mrz = generateMrz({
+      nom: candidat.nom,
+      prenom: candidat.prenom,
+      reference,
+    });
+
     const created = await tx.dossier.create({
       data: {
         reference,
@@ -258,6 +258,26 @@ export async function POST(request: Request) {
 
     return created;
   });
+  } catch (error) {
+    if (error instanceof Error && error.message === "DOSSIER_DUPLICATE") {
+      return NextResponse.json(
+        { error: "Vous avez déjà un dossier actif pour cette formation" },
+        { status: 409 }
+      );
+    }
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: string }).code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "Conflit : dossier ou référence déjà existant. Réessayez." },
+        { status: 409 }
+      );
+    }
+    throw error;
+  }
 
   const result = await db.dossier.findUnique({
     where: { id: dossier.id },

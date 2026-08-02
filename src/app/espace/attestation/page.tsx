@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -12,12 +14,14 @@ import { toast } from "sonner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FormPageSkeleton } from "@/components/ui/skeleton-card";
 import { getApiErrorMessageSync } from "@/lib/api-error";
+import { pickPrimaryDossier } from "@/lib/dossier/pick-dossier";
 import { Stamp, Download, Eye, EyeOff, MapPin, ShieldCheck, CheckCircle2, Clock, Loader2, AlertCircle, FolderOpen } from "lucide-react";
 
 type Dossier = {
   id: string;
   reference: string;
   etat: string;
+  updatedAt: string;
   mrz: string;
   candidat: { prenom: string; nom: string };
   universite: { nom: string; ville: string; pays: string };
@@ -35,6 +39,16 @@ type Attestation = {
 };
 
 export default function AttestationPage() {
+  return (
+    <Suspense fallback={<FormPageSkeleton />}>
+      <AttestationInner />
+    </Suspense>
+  );
+}
+
+function AttestationInner() {
+  const searchParams = useSearchParams();
+  const preferredId = searchParams.get("dossierId");
   const [dossier, setDossier] = React.useState<Dossier | null>(null);
   const [attestation, setAttestation] = React.useState<Attestation | null>(null);
   const [directrice, setDirectrice] = React.useState<{ nom: string; role: string } | null>(null);
@@ -50,7 +64,7 @@ export default function AttestationPage() {
       fetch("/api/public/equipe").then((r) => (r.ok ? r.json() : [])),
     ])
       .then(async ([data, equipe]) => {
-        const d = data[0] ?? null;
+        const d = pickPrimaryDossier(Array.isArray(data) ? data : [], preferredId) ?? null;
         setDossier(d);
         const dir = equipe.find((m: { role: string }) => m.role.toLowerCase().includes("directrice") || m.role.toLowerCase().includes("directeur"));
         setDirectrice(dir ?? { nom: "GET Admission", role: "Direction" });
@@ -73,7 +87,7 @@ export default function AttestationPage() {
         setError(getApiErrorMessageSync(e, undefined, "Impossible de charger votre dossier."));
         setLoading(false);
       });
-  }, []);
+  }, [preferredId]);
 
   async function persistModeRemise(agence: boolean) {
     if (!dossier?.id || !attestation) {

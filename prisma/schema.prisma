@@ -203,6 +203,7 @@ model Dossier {
   @@index([conseillerId])
   @@index([etat])
   @@index([updatedAt])
+  @@index([candidatId, formationId])
 }
 
 model Piece {
@@ -224,6 +225,7 @@ model Piece {
   updatedAt    DateTime  @updatedAt
   dossier      Dossier   @relation(fields: [dossierId], references: [id], onDelete: Cascade)
 
+  @@unique([dossierId, code])
   @@index([dossierId, code])
 }
 
@@ -402,6 +404,10 @@ model Parametre {
   id               Int     @id @default(1)
   fraisMin         Int     @default(65000)
   fraisMax         Int     @default(110000)
+  /// Frais d'agence établissement public (FCFA)
+  fraisAgencePublic Int    @default(65000)
+  /// Frais d'agence établissement privé (FCFA)
+  fraisAgencePrive  Int    @default(110000)
   paiementTranches Boolean @default(true)
   notifEmail       Boolean @default(true)
   notifInApp       Boolean @default(true)
@@ -409,6 +415,63 @@ model Parametre {
   exigerEmailVerifie Boolean @default(false)
   mentionsLegales  String  @default("")
   politiqueConfidentialite String @default("")
+}
+
+/* --------------- Matrice documentaire académique (§4.4) --------------- */
+
+enum MatriceStatut {
+  BROUILLON
+  ACTIVE
+  ARCHIVEE
+}
+
+enum MatriceCondition {
+  TOUJOURS
+  LYCEEN
+  BACHELIER
+  BAC_OBTENU
+  BAC_OPTIONNEL_LYCEEN
+  NIVEAU_SUP_MIN
+  FORMATION_EN_COURS
+  ATTESTATION_SCOLARITE
+  REDOUBLEMENT
+  INTERRUPTION
+  IDENTITE
+  BULLETINS_LYCEE
+}
+
+model MatriceVersion {
+  id           String        @id @default(cuid())
+  numero       Int
+  libelle      String
+  statut       MatriceStatut @default(BROUILLON)
+  notes        String        @default("")
+  createdById  String?
+  createdAt    DateTime      @default(now())
+  activatedAt  DateTime?
+  regles       MatriceRegle[]
+
+  @@unique([numero])
+  @@index([statut])
+}
+
+model MatriceRegle {
+  id          String           @id @default(cuid())
+  versionId   String
+  code        String
+  libelle     String
+  categorie   String           @default("academique")
+  obligatoire Boolean          @default(true)
+  condition   MatriceCondition
+  /// Pour NIVEAU_SUP_MIN : L1 | L2 | L3 | DUT_BTS | MASTER_PLUS
+  niveauMin   String?
+  /// JSON libre (ex. { "classe": "SECONDE" } pour BULLETINS_LYCEE)
+  meta        String           @default("{}")
+  ordre       Int              @default(0)
+  version     MatriceVersion   @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([versionId, ordre])
+  @@index([versionId, code])
 }
 
 model AuditLog {

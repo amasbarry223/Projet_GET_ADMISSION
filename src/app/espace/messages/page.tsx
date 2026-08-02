@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -14,6 +16,7 @@ import { toast } from "sonner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MessagesSkeleton } from "@/components/ui/skeleton-card";
 import { getApiErrorMessageSync, messageFromBody } from "@/lib/api-error";
+import { pickPrimaryDossier } from "@/lib/dossier/pick-dossier";
 import { Paperclip, Send, Mail, Phone, ArrowLeft, Loader2, AlertCircle, MessageSquare } from "lucide-react";
 
 type ConversationMessage = {
@@ -34,6 +37,16 @@ type Conversation = {
 } | null;
 
 export default function MessagesPage() {
+  return (
+    <Suspense fallback={<MessagesSkeleton />}>
+      <MessagesInner />
+    </Suspense>
+  );
+}
+
+function MessagesInner() {
+  const searchParams = useSearchParams();
+  const preferredId = searchParams.get("dossierId");
   const [dossierId, setDossierId] = React.useState<string | null>(null);
   const [conversation, setConversation] = React.useState<Conversation>(null);
   const [loading, setLoading] = React.useState(true);
@@ -58,9 +71,10 @@ export default function MessagesPage() {
         if (!r.ok) throw new Error();
         return r.json();
       })
-      .then((data: { id: string }[]) => {
-        if (data[0]?.id) {
-          setDossierId(data[0].id);
+      .then((data: { id: string; etat: string; updatedAt: string }[]) => {
+        const picked = pickPrimaryDossier(Array.isArray(data) ? data : [], preferredId);
+        if (picked?.id) {
+          setDossierId(picked.id);
         } else {
           setError("Vous n'avez pas encore de dossier.");
           setLoading(false);
@@ -71,7 +85,7 @@ export default function MessagesPage() {
         setError(getApiErrorMessageSync(e, undefined, "Impossible de charger votre dossier."));
         setLoading(false);
       });
-  }, []);
+  }, [preferredId]);
 
   // 2. Fetch la conversation quand on a le dossierId
   React.useEffect(() => {

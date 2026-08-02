@@ -192,6 +192,23 @@ export async function GET() {
   const enAttente = await db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "en_attente" } });
   const impayes = await db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "echoue" } });
 
+  // --- Ventilation CDC : type établissement + profil candidat ---
+  const [dossiersPublic, dossiersPrive, profilLyceen, profilBachelier] = await Promise.all([
+    db.dossier.count({ where: { universite: { typeEtablissement: "PUBLIC" } } }),
+    db.dossier.count({ where: { universite: { typeEtablissement: "PRIVE" } } }),
+    db.profilAcademique.count({ where: { statutCandidat: "LYCEEN" } }),
+    db.profilAcademique.count({ where: { statutCandidat: "BACHELIER" } }),
+  ]);
+
+  const repartitionTypeEtablissement = [
+    { name: "Public", value: dossiersPublic, couleur: "#1890FF" },
+    { name: "Privé", value: dossiersPrive, couleur: "#3CA936" },
+  ];
+  const repartitionProfilCandidat = [
+    { name: "Lycéen", value: profilLyceen, couleur: "#C77A12" },
+    { name: "Bachelier", value: profilBachelier, couleur: "#6B5CE7" },
+  ];
+
   // --- Deltas vs mois précédent (calculés, non hardcodés) ---
   const startPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const endPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
@@ -267,6 +284,8 @@ export async function GET() {
       totalEncaisse: totalEncaisse._sum.montant ?? 0,
     },
     repartitionStatuts,
+    repartitionTypeEtablissement,
+    repartitionProfilCandidat,
     topUniversites,
     dossiersParPeriode: weeks,
     transactionsParMois,

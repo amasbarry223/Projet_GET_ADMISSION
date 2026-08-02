@@ -98,14 +98,18 @@ export async function submitDraftDossier(
     params.notes,
   );
 
-  await tx.dossier.update({
-    where: { id: params.dossierId },
+  // Atomique : ne soumet que si encore BROUILLON (anti double-submit)
+  const locked = await tx.dossier.updateMany({
+    where: { id: params.dossierId, etat: "BROUILLON" },
     data: {
       etat: "SOUMIS",
       etapeActuelle: ETAPE_PAR_ETAT.SOUMIS,
       ...(autoConseillerId ? { conseillerId: autoConseillerId } : {}),
     },
   });
+  if (locked.count === 0) {
+    throw new Error("SUBMIT_RACE");
+  }
   params.notes.push("Dossier soumis — entrée en file de traitement");
   return "SOUMIS";
 }
@@ -114,13 +118,16 @@ export async function resubmitCorrectedDossier(
   tx: Tx,
   params: { dossierId: string; notes: string[] },
 ): Promise<"VERIFICATION"> {
-  await tx.dossier.update({
-    where: { id: params.dossierId },
+  const locked = await tx.dossier.updateMany({
+    where: { id: params.dossierId, etat: "CORRECTION" },
     data: {
       etat: "VERIFICATION",
       etapeActuelle: ETAPE_PAR_ETAT.VERIFICATION,
     },
   });
+  if (locked.count === 0) {
+    throw new Error("SUBMIT_RACE");
+  }
   params.notes.push("Corrections resoumises — retour en vérification");
   return "VERIFICATION";
 }

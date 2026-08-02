@@ -30,6 +30,8 @@ type Stats = {
     deltaAttestations: number;
   };
   repartitionStatuts: { name: string; value: number; couleur: string }[];
+  repartitionTypeEtablissement?: { name: string; value: number; couleur: string }[];
+  repartitionProfilCandidat?: { name: string; value: number; couleur: string }[];
   topUniversites: { universite: string; dossiers: number }[];
   dossiersParPeriode: { periode: string; dossiers: number; acceptes: number }[];
   transactionsParMois: { mois: string; montant: number }[];
@@ -66,7 +68,13 @@ export default function AdminDashboardClient() {
   }, [periodeDossiers, periodeFinance]);
 
   React.useEffect(() => {
-    loadStats();
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) loadStats();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [loadStats]);
 
   if (loading) {
@@ -162,6 +170,34 @@ export default function AdminDashboardClient() {
           <ul className="mt-3 space-y-1.5">
             {stats.repartitionStatuts.map((s) => (
               <li key={s.name} className="flex items-center gap-2 text-xs">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.couleur }} />
+                <span className="text-encre">{s.name}</span>
+                <span className="ml-auto font-mono font-semibold text-encre">{s.value}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </div>
+
+      {/* Ventilation CDC : public/privé + profil */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="border-ligne bg-blanc p-5 shadow-sm">
+          <ChartSectionHeader eyebrow="Établissements" title="Public vs privé" />
+          <ul className="mt-4 space-y-2">
+            {(stats.repartitionTypeEtablissement ?? []).map((s) => (
+              <li key={s.name} className="flex items-center gap-2 text-sm">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.couleur }} />
+                <span className="text-encre">{s.name}</span>
+                <span className="ml-auto font-mono font-semibold text-encre">{s.value}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+        <Card className="border-ligne bg-blanc p-5 shadow-sm">
+          <ChartSectionHeader eyebrow="Profils" title="Lycéen vs bachelier" />
+          <ul className="mt-4 space-y-2">
+            {(stats.repartitionProfilCandidat ?? []).map((s) => (
+              <li key={s.name} className="flex items-center gap-2 text-sm">
                 <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.couleur }} />
                 <span className="text-encre">{s.name}</span>
                 <span className="ml-auto font-mono font-semibold text-encre">{s.value}</span>

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { buildSimplePdf } from "@/lib/pdf";
 import { requirePermission, isStaff } from "@/lib/rbac";
+import { escapeHtml } from "@/lib/escape-html";
 
 type DocPayload = {
   titreModele: string;
@@ -67,8 +68,9 @@ function buildHtmlResponse(doc: DocPayload, autoPrint: boolean) {
       </p>`
     : "";
 
+  const e = escapeHtml;
   const html = `<!DOCTYPE html>
-<html lang="fr"><head><meta charset="utf-8"><title>${doc.reference}</title>
+<html lang="fr"><head><meta charset="utf-8"><title>${e(doc.reference)}</title>
 <style>
   body{font-family:Georgia,"Times New Roman",serif;max-width:720px;margin:40px auto;padding:24px;color:#1A1A1A;position:relative;}
   h1{font-size:28px;margin:0 0 8px;color:#2E8329;}
@@ -83,18 +85,18 @@ function buildHtmlResponse(doc: DocPayload, autoPrint: boolean) {
   ${watermark}
   <div class="card">
     ${banner}
-    <h1>${doc.titreModele}</h1>
-    <p class="meta">${doc.descModele}</p>
-    <p class="row"><strong>${doc.candidat}</strong> — ${doc.formation}</p>
-    <p class="row">${doc.universite}</p>
-    <p class="row">Réf. <code>${doc.reference}</code> · ${doc.dateStr}</p>
-    <p class="row">Code : <code>${doc.codeVerification}</code></p>
-    <p class="row">Mode de remise : ${doc.modeRemiseLabel}</p>
-    <p class="row">Émetteur : ${doc.emetteur}</p>
+    <h1>${e(doc.titreModele)}</h1>
+    <p class="meta">${e(doc.descModele)}</p>
+    <p class="row"><strong>${e(doc.candidat)}</strong> — ${e(doc.formation)}</p>
+    <p class="row">${e(doc.universite)}</p>
+    <p class="row">Réf. <code>${e(doc.reference)}</code> · ${e(doc.dateStr)}</p>
+    <p class="row">Code : <code>${e(doc.codeVerification)}</code></p>
+    <p class="row">Mode de remise : ${e(doc.modeRemiseLabel)}</p>
+    <p class="row">Émetteur : ${e(doc.emetteur)}</p>
     ${
       doc.draft
         ? ""
-        : `<p class="row"><a href="/verifier?code=${doc.codeVerification}">Vérifier l'authenticité</a></p>`
+        : `<p class="row"><a href="/verifier?code=${encodeURIComponent(doc.codeVerification)}">Vérifier l'authenticité</a></p>`
     }
   </div>
   ${autoPrint && !doc.draft ? "<script>window.onload=()=>window.print()</script>" : ""}

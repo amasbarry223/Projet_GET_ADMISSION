@@ -17,6 +17,7 @@ import {
   Loader2,
   ShieldAlert,
   IdCard,
+  FileStack,
 } from "lucide-react";
 import { GlobalSearch } from "@/components/admin/global-search";
 import { NotificationsBell } from "@/components/admin/notifications-bell";
@@ -60,6 +61,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
       { href: "/admin/dossiers", label: "Tous les dossiers", icon: FolderOpen, permission: "dossiers.read" },
       { href: "/admin/kyc", label: "Pièces d'identité (KYC)", icon: IdCard, permission: "dossiers.read" },
       { href: "/admin/catalogue", label: "Catalogue", icon: Building2, permission: "catalogue.write" },
+      { href: "/admin/matrice", label: "Matrice documentaire", icon: FileStack, permission: "matrice.write" },
     ],
   },
   {

@@ -124,6 +124,12 @@ export async function POST(
         { status: 400 }
       );
     }
+    if (!isDossierEditableByCandidate(dossier.etat)) {
+      return NextResponse.json(
+        { error: "Modification des pièces impossible dans l'état actuel du dossier" },
+        { status: 400 }
+      );
+    }
   }
 
   // Seul le staff peut marquer validee / a_corriger
@@ -142,6 +148,8 @@ export async function POST(
   }
 
   const televerseeLe = statut === "televersee" || statut === "validee" ? new Date() : undefined;
+  const previousPath =
+    statut === "manquante" && existing?.cheminFichier ? existing.cheminFichier : null;
 
   let piece;
   if (existing) {
@@ -176,6 +184,10 @@ export async function POST(
         televerseeLe: null,
       },
     });
+  }
+
+  if (previousPath) {
+    await deleteUpload(previousPath);
   }
 
   await db.historique.create({

@@ -18,6 +18,7 @@ import {
   DOSSIER_WIZARD_STEPS,
   isDossierEditableByCandidate,
 } from "@/shared/constants";
+import { pickPrimaryDossier } from "@/lib/dossier/pick-dossier";
 
 export function useDossierWizardState() {
   const [step, setStep] = React.useState(1);
@@ -91,7 +92,9 @@ export function useLoadExistingDossier(
   const [existingDossier, setExistingDossier] = React.useState<DossierWizardData | null>(null);
 
   const settersRef = React.useRef(setters);
-  settersRef.current = setters;
+  React.useEffect(() => {
+    settersRef.current = setters;
+  });
 
   React.useEffect(() => {
     fetch(API_ROUTES.UNIVERSITES)
@@ -128,7 +131,18 @@ export function useLoadExistingDossier(
         return response.json();
       })
       .then((data: DossierWizardData[]) => {
-        const dossier = data[0];
+        const list = Array.isArray(data) ? data : [];
+        // Préférer un dossier encore éditable pour le wizard
+        const editable = list.filter((d) =>
+          isDossierEditableByCandidate((d.etat || "").toUpperCase())
+        );
+        const dossier =
+          pickPrimaryDossier(
+            (editable.length > 0 ? editable : list).map((d) => ({
+              ...d,
+              updatedAt: (d as { updatedAt?: string }).updatedAt ?? new Date(0).toISOString(),
+            }))
+          ) ?? null;
         if (dossier) {
           setExistingDossier(dossier);
           const s = settersRef.current;

@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   buildPiecesDossier,
+  buildPiecesDossierAsync,
   type PieceRequise,
   type ProfilAcademiqueInput,
 } from "@/lib/dossier/pieces-requises";
@@ -15,18 +16,10 @@ export type ProfilForSync = ProfilAcademiqueInput & {
 };
 
 export type SyncPiecesOptions = {
-  /** Liste déjà fusionnée (profil + formation). */
   required?: PieceRequise[];
-  /** Pièces catalogue formation à fusionner si `required` absent. */
   formationPiecesRequises?: string[] | string | null;
 };
 
-/**
- * Synchronise les pièces d'un dossier avec le profil académique (+ formation).
- * - Ajoute les codes manquants
- * - Supprime uniquement les pièces manquantes (sans fichier) dont le code n'est plus requis
- * - Conserve les pièces avec fichier même si le code disparaît (passe obligatoire=false)
- */
 export async function syncPiecesDossier(
   tx: Tx,
   dossierId: string,
@@ -42,8 +35,16 @@ export async function syncPiecesDossier(
     formationPieces = dossier?.formation.piecesRequises ?? null;
   }
 
-  const required =
-    options?.required ?? buildPiecesDossier(profil, formationPieces);
+  let required: PieceRequise[];
+  if (options?.required) {
+    required = options.required;
+  } else {
+    try {
+      required = await buildPiecesDossierAsync(profil, formationPieces);
+    } catch {
+      required = buildPiecesDossier(profil, formationPieces);
+    }
+  }
   const requiredByCode = new Map(required.map((p) => [p.code, p]));
 
   const existing = await tx.piece.findMany({ where: { dossierId } });
@@ -115,7 +116,6 @@ export async function syncPiecesDossier(
   return { added, removed, keptObsolete };
 }
 
-/** Synchronise les dossiers éditables (BROUILLON + CORRECTION) d'un candidat. */
 export async function syncPiecesBrouillonsCandidat(
   db: PrismaClient,
   candidatId: string,
