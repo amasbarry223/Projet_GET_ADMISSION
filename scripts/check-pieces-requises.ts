@@ -72,7 +72,7 @@ const lyceeRedProfil = {
   trimestresPremiere: 3,
   trimestresTerminale: 2,
   redoublements: [{ niveau: "TERMINALE", anneeScolaire: "2023-2024" }],
-  interruptions: [{ type: "emploi", anneeDebut: "2022", anneeFin: "2023" }],
+  interruptions: [{ type: "emploi" as const, anneeDebut: "2022", anneeFin: "2023" }],
 };
 const lyceeRed = buildPiecesRequises(lyceeRedProfil);
 assert(lyceeRed.some((p) => p.code.startsWith("RED_TERMINALE")), "Redoublement Terminale");
@@ -89,7 +89,7 @@ const bachProfil = {
   formationEnCours: true,
   diplomesObtenus: ["DUT"],
   redoublements: [{ niveau: "L1", anneeScolaire: "2022-2023" }],
-  interruptions: [{ type: "stage", anneeDebut: "2021", anneeFin: "2022" }],
+  interruptions: [{ type: "stage" as const, anneeDebut: "2021", anneeFin: "2022" }],
 };
 const bach = buildPiecesRequises(bachProfil);
 assert(bach.find((p) => p.code === "DIPLOME_BAC")?.obligatoire === true, "Bac obligatoire");

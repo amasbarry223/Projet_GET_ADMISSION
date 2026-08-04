@@ -180,6 +180,8 @@ model Dossier {
   candidatId      String
   universiteId    String
   formationId     String
+  /// Version de matrice documentaire figée à la création du dossier
+  matriceVersionId String?
   etat            EtatDossier  @default(BROUILLON)
   etapeActuelle   Int          @default(1)
   conseillerId    String?
@@ -193,6 +195,7 @@ model Dossier {
   conseiller      User?        @relation("ConseillerDossiers", fields: [conseillerId], references: [id])
   universite      Universite   @relation(fields: [universiteId], references: [id])
   formation       Formation    @relation(fields: [formationId], references: [id])
+  matriceVersion  MatriceVersion? @relation(fields: [matriceVersionId], references: [id], onDelete: SetNull)
   pieces          Piece[]
   paiements       Paiement[]
   historiques     Historique[]
@@ -204,6 +207,7 @@ model Dossier {
   @@index([etat])
   @@index([updatedAt])
   @@index([candidatId, formationId])
+  @@index([matriceVersionId])
 }
 
 model Piece {
@@ -450,6 +454,7 @@ model MatriceVersion {
   createdAt    DateTime      @default(now())
   activatedAt  DateTime?
   regles       MatriceRegle[]
+  dossiers     Dossier[]
 
   @@unique([numero])
   @@index([statut])

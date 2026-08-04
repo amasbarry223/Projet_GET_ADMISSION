@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { etatParCode } from "@/lib/etats";
 import { broadcastDossierLive } from "@/lib/dossier/live-broadcast";
+import { sendMail, workflowEmailHtml } from "@/lib/mail";
+import { APP_NAME } from "@/shared/constants";
 
 type CreateNotifInput = {
   userId: string;
@@ -33,13 +35,15 @@ export async function createNotification(input: CreateNotifInput) {
   });
 }
 
-/** Notifie le candidat d'un changement d'état de dossier */
+/** Notifie le candidat d'un changement d'état (in-app + e-mail si activé). */
 export async function notifyDossierTransition(opts: {
   candidatId: string;
   dossierId: string;
   reference: string;
   nouvelEtat: string;
   note?: string;
+  /** Évite double e-mail si l'appelant l'envoie déjà */
+  skipEmail?: boolean;
 }) {
   const info = etatParCode(opts.nouvelEtat);
   const notif = await createNotification({
@@ -53,12 +57,37 @@ export async function notifyDossierTransition(opts: {
     dossierId: opts.dossierId,
   });
 
-  // Wake-up temps réel (Broadcast Supabase) — non bloquant
   void broadcastDossierLive({
     dossierId: opts.dossierId,
     candidatId: opts.candidatId,
     etat: opts.nouvelEtat,
   });
+
+  if (!opts.skipEmail) {
+    try {
+      const [params, candidat] = await Promise.all([
+        db.parametre.findUnique({ where: { id: 1 }, select: { notifEmail: true } }),
+        db.user.findUnique({
+          where: { id: opts.candidatId },
+          select: { email: true, prenom: true },
+        }),
+      ]);
+      if (params?.notifEmail !== false && candidat?.email) {
+        await sendMail({
+          to: candidat.email,
+          subject: `${APP_NAME} — Dossier ${opts.reference} · ${info.libelle}`,
+          html: workflowEmailHtml(
+            candidat.prenom,
+            opts.reference,
+            info.libelle,
+            opts.note || info.description,
+          ),
+        });
+      }
+    } catch (e) {
+      console.error("[notifyDossierTransition] email", e);
+    }
+  }
 
   return notif;
 }

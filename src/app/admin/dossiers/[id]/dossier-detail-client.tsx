@@ -26,6 +26,7 @@ import {
 import { BoardingPass } from "@/components/getadm/boarding-pass";
 import { etatParCode, COULEUR_BADGE } from "@/lib/etats";
 import { formatFCFA, formatDate, formatDateTime } from "@/lib/format";
+import { apiFetch, apiJson } from "@/lib/api-client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, CheckCircle2, AlertCircle, FileText, Send, Wallet, Stamp, XCircle, History, MessageSquare, User, ShieldCheck, Eye, AlertTriangle, Info, Loader2 } from "lucide-react";
@@ -120,33 +121,23 @@ export default function DossierDetailClient() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
-  const loadDossier = React.useCallback(() => {
+  const loadDossier = React.useCallback(async () => {
     setLoading(true);
-    fetch(`/api/dossiers/${params.id}`)
-      .then((r) => {
-        if (!r.ok) return null;
-        return r.json();
-      })
-      .then((d: DossierDetail | null) => {
-        if (!d) {
-          setError("Dossier introuvable ou accès refusé.");
-          setLoading(false);
-          return;
-        }
-        setDossier(d);
-        setLoading(false);
-      })
-      .catch((e) => {
-        console.error("fetch error:", e);
-        setError("Erreur réseau lors du chargement du dossier.");
-        setLoading(false);
-      });
+    const result = await apiFetch<DossierDetail>(`/api/dossiers/${params.id}`);
+    if (!result.ok) {
+      setError(result.error);
+      setLoading(false);
+      return;
+    }
+    setDossier(result.data);
+    setError(null);
+    setLoading(false);
   }, [params.id]);
 
   React.useEffect(() => {
     let cancelled = false;
     queueMicrotask(() => {
-      if (!cancelled) loadDossier();
+      if (!cancelled) void loadDossier();
     });
     return () => {
       cancelled = true;
@@ -218,21 +209,15 @@ export default function DossierDetailClient() {
       toast.success(a.toastLabel, { description: a.toastDesc });
       return;
     }
-    try {
-      const res = await fetch(`/api/dossiers/${dossier.id}/workflow`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: a.workflowAction }),
-      });
-      if (!res.ok) {
-        toast.error("Action échouée", { description: "Le serveur a refusé la transition." });
-        return;
-      }
-      toast.success(a.toastLabel, { description: a.toastDesc });
-      loadDossier();
-    } catch {
-      toast.error("Action échouée", { description: "Erreur réseau." });
+    const result = await apiJson(`/api/dossiers/${dossier.id}/workflow`, "POST", {
+      action: a.workflowAction,
+    });
+    if (!result.ok) {
+      toast.error("Action échouée", { description: result.error });
+      return;
     }
+    toast.success(a.toastLabel, { description: a.toastDesc });
+    void loadDossier();
   };
 
   const messages = dossier.conversation?.messages ?? [];
@@ -241,7 +226,7 @@ export default function DossierDetailClient() {
     <div className="space-y-5">
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-sm">
-        <Link href="/admin/dossiers" className="flex items-center gap-1 text-ardoise hover:text-lapis">
+        <Link href="/admin/dossiers" className="flex items-center gap-1 text-ardoise hover:text-or">
           <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.5} /> Dossiers
         </Link>
         <span className="text-ardoise/50">/</span>
@@ -318,13 +303,12 @@ export default function DossierDetailClient() {
                   variant="outline"
                   size="sm"
                   onClick={async () => {
-                    const res = await fetch("/api/profile/kyc", {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ userId: dossier.candidat.id, verifie: true }),
+                    const result = await apiJson("/api/profile/kyc", "PUT", {
+                      userId: dossier.candidat.id,
+                      verifie: true,
                     });
-                    if (!res.ok) {
-                      toast.error("Validation KYC échouée");
+                    if (!result.ok) {
+                      toast.error("Validation KYC échouée", { description: result.error });
                       return;
                     }
                     toast.success("KYC vérifié");
@@ -344,8 +328,8 @@ export default function DossierDetailClient() {
           <TabsContent value="pieces">
             <Card className="border-ligne bg-blanc p-0 overflow-hidden">
               <div className="border-b border-ligne px-6 py-4">
-                <p className="eyebrow">Pièces du dossier</p>
-                <h2 className="font-display text-base font-bold text-encre">{dossier.pieces.length} document(s)</h2>
+                <h2 className="font-display text-base font-bold text-encre">Pièces du dossier</h2>
+                <p className="mt-0.5 text-xs text-ardoise">{dossier.pieces.length} document(s)</p>
               </div>
               {dossier.pieces.length === 0 ? (
                 <p className="px-6 py-10 text-center text-sm text-ardoise">Aucune pièce enregistrée.</p>
@@ -402,8 +386,8 @@ export default function DossierDetailClient() {
           <TabsContent value="paiements">
             <Card className="border-ligne bg-blanc p-0 overflow-hidden">
               <div className="border-b border-ligne px-6 py-4">
-                <p className="eyebrow">Transactions</p>
-                <h2 className="font-display text-base font-bold text-encre">{dossier.paiements.length} paiement(s)</h2>
+                <h2 className="font-display text-base font-bold text-encre">Transactions</h2>
+                <p className="mt-0.5 text-xs text-ardoise">{dossier.paiements.length} paiement(s)</p>
               </div>
               {dossier.paiements.length === 0 ? (
                 <p className="px-6 py-10 text-center text-sm text-ardoise">Aucun paiement enregistré pour ce dossier.</p>
@@ -436,7 +420,6 @@ export default function DossierDetailClient() {
 
           <TabsContent value="historique">
             <Card className="border-ligne bg-blanc p-6">
-              <p className="eyebrow">Journal horodaté</p>
               <h2 className="font-display text-base font-bold text-encre">Historique du dossier</h2>
               <ol className="mt-4 space-y-3">
                 {dossier.historiques.slice().reverse().map((h) => {
@@ -462,7 +445,6 @@ export default function DossierDetailClient() {
 
           <TabsContent value="messages">
             <Card className="border-ligne bg-blanc p-6">
-              <p className="eyebrow">Messagerie</p>
               <h2 className="font-display text-base font-bold text-encre">Conversation avec {dossier.candidat.prenom}</h2>
               {messages.length === 0 ? (
                 <p className="mt-4 text-sm text-ardoise">Aucun message échangé pour le moment.</p>
@@ -487,19 +469,14 @@ export default function DossierDetailClient() {
                   const input = form.elements.namedItem("msg") as HTMLInputElement;
                   const texte = input?.value?.trim();
                   if (!texte) return;
-                  const res = await fetch("/api/messages", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ dossierId: dossier.id, texte }),
-                  });
-                  if (!res.ok) {
-                    toast.error("Envoi échoué");
+                  const result = await apiJson("/api/messages", "POST", { dossierId: dossier.id, texte });
+                  if (!result.ok) {
+                    toast.error("Envoi échoué", { description: result.error });
                     return;
                   }
                   input.value = "";
                   toast.success("Message envoyé");
-                  // Recharge
-                  window.location.reload();
+                  void loadDossier();
                 }}
               >
                 <Input name="msg" placeholder="Écrire au candidat…" className="flex-1" aria-label="Message au candidat" />
@@ -514,7 +491,7 @@ export default function DossierDetailClient() {
         {/* Sidebar: workflow + statut */}
         <div className="space-y-4">
           <Card className="border-ligne bg-blanc p-5">
-            <p className="eyebrow">Statut courant</p>
+            <p className="text-xs font-medium text-ardoise">Statut courant</p>
             <Badge className={cn("mt-2 font-mono text-[10px] uppercase", c.text, c.border, c.bg)}>{e.libelle}</Badge>
             <p className="mt-2 text-xs text-ardoise">{e.description}</p>
             <div className="mt-4">
@@ -529,7 +506,7 @@ export default function DossierDetailClient() {
           </Card>
 
           <Card className="border-ligne bg-blanc p-5">
-            <p className="eyebrow">Conseiller affecté</p>
+            <p className="text-xs font-medium text-ardoise">Conseiller affecté</p>
             <div className="mt-2 flex items-center gap-2.5">
               <Avatar className="h-8 w-8"><AvatarFallback className="bg-lapis/10 font-mono text-[10px] font-semibold text-lapis">{conseillerNomComplet.split(" ").map((w) => w[0]).join("").slice(0, 2)}</AvatarFallback></Avatar>
               <div>
@@ -541,8 +518,7 @@ export default function DossierDetailClient() {
 
           {actions.length > 0 && (
             <Card className="border-lapis/30 bg-lapis/5 p-5">
-              <p className="eyebrow">Prochaine transition</p>
-              <p className="mt-1 text-sm font-medium text-encre">Actions de workflow</p>
+              <p className="text-sm font-medium text-encre">Actions de workflow</p>
               <div className="mt-3 space-y-2">
                 {actions.map((a) =>
                   a.confirm ? (

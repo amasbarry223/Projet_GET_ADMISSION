@@ -10,7 +10,7 @@ import { isStaff } from "@/lib/rbac";
  * Si Parametre.exigerEmailVerifie : emailVerified reste null (BF-06).
  */
 export async function POST(request: Request) {
-  const rateLimited = checkRateLimit(getClientId(request), "/api/register");
+  const rateLimited = await checkRateLimit(getClientId(request), "/api/register");
   if (rateLimited) return rateLimited;
 
   try {

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   DOSSIER_LIVE_CHANNEL,
@@ -9,6 +10,8 @@ import {
 } from "@/lib/dossier/live-broadcast";
 import { pickPrimaryDossier } from "@/lib/dossier/pick-dossier";
 import { etatParCode } from "@/lib/etats";
+import { DOSSIERS_QUERY_KEY } from "@/hooks/use-primary-dossier";
+import { useQueryClient } from "@tanstack/react-query";
 
 export type DossierLive = {
   id: string;
@@ -70,6 +73,7 @@ async function fetchDossiersList(): Promise<DossierLive[]> {
 
 export function useDossierLive(options: Options = {}) {
   const { dossierId = null, pollMs = 12_000 } = options;
+  const queryClient = useQueryClient();
   const [dossier, setDossier] = React.useState<DossierLive | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -106,6 +110,7 @@ export function useDossierLive(options: Options = {}) {
   const refresh = React.useCallback(async () => {
     try {
       const list = await fetchDossiersList();
+      queryClient.setQueryData(DOSSIERS_QUERY_KEY, list);
       applyDossier(resolvePreferred(list, dossierId));
       return true;
     } catch {
@@ -116,14 +121,14 @@ export function useDossierLive(options: Options = {}) {
       setLoading(false);
       silentRef.current = false;
     }
-  }, [applyDossier, dossierId]);
+  }, [applyDossier, dossierId, queryClient]);
 
   React.useEffect(() => {
     let cancelled = false;
     let es: EventSource | null = null;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
     let supabase: ReturnType<typeof createSupabaseBrowserClient> | null = null;
-    let channel: ReturnType<NonNullable<typeof supabase>["channel"]> | null = null;
+    let channel: RealtimeChannel | null = null;
 
     const startPolling = () => {
       if (cancelled || pollTimer) return;

@@ -3,48 +3,14 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
-import { buildSimplePdf } from "@/lib/pdf";
+import { buildAttestationPdfBuffer, type AttestationDocInput } from "@/lib/pdf/documents";
 import { requirePermission, isStaff } from "@/lib/rbac";
 import { escapeHtml } from "@/lib/escape-html";
 
-type DocPayload = {
-  titreModele: string;
-  descModele: string;
-  reference: string;
-  codeVerification: string;
-  dateStr: string;
-  candidat: string;
-  formation: string;
-  universite: string;
-  dossierRef: string;
-  modeRemiseLabel: string;
-  emetteur: string;
-  draft: boolean;
-};
+type DocPayload = AttestationDocInput;
 
-function buildPdfResponse(doc: DocPayload) {
-  const lines = [
-    doc.draft ? "*** APERCU BROUILLON — NON OFFICIEL ***" : "",
-    `Modele: ${doc.titreModele}`,
-    doc.descModele,
-    "",
-    `Reference: ${doc.reference}`,
-    `Code verification: ${doc.codeVerification}`,
-    `Date: ${doc.dateStr}`,
-    "",
-    `Candidat: ${doc.candidat}`,
-    `Formation: ${doc.formation}`,
-    `Universite: ${doc.universite}`,
-    `Dossier: ${doc.dossierRef}`,
-    `Mode remise: ${doc.modeRemiseLabel}`,
-    `Emetteur: ${doc.emetteur}`,
-    "",
-    doc.draft
-      ? "Document provisoire — emettez l'attestation pour obtenir le PDF officiel."
-      : `Verifier sur /verifier?code=${doc.codeVerification}`,
-  ].filter((l, i, arr) => !(l === "" && arr[i - 1] === ""));
-
-  const pdf = buildSimplePdf(lines, doc.draft ? `APERCU — ${doc.titreModele}` : doc.titreModele);
+async function buildPdfResponse(doc: DocPayload) {
+  const pdf = await buildAttestationPdfBuffer(doc);
   const filename = doc.draft ? `apercu-${doc.dossierRef}.pdf` : `${doc.reference}.pdf`;
 
   return new NextResponse(new Uint8Array(pdf), {

@@ -10,7 +10,7 @@ export type DossierWithRelations = Prisma.DossierGetPayload<{
     candidat: { select: { id: true; prenom: true; nom: true; email: true; nationalite: true; telephone: true } };
     universite: true;
     formation: true;
-    conseiller: { select: { id: true; prenom: true; nom: true } } | null;
+    conseiller: { select: { id: true; prenom: true; nom: true } };
     pieces: true;
     paiements: true;
     historiques: { orderBy: { date: "asc" } };
@@ -21,7 +21,7 @@ export type DossierWithRelations = Prisma.DossierGetPayload<{
           orderBy: { createdAt: "asc" };
         };
       };
-    } | null;
+    };
   };
 }>;
 
@@ -31,7 +31,7 @@ export type DossierListItem = Prisma.DossierGetPayload<{
     candidat: { select: { prenom: true; nom: true; email: true; nationalite: true } };
     universite: { select: { nom: true; slug: true; pays: true; drapeau: true; ville: true } };
     formation: { select: { intitule: true; niveau: true; domaine: true } };
-    conseiller: { select: { prenom: true; nom: true } } | null;
+    conseiller: { select: { prenom: true; nom: true } };
     _count: { select: { pieces: true; paiements: true } };
   };
 }>;

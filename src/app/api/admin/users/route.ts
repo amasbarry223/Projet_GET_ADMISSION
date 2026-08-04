@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { adminUserCreateSchema, validate } from "@/lib/validations";
+import { adminUserCreateSchema } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
+import { requireApiUser, requireApiPermission, parseOrRespond } from "@/lib/api-auth";
 import { logAudit } from "@/lib/audit";
-import { requirePermission } from "@/lib/rbac";
 import { sendMail, invitationEmailHtml } from "@/lib/mail";
 import {
   canAssignRole,
@@ -27,15 +25,8 @@ function generateTempPassword(length = 14): string {
 
 // GET /api/admin/users — liste du personnel interne
 export async function GET(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
-
-  const gate = requirePermission((session.user as { role?: string }).role, "users.write");
-  if (!gate.ok) {
-    return NextResponse.json({ error: gate.error }, { status: gate.status });
-  }
+  const auth = await requireApiPermission("users.write");
+  if (!auth.ok) return auth.response;
 
   const { searchParams } = new URL(request.url);
   const hasPagination = searchParams.has("page");
@@ -100,17 +91,14 @@ export async function GET(request: Request) {
 
 // POST /api/admin/users — créer / inviter un membre du personnel
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
-
-  const role = (session.user as { role?: string }).role ?? "";
+  const auth = await requireApiUser();
+  if (!auth.ok) return auth.response;
+  const { role } = auth.user;
   if (!isStaffManagementRole(role)) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
-  const rateLimited = checkRateLimit(getClientId(request), "/api/admin/users");
+  const rateLimited = await checkRateLimit(getClientId(request), "/api/admin/users");
   if (rateLimited) return rateLimited;
 
   let body: unknown;
@@ -120,10 +108,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
 
-  const parsed = validate(adminUserCreateSchema, body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
-  }
+  const parsed = parseOrRespond(adminUserCreateSchema, body);
+  if (!parsed.ok) return parsed.response;
   const { prenom, nom, email, role: newRole } = parsed.data;
 
   if (!canAssignRole(role, newRole)) {
@@ -183,7 +169,7 @@ export async function POST(request: Request) {
   });
 
   await logAudit({
-    session,
+    session: auth.session,
     action: "CREATE",
     resource: "user",
     resourceId: user.id,

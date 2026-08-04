@@ -9,14 +9,31 @@ import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, Lock, ArrowRight, Loader2, GraduationCap, Briefcase } from "lucide-react";
+import { Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
 import { FieldError } from "@/components/ui/field-error";
-import { defaultAdminRoute, isStaff } from "@/lib/rbac";
 
-type PortalTab = "etudiant" | "staff";
+function safeCallback(raw: string | null): string | null {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return null;
+  return raw;
+}
+
+function candidatCallback(callbackUrl: string | null): string | null {
+  if (!callbackUrl) return null;
+  if (callbackUrl === "/espace" || callbackUrl.startsWith("/espace/")) return callbackUrl;
+  return null;
+}
+
+/** Anciens liens staff → page dédiée /back-office */
+function shouldRedirectToBackOffice(
+  portal: string | null,
+  callbackUrl: string | null,
+): boolean {
+  if (portal === "staff" || portal === "backoffice") return true;
+  if (callbackUrl === "/admin" || callbackUrl?.startsWith("/admin/")) return true;
+  return false;
+}
 
 export default function ConnexionPage() {
   return (
@@ -40,62 +57,48 @@ export default function ConnexionPage() {
   );
 }
 
-function safeCallback(raw: string | null): string | null {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return null;
-  return raw;
-}
-
-/** N’honore callbackUrl que s’il correspond à l’espace du rôle. */
-function callbackForRole(role: string | undefined, callbackUrl: string | null): string | null {
-  if (!callbackUrl || !role) return null;
-  if (role === "CANDIDAT") {
-    return callbackUrl === "/espace" || callbackUrl.startsWith("/espace/") ? callbackUrl : null;
-  }
-  return callbackUrl === "/admin" || callbackUrl.startsWith("/admin/") ? callbackUrl : null;
-}
-
-function initialPortal(searchParams: URLSearchParams, callbackUrl: string | null): PortalTab {
-  const portal = searchParams.get("portal");
-  if (portal === "staff" || portal === "backoffice") return "staff";
-  if (portal === "etudiant" || portal === "candidat") return "etudiant";
-  if (callbackUrl === "/admin" || callbackUrl?.startsWith("/admin/")) return "staff";
-  if (callbackUrl === "/espace" || callbackUrl?.startsWith("/espace/")) return "etudiant";
-  return "etudiant";
-}
-
 function ConnexionInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const portal = searchParams.get("portal");
   const callbackUrl = safeCallback(searchParams.get("callbackUrl"));
-  const [portalTab, setPortalTab] = React.useState<PortalTab>(() =>
-    initialPortal(searchParams, callbackUrl),
-  );
+
+  React.useEffect(() => {
+    if (!shouldRedirectToBackOffice(portal, callbackUrl)) return;
+    const params = new URLSearchParams();
+    if (callbackUrl === "/admin" || callbackUrl?.startsWith("/admin/")) {
+      params.set("callbackUrl", callbackUrl);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `/back-office?${qs}` : "/back-office");
+  }, [portal, callbackUrl, router]);
+
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
-  const [suggestStudentPortal, setSuggestStudentPortal] = React.useState(false);
   const [fieldErrors, setFieldErrors] = React.useState<{ email?: string; password?: string }>({});
 
-  const isStudent = portalTab === "etudiant";
-  const authPortal = isStudent ? "candidat" : "staff";
+  if (shouldRedirectToBackOffice(portal, callbackUrl)) {
+    return (
+      <div className="flex justify-center rounded-lg border border-ligne bg-blanc p-10">
+        <Loader2 className="h-6 w-6 animate-spin text-lapis" />
+      </div>
+    );
+  }
 
-  const redirectAfterLogin = async (role: string | undefined) => {
-    const allowedCallback = callbackForRole(role, callbackUrl);
+  const redirectAfterLogin = async () => {
+    const allowedCallback = candidatCallback(callbackUrl);
     if (allowedCallback) {
       router.push(allowedCallback);
       return;
     }
-    if (role === "CANDIDAT") {
-      try {
-        const dossiers = await fetch("/api/dossiers").then((r) => (r.ok ? r.json() : []));
-        const list = Array.isArray(dossiers) ? dossiers : dossiers?.data ?? [];
-        router.push(list.length === 0 ? "/espace/dossier" : "/espace");
-      } catch {
-        router.push("/espace");
-      }
-      return;
+    try {
+      const dossiers = await fetch("/api/dossiers").then((r) => (r.ok ? r.json() : []));
+      const list = Array.isArray(dossiers) ? dossiers : dossiers?.data ?? [];
+      router.push(list.length === 0 ? "/espace/dossier" : "/espace");
+    } catch {
+      router.push("/espace");
     }
-    router.push(defaultAdminRoute(role ?? "ADMIN"));
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -112,37 +115,36 @@ function ConnexionInner() {
       return;
     }
     setLoading(true);
-    setSuggestStudentPortal(false);
 
     const res = await signIn("credentials", {
       email,
       password,
-      portal: authPortal,
+      portal: "candidat",
       redirect: false,
     });
 
     setLoading(false);
     if (res?.error) {
-      if (!isStudent) {
-        setSuggestStudentPortal(true);
-      }
-      toast.error("Connexion échouée", { description: "E-mail ou mot de passe incorrect." });
+      toast.error("Connexion échouée", {
+        description:
+          "E-mail ou mot de passe incorrect. Si vous venez de vous inscrire, activez d’abord votre compte via le code reçu par e-mail.",
+      });
       return;
     }
     const sess = await fetch("/api/auth/session").then((r) => r.json());
     const role = sess?.user?.role as string | undefined;
 
-    const roleOk =
-      (isStudent && role === "CANDIDAT") || (!isStudent && isStaff(role));
-    if (!roleOk) {
+    if (role !== "CANDIDAT") {
       await signOut({ redirect: false });
-      if (!isStudent) setSuggestStudentPortal(true);
-      toast.error("Connexion échouée", { description: "E-mail ou mot de passe incorrect." });
+      toast.error("Connexion échouée", {
+        description:
+          "Ce compte n’est pas un compte candidat. Utilisez l’accès collaborateurs.",
+      });
       return;
     }
 
     toast.success("Connexion réussie", { description: `Bienvenue, ${sess?.user?.name}.` });
-    await redirectAfterLogin(role);
+    await redirectAfterLogin();
   };
 
   return (
@@ -151,58 +153,11 @@ function ConnexionInner() {
         <BrandLogo height={52} priority className="object-center" />
       </Link>
 
-      <Tabs
-        value={portalTab}
-        onValueChange={(v) => {
-          setPortalTab(v as PortalTab);
-          setSuggestStudentPortal(false);
-          setFieldErrors({});
-        }}
-        className="w-full"
-      >
-        <TabsList className="mb-5 grid h-auto w-full grid-cols-2 gap-1 bg-porcelaine p-1">
-          <TabsTrigger
-            value="etudiant"
-            className="gap-1.5 py-2 data-[state=active]:bg-blanc data-[state=active]:text-encre data-[state=active]:shadow-sm"
-          >
-            <GraduationCap className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
-            Portail étudiant
-          </TabsTrigger>
-          <TabsTrigger
-            value="staff"
-            className="gap-1.5 py-2 data-[state=active]:bg-blanc data-[state=active]:text-encre data-[state=active]:shadow-sm"
-          >
-            <Briefcase className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
-            Back-office
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      <p className="eyebrow mb-2">{isStudent ? "Espace candidat" : "Accès équipe"}</p>
-      <h1 className="font-display text-2xl font-bold text-encre">
-        {isStudent ? "Bon retour parmi nous." : "Espace collaborateurs."}
-      </h1>
+      <p className="eyebrow mb-2">Espace candidat</p>
+      <h1 className="font-display text-2xl font-bold text-encre">Bon retour parmi nous.</h1>
       <p className="mt-1.5 text-sm text-ardoise">
-        {isStudent
-          ? "Connectez-vous avec votre e-mail et mot de passe."
-          : "Réservé aux conseillers, finance et administrateurs."}
+        Connectez-vous avec votre e-mail et mot de passe.
       </p>
-
-      {suggestStudentPortal && !isStudent && (
-        <div className="mt-4 rounded-md border border-ligne bg-porcelaine p-3 text-sm text-ardoise">
-          Compte étudiant ?{" "}
-          <button
-            type="button"
-            className="font-medium text-lapis underline"
-            onClick={() => {
-              setPortalTab("etudiant");
-              setSuggestStudentPortal(false);
-            }}
-          >
-            Accéder à l&apos;espace étudiant
-          </button>
-        </div>
-      )}
 
       <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
         <div className="space-y-1.5">
@@ -223,7 +178,7 @@ function ConnexionInner() {
                 setFieldErrors((prev) => ({ ...prev, email: undefined }));
               }}
               className="pl-9"
-              placeholder={isStudent ? "vous@exemple.com" : "prenom.nom@getadm.com"}
+              placeholder="vous@exemple.com"
               autoComplete="email"
               aria-invalid={!!fieldErrors.email}
               aria-describedby={fieldErrors.email ? "err-login-email" : undefined}
@@ -278,25 +233,19 @@ function ConnexionInner() {
         </Button>
       </form>
 
-      {isStudent ? (
-        <p className="mt-6 text-center text-sm text-ardoise">
-          Pas encore de compte ?{" "}
-          <Link
-            href={
-              callbackUrl
-                ? `/inscription?callbackUrl=${encodeURIComponent(callbackUrl)}`
-                : "/inscription"
-            }
-            className="font-medium text-lapis-clair hover:underline"
-          >
-            Créer mon compte
-          </Link>
-        </p>
-      ) : (
-        <p className="mt-6 text-center text-xs text-ardoise">
-          Compte provisionné par un administrateur — pas d&apos;inscription libre.
-        </p>
-      )}
+      <p className="mt-6 text-center text-sm text-ardoise">
+        Pas encore de compte ?{" "}
+        <Link
+          href={
+            callbackUrl
+              ? `/inscription?callbackUrl=${encodeURIComponent(callbackUrl)}`
+              : "/inscription"
+          }
+          className="font-medium text-lapis-clair hover:underline"
+        >
+          Créer mon compte
+        </Link>
+      </p>
     </div>
   );
 }

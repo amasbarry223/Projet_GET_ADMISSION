@@ -5,8 +5,9 @@ import { db } from "@/lib/db";
 import { formatFCFA, formatDate } from "@/lib/format";
 import { requirePermission } from "@/lib/rbac";
 import { escapeHtml } from "@/lib/escape-html";
+import { buildReceiptPdfBuffer } from "@/lib/pdf/documents";
 
-// GET /api/recu/[id] — Reçu de paiement (HTML imprimable)
+// GET /api/recu/[id]?format=pdf|html — Reçu de paiement (BF-20)
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -52,6 +53,33 @@ export async function GET(
       { error: "Le reçu n'est disponible qu'après confirmation du paiement" },
       { status: 403 }
     );
+  }
+
+  const format = new URL(request.url).searchParams.get("format") === "pdf" ? "pdf" : "html";
+
+  if (format === "pdf") {
+    const pdf = await buildReceiptPdfBuffer({
+      reference: paiement.reference,
+      dateStr: formatDate(paiement.date.toISOString()),
+      candidat: `${paiement.candidat.prenom} ${paiement.candidat.nom}`,
+      email: paiement.candidat.email,
+      dossierRef: paiement.dossier.reference,
+      universite: paiement.dossier.universite.nom,
+      typeEtablissementLabel:
+        paiement.dossier.universite.typeEtablissement === "PUBLIC" ? "Public" : "Privé",
+      formation: paiement.dossier.formation.intitule,
+      fraisAgenceLabel: formatFCFA(paiement.dossier.fraisAgence),
+      moyenLabel: paiement.moyen + (paiement.tranche ? ` · ${paiement.tranche}` : ""),
+      statutLabel: "Payé",
+      montantLabel: formatFCFA(paiement.montant),
+      generatedAtStr: formatDate(new Date().toISOString()),
+    });
+    return new NextResponse(new Uint8Array(pdf), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${paiement.reference}.pdf"`,
+      },
+    });
   }
 
   const e = escapeHtml;

@@ -1,12 +1,12 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
-import { toast } from "sonner";
 import type {
   DossierWizardData,
   PieceRow,
   PieceState,
 } from "@/components/dossier/wizard/types";
+import { toastApiErrorSync, toastApiSuccess } from "@/lib/toast-api";
 import { API_ROUTES, PIECE_STATUSES } from "@/shared/constants";
 
 export async function refreshPiecesFromDossier(
@@ -33,8 +33,8 @@ export function useUploadDossierPiece(params: {
 
   return async function uploadPiece(libelle: string, file: File) {
     if (!dossierId) {
-      toast.error("Dossier non créé", {
-        description: "Finalisez d'abord le profil académique.",
+      toastApiErrorSync(new Error("Finalisez d'abord le profil académique."), {
+        title: "Dossier non créé",
       });
       return;
     }
@@ -56,9 +56,17 @@ export function useUploadDossierPiece(params: {
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "Échec de l'upload");
+        toastApiErrorSync(response.status, { title: "Upload échoué", body: data });
+        setPieceRows((previous) =>
+          previous.map((piece) =>
+            piece.libelle === libelle
+              ? { ...piece, statut: PIECE_STATUSES.MANQUANTE as PieceState }
+              : piece,
+          ),
+        );
+        return;
       }
-      toast.success("Pièce téléversée", { description: file.name });
+      toastApiSuccess("Pièce téléversée", file.name);
       await refreshPiecesFromDossier(dossierId, {
         setExistingDossier,
         setPieceRows,
@@ -71,9 +79,7 @@ export function useUploadDossierPiece(params: {
             : piece,
         ),
       );
-      toast.error("Upload échoué", {
-        description: error instanceof Error ? error.message : "Erreur",
-      });
+      toastApiErrorSync(error, { title: "Upload échoué" });
     } finally {
       setTogglingPiece(null);
     }

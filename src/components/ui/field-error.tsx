@@ -1,3 +1,13 @@
+/**
+ * Message d'erreur sous un champ — à lier via aria-describedby.
+ *
+ * Checklist formulaire :
+ * - <Label htmlFor="…"> + input id="…"
+ * - aria-invalid={!!error} + aria-describedby={errorId}
+ * - <FieldError id={errorId} message={error} />
+ * - Erreurs API globales → toastApiError (src/lib/toast-api.ts)
+ */
+
 import { cn } from "@/lib/utils";
 
 type FieldErrorProps = {
@@ -6,9 +16,6 @@ type FieldErrorProps = {
   className?: string;
 };
 
-/**
- * Message d'erreur sous un champ — à lier via aria-describedby.
- */
 export function FieldError({ id, message, className }: FieldErrorProps) {
   if (!message) return null;
   return (

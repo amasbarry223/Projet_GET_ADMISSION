@@ -5,7 +5,7 @@ import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 
 // GET /api/verifier?code=VRF-XXXX — vérification authenticité attestation (BF-32)
 export async function GET(request: Request) {
-  const rateLimited = checkRateLimit(getClientId(request), "/api/verifier");
+  const rateLimited = await checkRateLimit(getClientId(request), "/api/verifier");
   if (rateLimited) return rateLimited;
 
   const { searchParams } = new URL(request.url);

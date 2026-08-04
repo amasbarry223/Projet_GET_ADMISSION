@@ -1,22 +1,13 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { parametresSchema, validate } from "@/lib/validations";
-import { requirePermission } from "@/lib/rbac";
+import { parametresSchema } from "@/lib/validations";
+import { requireApiPermission, parseOrRespond } from "@/lib/api-auth";
 import { logAudit } from "@/lib/audit";
 import { invalidateFraisCache } from "@/lib/dossier/frais-agence-server";
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
-
-  const gate = requirePermission((session.user as { role?: string }).role, "parametres.read");
-  if (!gate.ok) {
-    return NextResponse.json({ error: gate.error }, { status: gate.status });
-  }
+  const auth = await requireApiPermission("parametres.read");
+  if (!auth.ok) return auth.response;
 
   let parametres = await db.parametre.findUnique({ where: { id: 1 } });
   if (!parametres) {
@@ -27,15 +18,8 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
-
-  const gate = requirePermission((session.user as { role?: string }).role, "parametres.write");
-  if (!gate.ok) {
-    return NextResponse.json({ error: gate.error }, { status: gate.status });
-  }
+  const auth = await requireApiPermission("parametres.write");
+  if (!auth.ok) return auth.response;
 
   let body: unknown;
   try {
@@ -44,10 +28,8 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
 
-  const parsed = validate(parametresSchema, body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
-  }
+  const parsed = parseOrRespond(parametresSchema, body);
+  if (!parsed.ok) return parsed.response;
 
   let existing = await db.parametre.findUnique({ where: { id: 1 } });
   if (!existing) {
@@ -92,7 +74,7 @@ export async function PUT(request: Request) {
   invalidateFraisCache();
 
   await logAudit({
-    session,
+    session: auth.session,
     action: "UPDATE",
     resource: "parametre",
     resourceId: "1",

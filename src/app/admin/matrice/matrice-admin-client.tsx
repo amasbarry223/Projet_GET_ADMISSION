@@ -13,9 +13,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Loader2, Plus, Save, CheckCircle2, Copy, Trash2 } from "lucide-react";
 import { buildPiecesFromRegles } from "@/lib/dossier/matrice-engine";
 import type { ProfilAcademiqueInput } from "@/lib/dossier/pieces-requises";
+import { apiFetch, apiJson } from "@/lib/api-client";
 
 type VersionRow = {
   id: string;
@@ -66,11 +78,10 @@ export function MatriceAdminClient() {
   const [preview, setPreview] = React.useState<string[]>([]);
 
   const loadVersions = React.useCallback(async () => {
-    const res = await fetch("/api/admin/matrice");
-    if (!res.ok) throw new Error("Chargement impossible");
-    const data = (await res.json()) as VersionRow[];
-    setVersions(data);
-    return data;
+    const result = await apiFetch<VersionRow[]>("/api/admin/matrice");
+    if (!result.ok) throw new Error(result.error);
+    setVersions(result.data);
+    return result.data;
   }, []);
 
   React.useEffect(() => {
@@ -97,29 +108,40 @@ export function MatriceAdminClient() {
 
   React.useEffect(() => {
     if (!selectedId) return;
-    fetch(`/api/admin/matrice/${selectedId}`)
-      .then((r) => r.json())
-      .then((v) => {
-        setLibelle(v.libelle);
-        setNotes(v.notes || "");
-        setStatut(v.statut);
-        setRegles(v.regles || []);
-      })
-      .catch(() => toast.error("Détail matrice impossible"));
+    let cancelled = false;
+    void apiFetch<{ libelle: string; notes: string; statut: string; regles: Regle[] }>(
+      `/api/admin/matrice/${selectedId}`,
+    ).then((result) => {
+      if (cancelled) return;
+      if (!result.ok) {
+        toast.error("Détail matrice impossible", { description: result.error });
+        return;
+      }
+      setLibelle(result.data.libelle);
+      setNotes(result.data.notes || "");
+      setStatut(result.data.statut);
+      setRegles(result.data.regles || []);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedId]);
 
   const save = async () => {
     if (!selectedId) return;
     setSaving(true);
+    const result = await apiJson<{ regles: Regle[] }>(`/api/admin/matrice/${selectedId}`, "PUT", {
+      libelle,
+      notes,
+      regles,
+    });
+    if (!result.ok) {
+      toast.error("Action impossible", { description: result.error });
+      setSaving(false);
+      return;
+    }
+    setRegles(result.data.regles || []);
     try {
-      const res = await fetch(`/api/admin/matrice/${selectedId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ libelle, notes, regles }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Échec");
-      setRegles(data.regles || []);
       await loadVersions();
       toast.success("Matrice enregistrée");
     } catch (e: unknown) {
@@ -132,13 +154,16 @@ export function MatriceAdminClient() {
   const activate = async () => {
     if (!selectedId) return;
     setSaving(true);
+    const result = await apiJson<{ numero: number }>(`/api/admin/matrice/${selectedId}/activer`, "POST");
+    if (!result.ok) {
+      toast.error("Action impossible", { description: result.error });
+      setSaving(false);
+      return;
+    }
+    setStatut("ACTIVE");
     try {
-      const res = await fetch(`/api/admin/matrice/${selectedId}/activer`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Échec");
-      setStatut("ACTIVE");
       await loadVersions();
-      toast.success(`Matrice v${data.numero} activée`);
+      toast.success(`Matrice v${result.data.numero} activée`);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Erreur");
     } finally {
@@ -148,19 +173,18 @@ export function MatriceAdminClient() {
 
   const createDraft = async () => {
     setSaving(true);
+    const result = selectedId
+      ? await apiJson<{ id: string; numero: number }>(`/api/admin/matrice/${selectedId}/dupliquer`, "POST")
+      : await apiJson<{ id: string; numero: number }>("/api/admin/matrice", "POST", { fromActive: true });
+    if (!result.ok) {
+      toast.error("Action impossible", { description: result.error });
+      setSaving(false);
+      return;
+    }
     try {
-      const res = selectedId
-        ? await fetch(`/api/admin/matrice/${selectedId}/dupliquer`, { method: "POST" })
-        : await fetch("/api/admin/matrice", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fromActive: true }),
-          });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Échec");
       await loadVersions();
-      setSelectedId(data.id);
-      toast.success(`Brouillon v${data.numero} créé`);
+      setSelectedId(result.data.id);
+      toast.success(`Brouillon v${result.data.numero} créé`);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Erreur");
     } finally {
@@ -170,19 +194,14 @@ export function MatriceAdminClient() {
 
   const deleteDraft = async () => {
     if (!selectedId || statut !== "BROUILLON") return;
-    const label = libelle || `v${versions.find((v) => v.id === selectedId)?.numero ?? ""}`;
-    if (
-      !window.confirm(
-        `Supprimer définitivement le brouillon « ${label} » ? Cette action est irréversible.`,
-      )
-    ) {
+    setSaving(true);
+    const result = await apiJson(`/api/admin/matrice/${selectedId}`, "DELETE");
+    if (!result.ok) {
+      toast.error("Action impossible", { description: result.error });
+      setSaving(false);
       return;
     }
-    setSaving(true);
     try {
-      const res = await fetch(`/api/admin/matrice/${selectedId}`, { method: "DELETE" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data as { error?: string }).error || "Échec");
       toast.success("Brouillon supprimé");
       const remaining = await loadVersions();
       const next =
@@ -236,7 +255,7 @@ export function MatriceAdminClient() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="flex items-center gap-2 text-sm text-ardoise">
         <Loader2 className="h-4 w-4 animate-spin" /> Chargement…
       </div>
     );
@@ -246,9 +265,10 @@ export function MatriceAdminClient() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow text-primary">§4.4 CDC</p>
-          <h1 className="font-display text-2xl font-bold tracking-tight">Matrice documentaire</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">
+            Matrice documentaire.
+          </h1>
+          <p className="mt-1 text-sm text-ardoise">
             Paramétrez les pièces selon le profil académique. Une seule version ACTIVE à la fois.
           </p>
         </div>
@@ -260,14 +280,38 @@ export function MatriceAdminClient() {
             Simuler lycéen
           </Button>
           {statut === "BROUILLON" && (
-            <Button
-              variant="outline"
-              className="border-destructive/40 text-destructive hover:bg-destructive/10"
-              onClick={deleteDraft}
-              disabled={saving}
-            >
-              <Trash2 className="mr-1 h-4 w-4" /> Supprimer
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="border-carmin/40 text-carmin hover:bg-carmin/5"
+                  disabled={saving}
+                >
+                  <Trash2 className="mr-1 h-4 w-4" /> Supprimer
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-blanc">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="font-display">
+                    Supprimer ce brouillon ?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Le brouillon «{" "}
+                    {libelle || `v${versions.find((v) => v.id === selectedId)?.numero ?? ""}`} »
+                    sera supprimé définitivement. Cette action est irréversible.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annuler</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-carmin text-blanc hover:bg-carmin/90"
+                    onClick={() => void deleteDraft()}
+                  >
+                    Supprimer
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
           {statut !== "ACTIVE" && statut !== "ARCHIVEE" && (
             <Button onClick={activate} disabled={saving}>
@@ -284,19 +328,19 @@ export function MatriceAdminClient() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
-        <aside className="space-y-2 rounded-lg border border-border p-3">
-          <p className="font-mono text-[10px] uppercase text-muted-foreground">Versions</p>
+        <aside className="space-y-2 rounded-2xl border border-ligne bg-blanc p-3 shadow-sm">
+          <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Versions</p>
           {versions.map((v) => (
             <button
               key={v.id}
               type="button"
               onClick={() => setSelectedId(v.id)}
-              className={`flex w-full flex-col rounded-md px-3 py-2 text-left text-sm ${
-                selectedId === v.id ? "bg-primary/10 text-primary" : "hover:bg-muted"
+              className={`flex w-full flex-col rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                selectedId === v.id ? "bg-lapis/10 text-lapis" : "text-encre hover:bg-porcelaine"
               }`}
             >
               <span className="font-medium">v{v.numero} — {v.libelle}</span>
-              <span className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="mt-0.5 flex items-center gap-2 text-xs text-ardoise">
                 <Badge variant="outline" className="font-mono text-[9px]">
                   {v.statut}
                 </Badge>
@@ -323,7 +367,7 @@ export function MatriceAdminClient() {
           </div>
 
           <div className="flex items-center justify-between">
-            <p className="font-mono text-[10px] uppercase text-muted-foreground">Règles ({regles.length})</p>
+            <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Règles ({regles.length})</p>
             {statut !== "ARCHIVEE" && (
               <Button type="button" size="sm" variant="outline" onClick={addRegle}>
                 <Plus className="mr-1 h-3.5 w-3.5" /> Règle
@@ -333,7 +377,7 @@ export function MatriceAdminClient() {
 
           <div className="max-h-[480px] space-y-3 overflow-y-auto pr-1">
             {regles.map((r, i) => (
-              <div key={`${r.code}-${i}`} className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div key={`${r.code}-${i}`} className="grid gap-2 rounded-xl border border-ligne bg-blanc p-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-1">
                   <Label className="text-xs">Code</Label>
                   <Input value={r.code} onChange={(e) => updateRegle(i, { code: e.target.value })} disabled={statut === "ARCHIVEE"} />
@@ -398,7 +442,7 @@ export function MatriceAdminClient() {
                       type="button"
                       size="sm"
                       variant="ghost"
-                      className="text-destructive"
+                      className="text-carmin hover:bg-carmin/5 hover:text-carmin"
                       onClick={() => setRegles((prev) => prev.filter((_, j) => j !== i))}
                     >
                       Retirer
@@ -410,8 +454,8 @@ export function MatriceAdminClient() {
           </div>
 
           {preview.length > 0 && (
-            <div className="rounded-md border border-border bg-muted/40 p-3">
-              <p className="font-mono text-[10px] uppercase text-muted-foreground">
+            <div className="rounded-xl border border-ligne bg-porcelaine/60 p-3">
+              <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
                 Aperçu simulation ({preview.length} pièces)
               </p>
               <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto text-sm">

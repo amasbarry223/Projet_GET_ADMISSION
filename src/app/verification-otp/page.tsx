@@ -15,6 +15,8 @@ import {
 import { ArrowRight, Loader2, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
+import { FieldError } from "@/components/ui/field-error";
+import { toastApiErrorSync } from "@/lib/toast-api";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { defaultAdminRoute } from "@/lib/rbac";
 import {
@@ -59,6 +61,7 @@ function VerificationOtpInner() {
   const [otp, setOtp] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [resending, setResending] = React.useState(false);
+  const [otpError, setOtpError] = React.useState<string | null>(null);
 
   const redirectAfterLogin = async (role: string | undefined) => {
     if (role === "CANDIDAT") {
@@ -89,9 +92,9 @@ function VerificationOtpInner() {
       });
 
       if (error || !data.session?.access_token) {
-        toast.error("Code invalide", {
-          description: error?.message || "Vérifiez le code et réessayez.",
-        });
+        const msg = error?.message || "Vérifiez le code et réessayez.";
+        setOtpError(msg);
+        toast.error("Code invalide", { description: msg });
         setLoading(false);
         return;
       }
@@ -109,8 +112,9 @@ function VerificationOtpInner() {
       });
       const payload = await res.json();
       if (!res.ok) {
-        toast.error("Vérification échouée", {
-          description: payload.error || "Réessayez.",
+        toastApiErrorSync(res.status, {
+          title: "Vérification échouée",
+          body: payload,
         });
         setLoading(false);
         return;
@@ -136,7 +140,9 @@ function VerificationOtpInner() {
       });
       await redirectAfterLogin(payload.user?.role);
     } catch {
-      toast.error("Erreur", { description: "Une erreur est survenue. Réessayez." });
+      toastApiErrorSync(new Error("Une erreur est survenue. Réessayez."), {
+        title: "Vérification interrompue",
+      });
       setLoading(false);
     }
   };
@@ -148,11 +154,12 @@ function VerificationOtpInner() {
       return;
     }
     if (!isValidOtpLength(otp)) {
-      toast.error("Code incomplet", {
-        description: `Saisissez le code reçu par e-mail (${OTP_CODE_MIN_LENGTH} à ${OTP_CODE_MAX_LENGTH} chiffres).`,
-      });
+      const msg = `Saisissez le code reçu par e-mail (${OTP_CODE_MIN_LENGTH} à ${OTP_CODE_MAX_LENGTH} chiffres).`;
+      setOtpError(msg);
+      toast.error("Code incomplet", { description: msg });
       return;
     }
+    setOtpError(null);
     await completeAuth(otp);
   };
 
@@ -179,7 +186,9 @@ function VerificationOtpInner() {
         });
       }
     } catch {
-      toast.error("Erreur", { description: "Impossible de renvoyer le code." });
+      toastApiErrorSync(new Error("Impossible de renvoyer le code."), {
+        title: "Renvoi interrompu",
+      });
     }
     setResending(false);
   };
@@ -213,16 +222,24 @@ function VerificationOtpInner() {
           Saisissez-le ci-dessous pour activer votre compte. Vérifiez aussi vos spams.
         </p>
 
-        <form onSubmit={onSubmit} className="mt-6 space-y-6">
+        <form onSubmit={onSubmit} className="mt-6 space-y-6" noValidate>
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-encre">Code OTP</Label>
+            <Label htmlFor="otp-input" className="text-sm font-medium text-encre">
+              Code OTP
+            </Label>
             <div className="flex justify-center">
               <InputOTP
+                id="otp-input"
                 maxLength={OTP_CODE_MAX_LENGTH}
                 value={otp}
-                onChange={setOtp}
+                onChange={(value) => {
+                  setOtp(value);
+                  setOtpError(null);
+                }}
                 disabled={loading}
                 autoFocus
+                aria-invalid={!!otpError}
+                aria-describedby={otpError ? "err-otp" : "otp-hint"}
               >
                 <InputOTPGroup>
                   <InputOTPSlot index={0} className="h-10 w-9 text-base sm:h-11 sm:w-10" />
@@ -236,7 +253,10 @@ function VerificationOtpInner() {
                 </InputOTPGroup>
               </InputOTP>
             </div>
-            <p className="text-center text-xs text-ardoise">6 ou 8 chiffres selon l&apos;e-mail reçu</p>
+            <p id="otp-hint" className="text-center text-xs text-ardoise">
+              6 ou 8 chiffres selon l&apos;e-mail reçu
+            </p>
+            <FieldError id="err-otp" message={otpError} className="text-center" />
           </div>
 
           <Button

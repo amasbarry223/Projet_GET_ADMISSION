@@ -120,7 +120,7 @@ export function UniversiteDetailView({
   ] as const;
 
   return (
-    <div className="bg-porcelaine pb-24 lg:pb-0">
+    <div className="bg-background pb-24 lg:pb-0">
       {/* Hero full-bleed */}
       <header className="relative min-h-[min(88svh,720px)] overflow-hidden">
         <div className={cn("absolute inset-0 bg-gradient-to-br", universite.imageCouleur)} />
@@ -136,9 +136,8 @@ export function UniversiteDetailView({
         ) : null}
         <div
           aria-hidden
-          className="absolute inset-0 bg-gradient-to-t from-encre via-encre/55 to-encre/25"
+          className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-black/25"
         />
-        {/* Grain léger */}
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-[0.12] mix-blend-overlay"
@@ -150,7 +149,7 @@ export function UniversiteDetailView({
 
         {/* Breadcrumb overlay */}
         <nav
-          className="absolute left-0 right-0 top-0 z-20 border-b border-blanc/10 bg-encre/20 backdrop-blur-sm"
+          className="absolute left-0 right-0 top-0 z-20 border-b border-white/10 bg-black/20 backdrop-blur-sm"
           aria-label="Fil d'Ariane"
         >
           <div className="mx-auto flex max-w-content items-center gap-1.5 px-4 py-3 text-xs text-blanc/70 sm:px-6 lg:px-8">
@@ -174,7 +173,7 @@ export function UniversiteDetailView({
             className="max-w-3xl"
           >
             <div className="mb-6 flex items-center gap-4">
-              <span className="relative flex h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-blanc/40 bg-blanc shadow-lg sm:h-20 sm:w-20">
+              <span className="relative flex h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-blanc/40 bg-card shadow-lg sm:h-20 sm:w-20">
                 {universite.logoUrl ? (
                   <Image
                     src={universite.logoUrl}
@@ -184,7 +183,7 @@ export function UniversiteDetailView({
                     className="object-cover"
                   />
                 ) : (
-                  <span className="flex h-full w-full items-center justify-center font-mono text-lg font-bold text-lapis sm:text-xl">
+                  <span className="flex h-full w-full items-center justify-center font-mono text-lg font-bold text-primary sm:text-xl">
                     {universite.ecusson}
                   </span>
                 )}
@@ -220,7 +219,7 @@ export function UniversiteDetailView({
                 type="button"
                 size="lg"
                 variant="outline"
-                className="border-blanc/35 bg-blanc/10 text-blanc backdrop-blur-sm hover:bg-blanc/20 hover:text-blanc"
+                className="border-blanc/35 bg-card/10 text-blanc backdrop-blur-sm hover:bg-card/20 hover:text-blanc"
                 onClick={() => scrollToId("formations")}
               >
                 Voir les formations
@@ -242,7 +241,7 @@ export function UniversiteDetailView({
       </header>
 
       {/* Sticky subnav — sous le header site (h-20) */}
-      <div className="sticky top-20 z-30 border-b border-ligne bg-blanc/90 backdrop-blur-md">
+      <div className="sticky top-20 z-30 border-b border-border bg-card/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-content items-center gap-1 overflow-x-auto px-4 sm:px-6 lg:px-8">
           {navItems.map((item) => (
             <button
@@ -251,14 +250,14 @@ export function UniversiteDetailView({
               onClick={() => scrollToId(item.id)}
               className={cn(
                 "relative shrink-0 px-4 py-3.5 text-sm font-medium transition-colors",
-                activeSection === item.id ? "text-lapis" : "text-ardoise hover:text-encre",
+                activeSection === item.id ? "text-primary" : "text-muted-foreground hover:text-foreground",
               )}
             >
               {item.label}
               {activeSection === item.id ? (
                 <motion.span
                   layoutId={reduce ? undefined : "univ-nav-ink"}
-                  className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-lapis"
+                  className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-primary"
                   transition={{ type: "spring", stiffness: 380, damping: 32 }}
                 />
               ) : null}
@@ -277,7 +276,7 @@ export function UniversiteDetailView({
 
       {/* Galerie */}
       {universite.galleryUrls.length > 0 && (
-        <section className="border-b border-ligne bg-blanc" aria-label="Galerie campus">
+        <section className="border-b border-border bg-card" aria-label="Galerie campus">
           <div className="mx-auto max-w-content px-4 py-10 sm:px-6 lg:px-8">
             <RevealStagger className="grid gap-3 sm:grid-cols-3">
               {universite.galleryUrls.slice(0, 3).map((src, i) => (
@@ -308,18 +307,18 @@ export function UniversiteDetailView({
                 <p className="eyebrow">Présentation</p>
                 <h2
                   id="presentation-title"
-                  className="mt-3 font-display text-3xl font-bold tracking-tight text-encre text-balance sm:text-4xl"
+                  className="mt-3 font-display text-3xl font-bold tracking-tight text-foreground text-balance sm:text-4xl"
                 >
                   Une école ancrée à {universite.ville}.
                 </h2>
-                <p className="mt-5 max-w-2xl text-base leading-relaxed text-ardoise sm:text-lg">
+                <p className="mt-5 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
                   {universite.description}
                 </p>
               </Reveal>
 
               {universite.domaines.length > 0 && (
                 <Reveal delay={0.08} className="mt-8">
-                  <p className="mb-3 font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                  <p className="mb-3 font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">
                     Domaines — filtrez les formations
                   </p>
                   <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrer par domaine">
@@ -329,8 +328,8 @@ export function UniversiteDetailView({
                       className={cn(
                         "rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
                         domaineFilter === null
-                          ? "bg-lapis text-blanc"
-                          : "bg-blanc text-encre ring-1 ring-ligne hover:ring-lapis/40",
+                          ? "bg-primary text-blanc"
+                          : "bg-card text-foreground ring-1 ring-ligne hover:ring-lapis/40",
                       )}
                     >
                       Tous
@@ -343,8 +342,8 @@ export function UniversiteDetailView({
                         className={cn(
                           "rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
                           domaineFilter === d
-                            ? "bg-lapis text-blanc"
-                            : "bg-blanc text-encre ring-1 ring-ligne hover:ring-lapis/40",
+                            ? "bg-primary text-blanc"
+                            : "bg-card text-foreground ring-1 ring-ligne hover:ring-lapis/40",
                         )}
                       >
                         {d}
@@ -357,18 +356,18 @@ export function UniversiteDetailView({
               {universite.pointsForts.length > 0 && (
                 <Reveal delay={0.12} className="mt-12">
                   <p className="eyebrow">Points forts</p>
-                  <h3 className="mt-3 font-display text-xl font-bold text-encre sm:text-2xl">
+                  <h3 className="mt-3 font-display text-xl font-bold text-foreground sm:text-2xl">
                     Ce qui distingue cet établissement.
                   </h3>
-                  <ul className="mt-6 space-y-0 divide-y divide-ligne border-y border-ligne">
+                  <ul className="mt-6 space-y-0 divide-y divide-ligne border-y border-border">
                     {universite.pointsForts.map((point) => (
                       <li key={point} className="flex items-start gap-3 py-4">
                         <CheckCircle2
-                          className="mt-0.5 h-5 w-5 shrink-0 text-lapis"
+                          className="mt-0.5 h-5 w-5 shrink-0 text-primary"
                           strokeWidth={1.75}
                           aria-hidden
                         />
-                        <span className="text-base text-encre">{point}</span>
+                        <span className="text-base text-foreground">{point}</span>
                       </li>
                     ))}
                   </ul>
@@ -382,7 +381,7 @@ export function UniversiteDetailView({
                 <p className="eyebrow">Formations</p>
                 <h2
                   id="formations-title"
-                  className="mt-3 font-display text-3xl font-bold tracking-tight text-encre sm:text-4xl"
+                  className="mt-3 font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl"
                 >
                   {filtered.length === 0
                     ? "Aucune formation pour ce filtre"
@@ -391,7 +390,7 @@ export function UniversiteDetailView({
               </Reveal>
 
               {formations.length === 0 ? (
-                <p className="mt-8 text-sm text-ardoise">
+                <p className="mt-8 text-sm text-muted-foreground">
                   Aucune formation n&apos;est actuellement ouverte. Contactez un conseiller pour les
                   prochaines campagnes.
                 </p>
@@ -410,10 +409,10 @@ export function UniversiteDetailView({
                             exit={reduce ? undefined : { opacity: 0, y: -8 }}
                             transition={{ duration: 0.35, ease }}
                             className={cn(
-                              "overflow-hidden rounded-xl border bg-blanc transition-shadow",
+                              "overflow-hidden rounded-xl border bg-card transition-shadow",
                               open
-                                ? "border-lapis/35 shadow-[0_12px_40px_rgba(60,169,54,0.12)]"
-                                : "border-ligne hover:border-lapis/25",
+                                ? "border-primary/35 shadow-[0_12px_40px_rgba(60,169,54,0.12)]"
+                                : "border-border hover:border-primary/25",
                             )}
                           >
                             <button
@@ -424,21 +423,21 @@ export function UniversiteDetailView({
                             >
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <Badge className="bg-lapis/10 font-mono text-[10px] font-medium text-lapis hover:bg-lapis/10">
+                                  <Badge className="bg-primary/10 font-mono text-[10px] font-medium text-primary hover:bg-primary/10">
                                     {f.niveau}
                                   </Badge>
-                                  <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                                  <span className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">
                                     {f.domaine}
                                   </span>
-                                  <span className="font-mono text-[10px] text-ardoise/60">·</span>
-                                  <span className="font-mono text-[10px] text-ardoise">{f.duree}</span>
+                                  <span className="font-mono text-[10px] text-muted-foreground/60">·</span>
+                                  <span className="font-mono text-[10px] text-muted-foreground">{f.duree}</span>
                                 </div>
-                                <p className="mt-2 font-display text-lg font-bold text-encre sm:text-xl">
+                                <p className="mt-2 font-display text-lg font-bold text-foreground sm:text-xl">
                                   {f.intitule}
                                 </p>
-                                <p className="mt-1 font-mono text-sm font-semibold text-lapis">
+                                <p className="mt-1 font-mono text-sm font-semibold text-primary">
                                   {formatFCFA(fraisAgence)}{" "}
-                                  <span className="font-sans text-xs font-normal text-ardoise">
+                                  <span className="font-sans text-xs font-normal text-muted-foreground">
                                     frais d&apos;agence
                                     {universite.typeEtablissement === "PUBLIC"
                                       ? " (public)"
@@ -448,8 +447,8 @@ export function UniversiteDetailView({
                               </div>
                               <ChevronDown
                                 className={cn(
-                                  "mt-1 h-5 w-5 shrink-0 text-ardoise transition-transform duration-300 motion-reduce:transition-none",
-                                  open && "rotate-180 text-lapis",
+                                  "mt-1 h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-300 motion-reduce:transition-none",
+                                  open && "rotate-180 text-primary",
                                 )}
                                 strokeWidth={1.75}
                                 aria-hidden
@@ -466,17 +465,17 @@ export function UniversiteDetailView({
                                   transition={{ duration: 0.35, ease }}
                                   className="overflow-hidden"
                                 >
-                                  <div className="border-t border-ligne px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
+                                  <div className="border-t border-border px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
                                     {f.prerequis.length > 0 && (
                                       <div>
-                                        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                                        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">
                                           Prérequis
                                         </p>
                                         <ul className="mt-2 space-y-1.5">
                                           {f.prerequis.map((p) => (
                                             <li
                                               key={p}
-                                              className="flex items-start gap-2 text-sm text-encre"
+                                              className="flex items-start gap-2 text-sm text-foreground"
                                             >
                                               <CheckCircle2
                                                 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-vert"
@@ -489,24 +488,24 @@ export function UniversiteDetailView({
                                       </div>
                                     )}
                                     <div className={f.prerequis.length ? "mt-4" : undefined}>
-                                      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                                      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">
                                         Documents du dossier
                                       </p>
-                                      <p className="mt-2 text-sm text-ardoise">
+                                      <p className="mt-2 text-sm text-muted-foreground">
                                         Les pièces académiques (bulletins, bac, relevés) sont
                                         adaptées automatiquement à votre profil lors de la
                                         constitution du dossier.
                                       </p>
                                       {f.piecesRequises.length > 0 && (
                                         <>
-                                          <p className="mt-3 font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                                          <p className="mt-3 font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">
                                             Compléments demandés pour cette formation
                                           </p>
                                           <ul className="mt-2 flex flex-wrap gap-2">
                                             {f.piecesRequises.map((p) => (
                                               <li
                                                 key={p}
-                                                className="rounded-md bg-porcelaine px-2.5 py-1 text-xs text-encre"
+                                                className="rounded-md bg-background px-2.5 py-1 text-xs text-foreground"
                                               >
                                                 {p}
                                               </li>
@@ -537,7 +536,7 @@ export function UniversiteDetailView({
                 <button
                   type="button"
                   onClick={() => setDomaineFilter(null)}
-                  className="mt-4 text-sm font-medium text-lapis hover:underline"
+                  className="mt-4 text-sm font-medium text-primary hover:underline"
                 >
                   Réinitialiser le filtre
                 </button>
@@ -550,25 +549,25 @@ export function UniversiteDetailView({
                 <p className="eyebrow">Dossier</p>
                 <h3
                   id="pieces-title"
-                  className="mt-3 font-display text-2xl font-bold text-encre sm:text-3xl"
+                  className="mt-3 font-display text-2xl font-bold text-foreground sm:text-3xl"
                 >
                   Un dossier adapté à votre parcours.
                 </h3>
-                <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ardoise">
+                <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted-foreground">
                   Les pièces académiques demandées dépendent de votre profil (lycéen ou bachelier,
                   redoublements, interruptions). Elles sont générées automatiquement à la
                   constitution du dossier.
                 </p>
                 {piecesUniques.length > 0 && (
                   <>
-                    <p className="mt-6 font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                    <p className="mt-6 font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">
                       Compléments fréquents pour ces formations
                     </p>
                     <ul className="mt-3 columns-1 gap-x-10 sm:columns-2">
                       {piecesUniques.map((piece) => (
                         <li
                           key={piece}
-                          className="mb-3 flex break-inside-avoid items-start gap-2.5 text-sm text-encre"
+                          className="mb-3 flex break-inside-avoid items-start gap-2.5 text-sm text-foreground"
                         >
                           <FileText
                             className="mt-0.5 h-4 w-4 shrink-0 text-or"
@@ -591,7 +590,7 @@ export function UniversiteDetailView({
             className="scroll-mt-36 lg:sticky lg:top-36 lg:self-start"
             aria-labelledby="dossier-title"
           >
-            <div className="relative overflow-hidden rounded-2xl border border-ligne bg-blanc p-6 shadow-sm">
+            <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm">
               <div
                 aria-hidden
                 className={cn(
@@ -600,20 +599,20 @@ export function UniversiteDetailView({
                 )}
               />
               <p className="eyebrow relative">Démarrer</p>
-              <h3 id="dossier-title" className="relative mt-3 font-display text-xl font-bold text-encre">
+              <h3 id="dossier-title" className="relative mt-3 font-display text-xl font-bold text-foreground">
                 Composer mon dossier
               </h3>
-              <p className="relative mt-2 text-sm leading-relaxed text-ardoise">
+              <p className="relative mt-2 text-sm leading-relaxed text-muted-foreground">
                 Un conseiller GET Admission vous guide pas à pas jusqu&apos;à l&apos;admission.
               </p>
 
-              <div className="relative mt-5 border-y border-ligne py-4">
-                <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+              <div className="relative mt-5 border-y border-border py-4">
+                <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">
                   Frais d&apos;agence
                 </p>
-                <p className="mt-1 font-mono text-base font-semibold text-encre">
+                <p className="mt-1 font-mono text-base font-semibold text-foreground">
                   {formatFCFA(fraisAgence)}
-                  <span className="ml-2 font-sans text-xs font-normal text-ardoise">
+                  <span className="ml-2 font-sans text-xs font-normal text-muted-foreground">
                     {universite.typeEtablissement === "PUBLIC" ? "établissement public" : "établissement privé"}
                   </span>
                 </p>
@@ -629,7 +628,7 @@ export function UniversiteDetailView({
                 asChild
                 size="lg"
                 variant="outline"
-                className="relative mt-2 w-full border-ligne bg-blanc text-encre hover:bg-porcelaine"
+                className="relative mt-2 w-full border-border bg-card text-foreground hover:bg-background"
               >
                 <Link href="/contact">
                   <Phone className="h-4 w-4" strokeWidth={1.75} />
@@ -637,7 +636,7 @@ export function UniversiteDetailView({
                 </Link>
               </Button>
 
-              <ul className="relative mt-6 space-y-2.5 text-xs text-ardoise">
+              <ul className="relative mt-6 space-y-2.5 text-xs text-muted-foreground">
                 <li className="flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-vert" strokeWidth={1.5} />
                   Établissement vérifié
@@ -657,11 +656,11 @@ export function UniversiteDetailView({
       </div>
 
       {/* Sticky CTA mobile */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-ligne bg-blanc/95 p-3 backdrop-blur-md lg:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 p-3 backdrop-blur-md lg:hidden">
         <div className="mx-auto flex max-w-content items-center gap-3">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs text-ardoise">{universite.ville}</p>
-            <p className="truncate font-mono text-sm font-semibold text-encre">
+            <p className="truncate text-xs text-muted-foreground">{universite.ville}</p>
+            <p className="truncate font-mono text-sm font-semibold text-foreground">
               {formatFCFACompact(fraisAgence)}
             </p>
           </div>

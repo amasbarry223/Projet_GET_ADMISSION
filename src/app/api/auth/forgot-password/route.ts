@@ -18,7 +18,7 @@ const resetSchema = z.object({
 
 // POST /api/auth/forgot-password — demande de reset (BF-08)
 export async function POST(request: Request) {
-  const rateLimited = checkRateLimit(getClientId(request), "/api/auth/forgot-password");
+  const rateLimited = await checkRateLimit(getClientId(request), "/api/auth/forgot-password");
   if (rateLimited) return rateLimited;
 
   const body = await request.json().catch(() => null);
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
 
 // PUT /api/auth/forgot-password — appliquer le nouveau mot de passe
 export async function PUT(request: Request) {
-  const rateLimited = checkRateLimit(getClientId(request), "/api/auth/reset-password");
+  const rateLimited = await checkRateLimit(getClientId(request), "/api/auth/reset-password");
   if (rateLimited) return rateLimited;
 
   const body = await request.json().catch(() => null);

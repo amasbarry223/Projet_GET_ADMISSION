@@ -48,8 +48,8 @@ export function UniversiteCard({ universite, className, showFooter = true }: Pro
     <Link
       href={`/universites/${universite.slug}`}
       className={cn(
-        "group relative flex h-full flex-col overflow-hidden rounded-lg border border-ligne bg-blanc shadow-sm transition-shadow duration-300",
-        "hover:shadow-[0_12px_36px_rgba(60,169,54,0.28)]",
+        "group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card/70 shadow-sm backdrop-blur-sm transition-[box-shadow,border-color] duration-300",
+        "hover:border-primary/40 hover:shadow-[0_12px_36px_rgba(60,169,54,0.22)]",
         className
       )}
     >
@@ -70,8 +70,8 @@ export function UniversiteCard({ universite, className, showFooter = true }: Pro
             loading="lazy"
           />
         ) : null}
-        <div className="absolute inset-0 bg-gradient-to-t from-encre/40 to-transparent" />
-        <span className="absolute left-1/2 top-1/2 z-10 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full border-2 border-blanc bg-blanc/95 shadow-md">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+        <span className="absolute left-1/2 top-1/2 z-10 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full border-2 border-white/90 bg-white/95 shadow-md">
           {universite.logoUrl ? (
             <Image
               src={universite.logoUrl}
@@ -81,7 +81,7 @@ export function UniversiteCard({ universite, className, showFooter = true }: Pro
               className="object-cover"
             />
           ) : (
-            <span className="flex h-full w-full items-center justify-center font-mono text-sm font-bold tracking-tight text-lapis">
+            <span className="flex h-full w-full items-center justify-center font-mono text-sm font-bold tracking-tight text-primary">
               {universite.ecusson}
             </span>
           )}
@@ -91,7 +91,7 @@ export function UniversiteCard({ universite, className, showFooter = true }: Pro
 
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div>
-          <h3 className="font-display text-lg font-bold leading-tight text-encre">
+          <h3 className="font-display text-lg font-bold leading-tight text-foreground">
             <span className="flex items-center gap-2">
               <span aria-hidden className="text-base">
                 {universite.drapeau}
@@ -99,7 +99,7 @@ export function UniversiteCard({ universite, className, showFooter = true }: Pro
               <span className="line-clamp-2">{universite.nom}</span>
             </span>
           </h3>
-          <p className="mt-1 text-sm text-ardoise">
+          <p className="mt-1 text-sm text-muted-foreground">
             {universite.ville}, {universite.pays}
           </p>
         </div>
@@ -109,7 +109,7 @@ export function UniversiteCard({ universite, className, showFooter = true }: Pro
             <Badge
               key={d}
               variant="secondary"
-              className="bg-porcelaine font-mono text-[11px] font-medium text-ardoise"
+              className="bg-muted font-mono text-[11px] font-medium text-muted-foreground"
             >
               {d}
             </Badge>
@@ -117,7 +117,7 @@ export function UniversiteCard({ universite, className, showFooter = true }: Pro
           {restant > 0 && (
             <Badge
               variant="secondary"
-              className="bg-porcelaine font-mono text-[11px] font-medium text-ardoise"
+              className="bg-muted font-mono text-[11px] font-medium text-muted-foreground"
             >
               +{restant}
             </Badge>
@@ -125,18 +125,18 @@ export function UniversiteCard({ universite, className, showFooter = true }: Pro
         </div>
 
         {showFooter && (
-          <div className="mt-auto flex items-end justify-between border-t border-ligne pt-3">
+          <div className="mt-auto flex items-end justify-between border-t border-border pt-3">
             <div>
-              <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+              <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">
                 Frais d&apos;agence
               </p>
-              <p className="mt-0.5 font-mono text-sm font-semibold text-encre">
+              <p className="mt-0.5 font-mono text-sm font-semibold text-foreground">
                 {formatFCFACompact(universite.fraisMin)} –{" "}
                 {formatFCFACompact(universite.fraisMax)}
               </p>
             </div>
             <span
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-ligne text-ardoise transition-colors group-hover:border-or group-hover:text-or"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors group-hover:border-primary group-hover:text-primary"
               aria-hidden
             >
               <ArrowUpRight className="h-4 w-4" strokeWidth={1.75} />

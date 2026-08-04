@@ -5,7 +5,17 @@ import { Card } from "@/components/ui/card";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type KpiTone = "lapis" | "cyan" | "bleu" | "vert" | "jaune" | "rouge" | "violet" | "or";
+export type KpiTone =
+  | "lapis"
+  | "cyan"
+  | "bleu"
+  | "vert"
+  | "jaune"
+  | "rouge"
+  | "violet"
+  | "or"
+  | "ambre"
+  | "carmin";
 
 const TONE_CONFIG: Record<KpiTone, { iconBg: string; iconText: string; accent: string }> = {
   lapis: { iconBg: "bg-lapis/10", iconText: "text-lapis", accent: "text-lapis" },
@@ -16,6 +26,8 @@ const TONE_CONFIG: Record<KpiTone, { iconBg: string; iconText: string; accent: s
   rouge: { iconBg: "bg-rouge-pale", iconText: "text-rouge", accent: "text-rouge" },
   violet: { iconBg: "bg-violet-pale", iconText: "text-violet", accent: "text-violet" },
   or: { iconBg: "bg-or-pale", iconText: "text-or", accent: "text-or" },
+  ambre: { iconBg: "bg-ambre/10", iconText: "text-ambre", accent: "text-ambre" },
+  carmin: { iconBg: "bg-carmin/10", iconText: "text-carmin", accent: "text-carmin" },
 };
 
 interface KpiCardProps {

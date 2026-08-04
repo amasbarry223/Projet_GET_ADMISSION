@@ -142,6 +142,18 @@ export const passwordChangeSchema = z.object({
 });
 export type PasswordChangeInput = z.infer<typeof passwordChangeSchema>;
 
+/** Validation étape « Informations personnelles » du wizard dossier (client). */
+export const wizardPersonalInfoSchema = z.object({
+  prenom: z.string().min(1, "Le prénom est requis").max(NAME_MAX_LENGTH),
+  nom: z.string().min(1, "Le nom est requis").max(NAME_MAX_LENGTH),
+  email: z.string().min(1, "L'e-mail est requis").email("L'e-mail saisi n'est pas valide").max(EMAIL_MAX_LENGTH),
+  tel: z.string().min(1, "Le téléphone est requis").max(PHONE_MAX_LENGTH),
+  nationalite: z.string().min(1, "La nationalité est requise").max(NAME_MAX_LENGTH),
+  naissance: z.string().max(20).optional().or(z.literal("")),
+  adresse: z.string().max(ADDRESS_MAX_LENGTH).optional().or(z.literal("")),
+});
+export type WizardPersonalInfoInput = z.infer<typeof wizardPersonalInfoSchema>;
+
 // --- Create dossier ---
 export const dossierCreateSchema = z.object({
   universiteId: z.string().min(1, "L'université est requise"),
@@ -200,6 +212,19 @@ export const universiteSchema = z.object({
   partenaire: z.boolean().optional(),
 });
 export type UniversiteInput = z.infer<typeof universiteSchema>;
+
+// --- Formation create/update ---
+export const formationSchema = z.object({
+  universiteId: z.string().min(1).optional(),
+  intitule: z.string().min(1, "L'intitulé est requis").max(200),
+  niveau: z.enum(["Licence", "Master", "Doctorat"]),
+  domaine: z.string().min(1).max(100),
+  duree: z.string().min(1).max(50),
+  fraisAgence: z.number().int().min(0).optional(),
+  prerequis: z.array(z.string().max(200)).default([]),
+  piecesRequises: z.array(z.string().max(200)).default([]),
+});
+export type FormationInput = z.infer<typeof formationSchema>;
 
 // --- Admin user invite ---
 export const adminUserCreateSchema = z.object({

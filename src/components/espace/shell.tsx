@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import {
@@ -41,6 +41,7 @@ import {
   SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { useDossiersQuery } from "@/hooks/use-primary-dossier";
 
 const NAV_BASE = [
   { href: "/espace", label: "Tableau de bord", icon: LayoutDashboard, exact: true },
@@ -52,53 +53,71 @@ const NAV_BASE = [
 ];
 
 function useUnreadCounts() {
-  const [messages, setMessages] = React.useState(0);
+  const dossiersQuery = useDossiersQuery({ refetchInterval: 30_000 });
   const [notifs, setNotifs] = React.useState(0);
   const [items, setItems] = React.useState<
     { id: string; titre: string; message: string; lien?: string | null }[]
   >([]);
+  const [notifsDegraded, setNotifsDegraded] = React.useState(false);
 
-  const refresh = React.useCallback(async () => {
+  const refreshNotifs = React.useCallback(async () => {
     try {
-      const [nRes, dRes] = await Promise.all([
-        fetch("/api/notifications?unread=1"),
-        fetch("/api/dossiers"),
-      ]);
+      const nRes = await fetch("/api/notifications?unread=1");
       if (nRes.ok) {
         const n = await nRes.json();
         setNotifs(n.unreadCount ?? 0);
         setItems(n.notifications ?? []);
-      }
-      if (dRes.ok) {
-        const dossiers = await dRes.json();
-        const list = Array.isArray(dossiers) ? dossiers : dossiers.data ?? [];
-        let sum = 0;
-        for (const d of list) {
-          sum += d.conversation?.nonLusCandidat ?? 0;
-        }
-        setMessages(sum);
+        setNotifsDegraded(false);
+      } else {
+        setNotifsDegraded(true);
       }
     } catch {
-      // ignore
+      setNotifsDegraded(true);
     }
   }, []);
 
   React.useEffect(() => {
     let cancelled = false;
     queueMicrotask(() => {
-      if (!cancelled) void refresh();
+      if (!cancelled) void refreshNotifs();
     });
-    const t = setInterval(() => void refresh(), 30000);
+    const t = setInterval(() => void refreshNotifs(), 30000);
     return () => {
       cancelled = true;
       clearInterval(t);
     };
-  }, [refresh]);
+  }, [refreshNotifs]);
 
-  return { messages, notifs, items, refresh };
+  const messages = React.useMemo(() => {
+    const list = dossiersQuery.data ?? [];
+    let sum = 0;
+    for (const d of list) {
+      sum += d.conversation?.nonLusCandidat ?? 0;
+    }
+    return sum;
+  }, [dossiersQuery.data]);
+
+  const badgesDegraded = dossiersQuery.isError || notifsDegraded;
+
+  return {
+    messages,
+    notifs,
+    items,
+    refresh: () => {
+      void dossiersQuery.refetch();
+      void refreshNotifs();
+    },
+    badgesDegraded,
+  };
 }
 
-function NavList({ messageBadge }: { messageBadge: number }) {
+function NavList({
+  messageBadge,
+  badgesDegraded,
+}: {
+  messageBadge: number;
+  badgesDegraded?: boolean;
+}) {
   const pathname = usePathname();
 
   return (
@@ -108,7 +127,13 @@ function NavList({ messageBadge }: { messageBadge: number }) {
           {NAV_BASE.map((item) => {
             const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
             const Icon = item.icon;
-            const badge = item.showBadge === "messages" && messageBadge > 0 ? messageBadge : null;
+            const showMessagesBadge = item.showBadge === "messages";
+            const badge =
+              showMessagesBadge && messageBadge > 0
+                ? messageBadge
+                : showMessagesBadge && badgesDegraded
+                  ? "?"
+                  : null;
             return (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
@@ -117,8 +142,7 @@ function NavList({ messageBadge }: { messageBadge: number }) {
                   tooltip={item.label}
                   className={cn(
                     "relative transition-colors duration-200 ease-out motion-reduce:transition-none",
-                    active &&
-                      "bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_3px_0_0_0_var(--color-or)]",
+                    active && "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
                   )}
                 >
                   <Link href={item.href}>
@@ -126,9 +150,12 @@ function NavList({ messageBadge }: { messageBadge: number }) {
                     <span>{item.label}</span>
                   </Link>
                 </SidebarMenuButton>
-                {badge ? (
-                  <SidebarMenuBadge className="bg-ambre/15 font-mono text-[10px] text-ambre peer-hover/menu-button:text-ambre peer-data-[active=true]/menu-button:text-ambre">
-                    {badge > 99 ? "99+" : badge}
+                {badge !== null ? (
+                  <SidebarMenuBadge
+                    className="bg-ambre/15 font-mono text-[10px] text-ambre peer-hover/menu-button:text-ambre peer-data-[active=true]/menu-button:text-ambre"
+                    title={typeof badge === "string" ? "Compteur indisponible" : undefined}
+                  >
+                    {typeof badge === "number" && badge > 99 ? "99+" : badge}
                   </SidebarMenuBadge>
                 ) : null}
               </SidebarMenuItem>
@@ -206,7 +233,7 @@ function UserCard() {
           <SidebarMenuButton
             tooltip="Déconnexion"
             className="text-ardoise hover:bg-carmin/5 hover:text-carmin"
-            onClick={() => signOut({ callbackUrl: "/connexion?portal=etudiant" })}
+            onClick={() => signOut({ callbackUrl: "/connexion" })}
           >
             <LogOut strokeWidth={1.5} />
             <span>Déconnexion</span>
@@ -219,7 +246,8 @@ function UserCard() {
 
 export function EspaceShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { messages, notifs, items, refresh } = useUnreadCounts();
+  const router = useRouter();
+  const { messages, notifs, items, refresh, badgesDegraded } = useUnreadCounts();
   const current = NAV_BASE.find((n) =>
     n.exact ? pathname === n.href : pathname.startsWith(n.href),
   );
@@ -232,7 +260,7 @@ export function EspaceShell({ children }: { children: React.ReactNode }) {
         </SidebarHeader>
         <SidebarSeparator className="mx-0" />
         <SidebarContent className="scroll-fine gap-0">
-          <NavList messageBadge={messages} />
+          <NavList messageBadge={messages} badgesDegraded={badgesDegraded} />
         </SidebarContent>
         <SidebarFooter>
           <UserCard />
@@ -259,7 +287,7 @@ export function EspaceShell({ children }: { children: React.ReactNode }) {
                   variant="ghost"
                   size="icon"
                   className="relative text-ardoise hover:text-encre"
-                  aria-label="Notifications"
+                  aria-label={notifs > 0 ? `Notifications (${notifs} non lues)` : "Notifications"}
                 >
                   <Bell className="h-4 w-4" strokeWidth={1.5} />
                   {notifs > 0 && (
@@ -281,7 +309,7 @@ export function EspaceShell({ children }: { children: React.ReactNode }) {
                           body: JSON.stringify({ ids: [n.id] }),
                         });
                         refresh();
-                        if (n.lien) window.location.href = n.lien;
+                        if (n.lien) router.push(n.lien);
                       }}
                       className="flex flex-col items-start gap-0.5 py-2"
                     >

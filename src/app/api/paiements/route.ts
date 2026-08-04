@@ -6,93 +6,36 @@ import { paiementSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { logAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notifications";
-import { broadcastDossierLive } from "@/lib/dossier/live-broadcast";
-import { sendMail } from "@/lib/mail";
 import { hasPermission, requirePermission } from "@/lib/rbac";
 import { randomBytes } from "node:crypto";
-import type { EtatDossier } from "@prisma/client";
-import { ETAPE_PAR_ETAT, PAYMENT_STATUSES } from "@/shared/constants";
+import {
+  afterPaiementReussiSideEffects,
+  applyPaiementReussiInTx,
+  lockDossierRow,
+  recomputePaiementStatutInTx,
+} from "@/lib/dossier/paiement-effects";
+import { broadcastDossierLive } from "@/lib/dossier/live-broadcast";
 
-async function applyPaiementReussi(opts: {
-  paiement: { id: string; reference: string; montant: number; moyen: string; dossierId: string };
-  dossier: {
-    id: string;
-    etat: string;
-    fraisAgence: number;
-    candidatId: string;
-    candidat: { email: string | null; prenom: string };
-  };
-  userId: string;
-  auteurLabel: string;
-}) {
-  const { paiement, dossier, userId, auteurLabel } = opts;
-  const totalPaye = await db.paiement.aggregate({
-    where: { dossierId: dossier.id, statut: "reussi" },
-    _sum: { montant: true },
-  });
-  const paye = totalPaye._sum.montant ?? 0;
-  const paiementStatut =
-    paye >= dossier.fraisAgence
-      ? PAYMENT_STATUSES.COMPLET
-      : paye > 0
-        ? PAYMENT_STATUSES.PARTIEL
-        : PAYMENT_STATUSES.AUCUN;
-
-  const updateData: {
-    paiementStatut: string;
-    etat?: "PAIEMENT_CONFIRME";
-    etapeActuelle?: number;
-  } = { paiementStatut };
-
-  if (dossier.etat === "PAIEMENT_ATTENTE" && paiementStatut === PAYMENT_STATUSES.COMPLET) {
-    updateData.etat = "PAIEMENT_CONFIRME";
-    updateData.etapeActuelle = ETAPE_PAR_ETAT.PAIEMENT_CONFIRME;
-  }
-
-  await db.dossier.update({ where: { id: dossier.id }, data: updateData });
-
-  await db.historique.create({
-    data: {
-      dossierId: dossier.id,
-      etat: (updateData.etat ?? dossier.etat) as EtatDossier,
-      auteur: auteurLabel,
-      auteurId: userId,
-      note: `Paiement ${paiement.moyen} confirmé : ${paiement.montant} FCFA (${paiementStatut}).`,
-    },
-  });
-
-  await createNotification({
-    userId: dossier.candidatId,
-    titre: "Paiement confirmé",
-    message: `Votre paiement ${paiement.reference} de ${paiement.montant} FCFA a été confirmé.`,
-    type: "paiement",
-    lien: "/espace/paiement",
-    dossierId: dossier.id,
-  });
-
-  void broadcastDossierLive({
-    dossierId: dossier.id,
-    candidatId: dossier.candidatId,
-    etat: updateData.etat ?? dossier.etat,
-  });
-
-  if (dossier.candidat.email) {
-    await sendMail({
-      to: dossier.candidat.email,
-      subject: `Reçu ${paiement.reference} — GET Admission`,
-      html: `<p>Bonjour ${dossier.candidat.prenom},</p><p>Votre paiement de <strong>${paiement.montant} FCFA</strong> a été confirmé (réf. ${paiement.reference}).</p><p><a href="${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/recu/${paiement.id}">Télécharger le reçu</a></p>`,
-    });
-  }
-}
-
-// POST /api/paiements — enregistrer un paiement (candidat → en_attente ; staff peut forcer le statut)
+// POST /api/paiements — enregistrement staff uniquement (candidats → /api/paiements/initiate)
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const rateLimited = checkRateLimit(getClientId(request), "/api/paiements");
+  const role = (session.user as { role?: string }).role;
+  if (role === "CANDIDAT") {
+    return NextResponse.json(
+      {
+        error: "Utilisez le paiement en ligne sécurisé.",
+        code: "USE_INITIATE",
+        hint: "POST /api/paiements/initiate",
+      },
+      { status: 403 },
+    );
+  }
+
+  const rateLimited = await checkRateLimit(getClientId(request), "/api/paiements");
   if (rateLimited) return rateLimited;
 
   const body = await request.json();
@@ -104,85 +47,51 @@ export async function POST(request: Request) {
   const forceStatut = typeof body.statut === "string" ? body.statut : null;
 
   const userId = (session.user as { id: string }).id;
-  const role = (session.user as { role?: string }).role;
   const auteurLabel = `${(session.user as { prenom: string }).prenom} ${(session.user as { nom: string }).nom}`;
 
-  const dossier = await db.dossier.findUnique({
+  const dossierProbe = await db.dossier.findUnique({
     where: { id: dossierId },
-    include: { candidat: { select: { email: true, prenom: true } } },
+    select: { id: true, candidatId: true, etat: true },
   });
-  if (!dossier) {
+  if (!dossierProbe) {
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
   }
 
-  if (role === "CANDIDAT" && dossier.candidatId !== userId) {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
-  }
+  const gate = requirePermission(role, "finance.write");
+  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
 
-  if (role !== "CANDIDAT") {
-    const gate = requirePermission(role, "finance.write");
-    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
-  }
-
-  // Candidat : uniquement phase paiement (pas après transmission)
-  if (role === "CANDIDAT") {
-    const etatOk =
-      dossier.etat === "PAIEMENT_ATTENTE" || dossier.etat === "PAIEMENT_CONFIRME";
-    if (!etatOk) {
-      return NextResponse.json(
-        { error: "Dossier non encore en phase paiement" },
-        { status: 403 }
-      );
-    }
-    if (montant <= 0) {
-      return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
-    }
-  }
-
-  // Candidat : toujours en_attente (validation finance). Staff finance : peut forcer un statut.
-  let statut = "en_attente";
+  let statut = "reussi";
   if (forceStatut && ["en_attente", "reussi", "echoue", "rembourse"].includes(forceStatut)) {
-    if (role === "CANDIDAT") {
-      return NextResponse.json({ error: "Statut non autorisé" }, { status: 403 });
-    }
     statut = forceStatut;
-  } else if (role !== "CANDIDAT") {
-    statut = "reussi";
   }
 
   const ref = `REC-${new Date().getFullYear()}-${randomBytes(3).toString("hex").toUpperCase()}`;
 
-  let paiement;
+  type TxResult = {
+    paiement: {
+      id: string;
+      reference: string;
+      montant: number;
+      moyen: string;
+      dossierId: string;
+      statut: string;
+    };
+    candidatId: string;
+    candidat: { email: string | null; prenom: string };
+    etatApres?: string;
+  };
+
+  let result: TxResult;
   try {
-    paiement = await db.$transaction(async (tx) => {
+    result = await db.$transaction(async (tx) => {
+      await lockDossierRow(tx, dossierId);
       const locked = await tx.dossier.findUnique({
         where: { id: dossierId },
-        select: { id: true, etat: true, fraisAgence: true, candidatId: true },
+        include: { candidat: { select: { email: true, prenom: true } } },
       });
       if (!locked) throw new Error("DOSSIER_NOT_FOUND");
 
-      if (role === "CANDIDAT") {
-        if (locked.etat !== "PAIEMENT_ATTENTE" && locked.etat !== "PAIEMENT_CONFIRME") {
-          throw new Error("NOT_PAYABLE");
-        }
-        const [totalConfirme, totalPending] = await Promise.all([
-          tx.paiement.aggregate({
-            where: { dossierId: locked.id, statut: "reussi" },
-            _sum: { montant: true },
-          }),
-          tx.paiement.aggregate({
-            where: { dossierId: locked.id, statut: "en_attente" },
-            _sum: { montant: true },
-          }),
-        ]);
-        const engage =
-          (totalConfirme._sum.montant ?? 0) + (totalPending._sum.montant ?? 0);
-        const reste = Math.max(0, locked.fraisAgence - engage);
-        if (reste <= 0) throw new Error("NO_RESTE");
-        if (montant > reste) throw new Error(`RESTE:${reste}`);
-      }
-
-      return tx.paiement.create({
+      const paiement = await tx.paiement.create({
         data: {
           reference: ref,
           dossierId,
@@ -193,6 +102,43 @@ export async function POST(request: Request) {
           tranche: tranche || "Solde",
         },
       });
+
+      let etatApres: string | undefined;
+      if (statut === "reussi") {
+        const applied = await applyPaiementReussiInTx(tx, {
+          paiement,
+          dossier: locked,
+          userId,
+          auteurLabel,
+        });
+        etatApres = applied.etat;
+      } else if (statut === "en_attente") {
+        await tx.historique.create({
+          data: {
+            dossierId,
+            etat: locked.etat,
+            auteur: auteurLabel,
+            auteurId: userId,
+            note: `Paiement ${moyen} déclaré : ${montant} FCFA — en attente de validation.`,
+          },
+        });
+      } else if (statut === "echoue") {
+        await tx.historique.create({
+          data: {
+            dossierId,
+            etat: locked.etat,
+            auteur: "Système",
+            note: `Paiement ${moyen} échoué : ${montant} FCFA.`,
+          },
+        });
+      }
+
+      return {
+        paiement,
+        candidatId: locked.candidatId,
+        candidat: locked.candidat,
+        etatApres,
+      };
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
@@ -202,20 +148,20 @@ export async function POST(request: Request) {
     if (msg === "NOT_PAYABLE") {
       return NextResponse.json(
         { error: "Dossier non encore en phase paiement" },
-        { status: 403 }
+        { status: 403 },
       );
     }
     if (msg === "NO_RESTE") {
       return NextResponse.json(
         { error: "Aucun reste dû (paiements confirmés ou déjà en attente)" },
-        { status: 400 }
+        { status: 400 },
       );
     }
     if (msg.startsWith("RESTE:")) {
       const reste = msg.slice(6);
       return NextResponse.json(
         { error: `Montant supérieur au reste dû (${reste} FCFA)` },
-        { status: 400 }
+        { status: 400 },
       );
     }
     throw e;
@@ -225,46 +171,34 @@ export async function POST(request: Request) {
     session,
     action: "CREATE",
     resource: "paiement",
-    resourceId: paiement.id,
-    details: `Paiement ${paiement.reference} : ${montant} FCFA via ${moyen} (${statut})`,
+    resourceId: result.paiement.id,
+    details: `Paiement ${result.paiement.reference} : ${montant} FCFA via ${moyen} (${statut})`,
   });
 
-  if (statut === "reussi") {
-    await applyPaiementReussi({
-      paiement,
-      dossier,
-      userId,
-      auteurLabel,
+  if (statut === "reussi" && result.etatApres) {
+    await afterPaiementReussiSideEffects({
+      paiement: result.paiement,
+      candidatId: result.candidatId,
+      candidat: result.candidat,
+      etat: result.etatApres,
     });
   } else if (statut === "en_attente") {
-    await db.historique.create({
-      data: {
-        dossierId,
-        etat: dossier.etat,
-        auteur: auteurLabel,
-        auteurId: userId,
-        note: `Paiement ${moyen} déclaré : ${montant} FCFA — en attente de validation.`,
-      },
-    });
     await createNotification({
-      userId: dossier.candidatId,
+      userId: result.candidatId,
       titre: "Paiement en cours de validation",
       message: `Votre paiement ${ref} de ${montant} FCFA est en attente de confirmation par l'agence.`,
       type: "paiement",
       lien: "/espace/paiement",
       dossierId,
     });
-  } else if (statut === "echoue") {
-    await db.historique.create({
-      data: {
-        dossierId,
-        etat: dossier.etat,
-        auteur: "Système",
-        note: `Paiement ${moyen} échoué : ${montant} FCFA.`,
-      },
+    void broadcastDossierLive({
+      dossierId,
+      candidatId: result.candidatId,
+      etat: dossierProbe.etat,
     });
+  } else if (statut === "echoue") {
     await createNotification({
-      userId: dossier.candidatId,
+      userId: result.candidatId,
       titre: "Paiement échoué",
       message: `Le paiement via ${moyen} a échoué. Veuillez réessayer.`,
       type: "alerte",
@@ -274,8 +208,8 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json(
-    { success: true, pending: statut === "en_attente", paiement },
-    { status: 201 }
+    { success: true, pending: statut === "en_attente", paiement: result.paiement },
+    { status: 201 },
   );
 }
 
@@ -297,133 +231,176 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "id et statut valides requis" }, { status: 400 });
   }
 
-  const existing = await db.paiement.findUnique({ where: { id } });
-  if (!existing) {
-    return NextResponse.json({ error: "Paiement non trouvé" }, { status: 404 });
-  }
-
-  // Idempotence : déjà réussi → no-op (évite double notifs / e-mails)
-  if (statut === "reussi" && existing.statut === "reussi") {
-    return NextResponse.json({ success: true, paiement: existing, idempotent: true });
-  }
-
-  // Transitions transaction autorisées
-  const from = existing.statut;
-  const allowed: Record<string, string[]> = {
-    en_attente: ["reussi", "echoue", "en_attente"],
-    reussi: ["rembourse"],
-    echoue: ["en_attente", "reussi"],
-    rembourse: [],
-  };
-  if (!(allowed[from] ?? []).includes(statut)) {
-    return NextResponse.json(
-      { error: `Transition paiement interdite : ${from} → ${statut}` },
-      { status: 400 }
-    );
-  }
-
-  const dossierBefore = await db.dossier.findUnique({
-    where: { id: existing.dossierId },
-    include: { candidat: { select: { email: true, prenom: true } } },
-  });
-  if (!dossierBefore) {
-    return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
-  }
-
-  // Après transmission : interdire rembourse/échec (désync métier)
-  const postTransmission = [
-    "TRANSMIS",
-    "ATTENTE_REPONSE",
-    "PRE_ADMISSION",
-    "ATTESTATION",
-    "CLOTURE",
-    "REFUSE",
-  ];
-  if (
-    (statut === "rembourse" || statut === "echoue") &&
-    postTransmission.includes(dossierBefore.etat)
-  ) {
-    return NextResponse.json(
-      {
-        error:
-          "Impossible de rembourser ou rejeter un paiement : le dossier a déjà été transmis ou clôturé. Annulez d'abord l'avancement workflow.",
-      },
-      { status: 400 }
-    );
-  }
-
-  const paiement = await db.paiement.update({
-    where: { id },
-    data: { statut },
-  });
-
   const userId = (session.user as { id: string }).id;
   const auteurLabel = `${(session.user as { prenom: string }).prenom} ${(session.user as { nom: string }).nom}`;
 
-  if (statut === "reussi") {
-    await applyPaiementReussi({
-      paiement,
-      dossier: dossierBefore,
-      userId,
-      auteurLabel,
-    });
-  } else if (statut === "rembourse" || statut === "echoue") {
-    const totalPaye = await db.paiement.aggregate({
-      where: { dossierId: dossierBefore.id, statut: "reussi" },
-      _sum: { montant: true },
-    });
-    const paye = totalPaye._sum.montant ?? 0;
-    const paiementStatut =
-      paye >= dossierBefore.fraisAgence ? "complet" : paye > 0 ? "partiel" : "aucun";
-    const shouldRollback =
-      paiementStatut !== "complet" &&
-      (dossierBefore.etat === "PAIEMENT_CONFIRME" ||
-        dossierBefore.etat === "PAIEMENT_ATTENTE");
+  type PatchResult = {
+    paiement: { id: string; reference: string; montant: number; moyen: string; dossierId: string; statut: string };
+    candidatId: string;
+    candidat: { email: string | null; prenom: string };
+    etatApres?: string;
+    sideEffect: "reussi" | "rembourse" | "echoue" | "none";
+    idempotent?: boolean;
+  };
 
-    await db.dossier.update({
-      where: { id: dossierBefore.id },
-      data: {
-        paiementStatut,
-        ...(shouldRollback
-          ? {
-              etat: "PAIEMENT_ATTENTE" as const,
-              etapeActuelle: ETAPE_PAR_ETAT.PAIEMENT_ATTENTE,
-            }
-          : {}),
-      },
-    });
+  let outcome: PatchResult;
+  try {
+    outcome = await db.$transaction(async (tx) => {
+      const existing = await tx.paiement.findUnique({ where: { id } });
+      if (!existing) throw new Error("PAIEMENT_NOT_FOUND");
 
-    if (shouldRollback && dossierBefore.etat === "PAIEMENT_CONFIRME") {
-      await db.historique.create({
-        data: {
-          dossierId: dossierBefore.id,
-          etat: "PAIEMENT_ATTENTE",
-          auteur: auteurLabel,
-          auteurId: userId,
-          note: `Solde insuffisant après ${statut} — retour en attente de paiement.`,
+      if (statut === "reussi" && existing.statut === "reussi") {
+        return {
+          paiement: existing,
+          candidatId: existing.candidatId,
+          candidat: { email: null, prenom: "" },
+          sideEffect: "none" as const,
+          idempotent: true,
+        };
+      }
+
+      const from = existing.statut;
+      const allowed: Record<string, string[]> = {
+        en_attente: ["reussi", "echoue", "en_attente"],
+        reussi: ["rembourse"],
+        echoue: ["en_attente", "reussi"],
+        rembourse: [],
+      };
+      if (!(allowed[from] ?? []).includes(statut)) {
+        throw new Error(`TRANSITION:${from}:${statut}`);
+      }
+
+      await lockDossierRow(tx, existing.dossierId);
+      const dossierBefore = await tx.dossier.findUnique({
+        where: { id: existing.dossierId },
+        include: { candidat: { select: { email: true, prenom: true } } },
+      });
+      if (!dossierBefore) throw new Error("DOSSIER_NOT_FOUND");
+
+      const postTransmission = [
+        "TRANSMIS",
+        "ATTENTE_REPONSE",
+        "PRE_ADMISSION",
+        "ATTESTATION",
+        "CLOTURE",
+        "REFUSE",
+      ];
+      if (
+        (statut === "rembourse" || statut === "echoue") &&
+        postTransmission.includes(dossierBefore.etat)
+      ) {
+        throw new Error("POST_TRANSMISSION");
+      }
+
+      const paiement = await tx.paiement.update({
+        where: { id },
+        data: { statut },
+      });
+
+      if (statut === "reussi") {
+        const applied = await applyPaiementReussiInTx(tx, {
+          paiement,
+          dossier: dossierBefore,
+          userId,
+          auteurLabel,
+        });
+        return {
+          paiement,
+          candidatId: dossierBefore.candidatId,
+          candidat: dossierBefore.candidat,
+          etatApres: applied.etat,
+          sideEffect: "reussi" as const,
+        };
+      }
+
+      if (statut === "rembourse" || statut === "echoue") {
+        await recomputePaiementStatutInTx(tx, dossierBefore, {
+          userId,
+          auteurLabel,
+          reason: statut,
+        });
+        return {
+          paiement,
+          candidatId: dossierBefore.candidatId,
+          candidat: dossierBefore.candidat,
+          etatApres: dossierBefore.etat,
+          sideEffect: statut as "rembourse" | "echoue",
+        };
+      }
+
+      return {
+        paiement,
+        candidatId: dossierBefore.candidatId,
+        candidat: dossierBefore.candidat,
+        sideEffect: "none" as const,
+      };
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg === "PAIEMENT_NOT_FOUND") {
+      return NextResponse.json({ error: "Paiement non trouvé" }, { status: 404 });
+    }
+    if (msg === "DOSSIER_NOT_FOUND") {
+      return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
+    }
+    if (msg === "POST_TRANSMISSION") {
+      return NextResponse.json(
+        {
+          error:
+            "Impossible de rembourser ou rejeter un paiement : le dossier a déjà été transmis ou clôturé. Annulez d'abord l'avancement workflow.",
         },
-      });
+        { status: 400 },
+      );
     }
+    if (msg.startsWith("TRANSITION:")) {
+      const [, from, to] = msg.split(":");
+      return NextResponse.json(
+        { error: `Transition paiement interdite : ${from} → ${to}` },
+        { status: 400 },
+      );
+    }
+    throw e;
+  }
 
-    if (statut === "rembourse") {
-      await createNotification({
-        userId: dossierBefore.candidatId,
-        titre: "Remboursement effectué",
-        message: `Le paiement ${paiement.reference} a été remboursé.`,
-        type: "paiement",
-        lien: "/espace/paiement",
-        dossierId: dossierBefore.id,
-      });
-    } else {
-      await createNotification({
-        userId: dossierBefore.candidatId,
-        titre: "Paiement rejeté",
-        message: `Le paiement ${paiement.reference} a été rejeté. Veuillez réessayer ou contacter l'agence.`,
-        type: "alerte",
-        lien: "/espace/paiement",
-        dossierId: dossierBefore.id,
-      });
-    }
+  if (outcome.idempotent) {
+    return NextResponse.json({ success: true, paiement: outcome.paiement, idempotent: true });
+  }
+
+  if (outcome.sideEffect === "reussi" && outcome.etatApres) {
+    await afterPaiementReussiSideEffects({
+      paiement: outcome.paiement,
+      candidatId: outcome.candidatId,
+      candidat: outcome.candidat,
+      etat: outcome.etatApres,
+    });
+  } else if (outcome.sideEffect === "rembourse") {
+    await createNotification({
+      userId: outcome.candidatId,
+      titre: "Remboursement effectué",
+      message: `Le paiement ${outcome.paiement.reference} a été remboursé.`,
+      type: "paiement",
+      lien: "/espace/paiement",
+      dossierId: outcome.paiement.dossierId,
+    });
+    void broadcastDossierLive({
+      dossierId: outcome.paiement.dossierId,
+      candidatId: outcome.candidatId,
+      etat: outcome.etatApres ?? "PAIEMENT_ATTENTE",
+    });
+  } else if (outcome.sideEffect === "echoue") {
+    await createNotification({
+      userId: outcome.candidatId,
+      titre: "Paiement rejeté",
+      message: `Le paiement ${outcome.paiement.reference} a été rejeté. Veuillez réessayer ou contacter l'agence.`,
+      type: "alerte",
+      lien: "/espace/paiement",
+      dossierId: outcome.paiement.dossierId,
+    });
+    void broadcastDossierLive({
+      dossierId: outcome.paiement.dossierId,
+      candidatId: outcome.candidatId,
+      etat: outcome.etatApres ?? "PAIEMENT_ATTENTE",
+    });
   }
 
   await logAudit({
@@ -434,7 +411,7 @@ export async function PATCH(request: Request) {
     details: `Statut paiement → ${statut}`,
   });
 
-  return NextResponse.json({ success: true, paiement });
+  return NextResponse.json({ success: true, paiement: outcome.paiement });
 }
 
 export async function GET() {

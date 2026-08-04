@@ -3,9 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
+import { buildSimplePdf } from "@/lib/pdf";
+import { formatDate, formatFCFA } from "@/lib/format";
 
-// GET /api/admin/export/transactions — Export CSV des transactions
-export async function GET() {
+// GET /api/admin/export/transactions?format=csv|pdf — Export des transactions (BF §4.5)
+export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
@@ -15,6 +17,8 @@ export async function GET() {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
+  const format = new URL(request.url).searchParams.get("format") === "pdf" ? "pdf" : "csv";
+
   const transactions = await db.paiement.findMany({
     include: {
       candidat: { select: { prenom: true, nom: true } },
@@ -23,7 +27,26 @@ export async function GET() {
     orderBy: { date: "desc" },
   });
 
-  // Génère le CSV
+  const dateStr = new Date().toISOString().split("T")[0];
+
+  if (format === "pdf") {
+    const lines = transactions.map(
+      (t) =>
+        `${t.reference}  ${formatDate(t.date.toISOString())}  ${t.candidat.prenom} ${t.candidat.nom}  ` +
+        `${t.dossier.reference}  ${t.moyen}  ${formatFCFA(t.montant)}  ${t.statut}${t.tranche ? ` (${t.tranche})` : ""}`,
+    );
+    const pdf = buildSimplePdf(
+      [`${transactions.length} transaction(s) — généré le ${formatDate(new Date().toISOString())}`, "", ...lines],
+      "Transactions — GET Admission",
+    );
+    return new NextResponse(new Uint8Array(pdf), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="transactions-${dateStr}.pdf"`,
+      },
+    });
+  }
+
   const headers = ["Référence", "Candidat", "Dossier", "Date", "Moyen", "Montant (FCFA)", "Statut", "Tranche"];
   const rows = transactions.map((t) => [
     t.reference,
@@ -43,7 +66,7 @@ export async function GET() {
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="transactions-${new Date().toISOString().split("T")[0]}.csv"`,
+      "Content-Disposition": `attachment; filename="transactions-${dateStr}.csv"`,
     },
   });
 }

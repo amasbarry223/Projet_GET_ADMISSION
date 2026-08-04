@@ -1,21 +1,14 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { requirePermission } from "@/lib/rbac";
+import { requireApiPermission } from "@/lib/api-auth";
 import { logAudit } from "@/lib/audit";
 import { invalidateMatriceCache } from "@/lib/dossier/matrice-loader";
 import { MATRICE_V1_REGLES } from "@/lib/dossier/matrice-v1-regles";
 
 // GET /api/admin/matrice — liste des versions
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
-  const role = (session.user as { role?: string }).role;
-  const gate = requirePermission(role, "matrice.write");
-  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  const auth = await requireApiPermission("matrice.write");
+  if (!auth.ok) return auth.response;
 
   const versions = await db.matriceVersion.findMany({
     orderBy: { numero: "desc" },
@@ -26,14 +19,9 @@ export async function GET() {
 
 // POST /api/admin/matrice — créer un brouillon (copie de l'ACTIVE ou seed v1)
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
-  const role = (session.user as { role?: string }).role;
-  const userId = (session.user as { id: string }).id;
-  const gate = requirePermission(role, "matrice.write");
-  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  const auth = await requireApiPermission("matrice.write");
+  if (!auth.ok) return auth.response;
+  const userId = auth.user.id;
 
   let body: { libelle?: string; notes?: string; fromActive?: boolean } = {};
   try {
@@ -76,7 +64,7 @@ export async function POST(request: Request) {
   });
 
   await logAudit({
-    session,
+    session: auth.session,
     action: "CREATE",
     resource: "matrice",
     resourceId: version.id,

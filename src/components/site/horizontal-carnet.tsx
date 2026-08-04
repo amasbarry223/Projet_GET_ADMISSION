@@ -84,7 +84,7 @@ export function HorizontalCarnet({ universites }: { universites: CarnetUniv[] })
 
   if (reduce) {
     return (
-      <section className="relative overflow-hidden bg-blanc" aria-labelledby="carnet-title">
+      <section className="relative overflow-hidden bg-card" aria-labelledby="carnet-title">
         <CarnetHeader />
         <div className="mt-10 flex gap-6 overflow-x-auto scroll-fine px-4 pb-20 sm:px-6 lg:px-8">
           <CarnetCards universites={universites} />
@@ -94,7 +94,7 @@ export function HorizontalCarnet({ universites }: { universites: CarnetUniv[] })
   }
 
   return (
-    <section ref={sectionRef} className="relative bg-blanc" aria-labelledby="carnet-title">
+    <section ref={sectionRef} className="relative bg-card" aria-labelledby="carnet-title">
       <div className="sticky top-0 flex h-screen flex-col justify-center overflow-hidden">
         <CarnetHeader />
         <div
@@ -114,11 +114,11 @@ function CarnetHeader() {
       <p className="eyebrow">Destinations</p>
       <h2
         id="carnet-title"
-        className="mt-3 font-display text-3xl font-bold tracking-tightest text-encre sm:text-4xl"
+        className="mt-3 font-display text-3xl font-bold tracking-tightest text-foreground sm:text-4xl"
       >
         Feuilletez le carnet de voyage.
       </h2>
-      <p className="mt-3 max-w-xl text-ardoise">
+      <p className="mt-3 max-w-xl text-muted-foreground">
         Faites défiler pour découvrir nos établissements partenaires — comme les pages d&apos;un
         passeport.
       </p>
@@ -133,7 +133,7 @@ function CarnetCards({ universites }: { universites: CarnetUniv[] }) {
         <Link
           key={u.id}
           href={`/universites/${u.slug}`}
-          className="group relative h-[420px] w-[min(82vw,340px)] shrink-0 overflow-hidden rounded-lg border border-ligne bg-blanc shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_12px_40px_rgba(60,169,54,0.28)]"
+          className="group relative h-[420px] w-[min(82vw,340px)] shrink-0 overflow-hidden rounded-lg border border-border bg-card shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_12px_40px_rgba(60,169,54,0.28)]"
         >
           <div className={cn("relative h-56 bg-gradient-to-br", u.imageCouleur)}>
             {u.coverUrl ? (
@@ -146,13 +146,13 @@ function CarnetCards({ universites }: { universites: CarnetUniv[] }) {
                 loading="lazy"
               />
             ) : null}
-            <div className="absolute inset-0 bg-gradient-to-t from-encre/50 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             {u.logoUrl ? (
-              <span className="absolute left-4 top-4 flex h-12 w-12 overflow-hidden rounded-full border-2 border-blanc bg-blanc shadow-md">
+              <span className="absolute left-4 top-4 flex h-12 w-12 overflow-hidden rounded-full border-2 border-blanc bg-card shadow-md">
                 <Image src={u.logoUrl} alt="" width={48} height={48} className="object-cover" />
               </span>
             ) : (
-              <span className="absolute left-4 top-4 flex h-12 w-12 items-center justify-center rounded-full bg-blanc font-mono text-xs font-bold text-lapis shadow-md">
+              <span className="absolute left-4 top-4 flex h-12 w-12 items-center justify-center rounded-full bg-card font-mono text-xs font-bold text-primary shadow-md">
                 {u.ecusson}
               </span>
             )}
@@ -161,17 +161,17 @@ function CarnetCards({ universites }: { universites: CarnetUniv[] }) {
             </span>
           </div>
           <div className="flex flex-col gap-2 p-5">
-            <h3 className="font-display text-lg font-bold leading-tight text-encre line-clamp-2">
+            <h3 className="font-display text-lg font-bold leading-tight text-foreground line-clamp-2">
               {u.nom}
             </h3>
-            <p className="text-sm text-ardoise">
+            <p className="text-sm text-muted-foreground">
               {u.ville}, {u.pays}
             </p>
-            <div className="mt-auto flex items-center justify-between border-t border-ligne pt-3">
-              <p className="font-mono text-xs font-semibold text-encre">
+            <div className="mt-auto flex items-center justify-between border-t border-border pt-3">
+              <p className="font-mono text-xs font-semibold text-foreground">
                 {formatFCFACompact(u.fraisMin)} – {formatFCFACompact(u.fraisMax)}
               </p>
-              <ArrowUpRight className="h-4 w-4 text-ardoise transition-colors group-hover:text-or" />
+              <ArrowUpRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-or" />
             </div>
           </div>
         </Link>
@@ -179,7 +179,7 @@ function CarnetCards({ universites }: { universites: CarnetUniv[] }) {
       <div className="flex w-24 shrink-0 items-center justify-center self-center sm:w-40">
         <Link
           href="/universites"
-          className="rounded-full border border-or/40 bg-or-pale/40 px-4 py-2 font-mono text-xs uppercase tracking-eyebrow text-lapis hover:bg-or-pale"
+          className="rounded-full border border-primary/40 bg-primary/10 px-4 py-2 font-mono text-xs uppercase tracking-eyebrow text-primary hover:bg-primary/15"
         >
           Catalogue →
         </Link>

@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 
 import { formatDate } from "@/lib/format";
+import { apiJson } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -152,36 +153,26 @@ export function AttestationsClient({
 
   const emettreAttestation = async (dossierId: string, reference: string) => {
     setEmittingId(dossierId);
-    try {
-      const res = await fetch(`/api/dossiers/${dossierId}/workflow`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "emettre_attestation" }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error("Émission échouée", {
-          description: (err as { error?: string })?.error ?? "Le serveur a refusé l'action.",
-        });
-        return;
-      }
-      toast.success("Attestation émise", {
-        description: `${reference} — disponible dans l'espace candidat.`,
-      });
-      setAEmettre((prev) => prev.filter((d) => d.id !== dossierId));
-      setEmises((prev) => {
-        const moved = aEmettre.find((d) => d.id === dossierId);
-        if (!moved) return prev;
-        return [{ ...moved, etat: "ATTESTATION" }, ...prev];
-      });
-      setTab("emises");
-      setSelectedId(dossierId);
-      router.refresh();
-    } catch {
-      toast.error("Émission échouée", { description: "Erreur réseau." });
-    } finally {
-      setEmittingId(null);
+    const result = await apiJson(`/api/dossiers/${dossierId}/workflow`, "POST", {
+      action: "emettre_attestation",
+    });
+    setEmittingId(null);
+    if (!result.ok) {
+      toast.error("Émission échouée", { description: result.error });
+      return;
     }
+    toast.success("Attestation émise", {
+      description: `${reference} — disponible dans l'espace candidat.`,
+    });
+    setAEmettre((prev) => prev.filter((d) => d.id !== dossierId));
+    setEmises((prev) => {
+      const moved = aEmettre.find((d) => d.id === dossierId);
+      if (!moved) return prev;
+      return [{ ...moved, etat: "ATTESTATION" }, ...prev];
+    });
+    setTab("emises");
+    setSelectedId(dossierId);
+    router.refresh();
   };
 
   const createModele = async () => {
@@ -190,26 +181,20 @@ export function AttestationsClient({
       return;
     }
     setCreatingModele(true);
-    try {
-      const res = await fetch("/api/public/modeles-attestation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nom: modeleNom.trim(), description: modeleDesc.trim() }),
-      });
-      if (!res.ok) {
-        toast.error("Échec", { description: "La création a échoué." });
-        return;
-      }
-      toast.success("Modèle créé", { description: modeleNom.trim() });
-      setModeleOpen(false);
-      setModeleNom("");
-      setModeleDesc("");
-      router.refresh();
-    } catch {
-      toast.error("Erreur réseau");
-    } finally {
-      setCreatingModele(false);
+    const result = await apiJson("/api/public/modeles-attestation", "POST", {
+      nom: modeleNom.trim(),
+      description: modeleDesc.trim(),
+    });
+    setCreatingModele(false);
+    if (!result.ok) {
+      toast.error("Création du modèle impossible", { description: result.error });
+      return;
     }
+    toast.success("Modèle créé", { description: modeleNom.trim() });
+    setModeleOpen(false);
+    setModeleNom("");
+    setModeleDesc("");
+    router.refresh();
   };
 
   const renderDossierRow = (d: AttestationDossier, draft: boolean) => {
@@ -223,7 +208,7 @@ export function AttestationsClient({
         className={cn(
           "flex w-full items-start gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors",
           active
-            ? "border-lapis/40 bg-or-pale/50 shadow-[inset_3px_0_0_0_var(--color-or)]"
+            ? "border-lapis/40 bg-or-pale/50"
             : "border-transparent hover:border-ligne hover:bg-blanc",
         )}
       >
@@ -256,7 +241,6 @@ export function AttestationsClient({
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow">Attestations</p>
           <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">
             Atelier d&apos;émission.
           </h1>

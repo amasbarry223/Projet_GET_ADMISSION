@@ -1,0 +1,10 @@
+# Normalise les fins de ligne en LF dans le dépôt, quelle que soit la config
+# locale (core.autocrlf) de chaque contributeur — évite les diffs de fin de
+# ligne parasites sur Windows.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.pdf binary

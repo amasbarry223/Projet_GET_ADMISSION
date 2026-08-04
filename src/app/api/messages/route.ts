@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { messageSchema, validate } from "@/lib/validations";
+import { messageSchema } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
+import { requireApiUser, parseOrRespond } from "@/lib/api-auth";
 import { requirePermission } from "@/lib/rbac";
 
 // GET /api/messages?dossierId=xxx — conversation d'un dossier
 export async function GET(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
+  const auth = await requireApiUser();
+  if (!auth.ok) return auth.response;
 
   const { searchParams } = new URL(request.url);
   const dossierId = searchParams.get("dossierId");
@@ -19,8 +16,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "dossierId requis" }, { status: 400 });
   }
 
-  const role = (session.user as { role?: string }).role;
-  const userId = (session.user as { id: string }).id;
+  const { role, id: userId } = auth.user;
 
   const dossier = await db.dossier.findUnique({
     where: { id: dossierId },
@@ -60,24 +56,19 @@ export async function GET(request: Request) {
 
 // POST /api/messages — envoyer un message
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
+  const auth = await requireApiUser();
+  if (!auth.ok) return auth.response;
 
   // Rate limiting (30 messages / min / IP)
-  const rateLimited = checkRateLimit(getClientId(request), "/api/messages");
+  const rateLimited = await checkRateLimit(getClientId(request), "/api/messages");
   if (rateLimited) return rateLimited;
 
   const body = await request.json();
-  const parsed = validate(messageSchema, body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
-  }
+  const parsed = parseOrRespond(messageSchema, body);
+  if (!parsed.ok) return parsed.response;
   const { dossierId, texte, pieceJointeNom, pieceJointeTaille } = parsed.data;
 
-  const userId = (session.user as { id: string }).id;
-  const role = (session.user as { role?: string }).role;
+  const { id: userId, role } = auth.user;
 
   const dossier = await db.dossier.findUnique({
     where: { id: dossierId },

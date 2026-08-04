@@ -184,7 +184,7 @@ export default function ProfilPage() {
       setPasswordErrors({});
       toast.success("Mot de passe modifié");
     } catch (e) {
-      toast.error("Échec", { description: getApiErrorMessageSync(e) });
+      toast.error("Modification impossible", { description: getApiErrorMessageSync(e) });
     } finally {
       setSavingPassword(false);
     }

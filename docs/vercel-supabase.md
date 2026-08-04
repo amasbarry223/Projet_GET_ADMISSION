@@ -60,9 +60,10 @@ Optionnel (mails métier paiements / workflow, **pas** pour l’auth candidats) 
 
 1. Copier `.env.example` → `.env`
 2. Remplir Postgres + clés Supabase Auth + `NEXTAUTH_SECRET`
-3. `npx prisma migrate deploy`
-4. `npm run db:seed:all` (optionnel)
-5. `npm run dev`
+3. Si `DIRECT_URL` utilise un rôle app (`getadm_app`) et que les tables sont encore owned by `postgres` : exécuter `scripts/reassign-public-owner-to-app.sql` (SQL Editor Supabase)
+4. `npx prisma migrate deploy`
+5. `npm run db:seed:all` (optionnel)
+6. `npm run dev`
 
 ## Architecture
 

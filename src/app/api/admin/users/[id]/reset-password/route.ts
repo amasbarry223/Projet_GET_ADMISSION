@@ -37,7 +37,7 @@ export async function POST(request: Request, { params }: Ctx) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
-  const rateLimited = checkRateLimit(getClientId(request), "/api/admin/users/reset-password");
+  const rateLimited = await checkRateLimit(getClientId(request), "/api/admin/users/reset-password");
   if (rateLimited) return rateLimited;
 
   const { id } = await params;

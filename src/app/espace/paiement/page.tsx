@@ -18,8 +18,8 @@ import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FormPageSkeleton } from "@/components/ui/skeleton-card";
 import { getApiErrorMessageSync } from "@/lib/api-error";
-import { pickPrimaryDossier } from "@/lib/dossier/pick-dossier";
-import { CheckCircle2, Download, Loader2, Lock, CreditCard, Smartphone, ShieldCheck, AlertCircle, Clock, FolderOpen } from "lucide-react";
+import { usePrimaryDossier } from "@/hooks/use-primary-dossier";
+import { CheckCircle2, Download, Loader2, Lock, CreditCard, Smartphone, ShieldCheck, AlertCircle, Clock, FolderOpen, ArrowRight } from "lucide-react";
 
 type Dossier = {
   id: string;
@@ -61,11 +61,18 @@ export default function PaiementPage() {
 function PaiementInner() {
   const searchParams = useSearchParams();
   const preferredId = searchParams.get("dossierId");
-  const [dossier, setDossier] = React.useState<Dossier | null>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
+  const {
+    dossier: primaryDossier,
+    loading: dossierLoading,
+    error: dossierError,
+    refetch: refetchDossier,
+  } = usePrimaryDossier(preferredId);
+  const dossier = primaryDossier;
+  const loading = dossierLoading;
+  const error = dossierError;
   const [methods, setMethods] = React.useState<MoyenPaiement[]>([]);
   const [methodsLoading, setMethodsLoading] = React.useState(true);
+  const [methodsError, setMethodsError] = React.useState<string | null>(null);
   const [method, setMethod] = React.useState("");
   const [tranches, setTranches] = React.useState(false);
   const [tranchesAutorisees, setTranchesAutorisees] = React.useState(true);
@@ -74,56 +81,72 @@ function PaiementInner() {
   const [lastPaiementId, setLastPaiementId] = React.useState<string>("");
   const [lastMontant, setLastMontant] = React.useState(0);
 
-  const loadDossier = React.useCallback(() => {
-    setLoading(true);
-    fetch("/api/dossiers")
-      .then((r) => {
-        if (!r.ok) throw new Error();
+  const loadMoyens = React.useCallback(() => {
+    setMethodsLoading(true);
+    setMethodsError(null);
+    fetch("/api/public/moyens-paiement")
+      .then(async (r) => {
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}));
+          throw new Error(
+            getApiErrorMessageSync(r.status, body, "Impossible de charger les moyens de paiement."),
+          );
+        }
         return r.json();
       })
-      .then((data: Dossier[]) => {
-        setDossier(pickPrimaryDossier(Array.isArray(data) ? data : [], preferredId) ?? null);
-        setError(null);
-        setLoading(false);
+      .then((data: MoyenPaiement[]) => {
+        const list = Array.isArray(data) ? data : [];
+        setMethods(list);
+        if (list.length > 0) setMethod(list[0].nom);
+        setMethodsLoading(false);
       })
       .catch((e) => {
-        console.error("fetch error:", e);
-        setError(getApiErrorMessageSync(e, undefined, "Impossible de charger votre dossier."));
-        setLoading(false);
+        setMethods([]);
+        setMethodsError(
+          getApiErrorMessageSync(e, undefined, "Impossible de charger les moyens de paiement."),
+        );
+        setMethodsLoading(false);
       });
-  }, [preferredId]);
+  }, []);
+
+  const loadDossier = React.useCallback(() => {
+    void refetchDossier();
+  }, [refetchDossier]);
 
   React.useEffect(() => {
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
-      loadDossier();
-      fetch("/api/public/moyens-paiement")
-        .then((r) => r.json())
-        .then((data: MoyenPaiement[]) => {
-          if (cancelled) return;
-          const list = Array.isArray(data) ? data : [];
-          setMethods(list);
-          if (list.length > 0) setMethod(list[0].nom);
-          setMethodsLoading(false);
-        })
-        .catch(() => {
-          if (!cancelled) setMethodsLoading(false);
-        });
+      loadMoyens();
 
       fetch("/api/public/parametres")
-        .then((r) => r.json())
-        .then((data: { paiementTranches?: boolean }) => {
-          if (cancelled) return;
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { paiementTranches?: boolean } | null) => {
+          if (cancelled || !data) return;
           const allowed = data.paiementTranches !== false;
           setTranchesAutorisees(allowed);
           if (!allowed) setTranches(false);
+        })
+        .catch(() => {
+          /* paramètres optionnels — garder défauts */
         });
+
+      const returnStatus = searchParams.get("status");
+      if (returnStatus === "success") {
+        setStatus("pending");
+        toast.success("Retour du paiement", {
+          description: "Confirmation en cours — le statut se mettra à jour automatiquement.",
+        });
+      } else if (returnStatus === "cancel") {
+        toast.message("Paiement annulé", {
+          description: "Vous pouvez réessayer quand vous voulez.",
+        });
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [loadDossier]);
+  }, [loadMoyens, searchParams]);
 
   if (loading) {
     return <FormPageSkeleton />;
@@ -159,7 +182,16 @@ function PaiementInner() {
     );
   }
 
-  const d = dossier;
+  const d = {
+    ...dossier,
+    fraisAgence: dossier.fraisAgence ?? 0,
+    paiements: dossier.paiements ?? [],
+    candidat: dossier.candidat ?? { prenom: "", nom: "" },
+    universite: dossier.universite ?? { nom: "" },
+    formation: dossier.formation ?? { intitule: "", niveau: "" },
+    mrz: dossier.mrz ?? "",
+    reference: dossier.reference ?? "",
+  };
   const total = d.fraisAgence;
   const dejaPaye = d.paiements
     .filter((p) => p.statut === "reussi")
@@ -198,7 +230,7 @@ function PaiementInner() {
     if (!selectedMethod || montantAPayer <= 0) return;
     setStatus("loading");
     try {
-      const res = await fetch("/api/paiements", {
+      const res = await fetch("/api/paiements/initiate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -215,17 +247,21 @@ function PaiementInner() {
       setReceiptRef(data.paiement?.reference ?? "");
       setLastPaiementId(data.paiement?.id ?? "");
       setLastMontant(montantAPayer);
-      if (data.paiement?.statut === "reussi" && data.pending !== true) {
-        setStatus("success");
-        toast.success("Paiement confirmé", {
-          description: `${formatFCFA(montantAPayer)} · ${selectedMethod.nom}`,
-        });
-      } else {
-        setStatus("pending");
-        toast.success("Paiement enregistré", {
-          description: "En cours de validation par l'agence.",
-        });
+
+      if (data.redirectUrl) {
+        const redirectUrl = data.redirectUrl as string;
+        toast.message("Redirection vers le paiement sécurisé…");
+        window.open(redirectUrl, "_self");
+        return;
       }
+
+      setStatus("pending");
+      toast.success("Paiement enregistré", {
+        description:
+          data.mode === "declaration"
+            ? "Passerelle non configurée — validation manuelle par l'agence."
+            : "En cours de validation par l'agence.",
+      });
       loadDossier();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Erreur lors du paiement";
@@ -268,8 +304,13 @@ function PaiementInner() {
               <div className="flex justify-between"><dt className="text-ardoise">Statut</dt><dd className="capitalize text-ambre">en attente</dd></div>
             </dl>
           </div>
-          <div className="mt-6">
-            <Button variant="ghost" onClick={() => setStatus("idle")}>Retour</Button>
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            <Button asChild className="bg-lapis text-blanc hover:bg-lapis/90">
+              <Link href="/espace">Suivre mon dossier</Link>
+            </Button>
+            <Button variant="ghost" onClick={() => setStatus("idle")}>
+              Voir l&apos;historique
+            </Button>
           </div>
         </Card>
       ) : status === "success" ? (
@@ -303,18 +344,50 @@ function PaiementInner() {
           </div>
 
           <div className="mt-6 flex flex-wrap justify-center gap-2">
-            <Button variant="outline" onClick={() => window.open(`/api/recu/${lastPaiementId}?format=pdf`, "_blank")} disabled={!lastPaiementId}>
+            <Button
+              variant="outline"
+              onClick={() => window.open(`/api/recu/${lastPaiementId}?format=pdf`, "_blank")}
+              disabled={!lastPaiementId}
+            >
               <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Télécharger le reçu
             </Button>
-            <Button variant="ghost" onClick={() => setStatus("idle")}>Retour</Button>
+            <Button asChild className="bg-lapis text-blanc hover:bg-lapis/90">
+              <Link href="/espace">
+                Tableau de bord <ArrowRight className="ml-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
+              </Link>
+            </Button>
+            {(d.etat.toUpperCase() === "ATTESTATION" ||
+              d.etat.toUpperCase() === "CLOTURE" ||
+              d.etat.toUpperCase() === "PRE_ADMISSION") && (
+              <Button asChild variant="outline">
+                <Link href="/espace/attestation">Suivre l&apos;attestation</Link>
+              </Button>
+            )}
+            <Button variant="ghost" onClick={() => setStatus("idle")}>
+              Voir l&apos;historique
+            </Button>
           </div>
         </Card>
       ) : estComplet ? (
         <Alert className="border-vert/30 bg-vert/5">
           <CheckCircle2 className="h-4 w-4 text-vert" />
           <AlertTitle className="font-display text-sm font-bold text-encre">Frais d&apos;agence soldés</AlertTitle>
-          <AlertDescription className="text-sm text-ardoise">
-            {formatFCFA(dejaPaye)} encaissés sur {formatFCFA(total)}. Consultez vos reçus ci-dessous.
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-sm text-ardoise">
+            <span>
+              {formatFCFA(dejaPaye)} encaissés sur {formatFCFA(total)}. Consultez vos reçus ci-dessous.
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild size="sm" className="bg-lapis text-blanc hover:bg-lapis/90">
+                <Link href="/espace">Retour au tableau de bord</Link>
+              </Button>
+              {(etatUpper === "ATTESTATION" ||
+                etatUpper === "CLOTURE" ||
+                etatUpper === "PRE_ADMISSION") && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/espace/attestation">Voir l&apos;attestation</Link>
+                </Button>
+              )}
+            </div>
           </AlertDescription>
         </Alert>
       ) : hasPending ? (
@@ -326,16 +399,27 @@ function PaiementInner() {
           </AlertDescription>
         </Alert>
       ) : !canPay ? (
-        <Alert className="border-ambre/40 bg-ambre/5">
-          <Lock className="h-4 w-4 text-ambre" strokeWidth={1.5} />
-          <AlertTitle className="font-display text-sm font-bold text-encre">Paiement non disponible</AlertTitle>
-          <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-sm text-ardoise">
-            <span>Dossier non encore en phase paiement. Votre conseiller vous indiquera quand régler les frais.</span>
-            <Button asChild size="sm" variant="outline">
-              <Link href="/espace">Retour au tableau de bord</Link>
-            </Button>
-          </AlertDescription>
-        </Alert>
+        <EmptyState
+          icon={<Lock className="h-5 w-5" strokeWidth={1.5} />}
+          title="Paiement pas encore ouvert"
+          description={
+            etatUpper === "BROUILLON" || etatUpper === "CORRECTION"
+              ? "Finalisez et soumettez votre dossier. Le paiement des frais d'agence s'ouvrira ensuite."
+              : "Votre dossier n'est pas encore en phase paiement. Votre conseiller vous indiquera quand régler les frais."
+          }
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              {(etatUpper === "BROUILLON" || etatUpper === "CORRECTION") && (
+                <Button asChild className="bg-lapis text-blanc hover:bg-lapis/90">
+                  <Link href="/espace/dossier">Continuer mon dossier</Link>
+                </Button>
+              )}
+              <Button asChild variant="outline">
+                <Link href="/espace">Tableau de bord</Link>
+              </Button>
+            </div>
+          }
+        />
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
           {/* Left: form */}
@@ -347,6 +431,27 @@ function PaiementInner() {
                   <Loader2 className="h-4 w-4 animate-spin text-lapis" strokeWidth={1.5} />
                   Chargement des moyens de paiement…
                 </div>
+              ) : methodsError ? (
+                <Alert className="mt-4 border-carmin/40 bg-carmin/5">
+                  <AlertCircle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
+                  <AlertTitle className="text-sm font-bold">Moyens de paiement indisponibles</AlertTitle>
+                  <AlertDescription className="text-sm text-ardoise">
+                    {methodsError}{" "}
+                    <button
+                      type="button"
+                      className="font-medium text-lapis underline"
+                      onClick={loadMoyens}
+                    >
+                      Réessayer
+                    </button>
+                  </AlertDescription>
+                </Alert>
+              ) : methods.length === 0 ? (
+                <EmptyState
+                  className="mt-4 py-8"
+                  title="Aucun moyen configuré"
+                  description="Contactez l'agence — aucun moyen de paiement n'est disponible pour le moment."
+                />
               ) : (
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   {methods.map((m) => (
@@ -355,7 +460,7 @@ function PaiementInner() {
                       type="button"
                       onClick={() => setMethod(m.nom)}
                       className={cn(
-                        "flex items-center gap-3 rounded-md border-2 p-3 text-left transition-all",
+                        "flex min-h-11 items-center gap-3 rounded-md border-2 p-3 text-left transition-all",
                         method === m.nom ? "border-lapis bg-lapis/5" : "border-ligne bg-blanc hover:border-lapis/30"
                       )}
                       aria-pressed={method === m.nom}

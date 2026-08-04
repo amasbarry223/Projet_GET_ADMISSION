@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
-import { passwordChangeSchema, validate } from "@/lib/validations";
+import { passwordChangeSchema } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
+import { requireApiUser, parseOrRespond } from "@/lib/api-auth";
 import { logAudit } from "@/lib/audit";
 
 // PUT /api/profile/password — changer son mot de passe
@@ -14,16 +13,14 @@ import { logAudit } from "@/lib/audit";
 // - Hash le nouveau mot de passe et met à jour l'utilisateur
 // - Rate limité à 5 / min / IP
 export async function PUT(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
+  const auth = await requireApiUser();
+  if (!auth.ok) return auth.response;
 
   // Rate limiting (5 changements / min / IP)
-  const rateLimited = checkRateLimit(getClientId(request), "/api/profile/password");
+  const rateLimited = await checkRateLimit(getClientId(request), "/api/profile/password");
   if (rateLimited) return rateLimited;
 
-  const userId = (session.user as any).id;
+  const userId = auth.user.id;
 
   let body: unknown;
   try {
@@ -32,10 +29,8 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
 
-  const parsed = validate(passwordChangeSchema, body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
-  }
+  const parsed = parseOrRespond(passwordChangeSchema, body);
+  if (!parsed.ok) return parsed.response;
   const { currentPassword, newPassword } = parsed.data;
 
   // Récupérer le hash actuel
@@ -83,7 +78,7 @@ export async function PUT(request: Request) {
   });
 
   await logAudit({
-    session,
+    session: auth.session,
     action: "UPDATE",
     resource: "user",
     resourceId: userId,

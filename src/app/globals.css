@@ -4,30 +4,27 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ===== GET Admission — palette officielle =====
-   Primary #3CA936 · White #FFFFFF · Text #1A1A1A
-   Les noms historiques (lapis, or) sont conservés comme alias de classes. */
+   Primary #3CA936 · brand tokens swappable via CSS vars (:root / .dark) */
 @theme {
-  /* Palette signature (light only) */
-  --color-porcelaine: #F3F4F6; /* gray-light — fond page */
-  --color-blanc: #FFFFFF;
-  --color-lapis: #3CA936; /* primary (alias historique) */
-  --color-lapis-clair: #5BC455; /* focus / hover léger */
-  --color-encre: #1A1A1A; /* texte principal */
-  --color-ardoise: #6B7280; /* texte secondaire */
-  --color-or: #2E8329; /* primary-dark — hover/active (alias) */
-  --color-or-pale: #E8F5E7; /* primary-light — fonds soft */
-  --color-ligne: #E5E7EB;
-  --color-vert: #2E8329; /* succès = primary-dark */
+  --color-porcelaine: var(--brand-porcelaine);
+  --color-blanc: var(--brand-blanc);
+  --color-lapis: #3CA936;
+  --color-lapis-clair: #5BC455;
+  --color-encre: var(--brand-encre);
+  --color-ardoise: var(--brand-ardoise);
+  --color-or: #2E8329;
+  --color-or-pale: var(--brand-or-pale);
+  --color-ligne: var(--brand-ligne);
+  --color-vert: #2E8329;
   --color-ambre: #C77A12;
   --color-carmin: #C0392B;
 
-  /* Couleurs sémantiques vives (dashboard) */
   --color-cyan: #13C2C2;
   --color-cyan-pale: #E6FFFB;
   --color-bleu-vif: #1890FF;
   --color-bleu-pale: #E6F7FF;
-  --color-vert-vif: #3CA936; /* = primary */
-  --color-vert-pale: #E8F5E7;
+  --color-vert-vif: #3CA936;
+  --color-vert-pale: var(--brand-or-pale);
   --color-jaune: #FAAD14;
   --color-jaune-pale: #FFFBE6;
   --color-rouge: #FF4D4F;
@@ -35,7 +32,6 @@
   --color-violet: #722ED1;
   --color-violet-pale: #F9F0FF;
 
-  /* shadcn semantic aliases (résolues vers les vars :root) */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -68,35 +64,31 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* Polices */
   --font-display: "Bricolage Grotesque", sans-serif;
   --font-sans: "General Sans", "Inter", sans-serif;
   --font-mono: "Geist Mono", "JetBrains Mono", monospace;
 
-  /* Rayons */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 24px;
 
-  /* Largeurs de contenu */
   --container-content: 1200px;
   --container-admin: 1280px;
 
-  /* Shadows (teintées vert / texte) */
   --shadow-sm: 0 1px 2px rgba(26,26,26,.04);
   --shadow-md: 0 1px 2px rgba(26,26,26,.04), 0 8px 24px rgba(26,26,26,.06);
   --shadow-lg: 0 12px 40px rgba(26,26,26,.10);
 
-  /* Lettre spacings */
   --tracking-eyebrow: 0.18em;
   --tracking-tightest: -0.02em;
 
-  /* Keyframes signature */
   --animate-stamp-drop: stamp-drop 0.55s cubic-bezier(0.22,1,0.36,1) both;
   --animate-trace-line: trace-line 0.8s cubic-bezier(0.22,1,0.36,1) both;
   --animate-pulse-soft: pulse-soft 2s ease-in-out infinite;
   --animate-fade-up: fade-up 0.6s cubic-bezier(0.22,1,0.36,1) both;
+  --animate-marquee: marquee 40s linear infinite;
+  --animate-float: float-y 6s ease-in-out infinite;
 
   @keyframes stamp-drop {
     0% { opacity: 0; transform: scale(1.6) rotate(-12deg); }
@@ -115,98 +107,121 @@
     0% { opacity: 0; transform: translateY(16px); }
     100% { opacity: 1; transform: translateY(0); }
   }
+  @keyframes marquee {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  @keyframes float-y {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
 }
 
-/* ===== shadcn semantic tokens (light only) ===== */
 :root {
   --radius: 12px;
-  --background: #F3F4F6;   /* porcelaine / gray-light */
-  --foreground: #1A1A1A;   /* encre */
-  --card: #FFFFFF;         /* blanc */
+  --brand-porcelaine: #F3F4F6;
+  --brand-blanc: #FFFFFF;
+  --brand-encre: #1A1A1A;
+  --brand-ardoise: #6B7280;
+  --brand-ligne: #E5E7EB;
+  --brand-or-pale: #E8F5E7;
+
+  --background: #F3F4F6;
+  --foreground: #1A1A1A;
+  --card: #FFFFFF;
   --card-foreground: #1A1A1A;
   --popover: #FFFFFF;
   --popover-foreground: #1A1A1A;
-  --primary: #3CA936;      /* vert officiel */
+  --primary: #3CA936;
   --primary-foreground: #FFFFFF;
   --secondary: #F3F4F6;
   --secondary-foreground: #3CA936;
   --muted: #F3F4F6;
-  --muted-foreground: #6B7280; /* ardoise */
-  --accent: #E8F5E7;       /* primary-light */
-  --accent-foreground: #2E8329; /* primary-dark */
-  --destructive: #C0392B;  /* carmin */
-  --border: #E5E7EB;       /* ligne */
+  --muted-foreground: #6B7280;
+  --accent: #E8F5E7;
+  --accent-foreground: #2E8329;
+  --destructive: #C0392B;
+  --border: #E5E7EB;
   --input: #E5E7EB;
-  --ring: #5BC455;         /* primary clair */
-  --chart-1: #3CA936;      /* primary */
-  --chart-2: #2E8329;      /* primary-dark */
-  --chart-3: #5BC455;      /* primary-clair */
-  --chart-4: #C77A12;      /* ambre */
-  --chart-5: #6B7280;      /* ardoise */
+  --ring: #5BC455;
+  --chart-1: #3CA936;
+  --chart-2: #2E8329;
+  --chart-3: #5BC455;
+  --chart-4: #C77A12;
+  --chart-5: #6B7280;
   --sidebar: #FFFFFF;
   --sidebar-foreground: #1A1A1A;
   --sidebar-primary: #3CA936;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #E2F3E1; /* léger boost vs or-pale pour active state */
+  --sidebar-accent: #E2F3E1;
   --sidebar-accent-foreground: #1F6B1B;
   --sidebar-border: #E5E7EB;
   --sidebar-ring: #5BC455;
 }
 
 .dark {
-  --background: #0D0E15;
-  --foreground: #F3F4F6;
-  --card: #131521;
-  --card-foreground: #F3F4F6;
-  --popover: #131521;
-  --popover-foreground: #F3F4F6;
+  --brand-porcelaine: #0a0e17;
+  --brand-blanc: #FFFFFF;
+  --brand-encre: #E8EAED;
+  --brand-ardoise: #9CA3AF;
+  --brand-ligne: rgba(255, 255, 255, 0.08);
+  --brand-or-pale: rgba(60, 169, 54, 0.12);
+
+  --background: #0a0e17;
+  --foreground: #E8EAED;
+  --card: rgba(17, 24, 39, 0.72);
+  --card-foreground: #E8EAED;
+  --popover: #111827;
+  --popover-foreground: #E8EAED;
   --primary: #3CA936;
   --primary-foreground: #FFFFFF;
-  --secondary: #1E2030;
-  --secondary-foreground: #F3F4F6;
-  --muted: #1E2030;
-  --muted-foreground: #A1A1AA;
-  --accent: #2E8329;
-  --accent-foreground: #FFFFFF;
+  --secondary: #151b2b;
+  --secondary-foreground: #E8EAED;
+  --muted: #151b2b;
+  --muted-foreground: #9CA3AF;
+  --accent: rgba(60, 169, 54, 0.16);
+  --accent-foreground: #7DDB78;
   --destructive: #EF4444;
-  --border: #272A3D;
-  --input: #272A3D;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.1);
   --ring: #5BC455;
   --chart-1: #3CA936;
   --chart-2: #5BC455;
   --chart-3: #2E8329;
   --chart-4: #C77A12;
   --chart-5: #6B7280;
-  --sidebar: #0D0E15;
-  --sidebar-foreground: #F3F4F6;
+  --sidebar: #0a0e17;
+  --sidebar-foreground: #E8EAED;
   --sidebar-primary: #3CA936;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #1E2030;
-  --sidebar-accent-foreground: #F3F4F6;
-  --sidebar-border: #272A3D;
+  --sidebar-accent: #151b2b;
+  --sidebar-accent-foreground: #E8EAED;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: #5BC455;
 }
 
 @layer base {
   * {
-    border-color: var(--color-ligne);
+    border-color: var(--border);
   }
   html {
     -webkit-text-size-adjust: 100%;
     scroll-behavior: smooth;
   }
   body {
-    background-color: var(--color-porcelaine);
-    color: var(--color-encre);
+    background-color: var(--background);
+    color: var(--foreground);
     -webkit-font-smoothing: antialiased;
     font-family: var(--font-sans);
     font-feature-settings: "ss01", "cv11";
+    transition:
+      background-color 300ms ease,
+      color 300ms ease;
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
     letter-spacing: -0.01em;
   }
-  /* Visible focus ring (vert clair) */
   :focus-visible {
     outline: 2px solid var(--color-lapis-clair);
     outline-offset: 2px;
@@ -215,7 +230,6 @@
 }
 
 @layer components {
-  /* Eyebrow / sur-titre */
   .eyebrow {
     font-family: var(--font-mono);
     font-size: 12px;
@@ -230,29 +244,60 @@
     letter-spacing: var(--tracking-eyebrow);
     color: var(--color-or);
   }
-  /* MRZ band */
   .mrz {
     font-family: var(--font-mono);
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
-  /* Hairline brand rule (vert) */
   .rule-or {
     background: linear-gradient(90deg, transparent, #3CA936 12%, #3CA936 88%, transparent);
     height: 1px;
   }
-  /* Perforation between boarding pass halves */
   .perforation {
-    background-image: radial-gradient(circle, #F3F4F6 4px, transparent 4.5px);
+    background-image: radial-gradient(circle, var(--brand-porcelaine) 4px, transparent 4.5px);
     background-size: 14px 14px;
     background-repeat: repeat-y;
     background-position: center;
   }
-  /* Custom scrollbar */
+  .glass-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+  }
+  .glow-primary {
+    background: radial-gradient(ellipse at center, rgba(60, 169, 54, 0.22), transparent 65%);
+  }
+  .glossy-card {
+    background-image: linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.02) 40%,
+      transparent 70%
+    );
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 18px 48px -24px rgba(0, 0, 0, 0.55);
+  }
+  .mask-edges {
+    mask-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      #000 8%,
+      #000 92%,
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      #000 8%,
+      #000 92%,
+      transparent 100%
+    );
+  }
   .scroll-fine::-webkit-scrollbar { width: 8px; height: 8px; }
   .scroll-fine::-webkit-scrollbar-track { background: transparent; }
-  .scroll-fine::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 9999px; }
-  .scroll-fine::-webkit-scrollbar-thumb:hover { background: #6B7280; }
+  .scroll-fine::-webkit-scrollbar-thumb { background: var(--brand-ligne); border-radius: 9999px; }
+  .scroll-fine::-webkit-scrollbar-thumb:hover { background: var(--brand-ardoise); }
 }
 
 @media (prefers-reduced-motion: reduce) {

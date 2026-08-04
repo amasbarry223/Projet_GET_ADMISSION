@@ -32,9 +32,11 @@ import { DossierStepRecap } from "@/components/dossier/wizard/step-recap";
 import { resolveFraisAgence } from "@/lib/dossier/frais-agence";
 import { listPiecesManquantes } from "@/lib/dossier/pieces-requises";
 import { etatParCode } from "@/lib/etats";
-import { toast } from "sonner";
+import { toastApiErrorSync, toastApiSuccess } from "@/lib/toast-api";
+import { wizardPersonalInfoSchema } from "@/lib/validations";
 import { cn } from "@/lib/utils";
 import { FormPageSkeleton } from "@/components/ui/skeleton-card";
+import type { InfosFieldErrors } from "@/components/dossier/wizard/step-infos";
 import {
   AlertCircle,
   ArrowLeft,
@@ -44,6 +46,7 @@ import {
   Lock,
   Plane,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   API_ERROR_CODES,
@@ -83,8 +86,8 @@ function DossierWizard() {
     setProfil,
     hasProfil,
     setHasProfil,
-    savedBadge,
-    setSavedBadge,
+    autosaveStatus,
+    setAutosaveStatus,
     creatingDossier,
     setCreatingDossier,
     submitting,
@@ -97,6 +100,8 @@ function DossierWizard() {
 
   const {
     loadingDossier,
+    dossierError,
+    reloadDossier,
     universites,
     universitesLoading,
     universitesError,
@@ -119,8 +124,10 @@ function DossierWizard() {
     dossierEtat: existingDossier?.etat,
     step,
     personalInfo,
-    setSavedBadge,
+    setAutosaveStatus,
   });
+
+  const [infosFieldErrors, setInfosFieldErrors] = React.useState<InfosFieldErrors>({});
 
   const uploadPiece = useUploadDossierPiece({
     dossierId: existingDossier?.id,
@@ -159,7 +166,10 @@ function DossierWizard() {
         body: JSON.stringify(profil),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Échec de l'enregistrement");
+      if (!response.ok) {
+        toastApiErrorSync(response.status, { title: "Profil académique", body: data });
+        return false;
+      }
       setProfil(profilFromApi(data));
       setHasProfil(true);
       if (existingDossier?.id) {
@@ -172,17 +182,16 @@ function DossierWizard() {
         | { dossiers?: number; added?: number; removed?: number }
         | undefined;
       if (sync && (sync.added || sync.removed)) {
-        toast.success("Profil académique enregistré", {
-          description: `Pièces mises à jour : +${sync.added ?? 0} / −${sync.removed ?? 0}`,
-        });
+        toastApiSuccess(
+          "Profil académique enregistré",
+          `Pièces mises à jour : +${sync.added ?? 0} / −${sync.removed ?? 0}`,
+        );
       } else {
-        toast.success("Profil académique enregistré");
+        toastApiSuccess("Profil académique enregistré");
       }
       return true;
     } catch (error: unknown) {
-      toast.error("Profil académique", {
-        description: error instanceof Error ? error.message : "Erreur",
-      });
+      toastApiErrorSync(error, { title: "Profil académique" });
       return false;
     } finally {
       setSavingProfil(false);
@@ -192,15 +201,16 @@ function DossierWizard() {
   const createDossierIfNeeded = async (): Promise<DossierWizardData | null> => {
     if (existingDossier) return existingDossier;
     if (!universiteId || !formationId) {
-      toast.error("Sélection incomplète", {
-        description: "Choisissez une université et une formation.",
+      toastApiErrorSync(new Error("Choisissez une université et une formation."), {
+        title: "Sélection incomplète",
       });
       return null;
     }
     if (!hasProfil) {
-      toast.error("Profil académique requis", {
-        description: "Complétez et enregistrez votre parcours académique (étape 3).",
-      });
+      toastApiErrorSync(
+        new Error("Complétez et enregistrez votre parcours académique (étape 3)."),
+        { title: "Profil académique requis" },
+      );
       return null;
     }
     setCreatingDossier(true);
@@ -213,30 +223,60 @@ function DossierWizard() {
       const data = await response.json();
       if (!response.ok) {
         if (data.code === API_ERROR_CODES.PROFIL_ACADEMIQUE_REQUIS) {
-          throw new Error(data.error || "Profil académique requis");
+          toastApiErrorSync(response.status, {
+            title: "Profil académique requis",
+            body: data,
+          });
+          return null;
         }
-        throw new Error(data.error || "Échec de la création du dossier");
+        toastApiErrorSync(response.status, {
+          title: "Création du dossier impossible",
+          body: data,
+        });
+        return null;
       }
       const created = data as DossierWizardData;
       setExistingDossier(created);
       setPieceRows(created.pieces ?? []);
-      toast.success("Dossier créé", { description: `Référence : ${created.reference}` });
+      toastApiSuccess("Dossier créé", `Référence : ${created.reference}`);
       return created;
     } catch (error: unknown) {
-      toast.error("Échec de la création", {
-        description: error instanceof Error ? error.message : "Erreur",
-      });
+      toastApiErrorSync(error, { title: "Création du dossier impossible" });
       return null;
     } finally {
       setCreatingDossier(false);
     }
   };
 
+  const validateInfosStep = (): boolean => {
+    const result = wizardPersonalInfoSchema.safeParse(personalInfo);
+    if (result.success) {
+      setInfosFieldErrors({});
+      return true;
+    }
+    const next: InfosFieldErrors = {};
+    for (const issue of result.error.issues) {
+      const key = issue.path[0] as keyof InfosFieldErrors;
+      if (key && !next[key]) next[key] = issue.message;
+    }
+    setInfosFieldErrors(next);
+    toastApiErrorSync(new Error("Corrigez les champs indiqués avant de continuer."), {
+      title: "Informations incomplètes",
+    });
+    const firstKey = Object.keys(next)[0];
+    if (firstKey && typeof document !== "undefined") {
+      window.setTimeout(() => {
+        document.getElementById(`infos-${firstKey}`)?.focus();
+      }, 50);
+    }
+    return false;
+  };
+
   const goNext = async () => {
     if (step === DOSSIER_WIZARD_STEPS.UNIVERSITE) {
       if (!universiteId || !formationId) {
-        toast.error("Sélection incomplète", {
-          description: "Choisissez une université et une formation.",
+        toastApiErrorSync(new Error("Choisissez une université et une formation."), {
+          title: "Sélection incomplète",
         });
         return;
       }
@@ -244,6 +284,7 @@ function DossierWizard() {
       return;
     }
     if (step === DOSSIER_WIZARD_STEPS.INFORMATIONS) {
+      if (!validateInfosStep()) return;
       setStep(DOSSIER_WIZARD_STEPS.PROFIL_ACADEMIQUE);
       return;
     }
@@ -260,9 +301,10 @@ function DossierWizard() {
 
   const submit = async () => {
     if (!canSubmit) {
-      toast.error("Dossier incomplet", {
-        description: `${missingObligatoires.length} pièce(s) obligatoire(s) manquante(s).`,
-      });
+      toastApiErrorSync(
+        new Error(`${missingObligatoires.length} pièce(s) obligatoire(s) manquante(s).`),
+        { title: "Dossier incomplet" },
+      );
       return;
     }
     const dossierId = existingDossier?.id;
@@ -296,31 +338,40 @@ function DossierWizard() {
             ? manquantes.length <= 5
               ? manquantes.join(" · ")
               : `${manquantes.slice(0, 5).join(" · ")} · +${manquantes.length - 5}`
-            : data.error || "Échec de la soumission";
-        toast.error("Échec de la soumission", {
+            : undefined;
+        toastApiErrorSync(response.status, {
+          title: "Soumission impossible",
           description: detail,
-          action:
-            manquantes.length > 0
-              ? {
-                  label: "Compléter",
-                  onClick: () => setStep(DOSSIER_WIZARD_STEPS.DOCUMENTS),
-                }
-              : undefined,
+          body: data,
         });
+        if (manquantes.length > 0) setStep(DOSSIER_WIZARD_STEPS.DOCUMENTS);
         return;
       }
-      toast.success(isResubmit ? "Corrections renvoyées" : "Dossier soumis");
+      toastApiSuccess(isResubmit ? "Corrections renvoyées" : "Dossier soumis");
       router.push("/espace");
     } catch (error: unknown) {
-      toast.error("Échec de la soumission", {
-        description: error instanceof Error ? error.message : "Erreur",
-      });
+      toastApiErrorSync(error, { title: "Soumission impossible" });
     } finally {
       setSubmitting(false);
     }
   };
 
   if (loadingDossier || universitesLoading) return <FormPageSkeleton />;
+
+  if (dossierError) {
+    return (
+      <Alert className="border-destructive/40 bg-destructive/5">
+        <AlertCircle className="h-4 w-4 text-destructive" strokeWidth={1.5} />
+        <AlertTitle>Dossier indisponible</AlertTitle>
+        <AlertDescription>
+          Impossible de charger votre dossier.{" "}
+          <button type="button" className="underline" onClick={reloadDossier}>
+            Réessayer
+          </button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   if (universitesError) {
     return (
@@ -367,9 +418,17 @@ function DossierWizard() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          {savedBadge && (
+          {autosaveStatus === "saved" && (
             <Badge className="bg-vert-vif/10 font-mono text-[10px] uppercase text-vert-vif">
               <Save className="mr-1 h-3 w-3" /> Brouillon enregistré
+            </Badge>
+          )}
+          {autosaveStatus === "error" && (
+            <Badge
+              variant="outline"
+              className="border-carmin/40 font-mono text-[10px] uppercase text-carmin"
+            >
+              <AlertTriangle className="mr-1 h-3 w-3" /> Échec de sauvegarde
             </Badge>
           )}
           <Badge
@@ -386,13 +445,26 @@ function DossierWizard() {
           {WIZARD_STEP_LABELS.map((wizardStep, index) => {
             const done = step > wizardStep.n;
             const active = step === wizardStep.n;
+            const canJump = done || active;
             return (
-              <li key={wizardStep.n} className="flex items-center">
-                <div
+              <li
+                key={wizardStep.n}
+                className="flex items-center"
+                aria-current={active ? "step" : undefined}
+              >
+                <button
+                  type="button"
+                  disabled={!canJump}
+                  onClick={() => {
+                    if (canJump) setStep(wizardStep.n);
+                  }}
                   className={cn(
-                    "flex items-center gap-2 rounded-md px-3 py-2",
+                    "flex items-center gap-2 rounded-md px-3 py-2 transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis/40",
                     active && "bg-primary/10",
+                    canJump ? "cursor-pointer hover:bg-muted/60" : "cursor-default opacity-80",
                   )}
+                  aria-label={`Étape ${wizardStep.n} : ${wizardStep.label}`}
                 >
                   <span
                     className={cn(
@@ -420,7 +492,7 @@ function DossierWizard() {
                   >
                     {wizardStep.label}
                   </span>
-                </div>
+                </button>
                 {index < WIZARD_STEP_LABELS.length - 1 && (
                   <span className="mx-1 h-px w-6 bg-border sm:w-10" aria-hidden />
                 )}
@@ -456,7 +528,11 @@ function DossierWizard() {
           <DossierStepInfos
             personalInfo={personalInfo}
             isEditable={isEditable}
-            onChange={setPersonalInfo}
+            fieldErrors={infosFieldErrors}
+            onChange={(next) => {
+              setPersonalInfo(next);
+              setInfosFieldErrors({});
+            }}
           />
         )}
 
@@ -484,6 +560,7 @@ function DossierWizard() {
             togglingPiece={togglingPiece}
             isEditable={isEditable}
             onUpload={uploadPiece}
+            onRefresh={reloadDossier}
           />
         )}
 

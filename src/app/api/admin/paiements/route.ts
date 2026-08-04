@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { manualTransactionSchema, validate } from "@/lib/validations";
+import { manualTransactionSchema } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
+import { requireApiPermission, parseOrRespond } from "@/lib/api-auth";
 import { logAudit } from "@/lib/audit";
-import { requirePermission } from "@/lib/rbac";
 
 // POST /api/admin/paiements — transaction manuelle (staff uniquement)
 //
@@ -14,18 +12,11 @@ import { requirePermission } from "@/lib/rbac";
 // - Met à jour le statut de paiement du dossier (partiel/complet)
 // - Ajoute une entrée à l'historique
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
-
-  const gate = requirePermission((session.user as { role?: string }).role, "finance.write");
-  if (!gate.ok) {
-    return NextResponse.json({ error: gate.error }, { status: gate.status });
-  }
+  const auth = await requireApiPermission("finance.write");
+  if (!auth.ok) return auth.response;
 
   // Rate limiting (10 transactions / min / IP)
-  const rateLimited = checkRateLimit(getClientId(request), "/api/admin/paiements");
+  const rateLimited = await checkRateLimit(getClientId(request), "/api/admin/paiements");
   if (rateLimited) return rateLimited;
 
   let body: unknown;
@@ -35,10 +26,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
 
-  const parsed = validate(manualTransactionSchema, body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
-  }
+  const parsed = parseOrRespond(manualTransactionSchema, body);
+  if (!parsed.ok) return parsed.response;
   const { dossierId, montant, moyen, tranche } = parsed.data;
 
   const dossier = await db.dossier.findUnique({
@@ -52,8 +41,8 @@ export async function POST(request: Request) {
   // Générer une référence unique
   const ref = `REC-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9999)).padStart(4, "0")}`;
 
-  const userId = (session.user as any).id;
-  const auteurLabel = `${(session.user as any).prenom} ${(session.user as any).nom}`;
+  const userId = auth.user.id;
+  const auteurLabel = `${auth.user.prenom} ${auth.user.nom}`;
 
   // Calculer le nouveau statut de paiement (partiel vs complet)
   const paiementsExistants = await db.paiement.findMany({
@@ -99,7 +88,7 @@ export async function POST(request: Request) {
   });
 
   await logAudit({
-    session,
+    session: auth.session,
     action: "CREATE",
     resource: "paiement",
     resourceId: paiement.id,
@@ -111,15 +100,8 @@ export async function POST(request: Request) {
 
 // GET /api/admin/paiements — alias de /api/admin/transactions (legacy)
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
-
-  const gate = requirePermission((session.user as { role?: string }).role, "finance.read");
-  if (!gate.ok) {
-    return NextResponse.json({ error: gate.error }, { status: gate.status });
-  }
+  const auth = await requireApiPermission("finance.read");
+  if (!auth.ok) return auth.response;
 
   const paiements = await db.paiement.findMany({
     include: {

@@ -29,13 +29,13 @@ GET Admission collecte et conserve les données nécessaires au traitement de vo
   return (
     <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
       <p className="eyebrow mb-2">Informations légales</p>
-      <h1 className="font-display text-3xl font-bold text-encre">Mentions légales</h1>
-      <article className="prose prose-sm mt-8 max-w-none text-encre whitespace-pre-wrap">
+      <h1 className="font-display text-3xl font-bold text-foreground">Mentions légales</h1>
+      <article className="prose prose-sm mt-8 max-w-none text-foreground whitespace-pre-wrap">
         {contenu}
       </article>
-      <hr className="my-10 border-ligne" />
-      <h2 className="font-display text-2xl font-bold text-encre">Confidentialité</h2>
-      <article className="prose prose-sm mt-4 max-w-none text-encre whitespace-pre-wrap">
+      <hr className="my-10 border-border" />
+      <h2 className="font-display text-2xl font-bold text-foreground">Confidentialité</h2>
+      <article className="prose prose-sm mt-4 max-w-none text-foreground whitespace-pre-wrap">
         {politique}
       </article>
     </div>

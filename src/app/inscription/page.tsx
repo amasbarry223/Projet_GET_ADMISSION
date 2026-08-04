@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * /inscription — page autonome alignée sur le héros vitrine
+ * (fond campus, tokens sémantiques, thème clair/sombre)
+ */
+
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -7,7 +12,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Suspense } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -27,46 +31,20 @@ import {
   Eye,
   EyeOff,
   Plane,
-  Check,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/components/brand-logo";
-
-const EASE = [0.22, 1, 0.36, 1] as const;
-const SLIDE_MS = 5200;
-
-/** Campus africains partenaires — assets locaux */
-const CAMPUS_AFRIQUE = [
-  {
-    src: "/images/partenaires/universite-yaounde-i/cover.webp",
-    nom: "Université de Yaoundé I",
-    lieu: "Yaoundé · Cameroun",
-  },
-  {
-    src: "/images/partenaires/universite-gaston-berger/cover.webp",
-    nom: "Université Gaston Berger",
-    lieu: "Saint-Louis · Sénégal",
-  },
-  {
-    src: "/images/partenaires/universite-cape-town/cover.webp",
-    nom: "University of Cape Town",
-    lieu: "Le Cap · Afrique du Sud",
-  },
-  {
-    src: "/images/partenaires/universite-mohammed-v-rabat/cover.webp",
-    nom: "Université Mohammed V",
-    lieu: "Rabat · Maroc",
-  },
-  {
-    src: "/images/partenaires/universite-tunis-el-manar/cover.webp",
-    nom: "Université Tunis El Manar",
-    lieu: "Tunis · Tunisie",
-  },
-] as const;
+import { FieldError } from "@/components/ui/field-error";
+import { toastApiErrorSync } from "@/lib/toast-api";
+import { VitrineThemeProvider } from "@/components/site/vitrine-theme-provider";
+import { ThemeToggle } from "@/components/site/theme-toggle";
+import { MotionButton } from "@/components/site/motion-button";
+import { fadeInUp, motionSafeVariants } from "@/lib/animations";
 
 const fieldClass =
-  "h-12 rounded-xl border-ligne bg-blanc text-encre placeholder:text-ardoise/70 focus-visible:border-lapis focus-visible:ring-lapis/25";
+  "h-12 rounded-md border-border bg-background text-foreground shadow-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20";
 
 type Destination = {
   universiteId: string;
@@ -76,7 +54,7 @@ type Destination = {
 };
 
 function passwordStrength(pw: string): { score: number; label: string; tone: string } {
-  if (!pw) return { score: 0, label: "", tone: "bg-ligne" };
+  if (!pw) return { score: 0, label: "", tone: "bg-border" };
   let score = 0;
   if (pw.length >= 8) score += 1;
   if (pw.length >= 12) score += 1;
@@ -84,8 +62,8 @@ function passwordStrength(pw: string): { score: number; label: string; tone: str
   if (/\d/.test(pw) || /[^A-Za-z0-9]/.test(pw)) score += 1;
   if (score <= 1) return { score, label: "Faible", tone: "bg-carmin" };
   if (score === 2) return { score, label: "Moyen", tone: "bg-ambre" };
-  if (score === 3) return { score, label: "Bon", tone: "bg-lapis" };
-  return { score, label: "Fort", tone: "bg-or" };
+  if (score === 3) return { score, label: "Bon", tone: "bg-primary" };
+  return { score, label: "Fort", tone: "bg-primary" };
 }
 
 function safeCallback(raw: string | null): string | null {
@@ -116,12 +94,14 @@ export default function InscriptionPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-porcelaine">
-          <Loader2 className="h-6 w-6 animate-spin text-lapis" />
+        <div className="flex min-h-dvh items-center justify-center bg-background">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
       }
     >
-      <InscriptionInner />
+      <VitrineThemeProvider>
+        <InscriptionInner />
+      </VitrineThemeProvider>
     </Suspense>
   );
 }
@@ -131,6 +111,7 @@ function InscriptionInner() {
   const searchParams = useSearchParams();
   const callbackUrl = safeCallback(searchParams.get("callbackUrl"));
   const reduce = useReducedMotion();
+  const variants = motionSafeVariants(reduce, fadeInUp);
   const [form, setForm] = React.useState({
     prenom: "",
     nom: "",
@@ -144,42 +125,41 @@ function InscriptionInner() {
   const [loading, setLoading] = React.useState(false);
   const [nationalites, setNationalites] = React.useState<string[]>([]);
   const [loadingNationalites, setLoadingNationalites] = React.useState(true);
+  const [nationalitesError, setNationalitesError] = React.useState(false);
   const [showPassword, setShowPassword] = React.useState(false);
   const [showConfirm, setShowConfirm] = React.useState(false);
   const [destination, setDestination] = React.useState<Destination | null>(null);
   const [loadingDest, setLoadingDest] = React.useState(false);
-  const [campusIndex, setCampusIndex] = React.useState(0);
   const strength = passwordStrength(form.password);
-  const campus = CAMPUS_AFRIQUE[campusIndex];
 
   const { universiteId, formationId } = React.useMemo(
     () => parseDossierCallback(callbackUrl),
-    [callbackUrl]
+    [callbackUrl],
   );
-
-  React.useEffect(() => {
-    if (reduce) return;
-    const id = window.setInterval(() => {
-      setCampusIndex((i) => (i + 1) % CAMPUS_AFRIQUE.length);
-    }, SLIDE_MS);
-    return () => window.clearInterval(id);
-  }, [reduce]);
 
   React.useEffect(() => {
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
       fetch("/api/public/nationalites")
-        .then((r) => r.json())
+        .then(async (r) => {
+          if (!r.ok) throw new Error();
+          return r.json();
+        })
         .then((data: string[]) => {
           if (cancelled) return;
           setNationalites(Array.isArray(data) ? data : []);
+          setNationalitesError(false);
           setLoadingNationalites(false);
         })
         .catch(() => {
           if (cancelled) return;
           setNationalites([]);
+          setNationalitesError(true);
           setLoadingNationalites(false);
+          toastApiErrorSync(new Error("Impossible de charger la liste des nationalités."), {
+            title: "Liste indisponible",
+          });
         });
     });
     return () => {
@@ -200,7 +180,7 @@ function InscriptionInner() {
             data: {
               nom?: string;
               formations?: { id: string; intitule?: string; niveau?: string }[];
-            } | null
+            } | null,
           ) => {
             if (cancelled || !data?.nom) {
               if (!cancelled) setDestination(null);
@@ -220,7 +200,7 @@ function InscriptionInner() {
               universiteNom: data.nom,
               formationLabel,
             });
-          }
+          },
         )
         .catch(() => {
           if (!cancelled) setDestination(null);
@@ -263,6 +243,19 @@ function InscriptionInner() {
     ev.preventDefault();
     if (!validate()) {
       toast.error("Formulaire incomplet", { description: "Vérifiez les champs signalés." });
+      const first = Object.keys(
+        (() => {
+          const e: Record<string, string> = {};
+          if (!form.prenom.trim()) e.prenom = "1";
+          else if (!form.nom.trim()) e.nom = "1";
+          else if (!form.email.trim()) e.email = "1";
+          else if (!form.nationalite) e.nationalite = "1";
+          else if (!form.password) e.password = "1";
+          else if (form.confirm !== form.password) e.confirm = "1";
+          return e;
+        })(),
+      )[0];
+      if (first) document.getElementById(first)?.focus();
       return;
     }
     setLoading(true);
@@ -313,7 +306,7 @@ function InscriptionInner() {
         router.push(
           callbackUrl
             ? `/connexion?callbackUrl=${encodeURIComponent(callbackUrl)}`
-            : "/connexion"
+            : "/connexion",
         );
         return;
       }
@@ -330,7 +323,10 @@ function InscriptionInner() {
       router.push(dest);
       return;
     } catch {
-      toast.error("Erreur", { description: "Une erreur est survenue. Réessayez." });
+      toastApiErrorSync(
+        new Error("Une erreur est survenue. Vérifiez votre connexion et réessayez."),
+        { title: "Inscription interrompue" },
+      );
     }
     setLoading(false);
   };
@@ -340,257 +336,86 @@ function InscriptionInner() {
     : "/connexion";
 
   return (
-    <div className="grid min-h-screen bg-blanc text-encre lg:grid-cols-2">
-      {/* —— Colonne campus Afrique (clair) —— */}
-      <section
-        className="relative flex min-h-[42vh] flex-col overflow-hidden bg-or-pale lg:min-h-screen"
-        aria-roledescription="carousel"
-        aria-label="Campus universitaires africains partenaires"
-      >
-        <div className="absolute inset-0" aria-hidden>
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={campus.src}
-              className="absolute inset-0"
-              initial={reduce ? false : { opacity: 0, scale: 1.04 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={reduce ? undefined : { opacity: 0 }}
-              transition={{ duration: 0.9, ease: EASE }}
-            >
-              <Image
-                src={campus.src}
-                alt=""
-                fill
-                priority={campusIndex === 0}
-                className="object-cover object-center"
-                sizes="(max-width: 1024px) 100vw, 50vw"
-              />
-            </motion.div>
-          </AnimatePresence>
-          {/* Voile clair — lisibilité sans panneau sombre */}
-          <div className="absolute inset-0 bg-gradient-to-t from-blanc via-blanc/75 to-blanc/30" />
-          <div className="absolute inset-0 bg-gradient-to-br from-or-pale/55 via-transparent to-blanc/45" />
-        </div>
-
-        <div className="relative z-10 flex h-full flex-1 flex-col justify-between px-6 py-7 sm:px-10 lg:px-12 lg:py-10">
-          <motion.div
-            initial={reduce ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, ease: EASE }}
-            className="flex items-start justify-between gap-3"
-          >
-            <Link
-              href="/"
-              className="inline-flex rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2"
-            >
-              <BrandLogo height={48} priority />
-            </Link>
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={campus.nom}
-                initial={reduce ? false : { opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={reduce ? undefined : { opacity: 0 }}
-                transition={{ duration: 0.35, ease: EASE }}
-                className="max-w-[11rem] rounded-full border border-ligne/80 bg-blanc/90 px-3 py-1.5 text-right backdrop-blur-sm sm:max-w-none"
-              >
-                <p className="truncate font-mono text-[10px] font-medium uppercase tracking-wide text-encre">
-                  {campus.nom}
-                </p>
-                <p className="truncate font-mono text-[9px] uppercase tracking-wide text-ardoise">
-                  {campus.lieu}
-                </p>
-              </motion.div>
-            </AnimatePresence>
-          </motion.div>
-
-          <div className="my-8 max-w-lg lg:my-0">
-            <motion.p
-              className="font-mono text-[11px] uppercase tracking-[0.2em] text-or"
-              initial={reduce ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.06, ease: EASE }}
-            >
-              Campus Afrique · Compte candidat
-            </motion.p>
-            <motion.h1
-              className="mt-3 font-display text-[clamp(1.9rem,4vw,3rem)] font-bold leading-[1.06] tracking-tight text-encre text-balance"
-              initial={reduce ? false : { opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.55, delay: 0.12, ease: EASE }}
-            >
-              Embarquez pour votre admission.
-            </motion.h1>
-            <motion.p
-              className="mt-3 max-w-md text-sm leading-relaxed text-ardoise text-pretty sm:text-base"
-              initial={reduce ? false : { opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: 0.18, ease: EASE }}
-            >
-              Des universités africaines partenaires vous attendent — créez votre compte et
-              démarrez votre dossier.
-            </motion.p>
-
-            {/* Stub destination — surface claire */}
-            <motion.div
-              initial={reduce ? false : { opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.26, ease: EASE }}
-              className="mt-6 max-w-md overflow-hidden rounded-2xl border border-ligne bg-blanc shadow-sm"
-            >
-              <div className="rule-or" aria-hidden />
-              <div className="flex items-start gap-3 p-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-or-pale text-lapis">
-                  <Plane className="h-4 w-4" strokeWidth={1.75} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
-                    {destinationAffichee || loadingDestAffiche ? "Destination réservée" : "Destination"}
-                  </p>
-                  {loadingDestAffiche ? (
-                    <p className="mt-1 flex items-center gap-2 text-sm text-ardoise">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-lapis" />
-                      Chargement…
-                    </p>
-                  ) : destinationAffichee ? (
-                    <>
-                      <p className="mt-1 font-display text-base font-bold leading-snug text-encre">
-                        {destinationAffichee.universiteNom}
-                      </p>
-                      {destinationAffichee.formationLabel && (
-                        <p className="mt-0.5 truncate text-sm text-ardoise">
-                          {destinationAffichee.formationLabel}
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <p className="mt-1 font-display text-base font-bold text-encre">
-                        Destination à choisir
-                      </p>
-                      <p className="mt-0.5 text-sm text-ardoise">
-                        Catalogue partenaires · après inscription
-                      </p>
-                    </>
-                  )}
-                </div>
-                <span className="shrink-0 font-mono text-[10px] font-semibold uppercase tracking-wide text-lapis">
-                  GET-NEW
-                </span>
-              </div>
-            </motion.div>
-
-            <motion.ul
-              className="mt-6 hidden space-y-2 lg:block"
-              initial={reduce ? false : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.4, delay: 0.34 }}
-            >
-              {[
-                "Campus partenaires en Afrique",
-                "Conseiller dédié",
-                "Paiement Mobile Money",
-              ].map((t) => (
-                <li key={t} className="flex items-center gap-2 text-sm text-encre/80">
-                  <Check className="h-3.5 w-3.5 shrink-0 text-lapis" strokeWidth={2} />
-                  {t}
-                </li>
-              ))}
-            </motion.ul>
-
-            {/* Indicateurs diaporama */}
-            <div className="mt-6 flex gap-1.5" role="tablist" aria-label="Campus">
-              {CAMPUS_AFRIQUE.map((c, i) => (
-                <button
-                  key={c.src}
-                  type="button"
-                  role="tab"
-                  aria-selected={i === campusIndex}
-                  aria-label={c.nom}
-                  onClick={() => setCampusIndex(i)}
-                  className={cn(
-                    "h-1.5 rounded-full transition-all duration-300",
-                    i === campusIndex ? "w-7 bg-lapis" : "w-1.5 bg-encre/20 hover:bg-encre/35"
-                  )}
-                />
-              ))}
-            </div>
-          </div>
-
-          <p className="relative z-10 hidden font-mono text-[10px] uppercase tracking-[0.18em] text-ardoise lg:block">
-            Cameroun · Sénégal · Afrique du Sud · Maroc · Tunisie
-          </p>
-        </div>
-      </section>
-
-      {/* —— Colonne formulaire — clair, hors carte —— */}
-      <section className="relative flex items-center bg-porcelaine px-6 py-10 sm:px-10 lg:px-14 xl:px-16">
-        <div
-          className="pointer-events-none absolute inset-0"
-          aria-hidden
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 85% 12%, rgba(60,169,54,0.08), transparent 40%), radial-gradient(circle at 10% 90%, rgba(46,131,41,0.05), transparent 36%)",
-          }}
+    <div className="relative flex min-h-dvh flex-col bg-background text-foreground">
+      <div className="pointer-events-none absolute inset-0" aria-hidden>
+        <Image
+          src="/images/campus-sorbonne.jpg"
+          alt=""
+          fill
+          priority
+          className="object-cover opacity-25"
+          sizes="100vw"
         />
+        <div className="absolute inset-0 bg-gradient-to-b from-background via-background/90 to-background" />
+        <div className="glow-primary absolute -left-24 top-10 h-80 w-80 blur-3xl" />
+        <div className="glow-primary absolute -right-16 bottom-0 h-72 w-72 opacity-60 blur-3xl" />
+      </div>
 
-        <motion.div
-          initial={reduce ? false : { opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1, ease: EASE }}
-          className="relative z-10 mx-auto w-full max-w-md lg:mx-0"
+      <div className="relative z-10 flex items-center justify-between px-4 py-5 sm:px-6 lg:px-8">
+        <Link
+          href="/"
+          className="inline-flex rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          aria-label="Accueil GET Admission"
         >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ardoise">
-                Inscription candidat
-              </p>
-              <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-encre text-balance sm:text-[1.75rem]">
-                Créer mon compte
-              </h2>
-              <p className="mt-1.5 text-sm text-ardoise">
-                Remplissez vos informations pour accéder à votre espace.
-              </p>
-            </div>
-            <Link
-              href={loginHref}
-              className="shrink-0 rounded-full border border-ligne bg-blanc px-3 py-1.5 text-xs font-medium text-encre transition-colors hover:border-lapis/40 hover:bg-or-pale hover:text-lapis"
-            >
-              Se connecter
-            </Link>
-          </div>
+          <BrandLogo height={48} priority className="max-h-12 w-auto max-w-[200px]" />
+        </Link>
+        <ThemeToggle />
+      </div>
+
+      <div className="relative z-10 flex flex-1 items-center justify-center px-4 pb-12 pt-2 sm:px-6">
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={variants}
+          className="glass-card w-full max-w-md rounded-xl p-6 shadow-lg sm:p-8"
+        >
+          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 font-mono text-[11px] uppercase tracking-eyebrow text-primary">
+            <Sparkles className="h-3 w-3" strokeWidth={1.5} />
+            Compte candidat
+          </span>
+
+          <h1 className="mt-5 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            Créer mon compte
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            En moins de 2 minutes — accès immédiat à votre espace dossier.
+          </p>
 
           {(destinationAffichee || loadingDestAffiche) && (
-            <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-lapis/15 bg-or-pale/70 px-3.5 py-2.5">
-              <Plane className="mt-0.5 h-3.5 w-3.5 shrink-0 text-lapis" strokeWidth={1.75} />
+            <div className="mt-5 flex items-start gap-2.5 rounded-lg border border-primary/25 bg-primary/10 px-3.5 py-3">
+              <Plane className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" strokeWidth={1.75} />
               <div className="min-w-0 text-xs leading-snug">
-                <p className="font-medium text-encre">Vous rejoignez</p>
+                <p className="font-medium text-foreground">Vous rejoignez</p>
                 {loadingDestAffiche ? (
-                  <p className="mt-0.5 text-ardoise">Chargement…</p>
+                  <p className="mt-0.5 text-muted-foreground">Chargement…</p>
                 ) : destinationAffichee ? (
-                  <p className="mt-0.5 truncate text-ardoise">
-                    <span className="font-medium text-lapis">{destinationAffichee.universiteNom}</span>
-                    {destinationAffichee.formationLabel ? ` · ${destinationAffichee.formationLabel}` : null}
+                  <p className="mt-0.5 truncate text-muted-foreground">
+                    <span className="font-medium text-primary">
+                      {destinationAffichee.universiteNom}
+                    </span>
+                    {destinationAffichee.formationLabel
+                      ? ` · ${destinationAffichee.formationLabel}`
+                      : null}
                   </p>
                 ) : null}
               </div>
             </div>
           )}
 
-          <form onSubmit={onSubmit} className="mt-7 space-y-5" noValidate>
+          <form onSubmit={onSubmit} className="mt-7 space-y-6" noValidate>
             <fieldset className="space-y-3.5">
-              <legend className="font-mono text-[10px] uppercase tracking-[0.18em] text-ardoise">
+              <legend className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                 01 · Identité
               </legend>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="prenom" className="text-sm font-medium text-encre">
+                  <Label htmlFor="prenom" className="text-sm font-medium text-foreground">
                     Prénom
                   </Label>
                   <div className="relative">
                     <User
-                      className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise"
+                      className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                       strokeWidth={1.5}
                     />
                     <Input
@@ -600,12 +425,13 @@ function InscriptionInner() {
                       className={cn("pl-10", fieldClass, errors.prenom && "border-carmin")}
                       placeholder="Fatou"
                       aria-invalid={!!errors.prenom}
+                      aria-describedby={errors.prenom ? "err-inscription-prenom" : undefined}
                     />
                   </div>
-                  {errors.prenom && <p className="text-xs text-carmin">{errors.prenom}</p>}
+                  <FieldError id="err-inscription-prenom" message={errors.prenom} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="nom" className="text-sm font-medium text-encre">
+                  <Label htmlFor="nom" className="text-sm font-medium text-foreground">
                     Nom
                   </Label>
                   <Input
@@ -615,18 +441,19 @@ function InscriptionInner() {
                     className={cn(fieldClass, errors.nom && "border-carmin")}
                     placeholder="Diallo"
                     aria-invalid={!!errors.nom}
+                    aria-describedby={errors.nom ? "err-inscription-nom" : undefined}
                   />
-                  {errors.nom && <p className="text-xs text-carmin">{errors.nom}</p>}
+                  <FieldError id="err-inscription-nom" message={errors.nom} />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-sm font-medium text-encre">
+                <Label htmlFor="email" className="text-sm font-medium text-foreground">
                   E-mail
                 </Label>
                 <div className="relative">
                   <Mail
-                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise"
+                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                     strokeWidth={1.5}
                   />
                   <Input
@@ -638,56 +465,72 @@ function InscriptionInner() {
                     placeholder="vous@exemple.com"
                     autoComplete="email"
                     aria-invalid={!!errors.email}
+                    aria-describedby={errors.email ? "err-inscription-email" : undefined}
                   />
                 </div>
-                {errors.email && <p className="text-xs text-carmin">{errors.email}</p>}
+                <FieldError id="err-inscription-email" message={errors.email} />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="nationalite" className="text-sm font-medium text-encre">
+                <Label htmlFor="nationalite" className="text-sm font-medium text-foreground">
                   Nationalité
                 </Label>
                 <Select value={form.nationalite} onValueChange={(v) => set("nationalite", v)}>
                   <SelectTrigger
                     id="nationalite"
                     className={cn(
-                      "h-12 w-full rounded-xl border-ligne bg-blanc text-encre shadow-none data-[placeholder]:text-ardoise/70",
-                      errors.nationalite && "border-carmin"
+                      "h-12 w-full rounded-md border-border bg-background text-foreground shadow-none data-[placeholder]:text-muted-foreground",
+                      errors.nationalite && "border-carmin",
                     )}
                     aria-invalid={!!errors.nationalite}
+                    aria-describedby={
+                      errors.nationalite || nationalitesError
+                        ? "err-inscription-nationalite"
+                        : undefined
+                    }
                   >
                     <SelectValue
                       placeholder={
-                        loadingNationalites ? "Chargement…" : "Sélectionnez votre nationalité"
+                        loadingNationalites
+                          ? "Chargement…"
+                          : nationalitesError
+                            ? "Liste indisponible — réessayez plus tard"
+                            : "Sélectionnez votre nationalité"
                       }
                     />
                   </SelectTrigger>
-                  <SelectContent className="border-ligne bg-blanc text-encre">
+                  <SelectContent className="border-border bg-popover text-popover-foreground">
                     {nationalites.map((n) => (
-                      <SelectItem key={n} value={n} className="focus:bg-or-pale focus:text-encre">
+                      <SelectItem key={n} value={n}>
                         {n}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {errors.nationalite && (
-                  <p className="text-xs text-carmin">{errors.nationalite}</p>
-                )}
+                <FieldError
+                  id="err-inscription-nationalite"
+                  message={
+                    errors.nationalite ||
+                    (nationalitesError
+                      ? "Impossible de charger les nationalités. Rafraîchissez la page."
+                      : null)
+                  }
+                />
               </div>
             </fieldset>
 
             <fieldset className="space-y-3.5">
-              <legend className="font-mono text-[10px] uppercase tracking-[0.18em] text-ardoise">
+              <legend className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                 02 · Accès
               </legend>
 
               <div className="space-y-1.5">
-                <Label htmlFor="password" className="text-sm font-medium text-encre">
+                <Label htmlFor="password" className="text-sm font-medium text-foreground">
                   Mot de passe
                 </Label>
                 <div className="relative">
                   <Lock
-                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise"
+                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                     strokeWidth={1.5}
                   />
                   <Input
@@ -699,10 +542,11 @@ function InscriptionInner() {
                     placeholder="Minimum 8 caractères"
                     autoComplete="new-password"
                     aria-invalid={!!errors.password}
+                    aria-describedby={errors.password ? "err-inscription-password" : undefined}
                   />
                   <button
                     type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-ardoise hover:text-encre"
+                    className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
                     onClick={() => setShowPassword((v) => !v)}
                     aria-label={
                       showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"
@@ -715,36 +559,43 @@ function InscriptionInner() {
                     )}
                   </button>
                 </div>
-                {form.password && (
-                  <div className="pt-1">
-                    <div className="flex gap-1">
-                      {[1, 2, 3, 4].map((i) => (
-                        <span
-                          key={i}
-                          className={cn(
-                            "h-1 flex-1 rounded-full transition-colors duration-300",
-                            i <= strength.score ? strength.tone : "bg-ligne"
-                          )}
-                        />
-                      ))}
-                    </div>
-                    {strength.label && (
-                      <p className="mt-1 font-mono text-[10px] uppercase tracking-wide text-ardoise">
-                        Solidité : {strength.label}
-                      </p>
-                    )}
-                  </div>
-                )}
-                {errors.password && <p className="text-xs text-carmin">{errors.password}</p>}
+                <AnimatePresence>
+                  {form.password ? (
+                    <motion.div
+                      initial={reduce ? false : { opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={reduce ? undefined : { opacity: 0, height: 0 }}
+                      className="overflow-hidden pt-1"
+                    >
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4].map((i) => (
+                          <span
+                            key={i}
+                            className={cn(
+                              "h-1 flex-1 rounded-full transition-colors duration-300",
+                              i <= strength.score ? strength.tone : "bg-border",
+                            )}
+                          />
+                        ))}
+                      </div>
+                      {strength.label && (
+                        <p className="mt-1 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+                          Solidité : {strength.label}
+                        </p>
+                      )}
+                    </motion.div>
+                  ) : null}
+                </AnimatePresence>
+                <FieldError id="err-inscription-password" message={errors.password} />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="confirm" className="text-sm font-medium text-encre">
+                <Label htmlFor="confirm" className="text-sm font-medium text-foreground">
                   Confirmer
                 </Label>
                 <div className="relative">
                   <Lock
-                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise"
+                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                     strokeWidth={1.5}
                   />
                   <Input
@@ -756,10 +607,11 @@ function InscriptionInner() {
                     placeholder="••••••••"
                     autoComplete="new-password"
                     aria-invalid={!!errors.confirm}
+                    aria-describedby={errors.confirm ? "err-inscription-confirm" : undefined}
                   />
                   <button
                     type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-ardoise hover:text-encre"
+                    className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
                     onClick={() => setShowConfirm((v) => !v)}
                     aria-label={
                       showConfirm ? "Masquer la confirmation" : "Afficher la confirmation"
@@ -772,7 +624,7 @@ function InscriptionInner() {
                     )}
                   </button>
                 </div>
-                {errors.confirm && <p className="text-xs text-carmin">{errors.confirm}</p>}
+                <FieldError id="err-inscription-confirm" message={errors.confirm} />
               </div>
             </fieldset>
 
@@ -783,66 +635,56 @@ function InscriptionInner() {
                   id="consent"
                   checked={form.consent}
                   onCheckedChange={(v) => set("consent", !!v)}
-                  className="mt-0.5 border-ligne data-[state=checked]:border-lapis data-[state=checked]:bg-lapis"
+                  className="mt-0.5 border-border data-[state=checked]:border-primary data-[state=checked]:bg-primary"
                 />
-                <span className="text-xs leading-relaxed text-ardoise">
+                <span className="text-xs leading-relaxed text-muted-foreground">
                   J&apos;accepte les{" "}
                   <Link
                     href="/mentions-legales"
-                    className="font-medium text-lapis underline-offset-2 hover:underline"
+                    className="font-medium text-primary underline-offset-2 hover:underline"
                   >
                     conditions d&apos;agence
                   </Link>{" "}
                   et la{" "}
                   <Link
                     href="/mentions-legales"
-                    className="font-medium text-lapis underline-offset-2 hover:underline"
+                    className="font-medium text-primary underline-offset-2 hover:underline"
                   >
                     politique de confidentialité
                   </Link>
                   .
                 </span>
               </label>
-              {errors.consent && <p className="text-xs text-carmin">{errors.consent}</p>}
+              <FieldError id="err-inscription-consent" message={errors.consent} />
 
-              <motion.div
-                whileHover={reduce ? undefined : { y: -1 }}
-                whileTap={reduce ? undefined : { scale: 0.99 }}
-              >
-                <Button
-                  type="submit"
-                  className="group h-12 w-full rounded-full bg-lapis text-blanc hover:bg-or hover:shadow-[0_0_0_6px_rgba(60,169,54,0.12)]"
-                  disabled={loading}
-                >
+              <div className="flex w-full [&>div]:w-full [&_button]:w-full">
+                <MotionButton type="submit" size="lg" className="w-full" disabled={loading}>
                   {loading ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Création…
+                      <Loader2 className="h-4 w-4 animate-spin" /> Création…
                     </>
                   ) : (
                     <>
                       Créer mon compte
-                      <ArrowRight
-                        className="ml-1.5 h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5"
-                        strokeWidth={1.5}
-                      />
+                      <ArrowRight className="h-4 w-4" strokeWidth={1.75} />
                     </>
                   )}
-                </Button>
-              </motion.div>
+                </MotionButton>
+              </div>
             </fieldset>
           </form>
 
-          <p className="mt-8 text-sm text-ardoise">
+          <p className="mt-8 text-sm text-muted-foreground">
             Déjà un compte ?{" "}
             <Link
               href={loginHref}
-              className="font-medium text-encre underline-offset-4 hover:text-lapis hover:underline"
+              className="font-medium text-foreground underline-offset-4 hover:text-primary hover:underline"
             >
               Se connecter
             </Link>
           </p>
         </motion.div>
-      </section>
+      </div>
     </div>
   );
 }

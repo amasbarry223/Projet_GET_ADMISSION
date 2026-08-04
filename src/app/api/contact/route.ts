@@ -12,7 +12,7 @@ import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 // - Crée un ContactMessage (traite = false par défaut)
 export async function POST(request: Request) {
   // Rate limiting (5 messages contact / min / IP)
-  const rateLimited = checkRateLimit(getClientId(request), "/api/contact");
+  const rateLimited = await checkRateLimit(getClientId(request), "/api/contact");
   if (rateLimited) return rateLimited;
 
   let body: unknown;

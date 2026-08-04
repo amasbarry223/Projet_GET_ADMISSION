@@ -82,7 +82,7 @@ export async function GET(request: Request) {
   });
 
   if (user && isStaff(user.role)) {
-    return NextResponse.redirect(`${origin}/connexion?portal=staff&error=staff`);
+    return NextResponse.redirect(`${origin}/back-office?error=staff`);
   }
 
   if (!user) {
@@ -92,7 +92,7 @@ export async function GET(request: Request) {
   }
 
   if (user.role !== "CANDIDAT") {
-    return NextResponse.redirect(`${origin}/connexion?error=invalid`);
+    return NextResponse.redirect(`${origin}/back-office?error=invalid`);
   }
 
   user = await db.user.update({

@@ -2,18 +2,39 @@
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FieldError } from "@/components/ui/field-error";
 import type { PersonalInfo } from "@/components/dossier/wizard/types";
+
+export type InfosFieldErrors = Partial<Record<keyof PersonalInfo, string>>;
 
 export function DossierStepInfos({
   personalInfo,
   isEditable,
+  fieldErrors,
   onChange,
 }: {
   personalInfo: PersonalInfo;
   isEditable: boolean;
+  fieldErrors?: InfosFieldErrors;
   onChange: (next: PersonalInfo) => void;
 }) {
   const patch = (partial: Partial<PersonalInfo>) => onChange({ ...personalInfo, ...partial });
+  const err = fieldErrors ?? {};
+
+  const fields: {
+    key: keyof PersonalInfo;
+    label: string;
+    type?: string;
+    colSpan?: boolean;
+  }[] = [
+    { key: "prenom", label: "Prénom" },
+    { key: "nom", label: "Nom" },
+    { key: "naissance", label: "Date de naissance", type: "date" },
+    { key: "nationalite", label: "Nationalité" },
+    { key: "email", label: "E-mail", type: "email" },
+    { key: "tel", label: "Téléphone", type: "tel" },
+    { key: "adresse", label: "Adresse", colSpan: true },
+  ];
 
   return (
     <div className="space-y-5">
@@ -24,64 +45,26 @@ export function DossierStepInfos({
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label>Prénom</Label>
-          <Input
-            value={personalInfo.prenom}
-            onChange={(event) => patch({ prenom: event.target.value })}
-            disabled={!isEditable}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Nom</Label>
-          <Input
-            value={personalInfo.nom}
-            onChange={(event) => patch({ nom: event.target.value })}
-            disabled={!isEditable}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Date de naissance</Label>
-          <Input
-            type="date"
-            value={personalInfo.naissance}
-            onChange={(event) => patch({ naissance: event.target.value })}
-            disabled={!isEditable}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Nationalité</Label>
-          <Input
-            value={personalInfo.nationalite}
-            onChange={(event) => patch({ nationalite: event.target.value })}
-            disabled={!isEditable}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label>E-mail</Label>
-          <Input
-            type="email"
-            value={personalInfo.email}
-            onChange={(event) => patch({ email: event.target.value })}
-            disabled={!isEditable}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Téléphone</Label>
-          <Input
-            value={personalInfo.tel}
-            onChange={(event) => patch({ tel: event.target.value })}
-            disabled={!isEditable}
-          />
-        </div>
-        <div className="space-y-1.5 sm:col-span-2">
-          <Label>Adresse</Label>
-          <Input
-            value={personalInfo.adresse}
-            onChange={(event) => patch({ adresse: event.target.value })}
-            disabled={!isEditable}
-          />
-        </div>
+        {fields.map(({ key, label, type, colSpan }) => {
+          const id = `infos-${key}`;
+          const errorId = `${id}-error`;
+          const message = err[key];
+          return (
+            <div key={key} className={colSpan ? "space-y-1.5 sm:col-span-2" : "space-y-1.5"}>
+              <Label htmlFor={id}>{label}</Label>
+              <Input
+                id={id}
+                type={type}
+                value={personalInfo[key]}
+                onChange={(event) => patch({ [key]: event.target.value })}
+                disabled={!isEditable}
+                aria-invalid={!!message}
+                aria-describedby={message ? errorId : undefined}
+              />
+              <FieldError id={errorId} message={message} />
+            </div>
+          );
+        })}
       </div>
     </div>
   );

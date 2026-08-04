@@ -6,8 +6,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FieldError } from "@/components/ui/field-error";
 import { Lock, ArrowRight, Loader2, CheckCircle2 } from "lucide-react";
-import { toast } from "sonner";
+import { toastApiErrorSync, toastApiSuccess } from "@/lib/toast-api";
 import { Suspense } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 
@@ -19,19 +20,33 @@ function ResetForm() {
   const [confirm, setConfirm] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [done, setDone] = React.useState(false);
+  const [fieldErrors, setFieldErrors] = React.useState<{
+    password?: string;
+    confirm?: string;
+  }>({});
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) {
-      toast.error("Lien invalide");
+      toastApiErrorSync(new Error("Demandez un nouveau lien depuis « mot de passe oublié »."), {
+        title: "Lien invalide",
+      });
       return;
     }
+    const errs: { password?: string; confirm?: string } = {};
     if (password.length < 8) {
-      toast.error("Mot de passe trop court", { description: "Minimum 8 caractères." });
-      return;
+      errs.password = "Minimum 8 caractères.";
     }
     if (password !== confirm) {
-      toast.error("Les mots de passe ne correspondent pas");
+      errs.confirm = "Les mots de passe ne correspondent pas.";
+    }
+    setFieldErrors(errs);
+    if (Object.keys(errs).length) {
+      toastApiErrorSync(new Error("Corrigez les champs indiqués."), {
+        title: "Formulaire incomplet",
+      });
+      const first = errs.password ? "password" : "confirm";
+      document.getElementById(first)?.focus();
       return;
     }
     setLoading(true);
@@ -42,12 +57,18 @@ function ResetForm() {
         body: JSON.stringify({ token, password }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Échec");
+      if (!res.ok) {
+        toastApiErrorSync(res.status, {
+          title: "Mise à jour impossible",
+          body: data,
+        });
+        return;
+      }
       setDone(true);
-      toast.success("Mot de passe mis à jour");
+      toastApiSuccess("Mot de passe mis à jour", "Redirection vers la connexion…");
       setTimeout(() => router.push("/connexion"), 2000);
     } catch (err) {
-      toast.error("Échec", { description: err instanceof Error ? err.message : "Erreur" });
+      toastApiErrorSync(err, { title: "Mise à jour impossible" });
     } finally {
       setLoading(false);
     }
@@ -55,7 +76,7 @@ function ResetForm() {
 
   if (!token) {
     return (
-      <p className="text-sm text-carmin">
+      <p className="text-sm text-carmin" role="alert">
         Lien manquant. Demandez un nouveau lien depuis{" "}
         <Link href="/mot-de-passe-oublie" className="underline">
           mot de passe oublié
@@ -67,7 +88,7 @@ function ResetForm() {
 
   if (done) {
     return (
-      <div className="text-center">
+      <div className="text-center" role="status">
         <CheckCircle2 className="mx-auto h-10 w-10 text-vert" />
         <p className="mt-3 font-display text-lg font-bold text-encre">Mot de passe mis à jour</p>
         <p className="text-sm text-ardoise">Redirection vers la connexion…</p>
@@ -76,7 +97,7 @@ function ResetForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-4" noValidate>
       <div className="space-y-1.5">
         <Label htmlFor="password">Nouveau mot de passe</Label>
         <div className="relative">
@@ -86,16 +107,38 @@ function ResetForm() {
             type="password"
             className="pl-9"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setFieldErrors((prev) => ({ ...prev, password: undefined }));
+            }}
             autoComplete="new-password"
+            aria-invalid={!!fieldErrors.password}
+            aria-describedby={fieldErrors.password ? "err-reset-password" : undefined}
           />
         </div>
+        <FieldError id="err-reset-password" message={fieldErrors.password} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="confirm">Confirmer</Label>
-        <Input id="confirm" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
+        <Input
+          id="confirm"
+          type="password"
+          value={confirm}
+          onChange={(e) => {
+            setConfirm(e.target.value);
+            setFieldErrors((prev) => ({ ...prev, confirm: undefined }));
+          }}
+          autoComplete="new-password"
+          aria-invalid={!!fieldErrors.confirm}
+          aria-describedby={fieldErrors.confirm ? "err-reset-confirm" : undefined}
+        />
+        <FieldError id="err-reset-confirm" message={fieldErrors.confirm} />
       </div>
-      <Button type="submit" disabled={loading} className="w-full bg-lapis text-blanc hover:bg-lapis/90">
+      <Button
+        type="submit"
+        disabled={loading}
+        className="min-h-11 w-full bg-lapis text-blanc hover:bg-lapis/90"
+      >
         {loading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
         Enregistrer
         {!loading && <ArrowRight className="ml-1.5 h-4 w-4" />}

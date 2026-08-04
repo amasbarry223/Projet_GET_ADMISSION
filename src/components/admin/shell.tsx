@@ -116,8 +116,7 @@ function AdminNav() {
                       tooltip={item.label}
                       className={cn(
                         "relative transition-colors duration-200 ease-out motion-reduce:transition-none",
-                        active &&
-                          "bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_3px_0_0_0_var(--color-or)]",
+                        active && "bg-sidebar-accent font-medium text-sidebar-accent-foreground",
                       )}
                     >
                       <Link href={item.href}>
@@ -193,7 +192,7 @@ function AdminUser() {
           <SidebarMenuButton
             tooltip="Déconnexion"
             className="text-ardoise hover:bg-carmin/5 hover:text-carmin"
-            onClick={() => signOut({ callbackUrl: "/connexion?portal=staff" })}
+            onClick={() => signOut({ callbackUrl: "/back-office" })}
           >
             <LogOut strokeWidth={1.5} />
             <span>Déconnexion</span>

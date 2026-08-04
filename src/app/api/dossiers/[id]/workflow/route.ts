@@ -1,39 +1,32 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
-import { workflowSchema, validate } from "@/lib/validations";
+import { workflowSchema } from "@/lib/validations";
+import { requireApiUser, parseOrRespond } from "@/lib/api-auth";
 import { hasPermission } from "@/lib/rbac";
 import { notifyDossierTransition } from "@/lib/notifications";
-import { sendMail, workflowEmailHtml } from "@/lib/mail";
 import {
   ETAPE_PAR_ETAT,
   WORKFLOW_TRANSITIONS,
 } from "@/lib/dossier/workflow";
-import { APP_NAME, PAYMENT_STATUSES } from "@/shared/constants";
+import { PAYMENT_STATUSES } from "@/shared/constants";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
-
-  const role = (session.user as { role?: string }).role;
-  if (!role || role === "CANDIDAT") {
+  const auth = await requireApiUser();
+  if (!auth.ok) return auth.response;
+  const { role } = auth.user;
+  if (role === "CANDIDAT") {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
   const { id } = await params;
   const body = await request.json();
-  const parsed = validate(workflowSchema, body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
-  }
+  const parsed = parseOrRespond(workflowSchema, body);
+  if (!parsed.ok) return parsed.response;
   const { action, note } = parsed.data;
 
   const rule = WORKFLOW_TRANSITIONS[action];
@@ -58,6 +51,23 @@ export async function POST(
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
   }
 
+  // États sources attendus pour updateMany conditionnel
+  const fromStates =
+    action === "verifier"
+      ? dossier.etat === "SOUMIS"
+        ? (["SOUMIS"] as const)
+        : dossier.etat === "VERIFICATION"
+          ? (["VERIFICATION"] as const)
+          : null
+      : rule.from;
+
+  if (action === "verifier" && !fromStates) {
+    return NextResponse.json(
+      { error: `Transition « verifier » impossible depuis ${dossier.etat}` },
+      { status: 400 },
+    );
+  }
+
   // Action « verifier » contextuelle
   let nouvelEtat = rule.to;
   if (action === "verifier") {
@@ -65,16 +75,11 @@ export async function POST(
       nouvelEtat = "VERIFICATION";
     } else if (dossier.etat === "VERIFICATION") {
       nouvelEtat = "PAIEMENT_ATTENTE";
-    } else {
-      return NextResponse.json(
-        { error: `Transition « verifier » impossible depuis ${dossier.etat}` },
-        { status: 400 }
-      );
     }
   } else if (!rule.from.includes(dossier.etat)) {
     return NextResponse.json(
       { error: `Transition impossible : état actuel ${dossier.etat}` },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -90,7 +95,7 @@ export async function POST(
           error:
             "Workflow strict : passez d'abord par « En attente de réponse » avant d'accepter ou refuser",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
   }
@@ -107,7 +112,7 @@ export async function POST(
         {
           error: `Solde insuffisant : ${paye} / ${dossier.fraisAgence} FCFA encaissés. Enregistrez les paiements avant de confirmer.`,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
   }
@@ -117,13 +122,13 @@ export async function POST(
     if (dossier.etat !== "PAIEMENT_CONFIRME") {
       return NextResponse.json(
         { error: "Le dossier doit être en « Paiement confirmé » avant transmission" },
-        { status: 400 }
+        { status: 400 },
       );
     }
     if (dossier.paiementStatut !== PAYMENT_STATUSES.COMPLET) {
       return NextResponse.json(
         { error: "Transmission refusée : paiement des frais d'agence non confirmé" },
-        { status: 400 }
+        { status: 400 },
       );
     }
     const totalPaye = await db.paiement.aggregate({
@@ -133,13 +138,14 @@ export async function POST(
     if ((totalPaye._sum.montant ?? 0) < dossier.fraisAgence) {
       return NextResponse.json(
         { error: "Transmission refusée : aucun encaissement suffisant enregistré" },
-        { status: 400 }
+        { status: 400 },
       );
     }
   }
 
-  const updated = await db.dossier.update({
-    where: { id },
+  const expectedFrom = [...(fromStates ?? rule.from)];
+  const locked = await db.dossier.updateMany({
+    where: { id, etat: { in: expectedFrom } },
     data: {
       etat: nouvelEtat,
       etapeActuelle: ETAPE_PAR_ETAT[nouvelEtat],
@@ -148,6 +154,21 @@ export async function POST(
         : {}),
     },
   });
+  if (locked.count === 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Le dossier a déjà changé d'état (course concurrente). Actualisez la page et réessayez.",
+        code: "WORKFLOW_RACE",
+      },
+      { status: 409 },
+    );
+  }
+
+  const updated = await db.dossier.findUnique({ where: { id } });
+  if (!updated) {
+    return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
+  }
 
   if (nouvelEtat === "ATTESTATION") {
     const existing = await db.attestation.findUnique({ where: { dossierId: id } });
@@ -159,7 +180,7 @@ export async function POST(
           reference,
           codeVerification,
           dossierId: id,
-          emetteurId: (session.user as { id: string }).id,
+          emetteurId: auth.user.id,
         },
       });
       const modele = await db.modeleAttestation.findFirst({
@@ -183,21 +204,21 @@ export async function POST(
     data: {
       dossierId: id,
       etat: nouvelEtat,
-      auteur: `${(session.user as { prenom: string }).prenom} ${(session.user as { nom: string }).nom}`,
-      auteurId: (session.user as { id: string }).id,
+      auteur: `${auth.user.prenom} ${auth.user.nom}`,
+      auteurId: auth.user.id,
       note: noteFinale,
     },
   });
 
   await logAudit({
-    session,
+    session: auth.session,
     action: "WORKFLOW",
     resource: "dossier",
     resourceId: id,
     details: `Transition ${dossier.reference} → ${nouvelEtat}${note ? ` (${note})` : ""}`,
   });
 
-  // Notifications in-app + e-mail
+  // Notifications in-app + e-mail (via notifyDossierTransition)
   try {
     await notifyDossierTransition({
       candidatId: dossier.candidatId,
@@ -206,20 +227,6 @@ export async function POST(
       nouvelEtat,
       note: noteFinale,
     });
-
-    const paramsAgence = await db.parametre.findUnique({ where: { id: 1 } });
-    if (paramsAgence?.notifEmail !== false && dossier.candidat.email) {
-      await sendMail({
-        to: dossier.candidat.email,
-        subject: `${APP_NAME} — Dossier ${dossier.reference}`,
-        html: workflowEmailHtml(
-          dossier.candidat.prenom,
-          dossier.reference,
-          nouvelEtat.replace(/_/g, " ").toLowerCase(),
-          noteFinale
-        ),
-      });
-    }
   } catch (e) {
     console.error("[workflow] notif error", e);
   }

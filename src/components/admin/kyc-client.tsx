@@ -25,6 +25,7 @@ import {
   type ActionItem,
 } from "@/components/data-table/data-table";
 import { formatDateTime } from "@/lib/format";
+import { apiJson } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -431,25 +432,16 @@ export function KycClient({ initialData }: { initialData: KycRow[] }) {
 
   const setKyc = React.useCallback(
     async (userId: string, verifie: boolean) => {
-      try {
-        const res = await fetch("/api/profile/kyc", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId, verifie }),
+      const result = await apiJson("/api/profile/kyc", "PUT", { userId, verifie });
+      if (!result.ok) {
+        toast.error(verifie ? "Validation KYC échouée" : "Invalidation échouée", {
+          description: result.error,
         });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          toast.error(verifie ? "Validation KYC échouée" : "Invalidation échouée", {
-            description: (err as { error?: string }).error,
-          });
-          return;
-        }
-        toast.success(verifie ? "KYC vérifié" : "KYC invalidé");
-        setSheetOpen(false);
-        router.refresh();
-      } catch {
-        toast.error("Erreur réseau");
+        return;
       }
+      toast.success(verifie ? "KYC vérifié" : "KYC invalidé");
+      setSheetOpen(false);
+      router.refresh();
     },
     [router],
   );
@@ -564,7 +556,6 @@ export function KycClient({ initialData }: { initialData: KycRow[] }) {
   return (
     <div className="space-y-5">
       <div>
-        <p className="eyebrow">Conformité</p>
         <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">
           Pièces d&apos;identité (KYC).
         </h1>

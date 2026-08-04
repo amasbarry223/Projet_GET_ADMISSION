@@ -25,8 +25,16 @@ type PartnerSeed = {
 
 function assetPaths(slug: string) {
   const base = `/images/partenaires/${slug}`;
+  const logoExt =
+    (
+      {
+        "galileo-global": "svg",
+        "sorbonne-universite": "svg",
+        "mbs-education": "jpg",
+      } as Record<string, string>
+    )[slug] ?? "png";
   return {
-    logoUrl: `${base}/logo.png`,
+    logoUrl: `${base}/logo.${logoExt}`,
     coverUrl: `${base}/cover.webp`,
     galleryUrls: JSON.stringify([
       `${base}/gallery-1.webp`,

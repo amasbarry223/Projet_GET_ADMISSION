@@ -22,6 +22,7 @@ import {
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Select,
   SelectContent,
@@ -344,12 +345,16 @@ export function AuditClient({ initialData }: { initialData: AuditEntry[] }) {
         searchPlaceholder="Rechercher email, détails, ID…"
         pageSize={10}
         emptyState={
-          <div className="flex flex-col items-center gap-3 py-4">
-            <ShieldAlert className="h-8 w-8 text-ardoise/40" strokeWidth={1.5} />
-            <p className="text-sm text-ardoise">
-              {loading ? "Chargement du journal…" : "Aucune entrée pour ces filtres."}
-            </p>
-          </div>
+          <EmptyState
+            className="border-0 bg-transparent py-8"
+            icon={<ShieldAlert className="h-5 w-5" strokeWidth={1.5} />}
+            title={loading ? "Chargement du journal…" : "Aucune entrée"}
+            description={
+              loading
+                ? undefined
+                : "Aucun événement ne correspond à ces filtres. Élargissez la recherche ou réinitialisez les filtres."
+            }
+          />
         }
         toolbar={(_table: Table<AuditEntry>) => (
           <>

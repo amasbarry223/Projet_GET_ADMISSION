@@ -170,34 +170,32 @@ export function CatalogueClient({ universites }: Props) {
   return (
     <>
       {/* En-tête */}
-      <section className="bg-porcelaine" aria-labelledby="catalogue-title">
+      <section className="bg-background" aria-labelledby="catalogue-title">
         <div className="mx-auto max-w-content px-4 py-16 sm:px-6 lg:px-8">
           <Eyebrow>Catalogue</Eyebrow>
           <h1
             id="catalogue-title"
-            className="mt-5 font-display text-4xl font-extrabold tracking-tightest text-encre sm:text-5xl"
+            className="mt-5 font-display text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl"
           >
             Universités partenaires
           </h1>
-          <p className="mt-4 max-w-2xl text-lg text-ardoise">
-            Dix universités vérifiées, réparties sur six pays. Filtrez par destination, domaine ou
+          <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
+            Universités vérifiées sur plusieurs destinations. Filtrez par pays, domaine ou
             niveau d&rsquo;études pour trouver votre formation.
           </p>
-          <p className="mt-6 font-mono text-[12px] uppercase tracking-eyebrow text-ardoise">
+          <p className="mt-6 font-mono text-[12px] uppercase tracking-eyebrow text-muted-foreground">
             {resultat.length} université{resultat.length > 1 ? "s" : ""} trouvée
             {resultat.length > 1 ? "s" : ""}
           </p>
         </div>
       </section>
 
-      {/* Barre de filtres sticky */}
-      <div className="sticky top-16 z-30 border-b border-ligne bg-blanc/90 backdrop-blur-md">
+      <div className="sticky top-[4.5rem] z-30 border-b border-border bg-background/85 backdrop-blur-xl">
         <div className="mx-auto max-w-content px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-            {/* Recherche */}
             <div className="relative flex-1">
               <Search
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise"
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                 strokeWidth={1.75}
                 aria-hidden
               />
@@ -206,15 +204,14 @@ export function CatalogueClient({ universites }: Props) {
                 placeholder="Rechercher par nom, ville, domaine…"
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}
-                className="pl-9 bg-blanc"
+                className="border-border bg-card/60 pl-9"
                 aria-label="Recherche d'une université"
               />
             </div>
 
-            {/* Filtres select */}
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:items-center lg:flex-wrap">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-wrap lg:items-center">
               <Select value={pays} onValueChange={setPays}>
-                <SelectTrigger className="w-full bg-blanc lg:w-[160px]" aria-label="Filtrer par pays">
+                <SelectTrigger className="w-full border-border bg-card/60 lg:w-[160px]" aria-label="Filtrer par pays">
                   <SelectValue placeholder="Pays" />
                 </SelectTrigger>
                 <SelectContent>
@@ -228,7 +225,7 @@ export function CatalogueClient({ universites }: Props) {
               </Select>
 
               <Select value={domaine} onValueChange={setDomaine}>
-                <SelectTrigger className="w-full bg-blanc lg:w-[170px]" aria-label="Filtrer par domaine">
+                <SelectTrigger className="w-full border-border bg-card/60 lg:w-[170px]" aria-label="Filtrer par domaine">
                   <SelectValue placeholder="Domaine" />
                 </SelectTrigger>
                 <SelectContent>
@@ -242,7 +239,7 @@ export function CatalogueClient({ universites }: Props) {
               </Select>
 
               <Select value={niveau} onValueChange={setNiveau}>
-                <SelectTrigger className="w-full bg-blanc lg:w-[150px]" aria-label="Filtrer par niveau">
+                <SelectTrigger className="w-full border-border bg-card/60 lg:w-[150px]" aria-label="Filtrer par niveau">
                   <SelectValue placeholder="Niveau" />
                 </SelectTrigger>
                 <SelectContent>
@@ -256,7 +253,7 @@ export function CatalogueClient({ universites }: Props) {
               </Select>
 
               <Select value={typeEtab} onValueChange={setTypeEtab}>
-                <SelectTrigger className="w-full bg-blanc lg:w-[160px]" aria-label="Filtrer par type">
+                <SelectTrigger className="w-full border-border bg-card/60 lg:w-[160px]" aria-label="Filtrer par type">
                   <SelectValue placeholder="Type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -267,7 +264,7 @@ export function CatalogueClient({ universites }: Props) {
               </Select>
 
               <Select value={tri} onValueChange={(v) => setTri(v as Tri)}>
-                <SelectTrigger className="w-full bg-blanc lg:w-[180px]" aria-label="Trier">
+                <SelectTrigger className="w-full border-border bg-card/60 lg:w-[180px]" aria-label="Trier">
                   <SlidersHorizontal className="mr-1 h-3.5 w-3.5" strokeWidth={1.75} />
                   <SelectValue placeholder="Trier" />
                 </SelectTrigger>
@@ -288,7 +285,7 @@ export function CatalogueClient({ universites }: Props) {
                 variant="ghost"
                 size="sm"
                 onClick={resetFiltres}
-                className="h-7 text-ardoise hover:text-lapis"
+                className="h-7 text-muted-foreground hover:text-primary"
               >
                 <RotateCcw className="mr-1 h-3.5 w-3.5" strokeWidth={1.75} />
                 Réinitialiser les filtres
@@ -298,24 +295,23 @@ export function CatalogueClient({ universites }: Props) {
         </div>
       </div>
 
-      {/* Grille des résultats */}
-      <section className="bg-porcelaine" aria-label="Résultats">
+      <section className="bg-background" aria-label="Résultats">
         <div className="mx-auto max-w-content px-4 py-12 sm:px-6 lg:px-8">
           {visible.length === 0 ? (
-            <div className="mx-auto flex max-w-md flex-col items-center rounded-lg border border-ligne bg-blanc p-12 text-center shadow-sm">
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-porcelaine text-ardoise">
+            <div className="glass-card mx-auto flex max-w-md flex-col items-center rounded-xl p-12 text-center shadow-sm">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
                 <Inbox className="h-6 w-6" strokeWidth={1.5} />
               </span>
-              <h2 className="mt-5 font-display text-xl font-bold text-encre">
+              <h2 className="mt-5 font-display text-xl font-bold text-foreground">
                 Aucune université ne correspond à ces filtres.
               </h2>
-              <p className="mt-2 text-sm text-ardoise">
+              <p className="mt-2 text-sm text-muted-foreground">
                 Élargissez votre recherche ou réinitialisez les critères pour retrouver l&rsquo;ensemble
                 du catalogue.
               </p>
               <Button
                 onClick={resetFiltres}
-                className="mt-6 bg-lapis text-blanc hover:bg-lapis/90"
+                className="mt-6 bg-primary text-primary-foreground hover:bg-or"
               >
                 <RotateCcw className="mr-1 h-4 w-4" strokeWidth={1.75} />
                 Réinitialiser les filtres
@@ -337,7 +333,7 @@ export function CatalogueClient({ universites }: Props) {
                     onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
                     size="lg"
                     variant="outline"
-                    className="border-ligne bg-blanc text-encre hover:bg-porcelaine"
+                    className="border-border bg-card/60 text-foreground hover:bg-muted"
                   >
                     Charger plus d&rsquo;universités
                   </Button>

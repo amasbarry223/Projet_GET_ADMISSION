@@ -20,17 +20,17 @@ export default async function FaqPage() {
 
   return (
     <>
-      <section className="bg-porcelaine" aria-labelledby="faq-title">
+      <section className="bg-background" aria-labelledby="faq-title">
         <div className="mx-auto max-w-content px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
           <div className="mx-auto max-w-2xl text-center">
             <Eyebrow>Aide</Eyebrow>
             <h1
               id="faq-title"
-              className="mt-5 font-display text-4xl font-extrabold tracking-tightest text-encre sm:text-5xl"
+              className="mt-5 font-display text-4xl font-extrabold tracking-tightest text-foreground sm:text-5xl"
             >
               Questions fréquentes
             </h1>
-            <p className="mt-4 text-lg text-ardoise">
+            <p className="mt-4 text-lg text-muted-foreground">
               Tout ce qu'il faut savoir sur GET Admission, nos frais, nos délais et le suivi de votre
               dossier. Une question reste sans réponse ? Écrivez-nous.
             </p>
@@ -38,13 +38,13 @@ export default async function FaqPage() {
         </div>
       </section>
 
-      <section className="bg-blanc" aria-label="Liste des questions">
+      <section className="bg-card" aria-label="Liste des questions">
         <div className="rule-or" aria-hidden />
         <div className="mx-auto max-w-content px-4 py-16 sm:px-6 lg:px-8">
           <div className="grid gap-10 lg:grid-cols-[1fr_300px]">
             {/* Accordéon */}
             <Reveal>
-              <div className="flex items-center gap-2 text-ardoise">
+              <div className="flex items-center gap-2 text-muted-foreground">
                 <HelpCircle className="h-5 w-5" strokeWidth={1.5} aria-hidden />
                 <p className="font-mono text-[12px] uppercase tracking-eyebrow">
                   {faqItems.length} questions · réponses mises à jour en 2026
@@ -53,11 +53,11 @@ export default async function FaqPage() {
 
               <Accordion type="single" collapsible className="mt-6 w-full" defaultValue="item-0">
                 {faqItems.map((item, i) => (
-                  <AccordionItem key={item.id} value={`item-${i}`} className="border-ligne">
-                    <AccordionTrigger className="text-left font-display text-base font-semibold text-encre hover:text-lapis hover:no-underline">
+                  <AccordionItem key={item.id} value={`item-${i}`} className="border-border">
+                    <AccordionTrigger className="text-left font-display text-base font-semibold text-foreground hover:text-primary hover:no-underline">
                       {item.question}
                     </AccordionTrigger>
-                    <AccordionContent className="text-sm leading-relaxed text-ardoise">
+                    <AccordionContent className="text-sm leading-relaxed text-muted-foreground">
                       {item.reponse}
                     </AccordionContent>
                   </AccordionItem>
@@ -67,18 +67,18 @@ export default async function FaqPage() {
 
             {/* Sidebar CTA */}
             <aside className="lg:sticky lg:top-24 lg:self-start">
-              <div className="rounded-lg border border-ligne bg-or-pale/50 p-6">
-                <span className="flex h-10 w-10 items-center justify-center rounded-md bg-blanc text-lapis shadow-sm">
+              <div className="rounded-lg border border-border bg-primary/10 p-6">
+                <span className="flex h-10 w-10 items-center justify-center rounded-md bg-card text-primary shadow-sm">
                   <MessageCircleQuestion className="h-5 w-5" strokeWidth={1.5} />
                 </span>
-                <h2 className="mt-4 font-display text-lg font-bold text-encre">
+                <h2 className="mt-4 font-display text-lg font-bold text-foreground">
                   Une autre question ?
                 </h2>
-                <p className="mt-2 text-sm text-ardoise">
+                <p className="mt-2 text-sm text-muted-foreground">
                   Un conseiller vous répond sous 24 heures ouvrées. Premier échange gratuit et sans
                   engagement.
                 </p>
-                <Button asChild size="lg" className="mt-5 w-full bg-lapis text-blanc hover:bg-lapis/90">
+                <Button asChild size="lg" className="mt-5 w-full bg-primary text-blanc hover:bg-primary/90">
                   <Link href="/contact">
                     Poser ma question
                     <ArrowRight className="h-4 w-4" strokeWidth={1.75} />
@@ -88,7 +88,7 @@ export default async function FaqPage() {
                   asChild
                   size="lg"
                   variant="outline"
-                  className="mt-2 w-full border-ligne bg-blanc text-encre hover:bg-porcelaine"
+                  className="mt-2 w-full border-border bg-card text-foreground hover:bg-background"
                 >
                   <Link href="/universites">Voir le catalogue</Link>
                 </Button>

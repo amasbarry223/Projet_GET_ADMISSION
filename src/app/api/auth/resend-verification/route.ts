@@ -10,7 +10,7 @@ import { createVerifyToken } from "@/lib/verify-token";
  * - dryRun: indique si le compte existe et attend une vérif (sans renvoyer)
  */
 export async function POST(request: Request) {
-  const rateLimited = checkRateLimit(getClientId(request), "/api/auth/resend-verification");
+  const rateLimited = await checkRateLimit(getClientId(request), "/api/auth/resend-verification");
   if (rateLimited) return rateLimited;
 
   let body: { email?: string; dryRun?: boolean };

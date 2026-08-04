@@ -9,7 +9,7 @@ import {
   createActionsColumn,
   type ActionItem,
 } from "@/components/data-table/data-table";
-import { Card } from "@/components/ui/card";
+import { StatStrip } from "@/components/admin/stat-strip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -23,24 +23,26 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatFCFA, formatFCFACompact, formatDate } from "@/lib/format";
+import { apiFetch, apiJson } from "@/lib/api-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   CheckCircle2,
+  ChevronsUpDown,
   Download,
   Wallet,
-  TrendingUp,
-  Clock,
-  XCircle,
   Info,
   Eye,
   FileText,
   RefreshCw,
   Plus,
   Loader2,
+  XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -66,6 +68,8 @@ export type FinanceKpis = {
   encaissePrive?: number;
 };
 
+type DossierOption = { id: string; reference: string; candidatNom: string };
+
 const STATUT_TONE: Record<string, string> = {
   réussi: "bg-vert/10 text-vert border-vert",
   en_attente: "bg-ambre/10 text-ambre border-ambre",
@@ -87,10 +91,32 @@ export function FinanceClient({
   const kpis = initialKpis;
 
   // État du formulaire de transaction manuelle
-  const [formDossierId, setFormDossierId] = React.useState("");
+  const [dossierOptions, setDossierOptions] = React.useState<DossierOption[] | null>(null);
+  const [dossierPickerOpen, setDossierPickerOpen] = React.useState(false);
+  const [selectedDossier, setSelectedDossier] = React.useState<DossierOption | null>(null);
   const [formMontant, setFormMontant] = React.useState("");
   const [formMoyen, setFormMoyen] = React.useState("espece");
   const [creating, setCreating] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!newOpen || dossierOptions !== null) return;
+    void apiFetch<Array<{ id: string; reference: string; candidat: { prenom: string; nom: string } }>>(
+      "/api/dossiers",
+    ).then((result) => {
+      if (!result.ok) {
+        toast.error("Impossible de charger les dossiers", { description: result.error });
+        setDossierOptions([]);
+        return;
+      }
+      setDossierOptions(
+        result.data.map((d) => ({
+          id: d.id,
+          reference: d.reference,
+          candidatNom: `${d.candidat.prenom} ${d.candidat.nom}`,
+        })),
+      );
+    });
+  }, [newOpen, dossierOptions]);
 
   const actions: ActionItem<TransactionRow>[] = React.useMemo(
     () => [
@@ -104,22 +130,13 @@ export function FinanceClient({
             `Valider l'encaissement de ${formatFCFA(row.montant)} pour ${row.reference}. Le candidat sera notifié et le reçu sera disponible.`,
           confirmLabel: "Confirmer",
           onConfirm: async (row) => {
-            try {
-              const res = await fetch("/api/paiements", {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id: row.id, statut: "reussi" }),
-              });
-              if (res.ok) {
-                toast.success("Paiement confirmé", { description: row.reference });
-                router.refresh();
-              } else {
-                const err = await res.json().catch(() => ({}));
-                toast.error("Échec", { description: (err as { error?: string }).error ?? "Confirmation impossible." });
-              }
-            } catch {
-              toast.error("Erreur réseau");
+            const result = await apiJson("/api/paiements", "PATCH", { id: row.id, statut: "reussi" });
+            if (!result.ok) {
+              toast.error("Action impossible", { description: result.error });
+              return;
             }
+            toast.success("Paiement confirmé", { description: row.reference });
+            router.refresh();
           },
         },
       },
@@ -134,21 +151,13 @@ export function FinanceClient({
             `${row.reference} sera marqué comme échoué. Le candidat devra réessayer.`,
           confirmLabel: "Rejeter",
           onConfirm: async (row) => {
-            try {
-              const res = await fetch("/api/paiements", {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id: row.id, statut: "echoue" }),
-              });
-              if (res.ok) {
-                toast.success("Paiement rejeté", { description: row.reference });
-                router.refresh();
-              } else {
-                toast.error("Échec", { description: "Rejet impossible." });
-              }
-            } catch {
-              toast.error("Erreur réseau");
+            const result = await apiJson("/api/paiements", "PATCH", { id: row.id, statut: "echoue" });
+            if (!result.ok) {
+              toast.error("Action impossible", { description: result.error });
+              return;
             }
+            toast.success("Paiement rejeté", { description: row.reference });
+            router.refresh();
           },
         },
       },
@@ -162,7 +171,7 @@ export function FinanceClient({
         label: "Télécharger le reçu",
         icon: FileText,
         hidden: (row) => row.statut !== "réussi",
-        onClick: (row) => window.open(`/api/recu/${row.id}`, "_blank"),
+        onClick: (row) => window.open(`/api/recu/${row.id}?format=pdf`, "_blank"),
       },
       {
         label: "Relancer la transaction",
@@ -173,26 +182,18 @@ export function FinanceClient({
             `Une nouvelle tentative de prélèvement sera effectuée pour ${row.reference}.`,
           confirmLabel: "Relancer",
           onConfirm: async (row) => {
-            try {
-              const res = await fetch("/api/admin/paiements", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  dossierId: row.dossierId,
-                  montant: row.montant,
-                  moyen: row.moyen.split(" · ")[0],
-                  tranche: "Relance",
-                }),
-              });
-              if (res.ok) {
-                toast.success("Transaction relancée", { description: `${row.reference} — nouvelle tentative enregistrée.` });
-                router.refresh();
-              } else {
-                toast.error("Échec", { description: "La relance a échoué." });
-              }
-            } catch {
-              toast.error("Erreur réseau");
+            const result = await apiJson("/api/admin/paiements", "POST", {
+              dossierId: row.dossierId,
+              montant: row.montant,
+              moyen: row.moyen.split(" · ")[0],
+              tranche: "Relance",
+            });
+            if (!result.ok) {
+              toast.error("Action impossible", { description: result.error });
+              return;
             }
+            toast.success("Transaction relancée", { description: `${row.reference} — nouvelle tentative enregistrée.` });
+            router.refresh();
           },
         },
       },
@@ -277,40 +278,33 @@ export function FinanceClient({
 
   const handleNewTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
-    setCreating(true);
-    try {
-      const res = await fetch("/api/admin/paiements", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dossierId: formDossierId,
-          montant: Number(formMontant) || 0,
-          moyen: formMoyen,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error("Transaction échouée", { description: (err as any)?.error ?? "Erreur serveur." });
-        return;
-      }
-      toast.success("Transaction enregistrée", { description: "La transaction manuelle a été ajoutée." });
-      setNewOpen(false);
-      setFormDossierId("");
-      setFormMontant("");
-      setFormMoyen("espece");
-      router.refresh();
-    } catch {
-      toast.error("Transaction échouée", { description: "Erreur réseau." });
-    } finally {
-      setCreating(false);
+    if (!selectedDossier) {
+      toast.error("Sélectionnez un dossier");
+      return;
     }
+    setCreating(true);
+    const result = await apiJson("/api/admin/paiements", "POST", {
+      dossierId: selectedDossier.id,
+      montant: Number(formMontant) || 0,
+      moyen: formMoyen,
+    });
+    setCreating(false);
+    if (!result.ok) {
+      toast.error("Transaction échouée", { description: result.error });
+      return;
+    }
+    toast.success("Transaction enregistrée", { description: "La transaction manuelle a été ajoutée." });
+    setNewOpen(false);
+    setSelectedDossier(null);
+    setFormMontant("");
+    setFormMoyen("espece");
+    router.refresh();
   };
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow">Finance</p>
           <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">
             Transactions &amp; reçus.
           </h1>
@@ -334,14 +328,50 @@ export function FinanceClient({
               <form onSubmit={handleNewTransaction} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-sm font-medium text-encre">Candidat</Label>
-                    <Input
-                      value={formDossierId}
-                      onChange={(e) => setFormDossierId(e.target.value)}
-                      placeholder="Référence dossier"
-                      className="font-mono"
-                      required
-                    />
+                    <Label className="text-sm font-medium text-encre">Dossier</Label>
+                    <Popover open={dossierPickerOpen} onOpenChange={setDossierPickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={dossierPickerOpen}
+                          className="w-full justify-between font-normal"
+                        >
+                          <span className="truncate">
+                            {selectedDossier
+                              ? `${selectedDossier.reference} — ${selectedDossier.candidatNom}`
+                              : "Sélectionner…"}
+                          </span>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-ardoise" strokeWidth={1.5} />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Référence ou candidat…" />
+                          <CommandList>
+                            <CommandEmpty>
+                              {dossierOptions === null ? "Chargement…" : "Aucun dossier trouvé."}
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {(dossierOptions ?? []).map((d) => (
+                                <CommandItem
+                                  key={d.id}
+                                  value={`${d.reference} ${d.candidatNom}`}
+                                  onSelect={() => {
+                                    setSelectedDossier(d);
+                                    setDossierPickerOpen(false);
+                                  }}
+                                >
+                                  <span className="font-mono text-xs text-encre">{d.reference}</span>
+                                  <span className="ml-2 truncate text-ardoise">{d.candidatNom}</span>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-sm font-medium text-encre">Montant (FCFA)</Label>
@@ -381,36 +411,36 @@ export function FinanceClient({
               </form>
             </DialogContent>
           </Dialog>
-          <Button variant="outline" onClick={() => window.open("/api/admin/export/transactions", "_blank")}>
+          <Button
+            variant="outline"
+            onClick={() => window.open("/api/admin/export/transactions?format=csv", "_blank")}
+          >
             <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Export CSV
           </Button>
-          <Button variant="outline" onClick={() => window.open("/api/admin/export/dossiers", "_blank")}>
+          <Button
+            variant="outline"
+            onClick={() => window.open("/api/admin/export/transactions?format=pdf", "_blank")}
+          >
             <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Export PDF
           </Button>
         </div>
       </div>
 
-      {/* KPIs finance */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <FinanceKpi icon={Wallet} label="Encaissé ce mois" value={formatFCFACompact(kpis.encaisseMois)} tone="vert" />
-        <FinanceKpi icon={Clock} label="En attente" value={formatFCFACompact(kpis.enAttente)} tone="ambre" />
-        <FinanceKpi icon={XCircle} label="Impayés" value={formatFCFACompact(kpis.impayes)} tone="carmin" />
-        <FinanceKpi icon={TrendingUp} label="Total encaissé" value={formatFCFACompact(kpis.totalEncaisse)} tone="lapis" />
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <FinanceKpi
-          icon={Wallet}
-          label="Encaissé — public"
-          value={formatFCFACompact(kpis.encaissePublic ?? 0)}
-          tone="lapis"
-        />
-        <FinanceKpi
-          icon={Wallet}
-          label="Encaissé — privé"
-          value={formatFCFACompact(kpis.encaissePrive ?? 0)}
-          tone="vert"
-        />
-      </div>
+      <StatStrip
+        items={[
+          { label: "Encaissé ce mois", value: formatFCFACompact(kpis.encaisseMois) },
+          { label: "En attente", value: formatFCFACompact(kpis.enAttente) },
+          { label: "Impayés", value: formatFCFACompact(kpis.impayes) },
+          { label: "Total encaissé", value: formatFCFACompact(kpis.totalEncaisse) },
+        ]}
+      />
+      <StatStrip
+        className="lg:grid-cols-2"
+        items={[
+          { label: "Encaissé — public", value: formatFCFACompact(kpis.encaissePublic ?? 0) },
+          { label: "Encaissé — privé", value: formatFCFACompact(kpis.encaissePrive ?? 0) },
+        ]}
+      />
 
       <DataTable
         columns={columns}
@@ -468,33 +498,5 @@ export function FinanceClient({
         </AlertDescription>
       </Alert>
     </div>
-  );
-}
-
-function FinanceKpi({
-  icon: Icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  tone: "vert" | "ambre" | "carmin" | "lapis";
-}) {
-  const toneClass = {
-    vert: "bg-vert/10 text-vert",
-    ambre: "bg-ambre/10 text-ambre",
-    carmin: "bg-carmin/10 text-carmin",
-    lapis: "bg-lapis/10 text-lapis",
-  }[tone];
-  return (
-    <Card className="border-ligne bg-blanc p-5">
-      <div className={cn("flex h-9 w-9 items-center justify-center rounded-md", toneClass)}>
-        <Icon className="h-4 w-4" strokeWidth={1.5} />
-      </div>
-      <p className="mt-3 font-display text-xl font-bold text-encre">{value}</p>
-      <p className="text-xs text-ardoise">{label}</p>
-    </Card>
   );
 }

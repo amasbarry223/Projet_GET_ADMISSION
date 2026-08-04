@@ -2,11 +2,14 @@
 
 import * as React from "react";
 import type { PersonalInfo } from "@/components/dossier/wizard/types";
+import { toastApiErrorSync } from "@/lib/toast-api";
 import {
   DOSSIER_AUTOSAVE_DEBOUNCE_MS,
   DOSSIER_SAVED_BADGE_VISIBLE_MS,
   isDossierEditableByCandidate,
 } from "@/shared/constants";
+
+export type AutosaveStatus = "idle" | "saved" | "error";
 
 export function useAutosaveDossierDraft(params: {
   loadingDossier: boolean;
@@ -15,7 +18,7 @@ export function useAutosaveDossierDraft(params: {
   dossierEtat: string | undefined;
   step: number;
   personalInfo: PersonalInfo;
-  setSavedBadge: (visible: boolean) => void;
+  setAutosaveStatus: (status: AutosaveStatus) => void;
 }) {
   const {
     loadingDossier,
@@ -24,8 +27,10 @@ export function useAutosaveDossierDraft(params: {
     dossierEtat,
     step,
     personalInfo,
-    setSavedBadge,
+    setAutosaveStatus,
   } = params;
+
+  const failCountRef = React.useRef(0);
 
   React.useEffect(() => {
     if (loadingDossier || universitesLoading || !dossierId) return;
@@ -52,11 +57,26 @@ export function useAutosaveDossierDraft(params: {
           }),
         });
         if (response.ok) {
-          setSavedBadge(true);
-          setTimeout(() => setSavedBadge(false), DOSSIER_SAVED_BADGE_VISIBLE_MS);
+          failCountRef.current = 0;
+          setAutosaveStatus("saved");
+          setTimeout(() => setAutosaveStatus("idle"), DOSSIER_SAVED_BADGE_VISIBLE_MS);
+          return;
         }
-      } catch {
-        /* ignore */
+        failCountRef.current += 1;
+        setAutosaveStatus("error");
+        if (failCountRef.current >= 2) {
+          const body = await response.json().catch(() => ({}));
+          toastApiErrorSync(response.status, {
+            title: "Brouillon non enregistré",
+            body,
+          });
+        }
+      } catch (error) {
+        failCountRef.current += 1;
+        setAutosaveStatus("error");
+        if (failCountRef.current >= 2) {
+          toastApiErrorSync(error, { title: "Brouillon non enregistré" });
+        }
       }
     }, DOSSIER_AUTOSAVE_DEBOUNCE_MS);
 
@@ -68,6 +88,6 @@ export function useAutosaveDossierDraft(params: {
     dossierEtat,
     loadingDossier,
     universitesLoading,
-    setSavedBadge,
+    setAutosaveStatus,
   ]);
 }

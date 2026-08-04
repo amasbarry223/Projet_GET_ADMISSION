@@ -4,7 +4,7 @@ import * as React from "react";
 import { Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -16,7 +16,8 @@ import { toast } from "sonner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MessagesSkeleton } from "@/components/ui/skeleton-card";
 import { getApiErrorMessageSync, messageFromBody } from "@/lib/api-error";
-import { pickPrimaryDossier } from "@/lib/dossier/pick-dossier";
+import { usePrimaryDossier } from "@/hooks/use-primary-dossier";
+import { runAsyncEffect } from "@/lib/run-async-effect";
 import { Paperclip, Send, Mail, Phone, ArrowLeft, Loader2, AlertCircle, MessageSquare } from "lucide-react";
 
 type ConversationMessage = {
@@ -46,51 +47,28 @@ export default function MessagesPage() {
 
 function MessagesInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const preferredId = searchParams.get("dossierId");
-  const [dossierId, setDossierId] = React.useState<string | null>(null);
+  const {
+    dossier: primaryDossier,
+    loading: dossierLoading,
+    error: dossierError,
+    refetch: refetchDossier,
+  } = usePrimaryDossier(preferredId);
+  const dossierId = primaryDossier?.id ?? null;
   const [conversation, setConversation] = React.useState<Conversation>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
+  const [conversationLoading, setConversationLoading] = React.useState(true);
+  const [conversationError, setConversationError] = React.useState<string | null>(null);
   const [input, setInput] = React.useState("");
   const [sending, setSending] = React.useState(false);
   const [contactInfo, setContactInfo] = React.useState<{ email: string; telephone: string } | null>(null);
+  const [contactError, setContactError] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
-  // Fetch contact info depuis la DB
-  React.useEffect(() => {
-    fetch("/api/public/contact-info")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d) setContactInfo({ email: d.email, telephone: d.telephone }); })
-      .catch((e) => console.error("fetch error:", e));
-  }, []);
-
-  // 1. Fetch le dossier du candidat
-  React.useEffect(() => {
-    fetch("/api/dossiers")
-      .then((r) => {
-        if (!r.ok) throw new Error();
-        return r.json();
-      })
-      .then((data: { id: string; etat: string; updatedAt: string }[]) => {
-        const picked = pickPrimaryDossier(Array.isArray(data) ? data : [], preferredId);
-        if (picked?.id) {
-          setDossierId(picked.id);
-        } else {
-          setError("Vous n'avez pas encore de dossier.");
-          setLoading(false);
-        }
-      })
-      .catch((e) => {
-        console.error("fetch error:", e);
-        setError(getApiErrorMessageSync(e, undefined, "Impossible de charger votre dossier."));
-        setLoading(false);
-      });
-  }, [preferredId]);
-
-  // 2. Fetch la conversation quand on a le dossierId
-  React.useEffect(() => {
-    if (!dossierId) return;
-    fetch(`/api/messages?dossierId=${encodeURIComponent(dossierId)}`)
+  const loadConversation = React.useCallback((id: string) => {
+    setConversationLoading(true);
+    setConversationError(null);
+    fetch(`/api/messages?dossierId=${encodeURIComponent(id)}`)
       .then(async (r) => {
         if (!r.ok) {
           const body = await r.json().catch(() => ({}));
@@ -100,16 +78,16 @@ function MessagesInner() {
       })
       .then((data: Conversation) => {
         setConversation(data);
-        setLoading(false);
-        // Marquer les messages comme lus côté serveur si besoin (rôle candidat)
+        setConversationLoading(false);
         if (data && data.nonLusCandidat > 0) {
           fetch("/api/messages/read", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ dossierId }),
+            body: JSON.stringify({ dossierId: id }),
           })
             .then(() => {
               setConversation((prev) => (prev ? { ...prev, nonLusCandidat: 0 } : prev));
+              void refetchDossier();
             })
             .catch(() => {
               toast.error("Lecture", {
@@ -120,10 +98,32 @@ function MessagesInner() {
       })
       .catch((e) => {
         console.error("fetch error:", e);
-        setError(getApiErrorMessageSync(e, undefined, "Impossible de charger la conversation."));
-        setLoading(false);
+        setConversationError(getApiErrorMessageSync(e, undefined, "Impossible de charger la conversation."));
+        setConversationLoading(false);
       });
-  }, [dossierId]);
+  }, [refetchDossier]);
+
+  // Fetch contact info depuis la DB
+  React.useEffect(() => {
+    return runAsyncEffect(() => {
+      fetch("/api/public/contact-info")
+        .then((r) => {
+          if (!r.ok) throw new Error();
+          return r.json();
+        })
+        .then((d) => {
+          if (d) setContactInfo({ email: d.email, telephone: d.telephone });
+        })
+        .catch(() => setContactError(true));
+    });
+  }, []);
+
+  React.useEffect(() => {
+    if (dossierLoading || dossierError || !dossierId) return;
+    return runAsyncEffect(() => {
+      loadConversation(dossierId);
+    });
+  }, [dossierLoading, dossierError, dossierId, loadConversation]);
 
   React.useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -163,18 +163,25 @@ function MessagesInner() {
     }
   };
 
+  const loading = dossierLoading || (!!dossierId && conversationLoading);
+  const error = dossierError ?? conversationError;
+
   if (loading) {
     return <MessagesSkeleton />;
   }
 
-  if (error && !dossierId) {
+  if (error) {
     return (
       <Alert className="border-carmin/40 bg-carmin/5">
         <AlertCircle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
         <AlertTitle className="font-display text-sm font-bold text-encre">Chargement impossible</AlertTitle>
         <AlertDescription className="text-sm text-ardoise">
           {error}{" "}
-          <button type="button" className="font-medium text-lapis underline" onClick={() => window.location.reload()}>
+          <button
+            type="button"
+            className="font-medium text-lapis underline"
+            onClick={() => (dossierId ? loadConversation(dossierId) : void refetchDossier())}
+          >
             Réessayer
           </button>
         </AlertDescription>
@@ -197,23 +204,7 @@ function MessagesInner() {
     );
   }
 
-  if (error) {
-    return (
-      <Alert className="border-carmin/40 bg-carmin/5">
-        <AlertCircle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
-        <AlertTitle className="font-display text-sm font-bold text-encre">Chargement impossible</AlertTitle>
-        <AlertDescription className="text-sm text-ardoise">
-          {error}{" "}
-          <button type="button" className="font-medium text-lapis underline" onClick={() => window.location.reload()}>
-            Réessayer
-          </button>
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
-  const messages = conversation?.messages ?? [];
-  const lastMessage = messages[messages.length - 1];
+  const messages = conversation?.messages ?? [];  const lastMessage = messages[messages.length - 1];
   const conseillerNom = conversation?.conseiller
     ? `${conversation.conseiller.prenom} ${conversation.conseiller.nom}`
     : "Conseiller non affecté";
@@ -257,11 +248,15 @@ function MessagesInner() {
             <div className="border-t border-ligne p-3">
               <div className="flex items-center gap-2 text-xs text-ardoise">
                 <Mail className="h-3.5 w-3.5" strokeWidth={1.5} />
-                <span>{contactInfo?.email ?? "Chargement…"}</span>
+                <span>
+                  {contactInfo?.email ?? (contactError ? "Contact indisponible" : "Chargement…")}
+                </span>
               </div>
               <div className="mt-1 flex items-center gap-2 text-xs text-ardoise">
                 <Phone className="h-3.5 w-3.5" strokeWidth={1.5} />
-                <span>{contactInfo?.telephone ?? "Chargement…"}</span>
+                <span>
+                  {contactInfo?.telephone ?? (contactError ? "—" : "Chargement…")}
+                </span>
               </div>
             </div>
           </aside>
@@ -270,7 +265,14 @@ function MessagesInner() {
           <section className="flex flex-col">
             {/* Mobile header */}
             <div className="flex items-center gap-3 border-b border-ligne px-4 py-3 md:hidden">
-              <Button variant="ghost" size="icon" aria-label="Retour"><ArrowLeft className="h-4 w-4" /></Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Retour au tableau de bord"
+                onClick={() => router.push("/espace")}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
               <div className="relative h-8 w-8 flex-none overflow-hidden rounded-full border border-ligne">
                 <Image src={conversation?.conseiller?.photoUrl ?? "/images/advisor-portrait.png"} alt={conseillerNom} fill className="object-cover" sizes="32px" />
               </div>

@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { requirePermission } from "@/lib/rbac";
+import { requireApiPermission } from "@/lib/api-auth";
 
 export const revalidate = 3600;
 
@@ -14,14 +12,8 @@ export async function GET() {
 
 // POST /api/public/modeles-attestation — créer un modèle (staff uniquement)
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
-  const gate = requirePermission((session.user as { role?: string }).role, "attestations.emit");
-  if (!gate.ok) {
-    return NextResponse.json({ error: gate.error }, { status: gate.status });
-  }
+  const auth = await requireApiPermission("attestations.emit");
+  if (!auth.ok) return auth.response;
 
   const body = await request.json();
   const { nom, description } = body;

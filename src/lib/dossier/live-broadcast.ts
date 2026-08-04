@@ -7,13 +7,16 @@ export const DOSSIER_LIVE_CHANNEL = "dossier-suivi-live";
 export type DossierLiveBroadcastPayload = {
   type: "dossier_updated";
   dossierId: string;
-  candidatId: string;
   etat: string;
   at: string;
 };
 
 export async function broadcastDossierLive(
-  payload: Omit<DossierLiveBroadcastPayload, "type" | "at"> & { at?: string },
+  payload: Omit<DossierLiveBroadcastPayload, "type" | "at"> & {
+    at?: string;
+    /** @deprecated non diffusé (fuite métadonnées) */
+    candidatId?: string;
+  },
 ): Promise<void> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -22,7 +25,6 @@ export async function broadcastDossierLive(
   const body: DossierLiveBroadcastPayload = {
     type: "dossier_updated",
     dossierId: payload.dossierId,
-    candidatId: payload.candidatId,
     etat: payload.etat,
     at: payload.at ?? new Date().toISOString(),
   };

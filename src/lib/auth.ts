@@ -86,7 +86,7 @@ async function authorizeViaPasswordCredentials(params: {
   const normalizedEmail = params.email.toLowerCase().trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) return null;
 
-  if (isRateLimited(normalizedEmail, API_ROUTES.AUTH_CALLBACK_CREDENTIALS)) {
+  if (await isRateLimited(normalizedEmail, API_ROUTES.AUTH_CALLBACK_CREDENTIALS)) {
     return null;
   }
 

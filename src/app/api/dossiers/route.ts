@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { dossierCreateSchema, validate } from "@/lib/validations";
+import { dossierCreateSchema } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
+import { requireApiUser, parseOrRespond } from "@/lib/api-auth";
 import { requirePermission } from "@/lib/rbac";
 import { resolveFraisAgenceAsync } from "@/lib/dossier/frais-agence-server";
 import { isProfilAcademiqueComplet } from "@/lib/dossier/pieces-requises";
 import { syncPiecesDossier } from "@/lib/dossier/sync-pieces";
+import { resolveActiveMatriceVersionId } from "@/lib/dossier/matrice-version";
 
 // GET /api/dossiers — liste (candidat: ses dossiers ; staff: dossiers.read)
 //
@@ -15,13 +15,9 @@ import { syncPiecesDossier } from "@/lib/dossier/sync-pieces";
 // - Sans `?page=`      → renvoie un tableau plat (legacy).
 // - Avec `?page=N`      → renvoie { data, total, page, pageSize }.
 export async function GET(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
-
-  const role = (session.user as any).role;
-  const userId = (session.user as any).id;
+  const auth = await requireApiUser();
+  if (!auth.ok) return auth.response;
+  const { role, id: userId } = auth.user;
 
   if (role !== "CANDIDAT") {
     const gate = requirePermission(role, "dossiers.read");
@@ -113,16 +109,13 @@ function generateMrz(opts: { nom: string; prenom: string; reference: string }): 
 // - État initial : BROUILLON, étape 1 (BF-12)
 // - Soumission explicite via PUT action=soumettre (BF-15)
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
+  const auth = await requireApiUser();
+  if (!auth.ok) return auth.response;
 
-  const rateLimited = checkRateLimit(getClientId(request), "/api/dossiers");
+  const rateLimited = await checkRateLimit(getClientId(request), "/api/dossiers");
   if (rateLimited) return rateLimited;
 
-  const userId = (session.user as any).id;
-  const role = (session.user as any).role;
+  const { id: userId, role } = auth.user;
   if (role !== "CANDIDAT") {
     return NextResponse.json(
       { error: "Seuls les candidats peuvent créer un dossier" },
@@ -137,10 +130,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
 
-  const parsed = validate(dossierCreateSchema, body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
-  }
+  const parsed = parseOrRespond(dossierCreateSchema, body);
+  if (!parsed.ok) return parsed.response;
   const { universiteId, formationId } = parsed.data;
 
   const formation = await db.formation.findUnique({
@@ -204,12 +195,15 @@ export async function POST(request: Request) {
       reference,
     });
 
+    const matriceVersionId = await resolveActiveMatriceVersionId(tx);
+
     const created = await tx.dossier.create({
       data: {
         reference,
         candidatId: userId,
         universiteId,
         formationId,
+        matriceVersionId,
         etat: "BROUILLON",
         etapeActuelle: 1,
         fraisAgence,

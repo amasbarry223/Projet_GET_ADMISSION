@@ -9,7 +9,6 @@ import {
   createActionsColumn,
   type ActionItem,
 } from "@/components/data-table/data-table";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -26,7 +25,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
-import { formatFCFACompact } from "@/lib/format";
+import { formatFCFA, formatFCFACompact } from "@/lib/format";
+import { apiJson } from "@/lib/api-client";
+import { resolveFraisAgence } from "@/lib/dossier/frais-agence";
 import { toast } from "sonner";
 import { Plus, MapPin, Eye, Pencil, Trash2, GraduationCap, Info, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -60,8 +61,6 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
   const [formEcusson, setFormEcusson] = React.useState("");
   const [formVille, setFormVille] = React.useState("");
   const [formPays, setFormPays] = React.useState("");
-  const [formFraisMin, setFormFraisMin] = React.useState("110000");
-  const [formFraisMax, setFormFraisMax] = React.useState("110000");
   const [formType, setFormType] = React.useState<"PUBLIC" | "PRIVE">("PRIVE");
   const [creating, setCreating] = React.useState(false);
 
@@ -70,8 +69,6 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
     setFormEcusson("");
     setFormVille("");
     setFormPays("");
-    setFormFraisMin("110000");
-    setFormFraisMax("110000");
     setFormType("PRIVE");
   };
 
@@ -234,57 +231,40 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
   const handleNew = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
-    try {
-      const res = await fetch("/api/universites", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nom: formNom,
-          pays: formPays,
-          drapeau: "",
-          ville: formVille,
-          ecusson: formEcusson,
-          domaines: [],
-          description: "",
-          pointsForts: [],
-          imageCouleur: "",
-          fraisMin: Number(formFraisMin) || 0,
-          fraisMax: Number(formFraisMax) || 0,
-          typeEtablissement: formType,
-          partenaire: true,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error("Ajout échoué", { description: (err as any)?.error ?? "Erreur serveur." });
-        return;
-      }
-      toast.success("Université ajoutée", {
-        description: `${formNom} a été ajoutée au catalogue.`,
-      });
-      setNewOpen(false);
-      resetForm();
-      router.refresh();
-    } catch {
-      toast.error("Ajout échoué", { description: "Erreur réseau." });
-    } finally {
-      setCreating(false);
+    // fraisMin/fraisMax ne sont pas envoyés : le serveur les calcule toujours
+    // depuis typeEtablissement + barème agence (voir /api/universites POST).
+    const result = await apiJson("/api/universites", "POST", {
+      nom: formNom,
+      pays: formPays,
+      drapeau: "",
+      ville: formVille,
+      ecusson: formEcusson,
+      domaines: [],
+      description: "",
+      pointsForts: [],
+      imageCouleur: "",
+      typeEtablissement: formType,
+      partenaire: true,
+    });
+    setCreating(false);
+    if (!result.ok) {
+      toast.error("Ajout échoué", { description: result.error });
+      return;
     }
+    toast.success("Université ajoutée", { description: `${formNom} a été ajoutée au catalogue.` });
+    setNewOpen(false);
+    resetForm();
+    router.refresh();
   };
 
   const handleDelete = async (id: string, nom: string) => {
-    try {
-      const res = await fetch(`/api/universites/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error("Suppression échouée", { description: (err as any)?.error ?? "Erreur serveur." });
-        return;
-      }
-      toast.success("Université supprimée", { description: `${nom} retirée du catalogue.` });
-      router.refresh();
-    } catch {
-      toast.error("Suppression échouée", { description: "Erreur réseau." });
+    const result = await apiJson(`/api/universites/${id}`, "DELETE");
+    if (!result.ok) {
+      toast.error("Suppression échouée", { description: result.error });
+      return;
     }
+    toast.success("Université supprimée", { description: `${nom} retirée du catalogue.` });
+    router.refresh();
   };
 
   const totalFormations = universites.reduce((acc, u) => acc + (u.formations?.length ?? 0), 0);
@@ -293,7 +273,6 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow">Catalogue</p>
           <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">
             Universités &amp; formations.
           </h1>
@@ -363,48 +342,18 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
                 </div>
                 <div className="space-y-1.5 col-span-2">
                   <Label className="text-sm font-medium text-encre">Type d&apos;établissement</Label>
-                  <Select
-                    value={formType}
-                    onValueChange={(v) => {
-                      const t = v as "PUBLIC" | "PRIVE";
-                      setFormType(t);
-                      if (t === "PUBLIC") {
-                        setFormFraisMin("65000");
-                        setFormFraisMax("65000");
-                      } else {
-                        setFormFraisMin("110000");
-                        setFormFraisMax("110000");
-                      }
-                    }}
-                  >
+                  <Select value={formType} onValueChange={(v) => setFormType(v as "PUBLIC" | "PRIVE")}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="PUBLIC">Public — 65 000 FCFA</SelectItem>
-                      <SelectItem value="PRIVE">Privé — 110 000 FCFA</SelectItem>
+                      <SelectItem value="PUBLIC">Public — {formatFCFA(resolveFraisAgence("PUBLIC"))}</SelectItem>
+                      <SelectItem value="PRIVE">Privé — {formatFCFA(resolveFraisAgence("PRIVE"))}</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-encre">Frais min (FCFA)</Label>
-                  <Input
-                    type="number"
-                    value={formFraisMin}
-                    onChange={(e) => setFormFraisMin(e.target.value)}
-                    placeholder="65000"
-                    className="font-mono"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-encre">Frais max (FCFA)</Label>
-                  <Input
-                    type="number"
-                    value={formFraisMax}
-                    onChange={(e) => setFormFraisMax(e.target.value)}
-                    placeholder="110000"
-                    className="font-mono"
-                  />
+                  <p className="text-xs text-ardoise">
+                    Frais fixés par le barème de l&apos;agence selon ce statut — non modifiables par université.
+                  </p>
                 </div>
               </div>
               <DialogFooter>

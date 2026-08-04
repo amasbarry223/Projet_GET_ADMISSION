@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldError } from "@/components/ui/field-error";
+import { toastApiErrorSync, toastApiSuccess } from "@/lib/toast-api";
 import {
   Select,
   SelectContent,
@@ -121,21 +123,18 @@ export default function ContactPage() {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        toast.success("Message envoyé", {
-          description: "Un conseiller vous répondra sous 24h ouvrées.",
-        });
+        toastApiSuccess("Message envoyé", "Un conseiller vous répondra sous 24h ouvrées.");
         setForm(INITIAL);
         setErrors({});
       } else {
         const data = await res.json().catch(() => ({}));
-        toast.error("Erreur", {
-          description: data.error || "L'envoi a échoué. Réessayez.",
+        toastApiErrorSync(res.status, {
+          title: "Envoi impossible",
+          body: data,
         });
       }
-    } catch {
-      toast.error("Erreur", {
-        description: "L'envoi a échoué. Réessayez.",
-      });
+    } catch (err) {
+      toastApiErrorSync(err, { title: "Envoi impossible" });
     } finally {
       setSubmitting(false);
     }
@@ -143,17 +142,17 @@ export default function ContactPage() {
 
   return (
     <>
-      <section className="bg-porcelaine" aria-labelledby="contact-title">
+      <section className="bg-background" aria-labelledby="contact-title">
         <div className="mx-auto max-w-content px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
           <div className="max-w-2xl">
             <Eyebrow>Contact</Eyebrow>
             <h1
               id="contact-title"
-              className="mt-5 font-display text-4xl font-extrabold tracking-tightest text-encre sm:text-5xl"
+              className="mt-5 font-display text-4xl font-extrabold tracking-tightest text-foreground sm:text-5xl"
             >
               Contactez un conseiller
             </h1>
-            <p className="mt-4 text-lg text-ardoise">
+            <p className="mt-4 text-lg text-muted-foreground">
               Une question, un projet d'admission, un suivi de dossier ? Écrivez-nous. Un conseiller
               vous répond sous 24 heures ouvrées.
             </p>
@@ -161,14 +160,14 @@ export default function ContactPage() {
         </div>
       </section>
 
-      <section className="bg-blanc" aria-label="Coordonnées et formulaire">
+      <section className="bg-card" aria-label="Coordonnées et formulaire">
         <div className="rule-or" aria-hidden />
         <div className="mx-auto max-w-content px-4 py-16 sm:px-6 lg:px-8">
           <div className="grid gap-10 lg:grid-cols-[1.3fr_0.7fr]">
             {/* Formulaire */}
-            <form onSubmit={onSubmit} noValidate className="rounded-lg border border-ligne bg-blanc p-6 shadow-sm sm:p-8">
+            <form onSubmit={onSubmit} noValidate className="rounded-lg border border-border bg-card p-6 shadow-sm sm:p-8">
               <p className="eyebrow">Votre message</p>
-              <h2 className="mt-3 font-display text-xl font-bold text-encre">
+              <h2 className="mt-3 font-display text-xl font-bold text-foreground">
                 Décrivez votre demande
               </h2>
 
@@ -186,11 +185,7 @@ export default function ContactPage() {
                     aria-invalid={!!errors.prenom}
                     aria-describedby={errors.prenom ? "prenom-err" : undefined}
                   />
-                  {errors.prenom && (
-                    <p id="prenom-err" className="text-xs text-carmin">
-                      {errors.prenom}
-                    </p>
-                  )}
+                  <FieldError id="prenom-err" message={errors.prenom} />
                 </div>
 
                 <div className="space-y-1.5">
@@ -206,11 +201,7 @@ export default function ContactPage() {
                     aria-invalid={!!errors.nom}
                     aria-describedby={errors.nom ? "nom-err" : undefined}
                   />
-                  {errors.nom && (
-                    <p id="nom-err" className="text-xs text-carmin">
-                      {errors.nom}
-                    </p>
-                  )}
+                  <FieldError id="nom-err" message={errors.nom} />
                 </div>
               </div>
 
@@ -229,11 +220,7 @@ export default function ContactPage() {
                     aria-invalid={!!errors.email}
                     aria-describedby={errors.email ? "email-err" : undefined}
                   />
-                  {errors.email && (
-                    <p id="email-err" className="text-xs text-carmin">
-                      {errors.email}
-                    </p>
-                  )}
+                  <FieldError id="email-err" message={errors.email} />
                 </div>
 
                 <div className="space-y-1.5">
@@ -257,7 +244,7 @@ export default function ContactPage() {
                 <Select value={form.objet} onValueChange={(v) => update("objet", v)}>
                   <SelectTrigger
                     id="objet"
-                    className="w-full bg-blanc"
+                    className="w-full bg-card"
                     aria-invalid={!!errors.objet}
                   >
                     <SelectValue placeholder={loadingInfo ? "Chargement…" : "Choisir un objet"} />
@@ -270,9 +257,7 @@ export default function ContactPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                {errors.objet && (
-                  <p className="text-xs text-carmin">{errors.objet}</p>
-                )}
+                <FieldError id="objet-err" message={errors.objet} />
               </div>
 
               <div className="mt-5 space-y-1.5">
@@ -289,11 +274,7 @@ export default function ContactPage() {
                   aria-invalid={!!errors.message}
                   aria-describedby={errors.message ? "message-err" : undefined}
                 />
-                {errors.message && (
-                  <p id="message-err" className="text-xs text-carmin">
-                    {errors.message}
-                  </p>
-                )}
+                <FieldError id="message-err" message={errors.message} />
               </div>
 
               <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -301,7 +282,7 @@ export default function ContactPage() {
                   type="submit"
                   size="lg"
                   disabled={submitting}
-                  className="bg-lapis text-blanc hover:bg-lapis/90"
+                  className="bg-primary text-blanc hover:bg-primary/90"
                 >
                   {submitting ? (
                     <>
@@ -315,7 +296,7 @@ export default function ContactPage() {
                     </>
                   )}
                 </Button>
-                <p className="text-xs text-ardoise">
+                <p className="text-xs text-muted-foreground">
                   Réponse sous 24h ouvrées · aucun engagement
                 </p>
               </div>
@@ -323,75 +304,75 @@ export default function ContactPage() {
 
             {/* Coord */}
             <aside className="space-y-4">
-              <div className="rounded-lg border border-ligne bg-porcelaine p-6">
+              <div className="rounded-lg border border-border bg-background p-6">
                 <p className="eyebrow">Coordonnées</p>
                 {loadingInfo || !contactInfo ? (
-                  <div className="mt-6 flex items-center gap-2 text-sm text-ardoise">
+                  <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
                     Chargement des coordonnées…
                   </div>
                 ) : (
                   <ul className="mt-5 space-y-4 text-sm">
                     <li className="flex items-start gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blanc text-lapis shadow-sm">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-card text-primary shadow-sm">
                         <Mail className="h-4 w-4" strokeWidth={1.75} />
                       </span>
                       <div>
-                        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">
                           E-mail
                         </p>
                         <a
                           href={`mailto:${contactInfo.email}`}
-                          className="mt-0.5 inline-block font-medium text-encre hover:text-lapis"
+                          className="mt-0.5 inline-block font-medium text-foreground hover:text-primary"
                         >
                           {contactInfo.email || "—"}
                         </a>
                       </div>
                     </li>
                     <li className="flex items-start gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blanc text-lapis shadow-sm">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-card text-primary shadow-sm">
                         <Phone className="h-4 w-4" strokeWidth={1.75} />
                       </span>
                       <div>
-                        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">
                           Téléphone
                         </p>
                         <a
                           href={telHref(contactInfo.telephone)}
-                          className="mt-0.5 inline-block font-medium text-encre hover:text-lapis"
+                          className="mt-0.5 inline-block font-medium text-foreground hover:text-primary"
                         >
                           {contactInfo.telephone || "—"}
                         </a>
                       </div>
                     </li>
                     <li className="flex items-start gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blanc text-lapis shadow-sm">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-card text-primary shadow-sm">
                         <MapPin className="h-4 w-4" strokeWidth={1.75} />
                       </span>
                       <div>
-                        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">
                           Agences
                         </p>
-                        <p className="mt-0.5 font-medium text-encre">
+                        <p className="mt-0.5 font-medium text-foreground">
                           {contactInfo.adresses || "—"}
                         </p>
-                        <p className="mt-1 text-xs text-ardoise">
+                        <p className="mt-1 text-xs text-muted-foreground">
                           Plateau (Abidjan), Mermoz (Dakar), Bè (Lomé)
                         </p>
                       </div>
                     </li>
                     <li className="flex items-start gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blanc text-lapis shadow-sm">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-card text-primary shadow-sm">
                         <Clock className="h-4 w-4" strokeWidth={1.75} />
                       </span>
                       <div>
-                        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+                        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">
                           Horaires
                         </p>
-                        <p className="mt-0.5 font-medium text-encre">
+                        <p className="mt-0.5 font-medium text-foreground">
                           {contactInfo.horaires || "—"}
                         </p>
-                        <p className="mt-1 text-xs text-ardoise">
+                        <p className="mt-1 text-xs text-muted-foreground">
                           Sam. · 9h00 – 13h00 (sur rendez-vous)
                         </p>
                       </div>
@@ -400,14 +381,14 @@ export default function ContactPage() {
                 )}
               </div>
 
-              <div className="rounded-lg border border-ligne bg-or-pale/40 p-6">
-                <p className="font-display text-base font-bold text-encre">
+              <div className="rounded-lg border border-border bg-primary/10 p-6">
+                <p className="font-display text-base font-bold text-foreground">
                   Vous préférez démarrer maintenant ?
                 </p>
-                <p className="mt-2 text-sm text-ardoise">
+                <p className="mt-2 text-sm text-muted-foreground">
                   Créez votre dossier en ligne, un conseiller vous contactera dès la soumission.
                 </p>
-                <Button asChild className="mt-4 w-full bg-lapis text-blanc hover:bg-lapis/90">
+                <Button asChild className="mt-4 w-full bg-primary text-blanc hover:bg-primary/90">
                   <Link href="/inscription">
                     Créer mon dossier
                     <ArrowRight className="h-4 w-4" strokeWidth={1.75} />

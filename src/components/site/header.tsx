@@ -4,12 +4,12 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { LayoutGroup, motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import { BrandLogo } from "@/components/brand-logo";
+import { ThemeToggle } from "@/components/site/theme-toggle";
 
 const NAV = [
   { href: "/universites", label: "Universités" },
@@ -18,17 +18,16 @@ const NAV = [
   { href: "/contact", label: "Contact" },
 ];
 
-const springPill = { type: "spring" as const, stiffness: 420, damping: 34 };
-
+/**
+ * Navbar vitrine — glass sticky au scroll, dark/light via ThemeToggle.
+ */
 export function SiteHeader() {
   const [scrolled, setScrolled] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const pathname = usePathname();
-  const reduce = useReducedMotion();
   const { data: session, status } = useSession();
   const role = (session?.user as { role?: string } | undefined)?.role;
   const isCandidat = status === "authenticated" && role === "CANDIDAT";
-  const overDarkHero = pathname === "/" && !scrolled;
 
   React.useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -37,188 +36,138 @@ export function SiteHeader() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Navbar vitrine = parcours candidat uniquement (pas d'entrée Back-office).
   const primaryHref = isCandidat ? "/espace" : "/inscription";
   const primaryLabel = isCandidat ? "Mon espace" : "Créer mon compte";
   const showPrimaryCta = status !== "authenticated" || isCandidat;
 
   return (
-    <header className="sticky top-0 z-40 w-full pointer-events-none">
-      <div className="px-3 pt-3 sm:px-4 sm:pt-4">
-        <div
-          className={cn(
-            "pointer-events-auto mx-auto flex max-w-content items-center justify-between gap-2 rounded-full border px-3 transition-all duration-300 sm:px-4",
-            scrolled ? "h-12 shadow-[0_8px_32px_rgba(46,131,41,0.10)]" : "h-14 shadow-[0_8px_28px_rgba(26,26,26,0.08)]",
-            overDarkHero
-              ? "border-blanc/15 bg-encre/40 backdrop-blur-xl"
-              : "border-ligne/80 bg-blanc/80 backdrop-blur-xl"
-          )}
+    <header
+      className={cn(
+        "sticky top-0 z-40 w-full border-b transition-[background-color,border-color,box-shadow] duration-300",
+        scrolled
+          ? "border-border bg-background/80 shadow-md backdrop-blur-xl"
+          : "border-transparent bg-background/60 backdrop-blur-md",
+      )}
+    >
+      <div className="rule-or" aria-hidden />
+      <div className="mx-auto flex h-[4.5rem] max-w-content items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <Link
+          href="/"
+          className="flex shrink-0 items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          aria-label="Accueil GET Admission"
         >
-          <Link
-            href="/"
-            className={cn(
-              "flex shrink-0 items-center",
-              overDarkHero && "drop-shadow-[0_1px_8px_rgba(0,0,0,0.35)]"
-            )}
-            aria-label="Accueil GET Admission"
-          >
-            <BrandLogo
-              height={scrolled ? 36 : 44}
-              className={cn(
-                "w-auto max-w-[160px] transition-[height] duration-300 sm:max-w-[220px]",
-                scrolled ? "max-h-9" : "max-h-11"
-              )}
-              priority
-            />
-          </Link>
+          <BrandLogo height={48} className="max-h-12 w-auto max-w-[200px] sm:max-w-[240px]" priority />
+        </Link>
 
-          <LayoutGroup>
-            <nav className="hidden md:flex items-center gap-0.5" aria-label="Navigation principale">
-              {NAV.map((item) => {
-                const active = pathname === item.href || pathname.startsWith(item.href + "/");
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "relative px-3.5 py-1.5 text-sm font-medium rounded-full transition-[color,transform,background-color] duration-200",
-                      !reduce && "hover:scale-[1.02]",
-                      overDarkHero
-                        ? active
-                          ? "text-blanc"
-                          : "text-blanc/75 hover:bg-blanc/10 hover:text-blanc"
-                        : active
-                          ? "text-lapis"
-                          : "text-encre/75 hover:bg-or-pale/70 hover:text-lapis"
-                    )}
-                  >
-                    {active && (
-                      <motion.span
-                        layoutId={reduce ? undefined : "nav-active-pill"}
+        <nav className="hidden items-center gap-0.5 md:flex" aria-label="Navigation principale">
+          {NAV.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(item.href + "/");
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "relative rounded-md px-3.5 py-2 text-[0.9375rem] font-semibold tracking-tight transition-colors duration-150",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  active
+                    ? "bg-primary/10 text-primary"
+                    : "text-foreground/85 hover:bg-muted hover:text-primary",
+                )}
+              >
+                {item.label}
+                {active && (
+                  <span
+                    className="absolute inset-x-3 -bottom-px h-[3px] rounded-full bg-primary"
+                    aria-hidden
+                  />
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="hidden items-center gap-2 md:flex">
+          <ThemeToggle />
+          {status !== "authenticated" && (
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="h-9 border-border bg-card px-4 font-semibold text-foreground hover:border-primary hover:bg-primary/10 hover:text-primary"
+            >
+              <Link href="/connexion">Se connecter</Link>
+            </Button>
+          )}
+          {showPrimaryCta && (
+            <Button asChild size="sm" className="h-9 bg-primary px-4 font-semibold text-primary-foreground hover:bg-or">
+              <Link href={primaryHref}>{primaryLabel}</Link>
+            </Button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 md:hidden">
+          <ThemeToggle />
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Ouvrir le menu"
+                className="h-10 w-10 border-border text-foreground hover:bg-muted"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[min(100%,320px)] border-border bg-background p-0">
+              <SheetTitle className="sr-only">Menu de navigation</SheetTitle>
+              <div className="flex h-[4.5rem] items-center justify-between border-b border-border px-4">
+                <BrandLogo height={40} className="max-w-[180px]" />
+                <SheetClose asChild>
+                  <Button variant="ghost" size="icon" aria-label="Fermer" className="text-foreground hover:bg-muted">
+                    <X className="h-5 w-5" />
+                  </Button>
+                </SheetClose>
+              </div>
+              <nav className="flex flex-col gap-1 p-3" aria-label="Navigation mobile">
+                {NAV.map((item) => {
+                  const active = pathname === item.href || pathname.startsWith(item.href + "/");
+                  return (
+                    <SheetClose asChild key={item.href}>
+                      <Link
+                        href={item.href}
+                        aria-current={active ? "page" : undefined}
                         className={cn(
-                          "absolute inset-0 z-0 rounded-full",
-                          overDarkHero ? "bg-blanc/15" : "bg-or-pale"
+                          "rounded-md px-3 py-3 text-base font-semibold transition-colors",
+                          active
+                            ? "bg-primary/10 text-primary"
+                            : "text-foreground hover:bg-muted hover:text-primary",
                         )}
-                        transition={springPill}
-                      />
-                    )}
-                    <span className="relative z-10">{item.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>
-          </LayoutGroup>
-
-          <div className="hidden md:flex items-center gap-1.5">
-            {status !== "authenticated" && (
-              <Button
-                asChild
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "rounded-full px-4",
-                  overDarkHero
-                    ? "text-blanc hover:bg-blanc/10 hover:text-blanc"
-                    : "text-encre hover:bg-or-pale hover:text-lapis"
-                )}
-              >
-                <Link href="/connexion?portal=etudiant">Se connecter</Link>
-              </Button>
-            )}
-            {showPrimaryCta && (
-              <Button
-                asChild
-                size="sm"
-                className={cn(
-                  "rounded-full bg-lapis px-4 text-blanc shadow-[0_0_0_0_rgba(60,169,54,0.35)] hover:bg-or hover:shadow-[0_0_0_6px_rgba(60,169,54,0.12)]",
-                  !reduce && "transition-transform hover:scale-[1.03]"
-                )}
-              >
-                <Link href={primaryHref}>{primaryLabel}</Link>
-              </Button>
-            )}
-          </div>
-
-          <div className="md:hidden">
-            <Sheet open={open} onOpenChange={setOpen}>
-              <SheetTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Ouvrir le menu"
-                  className={cn(
-                    "rounded-full",
-                    overDarkHero && "text-blanc hover:bg-blanc/10 hover:text-blanc"
-                  )}
-                >
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent
-                side="right"
-                className="w-[min(100%,340px)] border-l border-ligne bg-blanc p-0 gap-0 [&>button.absolute]:hidden"
-              >
-                <SheetTitle className="sr-only">Menu de navigation</SheetTitle>
-                <div className="flex h-16 items-center justify-between border-b border-ligne px-5">
-                  <BrandLogo height={40} className="max-w-[180px]" />
+                      >
+                        {item.label}
+                      </Link>
+                    </SheetClose>
+                  );
+                })}
+              </nav>
+              <div className="flex flex-col gap-2 border-t border-border px-4 py-4">
+                {status !== "authenticated" && (
                   <SheetClose asChild>
-                    <Button variant="ghost" size="icon" aria-label="Fermer" className="rounded-full">
-                      <X className="h-5 w-5" />
+                    <Button asChild variant="outline" className="w-full font-semibold">
+                      <Link href="/connexion">Se connecter</Link>
                     </Button>
                   </SheetClose>
-                </div>
-
-                <nav className="flex flex-col gap-1 px-3 py-4" aria-label="Navigation mobile">
-                  {NAV.map((item, i) => {
-                    const active =
-                      pathname === item.href || pathname.startsWith(item.href + "/");
-                    return (
-                      <SheetClose asChild key={item.href}>
-                        <Link
-                          href={item.href}
-                          className={cn(
-                            "rounded-2xl px-4 py-3.5 font-display text-lg font-medium transition-colors",
-                            "animate-fade-up",
-                            active
-                              ? "bg-or-pale text-lapis"
-                              : "text-encre hover:bg-porcelaine hover:text-lapis"
-                          )}
-                          style={
-                            reduce
-                              ? undefined
-                              : { animationDelay: `${i * 60}ms` }
-                          }
-                        >
-                          {item.label}
-                        </Link>
-                      </SheetClose>
-                    );
-                  })}
-                </nav>
-
-                <div className="mt-auto flex flex-col gap-2 border-t border-ligne px-5 py-5">
-                  <div className="mb-1 h-px w-12 rounded-full bg-lapis/40" aria-hidden />
-                  {status !== "authenticated" && (
-                    <SheetClose asChild>
-                      <Button asChild variant="outline" className="w-full rounded-full">
-                        <Link href="/connexion?portal=etudiant">Se connecter</Link>
-                      </Button>
-                    </SheetClose>
-                  )}
-                  {showPrimaryCta && (
-                    <SheetClose asChild>
-                      <Button
-                        asChild
-                        className="w-full rounded-full bg-lapis text-blanc hover:bg-or"
-                      >
-                        <Link href={primaryHref}>{primaryLabel}</Link>
-                      </Button>
-                    </SheetClose>
-                  )}
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
+                )}
+                {showPrimaryCta && (
+                  <SheetClose asChild>
+                    <Button asChild className="w-full bg-primary font-semibold text-primary-foreground hover:bg-or">
+                      <Link href={primaryHref}>{primaryLabel}</Link>
+                    </Button>
+                  </SheetClose>
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
     </header>

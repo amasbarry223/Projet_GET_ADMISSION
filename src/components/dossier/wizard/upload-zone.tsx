@@ -53,6 +53,9 @@ export function UploadZone({
   onUpload: (file: File) => void;
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = React.useState(false);
+  const canUpload = !disabled && !loading;
+
   const config = {
     manquante: {
       border: "border-border border-dashed hover:border-primary/50 hover:bg-muted/50",
@@ -90,14 +93,40 @@ export function UploadZone({
     },
   }[state];
 
+  const acceptFile = (file: File | undefined) => {
+    if (file && canUpload) onUpload(file);
+  };
+
   return (
     <div
       id={anchorId ?? undefined}
       className={cn(
         "rounded-md border p-4 transition-colors",
         config.border,
+        dragging && canUpload && "border-primary bg-primary/5",
         disabled && "opacity-70",
       )}
+      onDragEnter={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (canUpload) setDragging(true);
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (canUpload) setDragging(true);
+      }}
+      onDragLeave={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setDragging(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setDragging(false);
+        acceptFile(event.dataTransfer.files?.[0]);
+      }}
     >
       <div className="flex items-start gap-3">
         <div
@@ -124,13 +153,14 @@ export function UploadZone({
         </div>
         <input
           ref={inputRef}
+          id={anchorId ? `${anchorId}-file` : undefined}
           type="file"
           accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/*"
           className="sr-only"
           disabled={disabled || loading}
+          aria-label={`Téléverser le fichier : ${libelle}`}
           onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) onUpload(file);
+            acceptFile(event.target.files?.[0]);
             event.target.value = "";
           }}
         />
@@ -140,7 +170,8 @@ export function UploadZone({
           size="sm"
           onClick={() => inputRef.current?.click()}
           disabled={loading || disabled}
-          className="flex-none"
+          className="flex-none min-h-11 min-w-11"
+          aria-label={`${config.action} — ${libelle}`}
         >
           {loading ? (
             <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />

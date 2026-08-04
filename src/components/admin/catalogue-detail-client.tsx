@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import type { normalizeUniversite } from "@/lib/types";
 import { formatFCFA } from "@/lib/format";
 import { resolveFraisAgence } from "@/lib/dossier/frais-agence";
+import { apiFetch, apiJson } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,8 +97,6 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
   const [description, setDescription] = React.useState(universite.description ?? "");
   const [ville, setVille] = React.useState(universite.ville ?? "");
   const [pays, setPays] = React.useState(universite.pays ?? "");
-  const [fraisMin, setFraisMin] = React.useState(String(universite.fraisMin ?? 0));
-  const [fraisMax, setFraisMax] = React.useState(String(universite.fraisMax ?? 0));
   const [typeEtablissement, setTypeEtablissement] = React.useState<"PUBLIC" | "PRIVE">(
     (universite as { typeEtablissement?: "PUBLIC" | "PRIVE" }).typeEtablissement ?? "PRIVE"
   );
@@ -105,6 +104,123 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
   const [coverUrl, setCoverUrl] = React.useState(universite.coverUrl ?? "");
   const [logoUrl, setLogoUrl] = React.useState(universite.logoUrl ?? "");
   const [galleryList, setGalleryList] = React.useState<string[]>(universite.galleryUrls ?? []);
+  type FormationRow = {
+    id: string;
+    intitule: string;
+    niveau: string;
+    domaine: string;
+    duree: string;
+    prerequis?: string[] | string;
+    piecesRequises?: string[] | string;
+  };
+  const [formations, setFormations] = React.useState<FormationRow[]>(
+    (universite.formations ?? []) as FormationRow[],
+  );
+  const [formOpen, setFormOpen] = React.useState(false);
+  const [editingFormationId, setEditingFormationId] = React.useState<string | null>(null);
+  const [savingFormation, setSavingFormation] = React.useState(false);
+  const [deletingFormationId, setDeletingFormationId] = React.useState<string | null>(null);
+  const [formFormation, setFormFormation] = React.useState({
+    intitule: "",
+    niveau: "Licence" as "Licence" | "Master" | "Doctorat",
+    domaine: "",
+    duree: "3 ans",
+    prerequisText: "",
+    piecesText: "",
+  });
+
+  const linesToArr = (text: string) =>
+    text
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+  const startEditFormation = (f: FormationRow) => {
+    const prereq = Array.isArray(f.prerequis)
+      ? f.prerequis
+      : typeof f.prerequis === "string"
+        ? (() => {
+            try {
+              return JSON.parse(f.prerequis) as string[];
+            } catch {
+              return [];
+            }
+          })()
+        : [];
+    const pieces = Array.isArray(f.piecesRequises)
+      ? f.piecesRequises
+      : typeof f.piecesRequises === "string"
+        ? (() => {
+            try {
+              return JSON.parse(f.piecesRequises) as string[];
+            } catch {
+              return [];
+            }
+          })()
+        : [];
+    setEditingFormationId(f.id);
+    setFormOpen(true);
+    setFormFormation({
+      intitule: f.intitule,
+      niveau: (["Licence", "Master", "Doctorat"].includes(f.niveau)
+        ? f.niveau
+        : "Licence") as "Licence" | "Master" | "Doctorat",
+      domaine: f.domaine,
+      duree: f.duree,
+      prerequisText: prereq.join("\n"),
+      piecesText: pieces.join("\n"),
+    });
+  };
+
+  const saveFormation = async () => {
+    if (!formFormation.intitule.trim() || !formFormation.domaine.trim()) {
+      toast.error("Intitulé et domaine requis");
+      return;
+    }
+    setSavingFormation(true);
+    const payload = {
+      universiteId: universite.id,
+      intitule: formFormation.intitule.trim(),
+      niveau: formFormation.niveau,
+      domaine: formFormation.domaine.trim(),
+      duree: formFormation.duree.trim() || "3 ans",
+      prerequis: linesToArr(formFormation.prerequisText),
+      piecesRequises: linesToArr(formFormation.piecesText),
+    };
+    const result = editingFormationId
+      ? await apiJson<FormationRow>(`/api/formations/${editingFormationId}`, "PUT", payload)
+      : await apiJson<FormationRow>("/api/formations", "POST", payload);
+    setSavingFormation(false);
+    if (!result.ok) {
+      toast.error("Enregistrement formation impossible", { description: result.error });
+      return;
+    }
+    if (editingFormationId) {
+      setFormations((list) =>
+        list.map((f) => (f.id === editingFormationId ? { ...f, ...result.data } : f)),
+      );
+      toast.success("Formation mise à jour");
+    } else {
+      setFormations((list) => [...list, result.data]);
+      toast.success("Formation créée");
+    }
+    setFormOpen(false);
+    setEditingFormationId(null);
+    router.refresh();
+  };
+
+  const deleteFormation = async (id: string) => {
+    setDeletingFormationId(id);
+    const result = await apiJson(`/api/formations/${id}`, "DELETE");
+    setDeletingFormationId(null);
+    if (!result.ok) {
+      toast.error("Suppression impossible", { description: result.error });
+      return;
+    }
+    setFormations((list) => list.filter((f) => f.id !== id));
+    toast.success("Formation supprimée");
+    router.refresh();
+  };
 
   const [prevUniversite, setPrevUniversite] = React.useState(universite);
   if (universite !== prevUniversite) {
@@ -112,8 +228,6 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
     setDescription(universite.description ?? "");
     setVille(universite.ville ?? "");
     setPays(universite.pays ?? "");
-    setFraisMin(String(universite.fraisMin ?? 0));
-    setFraisMax(String(universite.fraisMax ?? 0));
     setTypeEtablissement(
       (universite as { typeEtablissement?: "PUBLIC" | "PRIVE" }).typeEtablissement ?? "PRIVE"
     );
@@ -121,69 +235,51 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
     setCoverUrl(universite.coverUrl ?? "");
     setLogoUrl(universite.logoUrl ?? "");
     setGalleryList(universite.galleryUrls ?? []);
+    setFormations((universite.formations ?? []) as FormationRow[]);
   }
 
   const mediaBusy = uploadingKind !== null || removingMedia;
 
   const uploadMedia = async (kind: MediaKind, file: File) => {
     setUploadingKind(kind);
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      form.append("kind", kind);
-      const res = await fetch(`/api/universites/${universite.id}/media`, {
-        method: "POST",
-        body: form,
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        url?: string;
-        galleryUrls?: string[];
-      };
-      if (!res.ok) {
-        toast.error("Upload échoué", { description: data.error ?? "Erreur serveur." });
-        return;
-      }
-      if (kind === "cover" && data.url) setCoverUrl(data.url);
-      if (kind === "logo" && data.url) setLogoUrl(data.url);
-      if (kind === "gallery" && data.galleryUrls) setGalleryList(data.galleryUrls);
-      toast.success(
-        kind === "cover" ? "Cover mis à jour" : kind === "logo" ? "Logo mis à jour" : "Image ajoutée",
-      );
-      router.refresh();
-    } catch {
-      toast.error("Upload échoué", { description: "Erreur réseau." });
-    } finally {
-      setUploadingKind(null);
+    const form = new FormData();
+    form.append("file", file);
+    form.append("kind", kind);
+    const result = await apiFetch<{ url?: string; galleryUrls?: string[] }>(
+      `/api/universites/${universite.id}/media`,
+      { method: "POST", body: form },
+    );
+    setUploadingKind(null);
+    if (!result.ok) {
+      toast.error("Upload échoué", { description: result.error });
+      return;
     }
+    if (kind === "cover" && result.data.url) setCoverUrl(result.data.url);
+    if (kind === "logo" && result.data.url) setLogoUrl(result.data.url);
+    if (kind === "gallery" && result.data.galleryUrls) setGalleryList(result.data.galleryUrls);
+    toast.success(
+      kind === "cover" ? "Cover mis à jour" : kind === "logo" ? "Logo mis à jour" : "Image ajoutée",
+    );
+    router.refresh();
   };
 
   const removeMedia = async (kind: MediaKind, url?: string) => {
     setRemovingMedia(true);
-    try {
-      const res = await fetch(`/api/universites/${universite.id}/media`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind, url }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        galleryUrls?: string[];
-      };
-      if (!res.ok) {
-        toast.error("Suppression échouée", { description: data.error ?? "Erreur serveur." });
-        return;
-      }
-      if (kind === "cover") setCoverUrl("");
-      if (kind === "logo") setLogoUrl("");
-      if (kind === "gallery" && data.galleryUrls) setGalleryList(data.galleryUrls);
-      toast.success("Média retiré");
-      router.refresh();
-    } catch {
-      toast.error("Suppression échouée", { description: "Erreur réseau." });
-    } finally {
-      setRemovingMedia(false);
+    const result = await apiJson<{ galleryUrls?: string[] }>(
+      `/api/universites/${universite.id}/media`,
+      "DELETE",
+      { kind, url },
+    );
+    setRemovingMedia(false);
+    if (!result.ok) {
+      toast.error("Suppression échouée", { description: result.error });
+      return;
     }
+    if (kind === "cover") setCoverUrl("");
+    if (kind === "logo") setLogoUrl("");
+    if (kind === "gallery" && result.data.galleryUrls) setGalleryList(result.data.galleryUrls);
+    toast.success("Média retiré");
+    router.refresh();
   };
 
   const handleGalleryFiles = async (files: FileList | null) => {
@@ -195,67 +291,47 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
 
   const handleSave = async () => {
     setSaving(true);
-    try {
-      const res = await fetch(`/api/universites/${universite.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nom: universite.nom,
-          pays: pays.trim() || universite.pays,
-          drapeau: universite.drapeau ?? "",
-          ville: ville.trim() || universite.ville,
-          ecusson: universite.ecusson ?? "",
-          domaines: universite.domaines ?? [],
-          description: description.trim(),
-          pointsForts: universite.pointsForts ?? [],
-          imageCouleur: universite.imageCouleur ?? "",
-          siteUrl: siteUrl.trim() || "",
-          coverUrl: coverUrl.trim() || null,
-          logoUrl: logoUrl.trim() || null,
-          galleryUrls: galleryList,
-          fraisMin: Number(fraisMin) || 0,
-          fraisMax: Number(fraisMax) || 0,
-          typeEtablissement,
-          partenaire: universite.partenaire,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error("Enregistrement échoué", {
-          description: (err as { error?: string })?.error ?? "Erreur serveur.",
-        });
-        return;
-      }
-      toast.success("Modifications enregistrées", { description: universite.nom });
-      router.refresh();
-    } catch {
-      toast.error("Enregistrement échoué", { description: "Erreur réseau." });
-    } finally {
-      setSaving(false);
+    // fraisMin/fraisMax ne sont pas envoyés : le serveur les calcule toujours
+    // depuis typeEtablissement + barème agence (voir /api/universites/[id] PUT).
+    const result = await apiJson(`/api/universites/${universite.id}`, "PUT", {
+      nom: universite.nom,
+      pays: pays.trim() || universite.pays,
+      drapeau: universite.drapeau ?? "",
+      ville: ville.trim() || universite.ville,
+      ecusson: universite.ecusson ?? "",
+      domaines: universite.domaines ?? [],
+      description: description.trim(),
+      pointsForts: universite.pointsForts ?? [],
+      imageCouleur: universite.imageCouleur ?? "",
+      siteUrl: siteUrl.trim() || "",
+      coverUrl: coverUrl.trim() || null,
+      logoUrl: logoUrl.trim() || null,
+      galleryUrls: galleryList,
+      typeEtablissement,
+      partenaire: universite.partenaire,
+    });
+    setSaving(false);
+    if (!result.ok) {
+      toast.error("Enregistrement échoué", { description: result.error });
+      return;
     }
+    toast.success("Modifications enregistrées", { description: universite.nom });
+    router.refresh();
   };
 
   const handleDelete = async () => {
     setDeleting(true);
-    try {
-      const res = await fetch(`/api/universites/${universite.id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error("Suppression échouée", {
-          description: (err as { error?: string })?.error ?? "Erreur serveur.",
-        });
-        return;
-      }
-      toast.success("Université supprimée", {
-        description: `${universite.nom} retirée du catalogue.`,
-      });
-      router.push("/admin/catalogue");
-      router.refresh();
-    } catch {
-      toast.error("Suppression échouée", { description: "Erreur réseau." });
-    } finally {
-      setDeleting(false);
+    const result = await apiJson(`/api/universites/${universite.id}`, "DELETE");
+    setDeleting(false);
+    if (!result.ok) {
+      toast.error("Suppression échouée", { description: result.error });
+      return;
     }
+    toast.success("Université supprimée", {
+      description: `${universite.nom} retirée du catalogue.`,
+    });
+    router.push("/admin/catalogue");
+    router.refresh();
   };
 
   return (
@@ -327,8 +403,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
         <div className="space-y-6">
           {/* Identité */}
           <section className="rounded-2xl border border-ligne bg-blanc p-5 sm:p-6">
-            <p className="eyebrow">Identité</p>
-            <h2 className="mt-2 font-display text-lg font-bold text-encre">Fiche établissement</h2>
+            <h2 className="font-display text-lg font-bold text-encre">Fiche établissement</h2>
             <div className="mt-5 space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="description" className="text-sm text-encre">
@@ -361,50 +436,19 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                   </Label>
                   <Select
                     value={typeEtablissement}
-                    onValueChange={(v) => {
-                      const t = v as "PUBLIC" | "PRIVE";
-                      setTypeEtablissement(t);
-                      if (t === "PUBLIC") {
-                        setFraisMin("65000");
-                        setFraisMax("65000");
-                      } else {
-                        setFraisMin("110000");
-                        setFraisMax("110000");
-                      }
-                    }}
+                    onValueChange={(v) => setTypeEtablissement(v as "PUBLIC" | "PRIVE")}
                   >
                     <SelectTrigger id="typeEtab">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="PUBLIC">Public — 65 000 FCFA</SelectItem>
-                      <SelectItem value="PRIVE">Privé — 110 000 FCFA</SelectItem>
+                      <SelectItem value="PUBLIC">Public — {formatFCFA(resolveFraisAgence("PUBLIC"))}</SelectItem>
+                      <SelectItem value="PRIVE">Privé — {formatFCFA(resolveFraisAgence("PRIVE"))}</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="fraisMin" className="text-sm text-encre">
-                    Frais min (FCFA)
-                  </Label>
-                  <Input
-                    id="fraisMin"
-                    type="number"
-                    value={fraisMin}
-                    onChange={(e) => setFraisMin(e.target.value)}
-                    className="font-mono"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="fraisMax" className="text-sm text-encre">
-                    Frais max (FCFA)
-                  </Label>
-                  <Input
-                    id="fraisMax"
-                    type="number"
-                    value={fraisMax}
-                    onChange={(e) => setFraisMax(e.target.value)}
-                    className="font-mono"
-                  />
+                  <p className="text-xs text-ardoise">
+                    Frais fixés par le barème de l&apos;agence selon ce statut — non modifiables par université.
+                  </p>
                 </div>
               </div>
             </div>
@@ -412,8 +456,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
 
           {/* Médias */}
           <section className="rounded-2xl border border-ligne bg-blanc p-5 sm:p-6">
-            <p className="eyebrow">Médias Le Passage</p>
-            <h2 className="mt-2 font-display text-lg font-bold text-encre">Visuels &amp; site</h2>
+            <h2 className="font-display text-lg font-bold text-encre">Visuels &amp; site</h2>
 
             <div className="mt-5 space-y-5">
               <div className="space-y-1.5">
@@ -641,16 +684,140 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
           <section className="rounded-2xl border border-ligne bg-blanc p-5 sm:p-6">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="eyebrow">Formations</p>
-                <h2 className="mt-2 font-display text-lg font-bold text-encre">
-                  {universite.formations?.length ?? 0} formation
-                  {(universite.formations?.length ?? 0) > 1 ? "s" : ""}
+                <h2 className="font-display text-lg font-bold text-encre">
+                  {formations.length} formation
+                  {formations.length > 1 ? "s" : ""}
                 </h2>
               </div>
-              <GraduationCap className="h-5 w-5 text-lapis" strokeWidth={1.5} />
+              <Button
+                type="button"
+                size="sm"
+                className="bg-lapis text-blanc hover:bg-lapis/90"
+                onClick={() => {
+                  setEditingFormationId(null);
+                  setFormOpen((o) => !o);
+                  setFormFormation({
+                    intitule: "",
+                    niveau: "Licence",
+                    domaine: "",
+                    duree: "3 ans",
+                    prerequisText: "",
+                    piecesText: "",
+                  });
+                }}
+              >
+                {formOpen && !editingFormationId ? "Fermer" : "Ajouter"}
+              </Button>
             </div>
+
+            {(formOpen || editingFormationId) && (
+              <div className="mt-4 space-y-3 rounded-xl border border-ligne bg-porcelaine/50 p-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <Label>Intitulé</Label>
+                    <Input
+                      value={formFormation.intitule}
+                      onChange={(e) =>
+                        setFormFormation((f) => ({ ...f, intitule: e.target.value }))
+                      }
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label>Niveau</Label>
+                    <Select
+                      value={formFormation.niveau}
+                      onValueChange={(v) =>
+                        setFormFormation((f) => ({
+                          ...f,
+                          niveau: v as "Licence" | "Master" | "Doctorat",
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Licence">Licence</SelectItem>
+                        <SelectItem value="Master">Master</SelectItem>
+                        <SelectItem value="Doctorat">Doctorat</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Domaine</Label>
+                    <Input
+                      value={formFormation.domaine}
+                      onChange={(e) =>
+                        setFormFormation((f) => ({ ...f, domaine: e.target.value }))
+                      }
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label>Durée</Label>
+                    <Input
+                      value={formFormation.duree}
+                      onChange={(e) =>
+                        setFormFormation((f) => ({ ...f, duree: e.target.value }))
+                      }
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label>Prérequis (un par ligne)</Label>
+                    <textarea
+                      value={formFormation.prerequisText}
+                      onChange={(e) =>
+                        setFormFormation((f) => ({ ...f, prerequisText: e.target.value }))
+                      }
+                      className="mt-1 min-h-[72px] w-full rounded-md border border-ligne bg-blanc px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label>Pièces additionnelles (un par ligne)</Label>
+                    <textarea
+                      value={formFormation.piecesText}
+                      onChange={(e) =>
+                        setFormFormation((f) => ({ ...f, piecesText: e.target.value }))
+                      }
+                      className="mt-1 min-h-[72px] w-full rounded-md border border-ligne bg-blanc px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setFormOpen(false);
+                      setEditingFormationId(null);
+                    }}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={savingFormation}
+                    className="bg-lapis text-blanc hover:bg-lapis/90"
+                    onClick={() => void saveFormation()}
+                  >
+                    {savingFormation ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : editingFormationId ? (
+                      "Enregistrer"
+                    ) : (
+                      "Créer"
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <ul className="mt-5 space-y-2">
-              {(universite.formations ?? []).map((f) => (
+              {formations.map((f) => (
                 <li
                   key={f.id}
                   className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ligne px-4 py-3"
@@ -660,13 +827,64 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                     <p className="text-xs text-ardoise">
                       {f.niveau} · {f.domaine} · {f.duree}
                     </p>
+                    {Array.isArray(f.piecesRequises) && f.piecesRequises.length > 0 && (
+                      <p className="mt-1 text-[11px] text-ardoise">
+                        Pièces + : {f.piecesRequises.join(", ")}
+                      </p>
+                    )}
                   </div>
-                  <span className="font-mono text-sm font-semibold text-encre">
-                    {formatFCFA(resolveFraisAgence(typeEtablissement))}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm font-semibold text-encre">
+                      {formatFCFA(resolveFraisAgence(typeEtablissement))}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => startEditFormation(f)}
+                    >
+                      Modifier
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="text-carmin"
+                          disabled={deletingFormationId === f.id}
+                        >
+                          {deletingFormationId === f.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="bg-blanc">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="font-display">
+                            Supprimer cette formation ?
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {f.intitule} sera retirée du catalogue. Cette action est irréversible.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Annuler</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-carmin text-blanc hover:bg-carmin/90"
+                            onClick={() => void deleteFormation(f.id)}
+                          >
+                            Supprimer
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </li>
               ))}
-              {(universite.formations?.length ?? 0) === 0 && (
+              {formations.length === 0 && (
                 <li className="rounded-xl border border-dashed border-ligne px-4 py-6 text-center text-sm text-ardoise">
                   Aucune formation enregistrée.
                 </li>
@@ -688,13 +906,9 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                 <dt className="text-ardoise">Pays</dt>
                 <dd className="font-medium text-encre">{pays || "—"}</dd>
               </div>
-              <div className="flex justify-between gap-3 border-b border-ligne pb-3">
-                <dt className="text-ardoise">Frais min</dt>
-                <dd className="font-mono text-encre">{formatFCFA(Number(fraisMin) || 0)}</dd>
-              </div>
               <div className="flex justify-between gap-3">
-                <dt className="text-ardoise">Frais max</dt>
-                <dd className="font-mono text-encre">{formatFCFA(Number(fraisMax) || 0)}</dd>
+                <dt className="text-ardoise">Frais d&apos;agence</dt>
+                <dd className="font-mono text-encre">{formatFCFA(resolveFraisAgence(typeEtablissement))}</dd>
               </div>
             </dl>
           </div>

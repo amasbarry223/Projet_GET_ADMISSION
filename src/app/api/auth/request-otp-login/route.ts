@@ -6,7 +6,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { API_ROUTES } from "@/shared/constants";
 
 export async function POST(request: Request) {
-  const rateLimited = checkRateLimit(
+  const rateLimited = await checkRateLimit(
     getClientId(request),
     API_ROUTES.AUTH_REQUEST_OTP_LOGIN,
   );

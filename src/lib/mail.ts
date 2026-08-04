@@ -5,6 +5,7 @@
  */
 
 import { db } from "@/lib/db";
+import { escapeHtml } from "@/lib/escape-html";
 
 type SendMailInput = {
   to: string;
@@ -158,24 +159,23 @@ export async function sendMail(input: SendMailInput): Promise<SendMailResult> {
 
 export function verificationEmailHtml(prenom: string, verifyUrl: string) {
   return `
-    <p>Bonjour ${prenom},</p>
+    <p>Bonjour ${escapeHtml(prenom)},</p>
     <p>Bienvenue sur <strong>GET Admission</strong>. Veuillez confirmer votre adresse e-mail :</p>
-    <p><a href="${verifyUrl}">${verifyUrl}</a></p>
+    <p><a href="${escapeHtml(verifyUrl)}">${escapeHtml(verifyUrl)}</a></p>
     <p>Ce lien est valable 48 heures.</p>
   `;
 }
 
 /** E-mail OTP 6 chiffres pour inscription / connexion candidat. */
 export function otpEmailHtml(prenom: string, code: string) {
-  const safePrenom = prenom.replace(/[<>&]/g, "");
   const safeCode = code.replace(/\D/g, "").slice(0, 8);
   return `
     <div style="font-family:Georgia,serif;max-width:480px;margin:0 auto;color:#1a1a1a">
       <p style="font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#5a6a7a">GET Admission</p>
       <h1 style="font-size:22px;font-weight:700;margin:8px 0 16px">Votre code de vérification</h1>
-      <p>Bonjour ${safePrenom},</p>
+      <p>Bonjour ${escapeHtml(prenom)},</p>
       <p>Saisissez ce code sur la page de vérification pour activer votre compte :</p>
-      <p style="font-size:32px;font-weight:700;letter-spacing:0.35em;font-family:ui-monospace,monospace;margin:24px 0;text-align:center">${safeCode}</p>
+      <p style="font-size:32px;font-weight:700;letter-spacing:0.35em;font-family:ui-monospace,monospace;margin:24px 0;text-align:center">${escapeHtml(safeCode)}</p>
       <p style="font-size:13px;color:#5a6a7a">Ce code expire dans environ 1 heure. Ne le partagez avec personne.</p>
       <p style="font-size:13px;color:#5a6a7a">Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.</p>
     </div>
@@ -184,9 +184,9 @@ export function otpEmailHtml(prenom: string, code: string) {
 
 export function resetPasswordEmailHtml(prenom: string, resetUrl: string) {
   return `
-    <p>Bonjour ${prenom},</p>
+    <p>Bonjour ${escapeHtml(prenom)},</p>
     <p>Vous avez demandé la réinitialisation de votre mot de passe GET Admission.</p>
-    <p><a href="${resetUrl}">Réinitialiser mon mot de passe</a></p>
+    <p><a href="${escapeHtml(resetUrl)}">Réinitialiser mon mot de passe</a></p>
     <p>Ce lien expire dans 1 heure. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.</p>
   `;
 }
@@ -194,19 +194,20 @@ export function resetPasswordEmailHtml(prenom: string, resetUrl: string) {
 export function invitationEmailHtml(prenom: string, email: string, password: string) {
   const loginUrl = `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/connexion`;
   return `
-    <p>Bonjour ${prenom},</p>
+    <p>Bonjour ${escapeHtml(prenom)},</p>
     <p>Un compte GET Admission a été créé pour vous.</p>
-    <p><strong>E-mail :</strong> ${email}<br/><strong>Mot de passe temporaire :</strong> ${password}</p>
+    <p><strong>E-mail :</strong> ${escapeHtml(email)}<br/><strong>Mot de passe temporaire :</strong> ${escapeHtml(password)}</p>
     <p>Connectez-vous puis changez votre mot de passe dès que possible.</p>
-    <p><a href="${loginUrl}">Se connecter</a></p>
+    <p><a href="${escapeHtml(loginUrl)}">Se connecter</a></p>
   `;
 }
 
 export function workflowEmailHtml(prenom: string, reference: string, etat: string, note?: string) {
+  const espaceUrl = `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/espace`;
   return `
-    <p>Bonjour ${prenom},</p>
-    <p>Votre dossier <strong>${reference}</strong> est passé à l'état <strong>${etat}</strong>.</p>
-    ${note ? `<p>${note}</p>` : ""}
-    <p><a href="${process.env.NEXTAUTH_URL || "http://localhost:3000"}/espace">Voir mon espace</a></p>
+    <p>Bonjour ${escapeHtml(prenom)},</p>
+    <p>Votre dossier <strong>${escapeHtml(reference)}</strong> est passé à l'état <strong>${escapeHtml(etat)}</strong>.</p>
+    ${note ? `<p>${escapeHtml(note)}</p>` : ""}
+    <p><a href="${escapeHtml(espaceUrl)}">Voir mon espace</a></p>
   `;
 }

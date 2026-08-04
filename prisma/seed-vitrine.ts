@@ -20,11 +20,32 @@ async function main() {
   }
   console.log("✓ Statistiques créées");
 
-  // --- Témoignages ---
+  // --- Témoignages (étudiants maliens) ---
   const temoignages = [
-    { nom: "Marième F.", parcours: "Master Transport · Hasselt", pays: "🇧🇪 Belgique", citation: "J'ai déposé mon dossier en janvier. Trois semaines plus tard, j'avais ma pré-admission. Le suivi pas à pas m'a évité toutes les erreurs classiques.", ordre: 1 },
-    { nom: "Awa T.", parcours: "Master Droit · Mohammed V", pays: "🇲🇦 Maroc", citation: "L'équipe de GET Admission a rendu l'admission au Maroc simple et transparente. Je savais à chaque étape où en était mon dossier.", ordre: 2 },
-    { nom: "Paul N.", parcours: "Master Commerce · UCT", pays: "🇿🇦 Afrique du Sud", citation: "Le Cape Town, c'était mon rêve. GET Admission m'a accompagné du premier document jusqu'à l'attestation officielle.", ordre: 3 },
+    {
+      nom: "Fatoumata K.",
+      parcours: "Master Santé publique · Montréal",
+      pays: "Bamako",
+      citation:
+        "Depuis Bamako, je ne savais pas par où commencer. GET Admission a clarifié chaque pièce du dossier et j’ai reçu ma pré-admission sans stress inutile.",
+      ordre: 1,
+    },
+    {
+      nom: "Ibrahim S.",
+      parcours: "Licence Informatique · Nantes",
+      pays: "Sikasso",
+      citation:
+        "Venant de Sikasso, les démarches m’intimidaient. Mon conseiller a suivi mon dossier jour après jour jusqu’à l’attestation officielle.",
+      ordre: 2,
+    },
+    {
+      nom: "Aïssata D.",
+      parcours: "Master Droit · Mohammed V",
+      pays: "Bamako",
+      citation:
+        "Étudier au Maroc était mon objectif. GET Admission a rendu le parcours simple, transparent et adapté aux réalités des étudiants maliens.",
+      ordre: 3,
+    },
   ];
 
   for (const t of temoignages) {

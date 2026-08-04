@@ -6,7 +6,7 @@ import { hasPermission, requirePermission, type Permission } from "@/lib/rbac";
 /** Guard serveur pour les pages /admin — defense-in-depth au-delà du middleware */
 export async function requireAdminPage(permission: Permission) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) redirect("/connexion");
+  if (!session?.user) redirect("/back-office");
 
   const role = (session.user as { role?: string }).role;
   const gate = requirePermission(role, permission);
@@ -14,7 +14,7 @@ export async function requireAdminPage(permission: Permission) {
     if (hasPermission(role, "dossiers.read")) redirect("/admin/dossiers");
     if (hasPermission(role, "finance.read")) redirect("/admin/finance");
     if (hasPermission(role, "dashboard")) redirect("/admin");
-    redirect("/connexion");
+    redirect("/back-office");
   }
   return session;
 }

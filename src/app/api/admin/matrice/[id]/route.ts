@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { requirePermission } from "@/lib/rbac";
+import { requireApiPermission, parseOrRespond } from "@/lib/api-auth";
 import { logAudit } from "@/lib/audit";
 import { invalidateMatriceCache } from "@/lib/dossier/matrice-loader";
 import { z } from "zod";
-import { validate } from "@/lib/validations";
 
 const regleSchema = z.object({
   id: z.string().optional(),
@@ -29,12 +26,8 @@ const updateSchema = z.object({
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_req: Request, { params }: Ctx) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
-  const gate = requirePermission((session.user as { role?: string }).role, "matrice.write");
-  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  const auth = await requireApiPermission("matrice.write");
+  if (!auth.ok) return auth.response;
 
   const { id } = await params;
   const version = await db.matriceVersion.findUnique({
@@ -46,12 +39,8 @@ export async function GET(_req: Request, { params }: Ctx) {
 }
 
 export async function PUT(request: Request, { params }: Ctx) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
-  const gate = requirePermission((session.user as { role?: string }).role, "matrice.write");
-  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  const auth = await requireApiPermission("matrice.write");
+  if (!auth.ok) return auth.response;
 
   const { id } = await params;
   const existing = await db.matriceVersion.findUnique({ where: { id } });
@@ -66,10 +55,8 @@ export async function PUT(request: Request, { params }: Ctx) {
   } catch {
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
-  const parsed = validate(updateSchema, body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
-  }
+  const parsed = parseOrRespond(updateSchema, body);
+  if (!parsed.ok) return parsed.response;
 
   const { libelle, notes, regles } = parsed.data;
 
@@ -108,7 +95,7 @@ export async function PUT(request: Request, { params }: Ctx) {
   if (existing.statut === "ACTIVE") invalidateMatriceCache();
 
   await logAudit({
-    session,
+    session: auth.session,
     action: "UPDATE",
     resource: "matrice",
     resourceId: id,
@@ -120,12 +107,8 @@ export async function PUT(request: Request, { params }: Ctx) {
 
 /** DELETE — suppression définitive d'un brouillon uniquement. */
 export async function DELETE(_req: Request, { params }: Ctx) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
-  const gate = requirePermission((session.user as { role?: string }).role, "matrice.write");
-  if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  const auth = await requireApiPermission("matrice.write");
+  if (!auth.ok) return auth.response;
 
   const { id } = await params;
   const existing = await db.matriceVersion.findUnique({
@@ -150,7 +133,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   await db.matriceVersion.delete({ where: { id } });
 
   await logAudit({
-    session,
+    session: auth.session,
     action: "DELETE",
     resource: "matrice",
     resourceId: id,

@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSession } from "next-auth/react";
+import { apiFetch, apiJson } from "@/lib/api-client";
 import { toast } from "sonner";
 import { Lock, Save, ShieldCheck, CreditCard, Bell, GitBranch, Loader2, FileText } from "lucide-react";
 
@@ -49,34 +50,29 @@ export default function AdminParametresClient() {
 
   React.useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/admin/parametres");
-        if (!res.ok) {
-          if (!cancelled) toast.error("Chargement échoué");
-          return;
-        }
-        const data = await res.json();
-        if (cancelled) return;
-        setForm({
-          fraisMin: String(data.fraisMin ?? ""),
-          fraisMax: String(data.fraisMax ?? ""),
-          fraisAgencePublic: String(data.fraisAgencePublic ?? data.fraisMin ?? 65000),
-          fraisAgencePrive: String(data.fraisAgencePrive ?? data.fraisMax ?? 110000),
-          paiementTranches: !!data.paiementTranches,
-          notifEmail: data.notifEmail !== false,
-          notifInApp: data.notifInApp !== false,
-          workflowStrict: data.workflowStrict !== false,
-          exigerEmailVerifie: !!data.exigerEmailVerifie,
-          mentionsLegales: data.mentionsLegales ?? "",
-          politiqueConfidentialite: data.politiqueConfidentialite ?? "",
-        });
-      } catch {
-        if (!cancelled) toast.error("Erreur réseau");
-      } finally {
-        if (!cancelled) setLoading(false);
+    void apiFetch<Record<string, unknown>>("/api/admin/parametres").then((result) => {
+      if (cancelled) return;
+      if (!result.ok) {
+        toast.error("Chargement échoué", { description: result.error });
+        setLoading(false);
+        return;
       }
-    })();
+      const data = result.data;
+      setForm({
+        fraisMin: String(data.fraisMin ?? ""),
+        fraisMax: String(data.fraisMax ?? ""),
+        fraisAgencePublic: String(data.fraisAgencePublic ?? data.fraisMin ?? 65000),
+        fraisAgencePrive: String(data.fraisAgencePrive ?? data.fraisMax ?? 110000),
+        paiementTranches: !!data.paiementTranches,
+        notifEmail: data.notifEmail !== false,
+        notifInApp: data.notifInApp !== false,
+        workflowStrict: data.workflowStrict !== false,
+        exigerEmailVerifie: !!data.exigerEmailVerifie,
+        mentionsLegales: String(data.mentionsLegales ?? ""),
+        politiqueConfidentialite: String(data.politiqueConfidentialite ?? ""),
+      });
+      setLoading(false);
+    });
     return () => {
       cancelled = true;
     };
@@ -87,43 +83,32 @@ export default function AdminParametresClient() {
 
   const handleSave = async () => {
     setSaving(true);
-    try {
-      const publicAmt = Number(form.fraisAgencePublic) || 0;
-      const priveAmt = Number(form.fraisAgencePrive) || 0;
-      const res = await fetch("/api/admin/parametres", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fraisAgencePublic: publicAmt,
-          fraisAgencePrive: priveAmt,
-          fraisMin: publicAmt,
-          fraisMax: priveAmt,
-          paiementTranches: form.paiementTranches,
-          notifEmail: form.notifEmail,
-          notifInApp: form.notifInApp,
-          workflowStrict: form.workflowStrict,
-          exigerEmailVerifie: form.exigerEmailVerifie,
-          mentionsLegales: form.mentionsLegales,
-          politiqueConfidentialite: form.politiqueConfidentialite,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error("Enregistrement échoué", { description: (err as { error?: string })?.error ?? "Erreur serveur." });
-        return;
-      }
-      toast.success("Paramètres enregistrés");
-    } catch {
-      toast.error("Erreur réseau");
-    } finally {
-      setSaving(false);
+    const publicAmt = Number(form.fraisAgencePublic) || 0;
+    const priveAmt = Number(form.fraisAgencePrive) || 0;
+    const result = await apiJson("/api/admin/parametres", "PUT", {
+      fraisAgencePublic: publicAmt,
+      fraisAgencePrive: priveAmt,
+      fraisMin: publicAmt,
+      fraisMax: priveAmt,
+      paiementTranches: form.paiementTranches,
+      notifEmail: form.notifEmail,
+      notifInApp: form.notifInApp,
+      workflowStrict: form.workflowStrict,
+      exigerEmailVerifie: form.exigerEmailVerifie,
+      mentionsLegales: form.mentionsLegales,
+      politiqueConfidentialite: form.politiqueConfidentialite,
+    });
+    setSaving(false);
+    if (!result.ok) {
+      toast.error("Enregistrement échoué", { description: result.error });
+      return;
     }
+    toast.success("Paramètres enregistrés");
   };
 
   return (
     <div className="space-y-5">
       <div>
-        <p className="eyebrow">Paramètres</p>
         <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Configuration de l&apos;agence.</h1>
         {!isSuperAdmin && (
           <Alert className="mt-3 border-ambre/40 bg-ambre/5">

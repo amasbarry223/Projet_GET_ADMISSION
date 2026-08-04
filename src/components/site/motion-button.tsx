@@ -12,7 +12,8 @@ const motionButtonVariants = cva(
     variants: {
       variant: {
         default: "bg-lapis text-blanc shadow-xs hover:bg-lapis/90",
-        outline: "border border-ligne bg-blanc text-encre hover:bg-porcelaine",
+        outline:
+          "border border-ligne bg-blanc text-encre hover:bg-porcelaine dark:border-white/45 dark:bg-transparent dark:text-blanc dark:hover:border-white/70 dark:hover:bg-white/10",
         secondary: "bg-or-pale text-encre hover:bg-or/20",
         ghost: "hover:bg-porcelaine text-encre",
       },

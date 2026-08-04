@@ -27,6 +27,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatDate } from "@/lib/format";
+import { apiJson } from "@/lib/api-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -155,76 +156,42 @@ export function UtilisateursClient({
       return;
     }
     setUpdatingId(row.id);
-    try {
-      const res = await fetch(`/api/admin/users/${row.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actif: !row.actif }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error("Mise à jour échouée", {
-          description: (err as { error?: string })?.error ?? "Erreur serveur.",
-        });
-        return;
-      }
-      toast.success(!row.actif ? "Membre activé" : "Membre suspendu", { description: row.nom });
-      router.refresh();
-    } catch {
-      toast.error("Mise à jour échouée", { description: "Erreur réseau." });
-    } finally {
-      setUpdatingId(null);
+    const result = await apiJson(`/api/admin/users/${row.id}`, "PUT", { actif: !row.actif });
+    setUpdatingId(null);
+    if (!result.ok) {
+      toast.error("Mise à jour échouée", { description: result.error });
+      return;
     }
+    toast.success(!row.actif ? "Membre activé" : "Membre suspendu", { description: row.nom });
+    router.refresh();
   };
 
   const suspendre = async (row: UserRow) => {
     if (!canManageRow(currentRole, row)) return;
     setUpdatingId(row.id);
-    try {
-      const res = await fetch(`/api/admin/users/${row.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actif: false }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error("Suspension échouée", {
-          description: (err as { error?: string })?.error ?? "Erreur serveur.",
-        });
-        return;
-      }
-      toast.success("Membre suspendu", { description: `${row.nom} — accès révoqué.` });
-      router.refresh();
-    } catch {
-      toast.error("Suspension échouée", { description: "Erreur réseau." });
-    } finally {
-      setUpdatingId(null);
+    const result = await apiJson(`/api/admin/users/${row.id}`, "PUT", { actif: false });
+    setUpdatingId(null);
+    if (!result.ok) {
+      toast.error("Suspension échouée", { description: result.error });
+      return;
     }
+    toast.success("Membre suspendu", { description: `${row.nom} — accès révoqué.` });
+    router.refresh();
   };
 
   const supprimer = async (row: UserRow) => {
     if (!canManageRow(currentRole, row)) return;
     setUpdatingId(row.id);
-    try {
-      const res = await fetch(`/api/admin/users/${row.id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error("Suppression échouée", {
-          description: (err as { error?: string })?.error ?? "Erreur serveur.",
-        });
-        return;
-      }
-      const data = await res.json().catch(() => ({}));
-      toast.success(
-        (data as { softDeleted?: boolean }).softDeleted ? "Compte désactivé" : "Compte supprimé",
-        { description: row.nom },
-      );
-      router.refresh();
-    } catch {
-      toast.error("Suppression échouée", { description: "Erreur réseau." });
-    } finally {
-      setUpdatingId(null);
+    const result = await apiJson<{ softDeleted?: boolean }>(`/api/admin/users/${row.id}`, "DELETE");
+    setUpdatingId(null);
+    if (!result.ok) {
+      toast.error("Suppression échouée", { description: result.error });
+      return;
     }
+    toast.success(result.data.softDeleted ? "Compte désactivé" : "Compte supprimé", {
+      description: row.nom,
+    });
+    router.refresh();
   };
 
   const resetPassword = async (row: UserRow) => {
@@ -235,26 +202,20 @@ export function UtilisateursClient({
       return;
     }
     setUpdatingId(row.id);
-    try {
-      const res = await fetch(`/api/admin/users/${row.id}/reset-password`, { method: "POST" });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error("Réinitialisation échouée", {
-          description: (err as { error?: string })?.error ?? "Erreur serveur.",
-        });
-        return;
-      }
-      const data = await res.json();
-      toast.success("Mot de passe réinitialisé", {
-        description: data.defaultPassword
-          ? `Nouveau mot de passe temporaire : ${data.defaultPassword}`
-          : `E-mail envoyé à ${row.email}`,
-      });
-    } catch {
-      toast.error("Erreur réseau");
-    } finally {
-      setUpdatingId(null);
+    const result = await apiJson<{ defaultPassword?: string }>(
+      `/api/admin/users/${row.id}/reset-password`,
+      "POST",
+    );
+    setUpdatingId(null);
+    if (!result.ok) {
+      toast.error("Réinitialisation échouée", { description: result.error });
+      return;
     }
+    toast.success("Mot de passe réinitialisé", {
+      description: result.data.defaultPassword
+        ? `Nouveau mot de passe temporaire : ${result.data.defaultPassword}`
+        : `E-mail envoyé à ${row.email}`,
+    });
   };
 
   const actions: ActionItem<UserRow>[] = React.useMemo(
@@ -414,79 +375,52 @@ export function UtilisateursClient({
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    try {
-      const res = await fetch("/api/admin/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prenom: formPrenom,
-          nom: formNom,
-          email: formEmail,
-          role: formRole,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error("Création échouée", {
-          description: (err as { error?: string })?.error ?? "Erreur serveur.",
-        });
-        return;
-      }
-      const result = await res.json().catch(() => ({}));
-      const defaultPwd = (result as { defaultPassword?: string })?.defaultPassword;
-      toast.success("Membre ajouté", {
-        description: defaultPwd
-          ? `${formPrenom} ${formNom} — mot de passe temporaire : ${defaultPwd}`
-          : `Invitation envoyée à ${formEmail}.`,
-      });
-      setInviteOpen(false);
-      resetInviteForm();
-      router.refresh();
-    } catch {
-      toast.error("Création échouée", { description: "Erreur réseau." });
-    } finally {
-      setSaving(false);
+    const result = await apiJson<{ defaultPassword?: string }>("/api/admin/users", "POST", {
+      prenom: formPrenom,
+      nom: formNom,
+      email: formEmail,
+      role: formRole,
+    });
+    setSaving(false);
+    if (!result.ok) {
+      toast.error("Création échouée", { description: result.error });
+      return;
     }
+    toast.success("Membre ajouté", {
+      description: result.data.defaultPassword
+        ? `${formPrenom} ${formNom} — mot de passe temporaire : ${result.data.defaultPassword}`
+        : `Invitation envoyée à ${formEmail}.`,
+    });
+    setInviteOpen(false);
+    resetInviteForm();
+    router.refresh();
   };
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editing) return;
     setSaving(true);
-    try {
-      const res = await fetch(`/api/admin/users/${editing.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prenom: formPrenom,
-          nom: formNom,
-          email: formEmail,
-          role: formRole,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error("Modification échouée", {
-          description: (err as { error?: string })?.error ?? "Erreur serveur.",
-        });
-        return;
-      }
-      toast.success("Membre mis à jour", { description: `${formPrenom} ${formNom}` });
-      setEditOpen(false);
-      setEditing(null);
-      router.refresh();
-    } catch {
-      toast.error("Modification échouée", { description: "Erreur réseau." });
-    } finally {
-      setSaving(false);
+    const result = await apiJson(`/api/admin/users/${editing.id}`, "PUT", {
+      prenom: formPrenom,
+      nom: formNom,
+      email: formEmail,
+      role: formRole,
+    });
+    setSaving(false);
+    if (!result.ok) {
+      toast.error("Modification échouée", { description: result.error });
+      return;
     }
+    toast.success("Membre mis à jour", { description: `${formPrenom} ${formNom}` });
+    setEditOpen(false);
+    setEditing(null);
+    router.refresh();
   };
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="eyebrow">Utilisateurs</p>
           <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">
             Personnel &amp; rôles.
           </h1>

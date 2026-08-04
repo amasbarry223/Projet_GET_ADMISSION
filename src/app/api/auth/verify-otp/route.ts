@@ -19,7 +19,7 @@ function supabaseAuthClient() {
 }
 
 export async function POST(request: Request) {
-  const rateLimited = checkRateLimit(getClientId(request), API_ROUTES.AUTH_VERIFY_OTP);
+  const rateLimited = await checkRateLimit(getClientId(request), API_ROUTES.AUTH_VERIFY_OTP);
   if (rateLimited) return rateLimited;
 
   try {

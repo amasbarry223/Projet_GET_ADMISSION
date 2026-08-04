@@ -7,12 +7,13 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BoardingPass } from "@/components/getadm/boarding-pass";
-import { KpiCard, ChartSectionHeader } from "@/components/admin/kpi-card";
+import { ChartSectionHeader } from "@/components/admin/kpi-card";
+import { StatStrip } from "@/components/admin/stat-strip";
 import { formatFCFA, formatFCFACompact, formatDate } from "@/lib/format";
 import { etatParCode, COULEUR_BADGE } from "@/lib/etats";
-import { FolderOpen, CheckCircle2, Wallet, Stamp, AlertCircle, AlertTriangle, ArrowRight, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, Users } from "lucide-react";
 import { AdminDashboardSkeleton } from "@/components/ui/skeleton-card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, BarChart, Bar, Legend } from "recharts";
 import { cn } from "@/lib/utils";
 
@@ -106,20 +107,22 @@ export default function AdminDashboardClient() {
         <Badge variant="outline" className="font-mono text-[11px] text-ardoise">Mis à jour à l'instant</Badge>
       </div>
 
-      {/* KPIs — 5 cartes */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <KpiCard icon={FolderOpen} label="Nouveaux dossiers" value={k.nouveauxDossiers} suffix="total" delta={k.deltaNouveaux} deltaLabel="vs mois dernier" tone="bleu" />
-        <KpiCard icon={AlertCircle} label="En cours" value={k.enCours} suffix="actifs" delta={k.deltaEnCours} deltaLabel="vs mois dernier" tone="jaune" />
-        <KpiCard icon={CheckCircle2} label="Taux d'acceptation" value={`${k.tauxAcceptation}%`} suffix="30 jours" delta={k.deltaAcceptation} deltaLabel="vs mois dernier" tone="vert" />
-        <KpiCard icon={Wallet} label="Encaissements" value={formatFCFACompact(k.encaissementsMois)} suffix="ce mois" delta={k.deltaEncaissements} deltaLabel="vs mois dernier" tone="cyan" />
-        <KpiCard icon={Stamp} label="Attestations émises" value={k.attestationsEmises} suffix="ce mois" delta={k.deltaAttestations} deltaLabel="vs mois dernier" tone="violet" />
-      </div>
+      {/* KPIs */}
+      <StatStrip
+        items={[
+          { label: "Nouveaux dossiers", value: k.nouveauxDossiers, delta: k.deltaNouveaux, deltaLabel: "vs mois dernier" },
+          { label: "En cours", value: k.enCours, delta: k.deltaEnCours, deltaLabel: "vs mois dernier" },
+          { label: "Taux d'acceptation", value: `${k.tauxAcceptation}%`, delta: k.deltaAcceptation, deltaLabel: "30 jours" },
+          { label: "Encaissements ce mois", value: formatFCFACompact(k.encaissementsMois), delta: k.deltaEncaissements, deltaLabel: "vs mois dernier" },
+          { label: "Attestations émises", value: k.attestationsEmises, delta: k.deltaAttestations, deltaLabel: "ce mois" },
+        ]}
+      />
 
       {/* Charts */}
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Évolution dossiers */}
         <Card className="border-ligne bg-blanc p-5 lg:col-span-2 shadow-sm">
-          <ChartSectionHeader eyebrow="Évolution" title="Dossiers & pré-admissions">
+          <ChartSectionHeader title="Dossiers & pré-admissions">
             <Select value={periodeDossiers} onValueChange={setPeriodeDossiers}>
               <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -156,7 +159,7 @@ export default function AdminDashboardClient() {
 
         {/* Répartition statuts */}
         <Card className="border-ligne bg-blanc p-5 shadow-sm">
-          <ChartSectionHeader eyebrow="Répartition" title="Dossiers par statut" />
+          <ChartSectionHeader title="Dossiers par statut" />
           <div className="mt-4 h-44">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -182,7 +185,7 @@ export default function AdminDashboardClient() {
       {/* Ventilation CDC : public/privé + profil */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="border-ligne bg-blanc p-5 shadow-sm">
-          <ChartSectionHeader eyebrow="Établissements" title="Public vs privé" />
+          <ChartSectionHeader title="Répartition public / privé" />
           <ul className="mt-4 space-y-2">
             {(stats.repartitionTypeEtablissement ?? []).map((s) => (
               <li key={s.name} className="flex items-center gap-2 text-sm">
@@ -194,7 +197,7 @@ export default function AdminDashboardClient() {
           </ul>
         </Card>
         <Card className="border-ligne bg-blanc p-5 shadow-sm">
-          <ChartSectionHeader eyebrow="Profils" title="Lycéen vs bachelier" />
+          <ChartSectionHeader title="Répartition par profil académique" />
           <ul className="mt-4 space-y-2">
             {(stats.repartitionProfilCandidat ?? []).map((s) => (
               <li key={s.name} className="flex items-center gap-2 text-sm">
@@ -211,7 +214,7 @@ export default function AdminDashboardClient() {
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Top universités */}
         <Card className="border-ligne bg-blanc p-5 shadow-sm">
-          <ChartSectionHeader eyebrow="Top universités" title="Dossiers par partenaire" />
+          <ChartSectionHeader title="Top universités par dossiers" />
           <div className="mt-4 h-48">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats.topUniversites} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
@@ -227,7 +230,7 @@ export default function AdminDashboardClient() {
 
         {/* Encaissements */}
         <Card className="border-ligne bg-blanc p-5 shadow-sm">
-          <ChartSectionHeader eyebrow="Finance" title="Encaissements (FCFA)">
+          <ChartSectionHeader title="Encaissements (FCFA)">
             <Select value={periodeFinance} onValueChange={setPeriodeFinance}>
               <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -257,9 +260,14 @@ export default function AdminDashboardClient() {
 
         {/* Top conseillers */}
         <Card className="border-ligne bg-blanc p-5 shadow-sm">
-          <ChartSectionHeader eyebrow="Performance" title="Top conseillers" />
+          <ChartSectionHeader title="Top conseillers" />
           {stats.topConseillers.length === 0 ? (
-            <p className="mt-4 text-sm text-ardoise">Aucun conseiller actif.</p>
+            <EmptyState
+              className="mt-4 border-0 bg-transparent py-8"
+              icon={<Users className="h-5 w-5" strokeWidth={1.5} />}
+              title="Aucun conseiller actif"
+              description="Les performances apparaîtront dès qu'un conseiller aura des dossiers affectés."
+            />
           ) : (
             <ul className="mt-4 space-y-3">
               {stats.topConseillers.map((c, i) => (
@@ -297,11 +305,8 @@ export default function AdminDashboardClient() {
       {/* Dossiers récents */}
       <Card className="border-ligne bg-blanc p-0 overflow-hidden shadow-sm">
         <div className="flex items-center justify-between border-b border-ligne px-6 py-4">
-          <div>
-            <p className="eyebrow">Activité récente</p>
-            <h2 className="font-display text-base font-bold text-encre">Dossiers récents</h2>
-          </div>
-          <Link href="/admin/dossiers" className="text-sm font-medium text-bleu-vif hover:underline">Tout voir</Link>
+          <h2 className="font-display text-base font-bold text-encre">Dossiers récents</h2>
+          <Link href="/admin/dossiers" className="text-sm font-medium text-or hover:underline">Tout voir</Link>
         </div>
         <div className="overflow-x-auto scroll-fine">
           <table className="w-full">
@@ -324,7 +329,7 @@ export default function AdminDashboardClient() {
                   <tr key={d.id} className="border-b border-ligne last:border-0 hover:bg-porcelaine/60 transition-colors">
                     <td className="px-6 py-3">
                       <Link href={`/admin/dossiers/${d.id}`} className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-bleu-pale font-mono text-[10px] font-semibold text-bleu-vif">
+                        <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-lapis/10 font-mono text-[10px] font-semibold text-or">
                           {d.candidatNom.slice(0, 2)}
                         </div>
                         <span className="text-sm font-medium text-encre">{d.candidatPrenom} {d.candidatNom}</span>
@@ -338,7 +343,7 @@ export default function AdminDashboardClient() {
                     <td className="px-6 py-3 font-mono text-xs text-ardoise">{formatDate(d.dateMaj)}</td>
                     <td className="px-6 py-3 text-right font-mono text-xs font-semibold text-encre">{formatFCFA(d.fraisAgence)}</td>
                     <td className="px-6 py-3 text-right">
-                      <Link href={`/admin/dossiers/${d.id}`} className="text-ardoise hover:text-bleu-vif" aria-label={`Voir ${d.reference}`}>
+                      <Link href={`/admin/dossiers/${d.id}`} className="text-ardoise hover:text-or" aria-label={`Voir ${d.reference}`}>
                         <ArrowRight className="h-4 w-4" strokeWidth={1.5} />
                       </Link>
                     </td>

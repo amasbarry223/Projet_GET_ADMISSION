@@ -5,7 +5,7 @@ import { provisionAndSendEmailOtp } from "@/lib/supabase/send-otp";
 import { API_ERROR_CODES, API_ROUTES } from "@/shared/constants";
 
 export async function POST(request: Request) {
-  const rateLimited = checkRateLimit(
+  const rateLimited = await checkRateLimit(
     getClientId(request),
     API_ROUTES.AUTH_SEND_VERIFICATION_OTP,
   );
