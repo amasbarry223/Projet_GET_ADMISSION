@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import bcrypt from "bcryptjs";
 import { adminUserUpdateSchema, validate } from "@/lib/validations";
 import { logAudit } from "@/lib/audit";
 import {
   canAssignRole,
   canManageTargetUser,
-  isInternalRole,
   isStaffManagementRole,
+  staffManageDeniedMessage,
 } from "@/lib/admin-users";
 
 // PUT /api/admin/users/[id] — modifier un membre (CRUD)
@@ -23,7 +24,10 @@ export async function PUT(
 
   const role = (session.user as { role?: string }).role ?? "";
   if (!isStaffManagementRole(role)) {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Seul un super-administrateur peut gérer le personnel" },
+      { status: 403 },
+    );
   }
 
   const userId = (session.user as { id: string }).id;
@@ -39,11 +43,7 @@ export async function PUT(
 
   if (!canManageTargetUser(role, target.role)) {
     return NextResponse.json(
-      {
-        error: !isInternalRole(target.role)
-          ? "Les comptes candidats se gèrent hors de la page Personnel"
-          : "Un administrateur ne peut pas modifier un super-administrateur",
-      },
+      { error: staffManageDeniedMessage(role, target.role) },
       { status: 403 },
     );
   }
@@ -59,7 +59,7 @@ export async function PUT(
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
-  const { actif, role: newRole, prenom, nom, email } = parsed.data;
+  const { actif, role: newRole, prenom, nom, email, password } = parsed.data;
 
   if (actif === false && id === userId) {
     return NextResponse.json(
@@ -73,7 +73,7 @@ export async function PUT(
       {
         error:
           newRole === "SUPER_ADMIN"
-            ? "Seul un super-administrateur peut promouvoir au rang super-administrateur"
+            ? "Seul un super-administrateur peut ajouter ou promouvoir un Super Admin"
             : "Vous n'êtes pas autorisé à attribuer ce rôle",
       },
       { status: 403 },
@@ -114,12 +114,16 @@ export async function PUT(
     prenom?: string;
     nom?: string;
     email?: string;
+    passwordHash?: string;
   } = {};
   if (actif !== undefined) data.actif = actif;
   if (newRole !== undefined) data.role = newRole;
   if (prenom !== undefined) data.prenom = prenom.trim();
   if (nom !== undefined) data.nom = nom.trim();
   if (email !== undefined) data.email = email.toLowerCase().trim();
+  if (password) {
+    data.passwordHash = await bcrypt.hash(password, 10);
+  }
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Aucune modification fournie" }, { status: 400 });
@@ -144,7 +148,7 @@ export async function PUT(
     action: "UPDATE",
     resource: "user",
     resourceId: id,
-    details: `Utilisateur modifié : ${updated.email} (actif=${updated.actif}, role=${updated.role})`,
+    details: `Utilisateur modifié : ${updated.email} (actif=${updated.actif}, role=${updated.role}${password ? ", mot de passe mis à jour" : ""})`,
   });
 
   return NextResponse.json(updated);
@@ -152,7 +156,7 @@ export async function PUT(
 
 // DELETE /api/admin/users/[id]
 export async function DELETE(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
@@ -162,7 +166,10 @@ export async function DELETE(
 
   const role = (session.user as { role?: string }).role ?? "";
   if (!isStaffManagementRole(role)) {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Seul un super-administrateur peut gérer le personnel" },
+      { status: 403 },
+    );
   }
 
   const userId = (session.user as { id: string }).id;
@@ -202,11 +209,7 @@ export async function DELETE(
 
   if (!canManageTargetUser(role, target.role)) {
     return NextResponse.json(
-      {
-        error: !isInternalRole(target.role)
-          ? "Les comptes candidats se gèrent hors de la page Personnel"
-          : "Un administrateur ne peut pas supprimer un super-administrateur",
-      },
+      { error: staffManageDeniedMessage(role, target.role) },
       { status: 403 },
     );
   }

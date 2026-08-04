@@ -6,25 +6,16 @@ import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { MotionButton } from "@/components/site/motion-button";
-import { BoardingPass } from "@/components/getadm/boarding-pass";
-import { fadeInUp, motionSafeVariants, revealViewport, scaleIn } from "@/lib/animations";
+import { fadeInUp, motionSafeVariants, scaleIn } from "@/lib/animations";
 
-type BoardingPreview = {
-  reference: string;
-  universiteNom: string;
-  formationLabel: string;
-  etat: string;
-  etapeActuelle: number;
-  etapeTotal: number;
-  conseiller: string;
-  fraisAgence: number;
-  mrz: string;
-} | null;
-
-export function HomeHero({ boarding }: { boarding: BoardingPreview }) {
+/**
+ * Hero vitrine — split équilibré :
+ * texte à gauche (promesse + CTA), portrait cutout à droite (ancrage humain).
+ */
+export function HomeHero() {
   const reduce = useReducedMotion();
-  const variants = motionSafeVariants(reduce, fadeInUp);
-  const cardVariants = motionSafeVariants(reduce, scaleIn);
+  const textVariants = motionSafeVariants(reduce, fadeInUp);
+  const portraitVariants = motionSafeVariants(reduce, scaleIn);
 
   return (
     <section className="relative overflow-hidden border-b border-border">
@@ -34,20 +25,21 @@ export function HomeHero({ boarding }: { boarding: BoardingPreview }) {
           alt=""
           fill
           priority
-          className="object-cover opacity-25"
+          className="object-cover opacity-20"
           sizes="100vw"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-background via-background/90 to-background" />
+        <div className="absolute inset-0 bg-gradient-to-br from-background via-background/92 to-background" />
         <div className="glow-primary absolute -left-24 top-10 h-80 w-80 blur-3xl" />
-        <div className="glow-primary absolute -right-16 bottom-0 h-72 w-72 opacity-60 blur-3xl" />
+        <div className="glow-primary absolute right-0 top-1/3 h-96 w-96 opacity-50 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto grid max-w-content gap-12 px-4 py-20 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:py-28">
+      <div className="relative mx-auto grid max-w-content items-center gap-8 px-4 py-14 sm:gap-10 sm:px-6 sm:py-16 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-6 lg:px-8 lg:py-24 xl:gap-10">
+        {/* Colonne texte */}
         <motion.div
           initial="hidden"
           animate="visible"
-          variants={variants}
-          className="flex flex-col justify-center"
+          variants={textVariants}
+          className="relative z-20 flex flex-col justify-center lg:pr-2"
         >
           <span className="inline-flex w-fit items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 font-mono text-[11px] uppercase tracking-eyebrow text-primary">
             <span className="relative flex h-2 w-2">
@@ -58,16 +50,16 @@ export function HomeHero({ boarding }: { boarding: BoardingPreview }) {
             <Sparkles className="h-3 w-3" strokeWidth={1.5} />
           </span>
 
-          <h1 className="mt-6 font-display text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+          <h1 className="mt-6 max-w-[18ch] text-balance font-display text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-[3.35rem] lg:leading-[1.08] xl:text-6xl">
             Votre admission à{" "}
             <span className="text-primary">l&apos;étranger</span>, accompagnée de bout en bout.
           </h1>
-          <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+          <p className="mt-5 max-w-md text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">
             GET Admission guide les étudiants d&apos;Afrique de l&apos;Ouest : université partenaire,
             dossier, paiement, attestation de pré-inscription.
           </p>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
             <MotionButton asChild size="lg">
               <Link href="/inscription">
                 Créer mon compte
@@ -80,41 +72,34 @@ export function HomeHero({ boarding }: { boarding: BoardingPreview }) {
           </div>
         </motion.div>
 
+        {/* Colonne portrait — plan rapproché, fond transparent */}
         <motion.div
           initial="hidden"
           animate="visible"
-          variants={cardVariants}
-          className="relative mx-auto w-full max-w-md lg:mx-0 lg:justify-self-end"
+          variants={portraitVariants}
+          className="relative z-10 mx-auto flex w-full max-w-[340px] items-end justify-center sm:max-w-[400px] lg:max-w-none lg:justify-self-end"
         >
           <div
-            className={`relative ${reduce ? "" : "animate-float"}`}
+            className={`relative aspect-[3/4] w-full max-w-[440px] ${reduce ? "" : "animate-float"}`}
             style={reduce ? undefined : { willChange: "transform" }}
           >
-            {boarding ? (
-              <BoardingPass
-                reference={boarding.reference}
-                universiteNom={boarding.universiteNom}
-                formationLabel={boarding.formationLabel}
-                etat={boarding.etat}
-                etapeActuelle={boarding.etapeActuelle}
-                etapeTotal={boarding.etapeTotal}
-                conseiller={boarding.conseiller}
-                fraisAgence={boarding.fraisAgence}
-                mrz={boarding.mrz}
-                variant="hero"
-                animateOnMount
-              />
-            ) : (
-              <div className="glass-card rounded-xl p-8 shadow-lg">
-                <p className="font-mono text-[11px] uppercase tracking-eyebrow text-primary">Aperçu dossier</p>
-                <p className="mt-3 font-display text-2xl font-bold text-foreground">
-                  Composez votre carte d&apos;embarquement académique.
-                </p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Référence, étapes et conseiller dédié — visibles dès la soumission.
-                </p>
-              </div>
-            )}
+            {/* Soft ground glow — ancre le cutout sans card */}
+            <div
+              className="pointer-events-none absolute inset-x-[12%] bottom-[4%] h-[22%] rounded-[50%] bg-primary/20 blur-3xl"
+              aria-hidden
+            />
+            <div
+              className="pointer-events-none absolute inset-x-[18%] bottom-[8%] h-[12%] rounded-[50%] bg-foreground/25 blur-2xl"
+              aria-hidden
+            />
+            <Image
+              src="/images/hero-etudiante-mali.png"
+              alt="Étudiante malienne souriante, face caméra, portant des lunettes et tenant passeport et documents de voyage"
+              fill
+              priority
+              className="object-contain object-bottom drop-shadow-[0_28px_56px_rgba(0,0,0,0.5)]"
+              sizes="(max-width: 640px) 85vw, (max-width: 1024px) 400px, 440px"
+            />
           </div>
         </motion.div>
       </div>

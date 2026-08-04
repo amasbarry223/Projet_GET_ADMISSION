@@ -24,12 +24,15 @@ async function main() {
   // --- ContactInfo (singleton) ---
   await db.contactInfo.upsert({
     where: { id: 1 },
-    update: {},
+    update: {
+      telephone: "+223 77879114 / +223 74303197 / +223 92588109",
+      adresses: "Bacodjicoroni-Golf en face de fitini market",
+    },
     create: {
       id: 1,
       email: "contact@getadm.com",
-      telephone: "+221 33 800 00 00",
-      adresses: "Dakar · Abidjan · Lomé",
+      telephone: "+223 77879114 / +223 74303197 / +223 92588109",
+      adresses: "Bacodjicoroni-Golf en face de fitini market",
       horaires: "Lun – Ven : 9h – 18h",
     },
   });

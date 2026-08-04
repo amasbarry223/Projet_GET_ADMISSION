@@ -98,6 +98,31 @@ function BackOfficeLoginInner() {
 
     setLoading(false);
     if (res?.error) {
+      const suspendedFromAuth =
+        res.error === "ACCOUNT_SUSPENDED" || res.error.includes("ACCOUNT_SUSPENDED");
+
+      let suspended = suspendedFromAuth;
+      if (!suspended) {
+        try {
+          const diagnose = await fetch("/api/auth/staff-login-status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password }),
+          }).then((r) => r.json() as Promise<{ status?: string }>);
+          suspended = diagnose?.status === "suspended";
+        } catch {
+          // ignore — repli sur message générique
+        }
+      }
+
+      if (suspended) {
+        toast.error("Compte suspendu", {
+          description:
+            "Votre accès au back-office a été suspendu. Contactez un super-administrateur pour le réactiver.",
+        });
+        return;
+      }
+
       setSuggestCandidat(true);
       toast.error("Connexion échouée", {
         description: "E-mail ou mot de passe incorrect.",

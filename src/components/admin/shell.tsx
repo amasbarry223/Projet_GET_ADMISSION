@@ -68,7 +68,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     title: "Gestion",
     items: [
       { href: "/admin/finance", label: "Finance", icon: Wallet, permission: "finance.read" },
-      { href: "/admin/utilisateurs", label: "Utilisateurs", icon: Users, permission: "users.write" },
+      { href: "/admin/utilisateurs", label: "Utilisateurs", icon: Users, permission: "users.read" },
       { href: "/admin/attestations", label: "Attestations", icon: Stamp, permission: "attestations.read" },
     ],
   },

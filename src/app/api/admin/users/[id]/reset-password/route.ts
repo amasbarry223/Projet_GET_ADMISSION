@@ -9,8 +9,8 @@ import { sendMail, invitationEmailHtml } from "@/lib/mail";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import {
   canManageTargetUser,
-  isInternalRole,
   isStaffManagementRole,
+  staffManageDeniedMessage,
 } from "@/lib/admin-users";
 
 function generateTempPassword(length = 14): string {
@@ -34,7 +34,10 @@ export async function POST(request: Request, { params }: Ctx) {
 
   const role = (session.user as { role?: string }).role ?? "";
   if (!isStaffManagementRole(role)) {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Seul un super-administrateur peut gérer le personnel" },
+      { status: 403 },
+    );
   }
 
   const rateLimited = await checkRateLimit(getClientId(request), "/api/admin/users/reset-password");
@@ -51,11 +54,7 @@ export async function POST(request: Request, { params }: Ctx) {
 
   if (!canManageTargetUser(role, target.role)) {
     return NextResponse.json(
-      {
-        error: !isInternalRole(target.role)
-          ? "Les comptes candidats se gèrent hors de la page Personnel"
-          : "Un administrateur ne peut pas réinitialiser un super-administrateur",
-      },
+      { error: staffManageDeniedMessage(role, target.role) },
       { status: 403 },
     );
   }

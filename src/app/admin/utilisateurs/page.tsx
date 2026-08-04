@@ -4,7 +4,7 @@ import { requireAdminPage } from "@/lib/admin-page-auth";
 import { INTERNAL_ROLES } from "@/lib/admin-users";
 
 export default async function AdminUtilisateursPage() {
-  const session = await requireAdminPage("users.write");
+  const session = await requireAdminPage("users.read");
   const currentRole = (session.user as { role?: string }).role ?? "ADMIN";
   const currentUserId = (session.user as { id?: string }).id ?? "";
 

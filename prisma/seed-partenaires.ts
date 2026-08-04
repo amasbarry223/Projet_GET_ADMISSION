@@ -321,7 +321,7 @@ async function main() {
 
   for (const p of PARTNERS) {
     const assets = assetPaths(p.slug);
-    const univ = await db.universite.upsert({
+    await db.universite.upsert({
       where: { slug: p.slug },
       update: {
         nom: p.nom,
@@ -353,31 +353,8 @@ async function main() {
       },
     });
 
-    if (p.formation) {
-      const existingForm = await db.formation.findFirst({
-        where: { universiteId: univ.id, intitule: p.formation.intitule },
-      });
-      if (!existingForm) {
-        await db.formation.create({
-          data: {
-            universiteId: univ.id,
-            intitule: p.formation.intitule,
-            niveau: p.formation.niveau,
-            domaine: p.formation.domaine,
-            duree: p.formation.duree,
-            fraisAgence: 110_000,
-            prerequis: JSON.stringify(["Bac ou équivalent", "Dossier complet"]),
-            piecesRequises: JSON.stringify([
-              "Diplôme",
-              "Relevé de notes",
-              "CV",
-              "Lettre de motivation",
-              "Passeport",
-            ]),
-          },
-        });
-      }
-    }
+    // Les formations sont synchronisées par prisma/seed-catalogue-formations.ts
+    // (liste unifiée PSTM + Galileo) — ne plus créer d'intitulés « historiques » ici.
   }
 
   // Update stats partner count

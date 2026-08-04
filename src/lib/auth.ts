@@ -91,7 +91,7 @@ async function authorizeViaPasswordCredentials(params: {
   }
 
   const user = await db.user.findUnique({ where: { email: normalizedEmail } });
-  if (!user || !user.actif || !user.passwordHash) return null;
+  if (!user || !user.passwordHash) return null;
 
   const isPasswordValid = await bcrypt.compare(params.password, user.passwordHash);
   if (!isPasswordValid) return null;
@@ -99,6 +99,11 @@ async function authorizeViaPasswordCredentials(params: {
   // Refus silencieux si le portail ne correspond pas au rôle (anti-énumération)
   if (params.portal === "candidat" && user.role !== "CANDIDAT") return null;
   if (params.portal === "staff" && !isStaff(user.role)) return null;
+
+  // Compte suspendu : message distinct (identifiants déjà validés)
+  if (!user.actif) {
+    throw new Error("ACCOUNT_SUSPENDED");
+  }
 
   // BF-06 : bloquer la connexion si e-mail non vérifié (paramètre agence)
   if (user.role === "CANDIDAT" && !user.emailVerified) {

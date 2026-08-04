@@ -227,21 +227,64 @@ export const formationSchema = z.object({
 export type FormationInput = z.infer<typeof formationSchema>;
 
 // --- Admin user invite ---
-export const adminUserCreateSchema = z.object({
-  prenom: z.string().min(1, "Le prénom est requis").max(50),
-  nom: z.string().min(1, "Le nom est requis").max(50),
-  email: z.string().email("L'e-mail saisi n'est pas valide"),
-  role: z.enum(["CONSEILLER", "FINANCIER", "ADMIN", "SUPER_ADMIN"]),
-});
+export const adminUserCreateSchema = z
+  .object({
+    prenom: z.string().min(1, "Le prénom est requis").max(50),
+    nom: z.string().min(1, "Le nom est requis").max(50),
+    email: z.string().email("L'e-mail saisi n'est pas valide"),
+    role: z.enum(["CONSEILLER", "FINANCIER", "ADMIN", "SUPER_ADMIN"]),
+    password: z
+      .string()
+      .min(PASSWORD_MIN_LENGTH, `Le mot de passe doit contenir au moins ${PASSWORD_MIN_LENGTH} caractères`)
+      .max(PASSWORD_MAX_LENGTH),
+    confirmPassword: z.string().min(1, "Confirmez le mot de passe"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Les mots de passe ne correspondent pas",
+    path: ["confirmPassword"],
+  });
 export type AdminUserCreateInput = z.infer<typeof adminUserCreateSchema>;
 
-export const adminUserUpdateSchema = z.object({
-  prenom: z.string().min(1).max(50).optional(),
-  nom: z.string().min(1).max(50).optional(),
-  email: z.string().email("L'e-mail saisi n'est pas valide").optional(),
-  actif: z.boolean().optional(),
-  role: z.enum(["CONSEILLER", "FINANCIER", "ADMIN", "SUPER_ADMIN"]).optional(),
-});
+export const adminUserUpdateSchema = z
+  .object({
+    prenom: z.string().min(1).max(50).optional(),
+    nom: z.string().min(1).max(50).optional(),
+    email: z.string().email("L'e-mail saisi n'est pas valide").optional(),
+    actif: z.boolean().optional(),
+    role: z.enum(["CONSEILLER", "FINANCIER", "ADMIN", "SUPER_ADMIN"]).optional(),
+    password: z
+      .string()
+      .min(PASSWORD_MIN_LENGTH, `Le mot de passe doit contenir au moins ${PASSWORD_MIN_LENGTH} caractères`)
+      .max(PASSWORD_MAX_LENGTH)
+      .optional()
+      .or(z.literal("")),
+    confirmPassword: z.string().optional().or(z.literal("")),
+  })
+  .refine(
+    (data) => {
+      const pwd = data.password ?? "";
+      const confirm = data.confirmPassword ?? "";
+      if (!pwd && !confirm) return true;
+      return pwd === confirm;
+    },
+    {
+      message: "Les mots de passe ne correspondent pas",
+      path: ["confirmPassword"],
+    },
+  )
+  .refine(
+    (data) => {
+      const pwd = data.password ?? "";
+      const confirm = data.confirmPassword ?? "";
+      // Si un des deux est rempli, le mot de passe doit être valide
+      if (!pwd && !confirm) return true;
+      return pwd.length >= PASSWORD_MIN_LENGTH;
+    },
+    {
+      message: `Le mot de passe doit contenir au moins ${PASSWORD_MIN_LENGTH} caractères`,
+      path: ["password"],
+    },
+  );
 export type AdminUserUpdateInput = z.infer<typeof adminUserUpdateSchema>;
 
 // --- Contact form ---

@@ -1,31 +1,19 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
-import crypto from "crypto";
 import { adminUserCreateSchema } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { requireApiUser, requireApiPermission, parseOrRespond } from "@/lib/api-auth";
 import { logAudit } from "@/lib/audit";
-import { sendMail, invitationEmailHtml } from "@/lib/mail";
 import {
   canAssignRole,
   INTERNAL_ROLES,
   isStaffManagementRole,
 } from "@/lib/admin-users";
 
-function generateTempPassword(length = 14): string {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@$%";
-  const bytes = crypto.randomBytes(length);
-  let out = "";
-  for (let i = 0; i < length; i++) {
-    out += alphabet[bytes[i]! % alphabet.length];
-  }
-  return out;
-}
-
 // GET /api/admin/users — liste du personnel interne
 export async function GET(request: Request) {
-  const auth = await requireApiPermission("users.write");
+  const auth = await requireApiPermission("users.read");
   if (!auth.ok) return auth.response;
 
   const { searchParams } = new URL(request.url);
@@ -89,13 +77,16 @@ export async function GET(request: Request) {
   return NextResponse.json(users.map(mapToRow));
 }
 
-// POST /api/admin/users — créer / inviter un membre du personnel
+// POST /api/admin/users — créer un membre du personnel (mot de passe défini par le Super Admin)
 export async function POST(request: Request) {
   const auth = await requireApiUser();
   if (!auth.ok) return auth.response;
   const { role } = auth.user;
   if (!isStaffManagementRole(role)) {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Seul un super-administrateur peut gérer le personnel" },
+      { status: 403 },
+    );
   }
 
   const rateLimited = await checkRateLimit(getClientId(request), "/api/admin/users");
@@ -110,14 +101,14 @@ export async function POST(request: Request) {
 
   const parsed = parseOrRespond(adminUserCreateSchema, body);
   if (!parsed.ok) return parsed.response;
-  const { prenom, nom, email, role: newRole } = parsed.data;
+  const { prenom, nom, email, role: newRole, password } = parsed.data;
 
   if (!canAssignRole(role, newRole)) {
     return NextResponse.json(
       {
         error:
           newRole === "SUPER_ADMIN"
-            ? "Seul un super-administrateur peut créer un super-administrateur"
+            ? "Seul un super-administrateur peut ajouter un Super Admin"
             : "Vous n'êtes pas autorisé à attribuer ce rôle",
       },
       { status: 403 },
@@ -137,8 +128,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const defaultPassword = generateTempPassword();
-  const passwordHash = await bcrypt.hash(defaultPassword, 10);
+  const passwordHash = await bcrypt.hash(password, 10);
 
   const user = await db.user.create({
     data: {
@@ -161,13 +151,6 @@ export async function POST(request: Request) {
     },
   });
 
-  await sendMail({
-    to: user.email,
-    subject: "Invitation GET Admission — votre compte",
-    html: invitationEmailHtml(user.prenom, user.email, defaultPassword),
-    text: `Bonjour ${user.prenom}, votre compte GET Admission a été créé. E-mail : ${user.email}. Mot de passe temporaire : ${defaultPassword}`,
-  });
-
   await logAudit({
     session: auth.session,
     action: "CREATE",
@@ -176,11 +159,5 @@ export async function POST(request: Request) {
     details: `Utilisateur créé : ${user.email} (${newRole})`,
   });
 
-  return NextResponse.json(
-    {
-      ...user,
-      defaultPassword,
-    },
-    { status: 201 },
-  );
+  return NextResponse.json(user, { status: 201 });
 }

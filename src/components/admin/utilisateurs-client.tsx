@@ -38,13 +38,15 @@ import {
   Crown,
   UserCog,
   Pencil,
-  Mail,
+  KeyRound,
   UserX,
   Trash2,
   Loader2,
-  Lock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PASSWORD_MIN_LENGTH } from "@/shared/constants";
 
 export type DbRole = "CONSEILLER" | "FINANCIER" | "ADMIN" | "SUPER_ADMIN";
 
@@ -86,17 +88,7 @@ const ROLE_TONE: Record<DbRole, string> = {
 
 type ActorRole = "ADMIN" | "SUPER_ADMIN";
 
-function canManageRow(actorRole: ActorRole, row: UserRow): boolean {
-  if (row.role === "SUPER_ADMIN" && actorRole !== "SUPER_ADMIN") return false;
-  return true;
-}
-
-function assignableRolesFor(actorRole: ActorRole): DbRole[] {
-  if (actorRole === "SUPER_ADMIN") {
-    return ["CONSEILLER", "FINANCIER", "ADMIN", "SUPER_ADMIN"];
-  }
-  return ["CONSEILLER", "FINANCIER", "ADMIN"];
-}
+const ASSIGNABLE_ROLES: DbRole[] = ["CONSEILLER", "FINANCIER", "ADMIN", "SUPER_ADMIN"];
 
 export function UtilisateursClient({
   initialData,
@@ -109,7 +101,8 @@ export function UtilisateursClient({
 }) {
   const router = useRouter();
   const data = initialData;
-  const roleOptions = assignableRolesFor(currentRole);
+  const canWrite = currentRole === "SUPER_ADMIN";
+  const roleOptions = canWrite ? ASSIGNABLE_ROLES : [];
 
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [editOpen, setEditOpen] = React.useState(false);
@@ -119,6 +112,9 @@ export function UtilisateursClient({
   const [formNom, setFormNom] = React.useState("");
   const [formEmail, setFormEmail] = React.useState("");
   const [formRole, setFormRole] = React.useState<DbRole>("CONSEILLER");
+  const [formPassword, setFormPassword] = React.useState("");
+  const [formConfirmPassword, setFormConfirmPassword] = React.useState("");
+  const [showPassword, setShowPassword] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [updatingId, setUpdatingId] = React.useState<string | null>(null);
 
@@ -127,32 +123,46 @@ export function UtilisateursClient({
     setFormNom("");
     setFormEmail("");
     setFormRole("CONSEILLER");
+    setFormPassword("");
+    setFormConfirmPassword("");
+    setShowPassword(false);
+  };
+
+  const resetEditPasswordFields = () => {
+    setFormPassword("");
+    setFormConfirmPassword("");
+    setShowPassword(false);
+  };
+
+  const denyWrite = () => {
+    toast.error("Accès refusé", {
+      description: "Seul un super-administrateur peut gérer le personnel.",
+    });
   };
 
   const openEdit = (row: UserRow) => {
-    if (!canManageRow(currentRole, row)) {
-      toast.error("Accès refusé", {
-        description: "Un administrateur ne peut pas modifier un super-administrateur.",
-      });
+    if (!canWrite) {
+      denyWrite();
       return;
     }
     setEditing(row);
     setFormPrenom(row.prenom);
     setFormNom(row.nomFamille);
     setFormEmail(row.email);
-    setFormRole(row.role === "SUPER_ADMIN" && currentRole !== "SUPER_ADMIN" ? "ADMIN" : row.role);
+    setFormRole(row.role);
+    resetEditPasswordFields();
     setEditOpen(true);
   };
 
   const toggleActif = async (row: UserRow) => {
-    if (!canManageRow(currentRole, row)) {
-      toast.error("Accès refusé", {
-        description: "Un administrateur ne peut pas modifier un super-administrateur.",
-      });
+    if (!canWrite) {
+      denyWrite();
       return;
     }
     if (row.id === currentUserId && row.actif) {
-      toast.error("Action interdite", { description: "Vous ne pouvez pas désactiver votre propre compte." });
+      toast.error("Action interdite", {
+        description: "Vous ne pouvez pas désactiver votre propre compte.",
+      });
       return;
     }
     setUpdatingId(row.id);
@@ -167,7 +177,7 @@ export function UtilisateursClient({
   };
 
   const suspendre = async (row: UserRow) => {
-    if (!canManageRow(currentRole, row)) return;
+    if (!canWrite) return;
     setUpdatingId(row.id);
     const result = await apiJson(`/api/admin/users/${row.id}`, "PUT", { actif: false });
     setUpdatingId(null);
@@ -180,7 +190,7 @@ export function UtilisateursClient({
   };
 
   const supprimer = async (row: UserRow) => {
-    if (!canManageRow(currentRole, row)) return;
+    if (!canWrite) return;
     setUpdatingId(row.id);
     const result = await apiJson<{ softDeleted?: boolean }>(`/api/admin/users/${row.id}`, "DELETE");
     setUpdatingId(null);
@@ -195,10 +205,8 @@ export function UtilisateursClient({
   };
 
   const resetPassword = async (row: UserRow) => {
-    if (!canManageRow(currentRole, row)) {
-      toast.error("Accès refusé", {
-        description: "Un administrateur ne peut pas réinitialiser un super-administrateur.",
-      });
+    if (!canWrite) {
+      denyWrite();
       return;
     }
     setUpdatingId(row.id);
@@ -218,25 +226,29 @@ export function UtilisateursClient({
     });
   };
 
-  const actions: ActionItem<UserRow>[] = React.useMemo(
-    () => [
+  const actions: ActionItem<UserRow>[] = React.useMemo(() => {
+    if (!canWrite) return [];
+    return [
       {
         label: "Modifier",
         icon: Pencil,
-        hidden: (row) => !canManageRow(currentRole, row),
         onClick: (row) => openEdit(row),
       },
       {
         label: "Réinitialiser le mot de passe",
-        icon: Mail,
-        hidden: (row) => !canManageRow(currentRole, row),
-        onClick: (row) => void resetPassword(row),
+        icon: KeyRound,
+        confirm: {
+          title: "Réinitialiser le mot de passe ?",
+          description: (row) =>
+            `Générer un mot de passe temporaire pour ${row.nom} et l'envoyer à ${row.email}.`,
+          confirmLabel: "Réinitialiser",
+          onConfirm: (row) => void resetPassword(row),
+        },
       },
       {
         label: "Suspendre l'accès",
         icon: UserX,
-        hidden: (row) =>
-          !canManageRow(currentRole, row) || !row.actif || row.id === currentUserId,
+        hidden: (row) => !row.actif || row.id === currentUserId,
         confirm: {
           title: "Suspendre l'accès de ce membre ?",
           description: (row) =>
@@ -249,7 +261,7 @@ export function UtilisateursClient({
         label: "Supprimer le compte",
         icon: Trash2,
         tone: "danger",
-        hidden: (row) => !canManageRow(currentRole, row) || row.id === currentUserId,
+        hidden: (row) => row.id === currentUserId,
         confirm: {
           title: "Supprimer ce compte ?",
           description: (row) =>
@@ -258,14 +270,17 @@ export function UtilisateursClient({
           onConfirm: (row) => void supprimer(row),
         },
       },
-    ],
-     
-    [currentRole, currentUserId],
-  );
+    ];
+  }, [canWrite, currentUserId]);
 
-  const columns: ColumnDef<UserRow>[] = React.useMemo(
-    () => [
-      createSelectColumn<UserRow>(),
+  const columns: ColumnDef<UserRow>[] = React.useMemo(() => {
+    const cols: ColumnDef<UserRow>[] = [];
+
+    if (canWrite) {
+      cols.push(createSelectColumn<UserRow>());
+    }
+
+    cols.push(
       {
         id: "nom",
         accessorKey: "nom",
@@ -284,9 +299,6 @@ export function UtilisateursClient({
                   <Badge variant="outline" className="font-mono text-[9px] uppercase">
                     Vous
                   </Badge>
-                )}
-                {!canManageRow(currentRole, row.original) && (
-                  <Lock className="h-3.5 w-3.5 text-ardoise" strokeWidth={1.5} aria-label="Protégé" />
                 )}
               </p>
               <p className="font-mono text-[11px] text-ardoise">{row.original.email}</p>
@@ -351,12 +363,26 @@ export function UtilisateursClient({
           </span>
         ),
         cell: ({ row }) => {
-          const locked = !canManageRow(currentRole, row.original);
+          if (!canWrite) {
+            return (
+              <Badge
+                variant="outline"
+                className={cn(
+                  "font-mono text-[10px] uppercase",
+                  row.original.actif
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : "border-border bg-muted text-muted-foreground",
+                )}
+              >
+                {row.original.actif ? "Actif" : "Suspendu"}
+              </Badge>
+            );
+          }
           const selfLock = row.original.id === currentUserId && row.original.actif;
           return (
             <Switch
               checked={row.original.actif}
-              disabled={updatingId === row.original.id || locked || selfLock}
+              disabled={updatingId === row.original.id || selfLock}
               onCheckedChange={() => void toggleActif(row.original)}
               aria-label={`Activer ${row.original.nom}`}
             />
@@ -364,32 +390,53 @@ export function UtilisateursClient({
         },
         enableSorting: false,
       },
-      createActionsColumn<UserRow>(actions, {
-        ariaLabel: (row) => `Actions sur ${row.nom}`,
-      }),
-    ],
-     
-    [actions, updatingId, currentRole, currentUserId],
-  );
+    );
+
+    if (canWrite) {
+      cols.push(
+        createActionsColumn<UserRow>(actions, {
+          ariaLabel: (row) => `Actions sur ${row.nom}`,
+        }),
+      );
+    }
+
+    return cols;
+  }, [actions, updatingId, canWrite, currentUserId]);
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canWrite) {
+      denyWrite();
+      return;
+    }
+    if (formPassword !== formConfirmPassword) {
+      toast.error("Mots de passe différents", {
+        description: "Les deux champs mot de passe doivent être identiques.",
+      });
+      return;
+    }
+    if (formPassword.length < PASSWORD_MIN_LENGTH) {
+      toast.error("Mot de passe trop court", {
+        description: `Au moins ${PASSWORD_MIN_LENGTH} caractères.`,
+      });
+      return;
+    }
     setSaving(true);
-    const result = await apiJson<{ defaultPassword?: string }>("/api/admin/users", "POST", {
+    const result = await apiJson("/api/admin/users", "POST", {
       prenom: formPrenom,
       nom: formNom,
       email: formEmail,
       role: formRole,
+      password: formPassword,
+      confirmPassword: formConfirmPassword,
     });
     setSaving(false);
     if (!result.ok) {
       toast.error("Création échouée", { description: result.error });
       return;
     }
-    toast.success("Membre ajouté", {
-      description: result.data.defaultPassword
-        ? `${formPrenom} ${formNom} — mot de passe temporaire : ${result.data.defaultPassword}`
-        : `Invitation envoyée à ${formEmail}.`,
+    toast.success("Membre créé", {
+      description: `${formPrenom} ${formNom} · ${formEmail} · ${ROLE_LABEL[formRole]}`,
     });
     setInviteOpen(false);
     resetInviteForm();
@@ -398,22 +445,46 @@ export function UtilisateursClient({
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editing) return;
+    if (!editing || !canWrite) return;
+    if (formPassword || formConfirmPassword) {
+      if (formPassword !== formConfirmPassword) {
+        toast.error("Mots de passe différents", {
+          description: "Les deux champs mot de passe doivent être identiques.",
+        });
+        return;
+      }
+      if (formPassword.length < PASSWORD_MIN_LENGTH) {
+        toast.error("Mot de passe trop court", {
+          description: `Au moins ${PASSWORD_MIN_LENGTH} caractères.`,
+        });
+        return;
+      }
+    }
     setSaving(true);
-    const result = await apiJson(`/api/admin/users/${editing.id}`, "PUT", {
+    const payload: Record<string, unknown> = {
       prenom: formPrenom,
       nom: formNom,
       email: formEmail,
       role: formRole,
-    });
+    };
+    if (formPassword) {
+      payload.password = formPassword;
+      payload.confirmPassword = formConfirmPassword;
+    }
+    const result = await apiJson(`/api/admin/users/${editing.id}`, "PUT", payload);
     setSaving(false);
     if (!result.ok) {
       toast.error("Modification échouée", { description: result.error });
       return;
     }
-    toast.success("Membre mis à jour", { description: `${formPrenom} ${formNom}` });
+    toast.success("Membre mis à jour", {
+      description: formPassword
+        ? `${formPrenom} ${formNom} — mot de passe mis à jour`
+        : `${formPrenom} ${formNom}`,
+    });
     setEditOpen(false);
     setEditing(null);
+    resetEditPasswordFields();
     router.refresh();
   };
 
@@ -426,71 +497,213 @@ export function UtilisateursClient({
           </h1>
           <p className="text-sm text-ardoise">
             {data.length} membres · {data.filter((u) => u.actif).length} actifs
-            {currentRole === "ADMIN" && (
-              <span className="ml-1 text-xs">· Les super-admins sont en lecture seule</span>
+            {!canWrite && (
+              <span className="ml-1 text-xs">
+                · Lecture seule · gestion réservée au Super Admin
+              </span>
             )}
           </p>
         </div>
-        <Dialog
-          open={inviteOpen}
-          onOpenChange={(open) => {
-            setInviteOpen(open);
-            if (!open) resetInviteForm();
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button className="bg-lapis text-blanc hover:bg-lapis/90">
-              <Plus className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Ajouter un membre
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="bg-blanc sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="font-display text-lg font-bold text-encre">
-                Ajouter un membre
-              </DialogTitle>
-              <DialogDescription className="text-sm text-ardoise">
-                Créez un compte personnel. Un mot de passe temporaire sera généré et envoyé par
-                e-mail.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleInvite} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+        {canWrite && (
+          <Dialog
+            open={inviteOpen}
+            onOpenChange={(open) => {
+              setInviteOpen(open);
+              if (!open) resetInviteForm();
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button className="bg-lapis text-blanc hover:bg-lapis/90">
+                <Plus className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Ajouter un membre
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-blanc sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="font-display text-lg font-bold text-encre">
+                  Ajouter un membre
+                </DialogTitle>
+                <DialogDescription className="text-sm text-ardoise">
+                  Créez un compte personnel et définissez son mot de passe. Communiquez-le ensuite
+                  au membre concerné.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleInvite} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="invite-prenom">Prénom</Label>
+                    <Input
+                      id="invite-prenom"
+                      value={formPrenom}
+                      onChange={(e) => setFormPrenom(e.target.value)}
+                      placeholder="Aïssatou"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="invite-nom">Nom</Label>
+                    <Input
+                      id="invite-nom"
+                      value={formNom}
+                      onChange={(e) => setFormNom(e.target.value)}
+                      placeholder="Diallo"
+                      required
+                    />
+                  </div>
+                </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="invite-prenom">Prénom</Label>
+                  <Label htmlFor="invite-email">E-mail professionnel</Label>
                   <Input
-                    id="invite-prenom"
-                    value={formPrenom}
-                    onChange={(e) => setFormPrenom(e.target.value)}
-                    placeholder="Aïssatou"
+                    id="invite-email"
+                    type="email"
+                    value={formEmail}
+                    onChange={(e) => setFormEmail(e.target.value)}
+                    placeholder="a.diallo@getadm.com"
                     required
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="invite-nom">Nom</Label>
+                  <Label htmlFor="invite-role">Rôle</Label>
+                  <Select value={formRole} onValueChange={(v) => setFormRole(v as DbRole)}>
+                    <SelectTrigger id="invite-role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {roleOptions.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          {ROLE_LABEL[r]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="invite-password">Mot de passe</Label>
+                  <div className="relative">
+                    <Input
+                      id="invite-password"
+                      type={showPassword ? "text" : "password"}
+                      value={formPassword}
+                      onChange={(e) => setFormPassword(e.target.value)}
+                      placeholder={`Au moins ${PASSWORD_MIN_LENGTH} caractères`}
+                      minLength={PASSWORD_MIN_LENGTH}
+                      autoComplete="new-password"
+                      required
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute inset-y-0 right-0 flex items-center px-3 text-ardoise hover:text-encre"
+                      aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" strokeWidth={1.5} />
+                      ) : (
+                        <Eye className="h-4 w-4" strokeWidth={1.5} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="invite-confirm-password">Confirmer le mot de passe</Label>
                   <Input
-                    id="invite-nom"
+                    id="invite-confirm-password"
+                    type={showPassword ? "text" : "password"}
+                    value={formConfirmPassword}
+                    onChange={(e) => setFormConfirmPassword(e.target.value)}
+                    placeholder="Retapez le mot de passe"
+                    minLength={PASSWORD_MIN_LENGTH}
+                    autoComplete="new-password"
+                    required
+                  />
+                </div>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setInviteOpen(false)}
+                    disabled={saving}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="bg-lapis text-blanc hover:bg-lapis/90"
+                    disabled={saving}
+                  >
+                    {saving && (
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />
+                    )}
+                    Créer le compte
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+
+      {canWrite && (
+        <Dialog
+          open={editOpen}
+          onOpenChange={(open) => {
+            setEditOpen(open);
+            if (!open) {
+              setEditing(null);
+              resetEditPasswordFields();
+            }
+          }}
+        >
+          <DialogContent className="bg-blanc sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-display text-lg font-bold text-encre">
+                {editing?.id === currentUserId ? "Modifier mes accès" : "Modifier le membre"}
+              </DialogTitle>
+              <DialogDescription className="text-sm text-ardoise">
+                {editing?.id === currentUserId
+                  ? "Mettez à jour votre identité, votre e-mail ou votre mot de passe."
+                  : "Mettez à jour l'identité, l'e-mail, le rôle ou le mot de passe."}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleEdit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-prenom">Prénom</Label>
+                  <Input
+                    id="edit-prenom"
+                    value={formPrenom}
+                    onChange={(e) => setFormPrenom(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-nom">Nom</Label>
+                  <Input
+                    id="edit-nom"
                     value={formNom}
                     onChange={(e) => setFormNom(e.target.value)}
-                    placeholder="Diallo"
                     required
                   />
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="invite-email">E-mail professionnel</Label>
+                <Label htmlFor="edit-email">E-mail</Label>
                 <Input
-                  id="invite-email"
+                  id="edit-email"
                   type="email"
                   value={formEmail}
                   onChange={(e) => setFormEmail(e.target.value)}
-                  placeholder="a.diallo@getadm.com"
                   required
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="invite-role">Rôle</Label>
-                <Select value={formRole} onValueChange={(v) => setFormRole(v as DbRole)}>
-                  <SelectTrigger id="invite-role">
+                <Label htmlFor="edit-role">Rôle</Label>
+                <Select
+                  value={formRole}
+                  onValueChange={(v) => setFormRole(v as DbRole)}
+                  disabled={editing?.id === currentUserId && editing.role === "SUPER_ADMIN"}
+                >
+                  <SelectTrigger id="edit-role">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -501,12 +714,58 @@ export function UtilisateursClient({
                     ))}
                   </SelectContent>
                 </Select>
+                {editing?.id === currentUserId && editing.role === "SUPER_ADMIN" && (
+                  <p className="text-xs text-ardoise">
+                    Votre rôle Super Admin ne peut pas être modifié depuis ici.
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-password">
+                  {editing?.id === currentUserId ? "Nouveau mot de passe" : "Mot de passe"}{" "}
+                  <span className="font-normal text-ardoise">(optionnel)</span>
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="edit-password"
+                    type={showPassword ? "text" : "password"}
+                    value={formPassword}
+                    onChange={(e) => setFormPassword(e.target.value)}
+                    placeholder={`Laisser vide pour ne pas changer · min. ${PASSWORD_MIN_LENGTH}`}
+                    minLength={PASSWORD_MIN_LENGTH}
+                    autoComplete="new-password"
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute inset-y-0 right-0 flex items-center px-3 text-ardoise hover:text-encre"
+                    aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" strokeWidth={1.5} />
+                    ) : (
+                      <Eye className="h-4 w-4" strokeWidth={1.5} />
+                    )}
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-confirm-password">Confirmer le mot de passe</Label>
+                <Input
+                  id="edit-confirm-password"
+                  type={showPassword ? "text" : "password"}
+                  value={formConfirmPassword}
+                  onChange={(e) => setFormConfirmPassword(e.target.value)}
+                  placeholder="Retapez uniquement si vous changez le mot de passe"
+                  autoComplete="new-password"
+                />
               </div>
               <DialogFooter>
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setInviteOpen(false)}
+                  onClick={() => setEditOpen(false)}
                   disabled={saving}
                 >
                   Annuler
@@ -517,97 +776,13 @@ export function UtilisateursClient({
                   disabled={saving}
                 >
                   {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
-                  Créer le compte
+                  Enregistrer
                 </Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
-      </div>
-
-      <Dialog
-        open={editOpen}
-        onOpenChange={(open) => {
-          setEditOpen(open);
-          if (!open) setEditing(null);
-        }}
-      >
-        <DialogContent className="bg-blanc sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-display text-lg font-bold text-encre">
-              Modifier le membre
-            </DialogTitle>
-            <DialogDescription className="text-sm text-ardoise">
-              Mettez à jour l&apos;identité, l&apos;e-mail ou le rôle.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleEdit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="edit-prenom">Prénom</Label>
-                <Input
-                  id="edit-prenom"
-                  value={formPrenom}
-                  onChange={(e) => setFormPrenom(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="edit-nom">Nom</Label>
-                <Input
-                  id="edit-nom"
-                  value={formNom}
-                  onChange={(e) => setFormNom(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-email">E-mail</Label>
-              <Input
-                id="edit-email"
-                type="email"
-                value={formEmail}
-                onChange={(e) => setFormEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-role">Rôle</Label>
-              <Select value={formRole} onValueChange={(v) => setFormRole(v as DbRole)}>
-                <SelectTrigger id="edit-role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {roleOptions.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {ROLE_LABEL[r]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setEditOpen(false)}
-                disabled={saving}
-              >
-                Annuler
-              </Button>
-              <Button
-                type="submit"
-                className="bg-lapis text-blanc hover:bg-lapis/90"
-                disabled={saving}
-              >
-                {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
-                Enregistrer
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      )}
 
       <DataTable
         columns={columns}
@@ -643,14 +818,30 @@ export function UtilisateursClient({
       />
 
       <Alert className="border-ligne bg-blanc">
-        <UserCog className="h-4 w-4 text-lapis" strokeWidth={1.5} />
+        {canWrite ? (
+          <Crown className="h-4 w-4 text-or" strokeWidth={1.5} />
+        ) : (
+          <Eye className="h-4 w-4 text-lapis" strokeWidth={1.5} />
+        )}
         <AlertTitle className="font-display text-sm font-bold text-encre">
           Gestion des accès
         </AlertTitle>
         <AlertDescription className="text-sm text-ardoise">
-          <strong>Admin</strong> et <strong>Super Admin</strong> peuvent créer, modifier, suspendre
-          et supprimer le personnel. Un Admin ne peut pas modifier un Super Admin. Seul un Super
-          Admin peut créer ou promouvoir un Super Admin.
+          {canWrite ? (
+            <>
+              En tant que <strong>Super Admin</strong>, vous pouvez gérer tout le personnel
+              (créer, modifier, activer/désactiver, supprimer, réinitialiser ou définir un mot de
+              passe) — y compris vos propres accès. Un <strong>Admin</strong> ne peut ni ajouter,
+              ni modifier, ni supprimer un Super Admin. Vous ne pouvez pas vous désactiver ni vous
+              supprimer vous-même.
+            </>
+          ) : (
+            <>
+              Cette page est en <strong>lecture seule</strong>. Seul un <strong>Super Admin</strong>{" "}
+              peut créer, modifier, suspendre, supprimer ou changer le mot de passe du personnel.
+              Les comptes Super Admin sont protégés.
+            </>
+          )}
         </AlertDescription>
       </Alert>
     </div>

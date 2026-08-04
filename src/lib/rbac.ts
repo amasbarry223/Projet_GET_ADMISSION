@@ -12,6 +12,7 @@ export type Permission =
   | "finance.write"
   | "catalogue.write"
   | "matrice.write"
+  | "users.read"
   | "users.write"
   | "parametres.read"
   | "parametres.write"
@@ -45,9 +46,8 @@ const MATRIX: Record<Role, Permission[]> = {
     "finance.write", // ◐
     "catalogue.write",
     "matrice.write",
-    "users.write",
+    "users.read",
     "parametres.read", // ◐
-    "audit.read", // ◐
   ],
   SUPER_ADMIN: [
     "dashboard",
@@ -60,6 +60,7 @@ const MATRIX: Record<Role, Permission[]> = {
     "finance.write",
     "catalogue.write",
     "matrice.write",
+    "users.read",
     "users.write",
     "parametres.read",
     "parametres.write",
@@ -99,7 +100,7 @@ export function permissionForAdminPath(pathname: string): Permission | null {
   if (pathname.startsWith("/admin/catalogue")) return "catalogue.write";
   if (pathname.startsWith("/admin/matrice")) return "matrice.write";
   if (pathname.startsWith("/admin/finance")) return "finance.read";
-  if (pathname.startsWith("/admin/utilisateurs")) return "users.write";
+  if (pathname.startsWith("/admin/utilisateurs")) return "users.read";
   if (pathname.startsWith("/admin/attestations")) return "attestations.read";
   if (pathname.startsWith("/admin/parametres")) return "parametres.read";
   if (pathname.startsWith("/admin/audit")) return "audit.read";

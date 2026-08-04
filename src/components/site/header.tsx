@@ -36,9 +36,10 @@ export function SiteHeader() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Espace public : toujours les 2 CTA visiteurs, sauf candidat connecté → « Mon espace »
   const primaryHref = isCandidat ? "/espace" : "/inscription";
   const primaryLabel = isCandidat ? "Mon espace" : "Créer mon compte";
-  const showPrimaryCta = status !== "authenticated" || isCandidat;
+  const showLogin = !isCandidat;
 
   return (
     <header
@@ -89,7 +90,7 @@ export function SiteHeader() {
 
         <div className="hidden items-center gap-2 md:flex">
           <ThemeToggle />
-          {status !== "authenticated" && (
+          {showLogin && (
             <Button
               asChild
               variant="outline"
@@ -99,11 +100,9 @@ export function SiteHeader() {
               <Link href="/connexion">Se connecter</Link>
             </Button>
           )}
-          {showPrimaryCta && (
-            <Button asChild size="sm" className="h-9 bg-primary px-4 font-semibold text-primary-foreground hover:bg-or">
-              <Link href={primaryHref}>{primaryLabel}</Link>
-            </Button>
-          )}
+          <Button asChild size="sm" className="h-9 bg-primary px-4 font-semibold text-primary-foreground hover:bg-or">
+            <Link href={primaryHref}>{primaryLabel}</Link>
+          </Button>
         </div>
 
         <div className="flex items-center gap-2 md:hidden">
@@ -151,20 +150,18 @@ export function SiteHeader() {
                 })}
               </nav>
               <div className="flex flex-col gap-2 border-t border-border px-4 py-4">
-                {status !== "authenticated" && (
+                {showLogin && (
                   <SheetClose asChild>
                     <Button asChild variant="outline" className="w-full font-semibold">
                       <Link href="/connexion">Se connecter</Link>
                     </Button>
                   </SheetClose>
                 )}
-                {showPrimaryCta && (
-                  <SheetClose asChild>
-                    <Button asChild className="w-full bg-primary font-semibold text-primary-foreground hover:bg-or">
-                      <Link href={primaryHref}>{primaryLabel}</Link>
-                    </Button>
-                  </SheetClose>
-                )}
+                <SheetClose asChild>
+                  <Button asChild className="w-full bg-primary font-semibold text-primary-foreground hover:bg-or">
+                    <Link href={primaryHref}>{primaryLabel}</Link>
+                  </Button>
+                </SheetClose>
               </div>
             </SheetContent>
           </Sheet>

@@ -14,7 +14,8 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "db:seed": "npx tsx prisma/seed.ts",
-    "db:seed:all": "npx tsx prisma/seed.ts && npx tsx prisma/seed-vitrine.ts && npx tsx prisma/seed-content.ts && npx tsx prisma/seed-partenaires.ts"
+    "db:seed:formations": "npx tsx prisma/seed-catalogue-formations.ts",
+    "db:seed:all": "npx tsx prisma/seed.ts && npx tsx prisma/seed-vitrine.ts && npx tsx prisma/seed-content.ts && npx tsx prisma/seed-partenaires.ts && npx tsx prisma/seed-catalogue-formations.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

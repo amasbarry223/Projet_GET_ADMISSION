@@ -108,7 +108,7 @@ export default async function AccueilPage() {
 
   return (
     <>
-      <HomeHero boarding={boarding} />
+      <HomeHero />
       <PartnerMarquee
         universities={universities
           .filter((u) => isValidPartnerLogo(u.logoUrl))
