@@ -92,8 +92,8 @@ export function HomeHero() {
               aria-hidden
             />
             <Image
-              src="/images/hero-etudiante-mali.png"
-              alt="Étudiante malienne souriante, face caméra, portant des lunettes et tenant passeport et documents de voyage"
+              src="/candidat.png"
+              alt="Étudiante malienne souriante, portant des lunettes et tenant un ordinateur portable"
               fill
               priority
               className="object-contain object-bottom drop-shadow-[0_28px_56px_rgba(0,0,0,0.5)]"
