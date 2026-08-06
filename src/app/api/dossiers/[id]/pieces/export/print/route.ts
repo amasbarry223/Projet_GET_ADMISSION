@@ -20,13 +20,13 @@ export async function GET(
 
   const dossier = await db.dossier.findUnique({
     where: { id },
-    select: { reference: true, candidatId: true },
+    select: { reference: true, candidatId: true, conseillerId: true },
   });
   if (!dossier) {
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
   }
 
-  const access = assertDossierFileAccess(role, userId, dossier.candidatId);
+  const access = assertDossierFileAccess(role, userId, dossier.candidatId, dossier.conseillerId);
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status });
   }

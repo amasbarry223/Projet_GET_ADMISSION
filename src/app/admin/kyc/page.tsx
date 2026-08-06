@@ -13,10 +13,17 @@ function kycStatus(row: {
 }
 
 export default async function AdminKycPage() {
-  await requireAdminPage("dossiers.read");
+  const session = await requireAdminPage("kyc.read");
+
+  // Un conseiller ne doit voir que les candidats dont au moins un dossier lui est affecté —
+  // Admin et Super Admin gardent la vue globale sur tous les candidats.
+  const isConseiller = session.user.role === "CONSEILLER";
 
   const users = await db.user.findMany({
-    where: { role: "CANDIDAT" },
+    where: {
+      role: "CANDIDAT",
+      ...(isConseiller ? { dossiersCandidat: { some: { conseillerId: session.user.id } } } : {}),
+    },
     select: {
       id: true,
       email: true,

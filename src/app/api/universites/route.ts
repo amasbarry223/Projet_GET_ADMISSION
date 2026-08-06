@@ -18,6 +18,9 @@ export async function GET(request: Request) {
 
   const universites = await db.universite.findMany({
     where: {
+      // Établissement technique de la procédure Université Publique — jamais choisi par le
+      // candidat, ni géré comme un établissement du catalogue classique.
+      estPlaceholder: false,
       AND: [
         pays && pays !== "tous" ? { pays } : {},
         domaine && domaine !== "tous" ? { domaines: { contains: domaine } } : {},

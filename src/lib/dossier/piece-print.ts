@@ -1,10 +1,14 @@
 import { requirePermission } from "@/lib/rbac";
 
-/** Autorise l'accès aux fichiers d'un dossier : candidat propriétaire, ou staff avec dossiers.read. */
+/**
+ * Autorise l'accès aux fichiers d'un dossier : candidat propriétaire, ou staff avec dossiers.read.
+ * Le conseiller n'accède qu'aux dossiers qui lui sont affectés (dossierConseillerId).
+ */
 export function assertDossierFileAccess(
   role: string | undefined | null,
   userId: string | undefined | null,
   dossierCandidatId: string,
+  dossierConseillerId?: string | null,
 ): { ok: true } | { ok: false; status: 401 | 403; error: string } {
   if (!role || !userId) return { ok: false, status: 401, error: "Non authentifié" };
   if (role === "CANDIDAT") {
@@ -13,6 +17,9 @@ export function assertDossierFileAccess(
   }
   const gate = requirePermission(role, "dossiers.read");
   if (!gate.ok) return { ok: false, status: gate.status, error: gate.error };
+  if (role === "CONSEILLER" && dossierConseillerId !== userId) {
+    return { ok: false, status: 403, error: "Accès refusé — ce dossier ne vous est pas affecté" };
+  }
   return { ok: true };
 }
 

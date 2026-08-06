@@ -9,6 +9,7 @@ import { requirePermission } from "@/lib/rbac";
 import {
   assertPiecesObligatoiresCompletes,
   assignConseillerIfRequested,
+  assignFormationIfRequested,
   resubmitCorrectedDossier,
   submitDraftDossier,
   updateDossierDraft,
@@ -16,7 +17,7 @@ import {
 import type { PersonalInfoUpdate } from "@/lib/dossier/dossier-update";
 import { syncPiecesDossier } from "@/lib/dossier/sync-pieces";
 import { stripUndefined } from "@/shared/types/utils.types";
-import { isDossierEditableByCandidate } from "@/shared/constants";
+import { isDossierEditableByCandidate, ETAPE_PAR_ETAT } from "@/shared/constants";
 
 // GET /api/dossiers/[id] — détail (candidat propriétaire ou staff avec dossiers.read)
 export async function GET(
@@ -43,6 +44,10 @@ export async function GET(
           email: true,
           nationalite: true,
           telephone: true,
+          kycType: true,
+          kycRectoPath: true,
+          kycVersoPath: true,
+          kycVerifie: true,
           profilAcademique: true,
         },
       },
@@ -72,6 +77,10 @@ export async function GET(
   } else {
     const gate = requirePermission(role, "dossiers.read");
     if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+    // Le conseiller ne peut consulter que les dossiers qui lui sont affectés.
+    if (role === "CONSEILLER" && dossier.conseillerId !== userId) {
+      return NextResponse.json({ error: "Accès refusé — ce dossier ne vous est pas affecté" }, { status: 403 });
+    }
   }
 
   const result = {
@@ -135,7 +144,15 @@ export async function PUT(
 
   const dossier = await db.dossier.findUnique({
     where: { id },
-    select: { id: true, candidatId: true, reference: true, etat: true, conseillerId: true },
+    select: {
+      id: true,
+      candidatId: true,
+      reference: true,
+      etat: true,
+      conseillerId: true,
+      procedure: true,
+      universite: { select: { estPlaceholder: true } },
+    },
   });
   if (!dossier) {
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
@@ -148,6 +165,10 @@ export async function PUT(
   } else {
     const gate = requirePermission(role, "dossiers.write");
     if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+    // Le conseiller ne peut agir que sur les dossiers qui lui sont affectés.
+    if (role === "CONSEILLER" && dossier.conseillerId !== userId) {
+      return NextResponse.json({ error: "Accès refusé — ce dossier ne vous est pas affecté" }, { status: 403 });
+    }
   }
 
   if (role === "CANDIDAT" && !isDossierEditableByCandidate(dossier.etat)) {
@@ -178,6 +199,43 @@ export async function PUT(
     const assignGate = requirePermission(role, "dossiers.assign");
     if (!assignGate.ok) {
       return NextResponse.json({ error: assignGate.error }, { status: assignGate.status });
+    }
+    if (dossier.etat === "CLOTURE") {
+      return NextResponse.json(
+        { error: "Le dossier est clôturé et ne peut plus être affecté." },
+        { status: 400 },
+      );
+    }
+    if (conseillerId !== null && dossier.etat === "BROUILLON") {
+      return NextResponse.json(
+        { error: "Le dossier doit être soumis avant d'être affecté à un conseiller." },
+        { status: 400 },
+      );
+    }
+  }
+
+  // Affectation de l'établissement (procédure Université Publique) — Conseiller, Admin, Super Admin.
+  const formationId = (body as { formationId?: string })?.formationId;
+  if (formationId !== undefined) {
+    if (role === "CANDIDAT") {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+    const assignGate = requirePermission(role, "etablissement.assign");
+    if (!assignGate.ok) {
+      return NextResponse.json({ error: assignGate.error }, { status: assignGate.status });
+    }
+    if (dossier.procedure !== "PUBLIQUE") {
+      return NextResponse.json(
+        { error: "L'affectation d'établissement n'est disponible que pour la procédure Université Publique." },
+        { status: 400 },
+      );
+    }
+    const etape = ETAPE_PAR_ETAT[dossier.etat];
+    if (etape < ETAPE_PAR_ETAT.VERIFICATION || etape > ETAPE_PAR_ETAT.PAIEMENT_CONFIRME) {
+      return NextResponse.json(
+        { error: "L'établissement ne peut être affecté qu'entre la vérification et la confirmation du paiement." },
+        { status: 400 },
+      );
     }
   }
 
@@ -243,6 +301,14 @@ export async function PUT(
         await assignConseillerIfRequested(tx, {
           dossierId: id,
           conseillerId,
+          notes,
+        });
+      }
+
+      if (formationId !== undefined && role !== "CANDIDAT") {
+        await assignFormationIfRequested(tx, {
+          dossierId: id,
+          formationId,
           notes,
         });
       }
@@ -323,6 +389,15 @@ export async function PUT(
         { status: 400 },
       );
     }
+    if (error instanceof Error && error.message === "FORMATION_INTROUVABLE") {
+      return NextResponse.json({ error: "Formation introuvable" }, { status: 404 });
+    }
+    if (error instanceof Error && error.message === "ETABLISSEMENT_INVALIDE") {
+      return NextResponse.json(
+        { error: "Cet établissement n'est pas un établissement public affectable" },
+        { status: 400 },
+      );
+    }
     if (error instanceof Error && error.message === "SUBMIT_RACE") {
       return NextResponse.json(
         { error: "Ce dossier a déjà été soumis. Actualisez la page." },
@@ -346,6 +421,33 @@ export async function PUT(
       });
     } catch {
       // ignore
+    }
+  }
+
+  // Établissement affecté (procédure Publique) : la nouvelle formation peut porter des pièces
+  // requises supplémentaires — resynchronise exactement comme lors d'une resoumission.
+  if (formationId !== undefined && updated) {
+    const candidatProfil = await db.profilAcademique.findUnique({ where: { userId: dossier.candidatId } });
+    if (candidatProfil) {
+      await syncPiecesDossier(
+        db,
+        id,
+        {
+          statutCandidat: candidatProfil.statutCandidat,
+          classeActuelle: candidatProfil.classeActuelle,
+          aObtenuBac: candidatProfil.aObtenuBac,
+          trimestresSeconde: candidatProfil.trimestresSeconde,
+          trimestresPremiere: candidatProfil.trimestresPremiere,
+          trimestresTerminale: candidatProfil.trimestresTerminale,
+          attestationScolariteDisponible: candidatProfil.attestationScolariteDisponible,
+          niveauEtudesSuperieures: candidatProfil.niveauEtudesSuperieures,
+          formationEnCours: candidatProfil.formationEnCours,
+          diplomesObtenus: candidatProfil.diplomesObtenus,
+          redoublements: candidatProfil.redoublements,
+          interruptions: candidatProfil.interruptions,
+        },
+        { formationPiecesRequises: updated.formation.piecesRequises },
+      );
     }
   }
 

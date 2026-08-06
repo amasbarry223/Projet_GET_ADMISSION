@@ -194,7 +194,7 @@ function RowActions<TData>({ row, actions, ariaLabel }: { row: TData; actions: A
                     <action.icon className="h-4 w-4" strokeWidth={1.5} /> {label}
                   </DropdownMenuItem>
                 </AlertDialogTrigger>
-                <AlertDialogContent className="bg-blanc">
+                <AlertDialogContent className="bg-card">
                   <AlertDialogHeader>
                     <AlertDialogTitle className="font-display text-lg flex items-center gap-2">
                       {action.tone === "danger" ? <AlertTriangle className="h-5 w-5 text-carmin" strokeWidth={1.5} /> : <Info className="h-5 w-5 text-lapis" strokeWidth={1.5} />}
@@ -205,7 +205,7 @@ function RowActions<TData>({ row, actions, ariaLabel }: { row: TData; actions: A
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel className="bg-porcelaine">Annuler</AlertDialogCancel>
+                    <AlertDialogCancel>Annuler</AlertDialogCancel>
                     <AlertDialogAction
                       className={cn(action.tone === "danger" ? "bg-carmin text-blanc hover:bg-carmin/90" : "bg-lapis text-blanc hover:bg-lapis/90")}
                       onClick={() => action.confirm!.onConfirm(row)}
@@ -454,7 +454,7 @@ export function DataTable<TData, TValue>({
       )}
 
       {/* Table */}
-      <div className="overflow-hidden rounded-lg border border-ligne bg-blanc">
+      <div className="overflow-hidden rounded-lg border border-ligne bg-card">
         <div className="overflow-x-auto scroll-fine">
           <Table>
             <TableHeader>

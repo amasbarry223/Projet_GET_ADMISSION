@@ -196,3 +196,23 @@ export async function notifyStaffCorrectionRequested(opts: {
     ),
   );
 }
+
+/** Notifie (in-app) les destinataires d'un nouveau message dans la messagerie interne Financier <-> Direction. */
+export async function notifyMessageInterne(opts: {
+  destinataireIds: string[];
+  auteurNom: string;
+  texte: string;
+}) {
+  const apercu = opts.texte.length > 140 ? `${opts.texte.slice(0, 140)}…` : opts.texte;
+  await Promise.all(
+    opts.destinataireIds.map((userId) =>
+      createNotification({
+        userId,
+        titre: `Nouveau message de ${opts.auteurNom}`,
+        message: apercu,
+        type: "info",
+        lien: "/admin/messages-internes",
+      }),
+    ),
+  );
+}

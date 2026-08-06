@@ -40,6 +40,7 @@ type Profile = {
   kycVerifie: boolean;
   kycVerifieLe: string | null;
   role: string;
+  locked?: boolean;
   profilAcademique?: ProfilAcademiqueFormState | null;
 };
 
@@ -213,12 +214,26 @@ export default function ProfilPage() {
     );
   }
 
+  const locked = !!profile.locked;
+
   return (
     <div className="space-y-6">
       <div>
         <p className="eyebrow">Profil</p>
         <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Mes informations.</h1>
       </div>
+
+      {locked && (
+        <Alert className="border-ambre/40 bg-ambre/5">
+          <AlertCircle className="h-4 w-4 text-ambre" strokeWidth={1.5} />
+          <AlertTitle className="font-display text-sm font-bold text-encre">Profil verrouillé</AlertTitle>
+          <AlertDescription className="text-sm text-ardoise">
+            Votre dossier est en cours de traitement : vos informations personnelles, votre parcours académique et
+            votre pièce d&apos;identité ne peuvent plus être modifiés. Vous pouvez toujours changer votre mot de
+            passe ou votre photo.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card className="border-ligne bg-blanc p-6">
         <div className="flex flex-wrap items-center gap-4">
@@ -281,6 +296,7 @@ export default function ProfilPage() {
 
         <TabsContent value="perso">
           <Card className="border-ligne bg-blanc p-6">
+            <fieldset disabled={locked} className="contents">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="profil-prenom">Prénom</Label>
@@ -326,11 +342,12 @@ export default function ProfilPage() {
               </div>
             </div>
             <div className="mt-5 flex justify-end">
-              <Button onClick={save} disabled={saving} className="bg-lapis text-blanc hover:bg-lapis/90">
+              <Button onClick={save} disabled={saving || locked} className="bg-lapis text-blanc hover:bg-lapis/90">
                 {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
                 Enregistrer
               </Button>
             </div>
+            </fieldset>
           </Card>
         </TabsContent>
 
@@ -339,6 +356,7 @@ export default function ProfilPage() {
             <p className="mb-4 text-sm text-ardoise">
               Ce parcours détermine automatiquement les documents demandés pour vos dossiers de candidature.
             </p>
+            <fieldset disabled={locked} className="contents">
             <ProfilAcademiqueForm
               value={profilAcademique}
               onChange={setProfilAcademique}
@@ -364,11 +382,13 @@ export default function ProfilPage() {
                 }
               }}
             />
+            </fieldset>
           </Card>
         </TabsContent>
 
         <TabsContent value="kyc">
           <Card className="border-ligne bg-blanc p-6">
+            <fieldset disabled={locked} className="contents">
             <div className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
@@ -468,12 +488,13 @@ export default function ProfilPage() {
               </div>
 
               <div className="flex justify-end">
-                <Button onClick={save} disabled={saving} className="bg-lapis text-blanc hover:bg-lapis/90">
+                <Button onClick={save} disabled={saving || locked} className="bg-lapis text-blanc hover:bg-lapis/90">
                   {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
                   Enregistrer le KYC
                 </Button>
               </div>
             </div>
+            </fieldset>
           </Card>
         </TabsContent>
 

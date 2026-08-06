@@ -23,7 +23,9 @@ export type Permission =
   | "kyc.write"
   | "dossiers.assign"
   | "candidats.read"
-  | "candidats.write";
+  | "candidats.write"
+  | "messages.internes"
+  | "etablissement.assign";
 
 const MATRIX: Record<Role, Permission[]> = {
   CANDIDAT: [],
@@ -35,12 +37,14 @@ const MATRIX: Record<Role, Permission[]> = {
     "attestations.read",
     "attestations.emit", // ◐ — émission autorisée
     "kyc.read", // ◐ — consultation uniquement, pas de modification
+    "etablissement.assign", // procédure Université Publique — affecte l'établissement réel
   ],
   FINANCIER: [
     "dashboard",
     "dossiers.read", // ◐ consultation
     "finance.read",
     "finance.write",
+    "messages.internes", // écrit à l'Admin/Super Admin — pas d'affectation ni de transmission
   ],
   ADMIN: [
     "dashboard",
@@ -61,6 +65,8 @@ const MATRIX: Record<Role, Permission[]> = {
     "kyc.write",
     "candidats.read",
     "candidats.write",
+    "messages.internes",
+    "etablissement.assign",
   ],
   SUPER_ADMIN: [
     "dashboard",
@@ -80,11 +86,13 @@ const MATRIX: Record<Role, Permission[]> = {
     "parametres.write",
     "audit.read",
     "roles.write",
+    "messages.internes",
     "backup.manage",
     "kyc.read",
     "kyc.write",
     "candidats.read",
     "candidats.write",
+    "etablissement.assign",
   ],
 };
 
@@ -123,6 +131,7 @@ export function permissionForAdminPath(pathname: string): Permission | null {
   if (pathname.startsWith("/admin/attestations")) return "attestations.read";
   if (pathname.startsWith("/admin/parametres")) return "parametres.read";
   if (pathname.startsWith("/admin/audit")) return "audit.read";
+  if (pathname.startsWith("/admin/messages-internes")) return "messages.internes";
   return "dashboard";
 }
 

@@ -63,6 +63,8 @@ model User {
   notifications        Notification[]
   profilAcademique     ProfilAcademique?
   demandesCorrectionEmises DemandeCorrection[] @relation("ConseillerDemandesCorrection")
+  conversationInterne   ConversationInterne? @relation("ConvInterneFinancier")
+  messagesInternes      MessageInterne[]     @relation("MessageInterneAuteur")
 }
 
 /* --------------------------- Catalogue --------------------------- */
@@ -92,6 +94,9 @@ model Universite {
   fraisMin    Int
   fraisMax    Int
   partenaire  Boolean     @default(true)
+  /// Établissement technique de réservation pour les dossiers en procédure Université Publique
+  /// (le candidat ne le choisit pas — cf. Dossier.procedure) : masqué du catalogue candidat/vitrine.
+  estPlaceholder Boolean  @default(false)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   formations  Formation[]
@@ -177,12 +182,21 @@ enum EtatDossier {
   CLOTURE
 }
 
+/// PRIVEE : le candidat choisit lui-même son université/formation (comportement historique).
+/// PUBLIQUE : le candidat ne choisit pas — le dossier pointe vers une université/formation
+/// placeholder (Universite.estPlaceholder) jusqu'à ce que le staff affecte un établissement réel.
+enum TypeProcedure {
+  PRIVEE
+  PUBLIQUE
+}
+
 model Dossier {
   id              String       @id @default(cuid())
   reference       String       @unique
   candidatId      String
   universiteId    String
   formationId     String
+  procedure       TypeProcedure @default(PRIVEE)
   /// Version de matrice documentaire figée à la création du dossier
   matriceVersionId String?
   etat            EtatDossier  @default(BROUILLON)
@@ -326,6 +340,29 @@ model Message {
   createdAt       DateTime  @default(now())
   conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   auteur          User      @relation(fields: [auteurId], references: [id])
+}
+
+/// Messagerie interne Financier <-> Direction (Admin / Super Admin) — un seul fil par financier,
+/// partagé par tous les Admin/Super Admin (pas de messagerie candidat/dossier ici).
+model ConversationInterne {
+  id              String    @id @default(cuid())
+  financierId     String    @unique
+  nonLusFinancier Int       @default(0)
+  nonLusAdmin     Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  financier       User      @relation("ConvInterneFinancier", fields: [financierId], references: [id])
+  messages        MessageInterne[]
+}
+
+model MessageInterne {
+  id             String    @id @default(cuid())
+  conversationId String
+  auteurId       String
+  texte          String
+  createdAt      DateTime  @default(now())
+  conversation   ConversationInterne @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  auteur         User      @relation("MessageInterneAuteur", fields: [auteurId], references: [id])
 }
 
 /* --------------------------- Attestations --------------------------- */

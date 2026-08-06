@@ -31,6 +31,10 @@ export async function POST(
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
   }
 
+  if (auth.user.role === "CONSEILLER" && dossier.conseillerId !== auth.user.id) {
+    return NextResponse.json({ error: "Accès refusé — ce dossier ne vous est pas affecté" }, { status: 403 });
+  }
+
   const isEmission = dossier.etat === "PRE_ADMISSION";
   const isReplace = dossier.etat === "ATTESTATION" || (dossier.etat === "CLOTURE" && !!dossier.attestation);
   if (!isEmission && !isReplace) {

@@ -36,8 +36,33 @@ function loadLogoBytes(): Promise<Uint8Array> {
   return logoBytesPromise;
 }
 
+// Lettres "en exposant" (ordinaux français 1ʳᵉ, 2ᵉ, 10ᵉ… générés par pieces-requises.ts) que la
+// police standard WinAnsi de pdf-lib ne sait pas encoder — widthOfTextAtSize/drawText lèvent une
+// exception synchrone non rattrapable sinon, ce qui interrompait toute la génération du PDF
+// (bug "Télécharger tout" : le PDF ne se terminait jamais, sans message d'erreur côté client).
+const SUPERSCRIPT_TO_BASE: Record<string, string> = {
+  "ᵃ": "a", "ᵇ": "b", "ᶜ": "c", "ᵈ": "d", "ᵉ": "e", "ᶠ": "f", "ᵍ": "g", "ʰ": "h", "ⁱ": "i", "ʲ": "j",
+  "ᵏ": "k", "ˡ": "l", "ᵐ": "m", "ⁿ": "n", "ᵒ": "o", "ᵖ": "p", "ʳ": "r", "ˢ": "s", "ᵗ": "t", "ᵘ": "u",
+  "ᵛ": "v", "ʷ": "w", "ˣ": "x", "ʸ": "y", "ᶻ": "z",
+};
+// Ponctuation "typographique" déjà couverte par l'encodage WinAnsi (CP1252) de pdf-lib.
+const WINANSI_EXTRA_PUNCTUATION = "–—‘’“”…•™";
+
+/** Ramène tout caractère non encodable par la police standard WinAnsi à un équivalent sûr. */
+function sanitizeForPdf(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    if ((ch.codePointAt(0) ?? 0) <= 0xff || WINANSI_EXTRA_PUNCTUATION.includes(ch)) {
+      out += ch;
+    } else {
+      out += SUPERSCRIPT_TO_BASE[ch] ?? "";
+    }
+  }
+  return out;
+}
+
 function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
+  const words = sanitizeForPdf(text).split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let current = "";
   for (const word of words) {
@@ -224,7 +249,7 @@ function drawInfoBox(
       font: opts.bold,
       color: COLOR.ardoise,
     });
-    page.drawText(value, {
+    page.drawText(sanitizeForPdf(value), {
       x: MARGIN + 190,
       y: rowY,
       size: 10,

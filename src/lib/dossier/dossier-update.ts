@@ -256,3 +256,35 @@ export async function assignConseillerIfRequested(
   });
   params.notes.push("Conseiller désaffecté");
 }
+
+/**
+ * Affecte l'établissement réel d'un dossier en procédure Université Publique (le candidat ne l'a
+ * pas choisi lui-même — cf. Dossier.procedure). Ne resynchronise pas les pièces : l'appelant doit
+ * relancer syncPiecesDossier() avec le profil académique du candidat une fois la formation changée,
+ * comme lors d'une resoumission.
+ */
+export async function assignFormationIfRequested(
+  tx: Tx,
+  params: {
+    dossierId: string;
+    formationId: string;
+    notes: string[];
+  },
+): Promise<void> {
+  const formation = await tx.formation.findUnique({
+    where: { id: params.formationId },
+    include: { universite: true },
+  });
+  if (!formation) {
+    throw new Error("FORMATION_INTROUVABLE");
+  }
+  if (formation.universite.typeEtablissement !== "PUBLIC" || formation.universite.estPlaceholder) {
+    throw new Error("ETABLISSEMENT_INVALIDE");
+  }
+
+  await tx.dossier.update({
+    where: { id: params.dossierId },
+    data: { universiteId: formation.universiteId, formationId: formation.id },
+  });
+  params.notes.push(`Établissement affecté : ${formation.universite.nom} — ${formation.intitule}`);
+}

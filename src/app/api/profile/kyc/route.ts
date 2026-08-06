@@ -9,6 +9,99 @@ import { hasPermission } from "@/lib/rbac";
 import path from "path";
 import { logAudit } from "@/lib/audit";
 
+/**
+ * Cette route est ouverte en navigation directe (target="_blank") depuis l'admin — une
+ * réponse JSON brute y est illisible. Si le navigateur demande du HTML, on rend une page
+ * d'état plutôt que le JSON, réservé aux appels programmatiques (fetch/apiJson).
+ */
+function wantsHtml(request: Request): boolean {
+  return (request.headers.get("accept") ?? "").includes("text/html");
+}
+
+function kycStatusPage(opts: { title: string; message: string; status: number }) {
+  return new NextResponse(
+    `<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${opts.title} — GET Admission</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #F3F4F6;
+    font-family: "General Sans", "Inter", system-ui, sans-serif;
+    color: #1A1A1A;
+    padding: 24px;
+  }
+  .card {
+    max-width: 420px;
+    width: 100%;
+    background: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    border-radius: 16px;
+    padding: 36px 32px;
+    text-align: center;
+    box-shadow: 0 12px 40px rgba(26,26,26,.10);
+  }
+  .icon {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 20px;
+    border-radius: 12px;
+    background: rgba(199,122,18,.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  h1 {
+    font-size: 17px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  p {
+    font-size: 14px;
+    line-height: 1.5;
+    color: #6B7280;
+    margin: 0;
+  }
+  .eyebrow {
+    font-family: "Geist Mono", monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: #3CA936;
+    margin: 0 0 14px;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#C77A12" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="2.5"/>
+        <circle cx="8.5" cy="11.5" r="1.75"/>
+        <path d="M5 16c.7-1.8 2-2.6 3.5-2.6s2.8.8 3.5 2.6"/>
+        <line x1="14.5" y1="9.5" x2="19" y2="9.5"/>
+        <line x1="14.5" y1="13" x2="19" y2="13"/>
+      </svg>
+    </div>
+    <p class="eyebrow">GET Admission · KYC</p>
+    <h1>${opts.title}</h1>
+    <p>${opts.message}</p>
+  </div>
+</body>
+</html>`,
+    { status: opts.status, headers: { "Content-Type": "text/html; charset=utf-8" } },
+  );
+}
+
 // POST /api/profile/kyc — upload recto/verso KYC (multipart)
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -175,8 +268,17 @@ export async function PUT(request: Request) {
 
 // GET /api/profile/kyc?side=recto|verso&userId=optional — download
 export async function GET(request: Request) {
+  const html = wantsHtml(request);
+
   const session = await getServerSession(authOptions);
   if (!session?.user) {
+    if (html) {
+      return kycStatusPage({
+        status: 401,
+        title: "Session expirée",
+        message: "Reconnectez-vous pour consulter cette pièce d'identité.",
+      });
+    }
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
@@ -186,17 +288,54 @@ export async function GET(request: Request) {
   const role = session.user.role;
   const selfId = session.user.id;
 
-  if (targetId !== selfId && !hasPermission(role, "kyc.read")) {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  if (targetId !== selfId) {
+    if (!hasPermission(role, "kyc.read")) {
+      if (html) {
+        return kycStatusPage({
+          status: 403,
+          title: "Accès refusé",
+          message: "Vous n'avez pas les droits nécessaires pour consulter cette pièce d'identité.",
+        });
+      }
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+    // Un conseiller ne peut consulter que les pièces des candidats dont un dossier lui est affecté
+    // (défense en profondeur — l'UI ne propose déjà que ces candidats-là).
+    if (role === "CONSEILLER") {
+      const affecte = await db.dossier.findFirst({
+        where: { candidatId: targetId, conseillerId: selfId },
+        select: { id: true },
+      });
+      if (!affecte) {
+        if (html) {
+          return kycStatusPage({
+            status: 403,
+            title: "Accès refusé",
+            message: "Ce candidat ne vous est pas affecté.",
+          });
+        }
+        return NextResponse.json({ error: "Accès refusé — ce candidat ne vous est pas affecté" }, { status: 403 });
+      }
+    }
   }
 
   const user = await db.user.findUnique({ where: { id: targetId } });
   if (!user) {
+    if (html) {
+      return kycStatusPage({ status: 404, title: "Candidat introuvable", message: "Ce compte n'existe plus." });
+    }
     return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
   }
 
   const chemin = side === "verso" ? user.kycVersoPath : user.kycRectoPath;
   if (!chemin) {
+    if (html) {
+      return kycStatusPage({
+        status: 404,
+        title: "Aucune pièce téléversée",
+        message: `${user.prenom} ${user.nom} n'a pas encore transmis de ${side === "verso" ? "verso" : "recto"} de pièce d'identité.`,
+      });
+    }
     return NextResponse.json({ error: "Fichier KYC absent" }, { status: 404 });
   }
 
@@ -210,6 +349,13 @@ export async function GET(request: Request) {
       },
     });
   } catch {
+    if (html) {
+      return kycStatusPage({
+        status: 404,
+        title: "Fichier inaccessible",
+        message: "Le document n'a pas pu être chargé depuis le stockage. Réessayez ou contactez le support technique.",
+      });
+    }
     return NextResponse.json({ error: "Fichier inaccessible" }, { status: 404 });
   }
 }

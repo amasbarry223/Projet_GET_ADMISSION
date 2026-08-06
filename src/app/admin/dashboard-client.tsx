@@ -145,10 +145,10 @@ export default function AdminDashboardClient() {
                     <stop offset="100%" stopColor="#3CA936" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
-                <XAxis dataKey="periode" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-                <Tooltip contentStyle={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, fontSize: 12, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" }} labelStyle={{ color: "#1F2937" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="periode" stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" }} labelStyle={{ color: "var(--popover-foreground)" }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
                 <Area type="monotone" dataKey="dossiers" stroke="#1890FF" strokeWidth={2.5} fill="url(#gDossiers)" name="Dossiers" />
                 <Area type="monotone" dataKey="acceptes" stroke="#3CA936" strokeWidth={2.5} fill="url(#gAcceptes)" name="Pré-admissions" />
@@ -166,7 +166,7 @@ export default function AdminDashboardClient() {
                 <Pie data={stats.repartitionStatuts} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3}>
                   {stats.repartitionStatuts.map((s) => <Cell key={s.name} fill={s.couleur} />)}
                 </Pie>
-                <Tooltip contentStyle={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, fontSize: 12 }} />
+                <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, color: "var(--popover-foreground)" }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -218,10 +218,10 @@ export default function AdminDashboardClient() {
           <div className="mt-4 h-48">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats.topUniversites} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={false} />
-                <XAxis type="number" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis type="category" dataKey="universite" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} width={90} />
-                <Tooltip contentStyle={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, fontSize: 12 }} cursor={{ fill: "#F3F4F6" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                <XAxis type="number" stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis type="category" dataKey="universite" stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} width={90} />
+                <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, color: "var(--popover-foreground)" }} cursor={{ fill: "var(--muted)" }} />
                 <Bar dataKey="dossiers" fill="#3CA936" radius={[0, 4, 4, 0]} barSize={18} />
               </BarChart>
             </ResponsiveContainer>
@@ -248,10 +248,10 @@ export default function AdminDashboardClient() {
                     <stop offset="100%" stopColor="#2E8329" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
-                <XAxis dataKey="mois" stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
-                <Tooltip contentStyle={{ background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 8, fontSize: 12 }} formatter={(v: number) => formatFCFA(v)} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="mois" stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--muted-foreground)" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
+                <Tooltip contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, color: "var(--popover-foreground)" }} formatter={(v: number) => formatFCFA(v)} />
                 <Area type="monotone" dataKey="montant" stroke="#2E8329" strokeWidth={2.5} fill="url(#gFin)" />
               </AreaChart>
             </ResponsiveContainer>

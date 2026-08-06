@@ -54,7 +54,7 @@ export function BoardingPass({
       viewport={{ once: true, margin: "-80px" }}
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
-        "relative w-full overflow-hidden rounded-lg border border-ligne bg-blanc shadow-md",
+        "relative w-full overflow-hidden rounded-lg border border-ligne bg-card shadow-md",
         isHero && "shadow-lg",
         className
       )}
@@ -140,7 +140,7 @@ export function StampBadge({ etat, animate = false }: { etat: EtatCode | string;
         "mt-8 inline-flex flex-col items-center justify-center rounded-md border-2 px-3 py-1.5",
         couleur.text,
         couleur.border,
-        "bg-blanc/70 backdrop-blur-[1px]",
+        "bg-card/70 backdrop-blur-[1px]",
         !animate && "rotate-[-6deg]"
       )}
       style={{ transform: animate ? undefined : "rotate(-6deg)" }}

@@ -8,6 +8,7 @@ import { resolveFraisAgenceAsync } from "@/lib/dossier/frais-agence-server";
 import { isProfilAcademiqueComplet } from "@/lib/dossier/pieces-requises";
 import { syncPiecesDossier } from "@/lib/dossier/sync-pieces";
 import { resolveActiveMatriceVersionId } from "@/lib/dossier/matrice-version";
+import { getPublicProcedurePlaceholder } from "@/lib/dossier/procedure-publique";
 
 // GET /api/dossiers — liste (candidat: ses dossiers ; staff: dossiers.read)
 //
@@ -35,7 +36,14 @@ export async function GET(request: Request) {
   const pageSize = Math.min(50, query.pageSize);
 
   // --- Where + include partagés ---
-  const where = role === "CANDIDAT" ? { candidatId: userId } : {};
+  // Le conseiller ne voit que les dossiers qui lui sont affectés (pas ceux gérés par un
+  // autre conseiller, un Admin ou un Super Admin).
+  const where =
+    role === "CANDIDAT"
+      ? { candidatId: userId }
+      : role === "CONSEILLER"
+        ? { conseillerId: userId }
+        : {};
   const demandesCorrectionInclude = {
     orderBy: { createdAt: "desc" as const },
     include: { conseiller: { select: { prenom: true, nom: true } } },
@@ -142,7 +150,15 @@ export async function POST(request: Request) {
 
   const parsed = parseOrRespond(dossierCreateSchema, body);
   if (!parsed.ok) return parsed.response;
-  const { universiteId, formationId } = parsed.data;
+  const { procedure } = parsed.data;
+
+  // Procédure Publique : le candidat ne choisit pas l'établissement — on ignore toute valeur
+  // envoyée par le client et on force l'établissement placeholder (jamais confiance au front pour
+  // ce choix, qui revient exclusivement au staff via l'affectation ultérieure).
+  const { universiteId, formationId } =
+    procedure === "PUBLIQUE"
+      ? await getPublicProcedurePlaceholder()
+      : { universiteId: parsed.data.universiteId!, formationId: parsed.data.formationId! };
 
   const formation = await db.formation.findUnique({
     where: { id: formationId },
@@ -213,6 +229,7 @@ export async function POST(request: Request) {
         candidatId: userId,
         universiteId,
         formationId,
+        procedure,
         matriceVersionId,
         etat: "BROUILLON",
         etapeActuelle: 1,
@@ -248,7 +265,10 @@ export async function POST(request: Request) {
         etat: "BROUILLON",
         auteur: `${candidat.prenom} ${candidat.nom}`,
         auteurId: userId,
-        note: `Brouillon créé pour ${formation.intitule} — ${formation.universite.nom}`,
+        note:
+          procedure === "PUBLIQUE"
+            ? "Brouillon créé — procédure Université Publique : l'agence affectera l'établissement après étude du profil."
+            : `Brouillon créé pour ${formation.intitule} — ${formation.universite.nom}`,
       },
     });
 

@@ -18,6 +18,7 @@ export async function GET(
     where: { id },
     select: {
       candidatId: true,
+      conseillerId: true,
       candidat: { select: { prenom: true, nom: true } },
       attestation: { select: { cheminFichier: true, nomFichier: true } },
     },
@@ -26,7 +27,7 @@ export async function GET(
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
   }
 
-  const access = assertDossierFileAccess(auth.user.role, auth.user.id, dossier.candidatId);
+  const access = assertDossierFileAccess(auth.user.role, auth.user.id, dossier.candidatId, dossier.conseillerId);
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status });
   }

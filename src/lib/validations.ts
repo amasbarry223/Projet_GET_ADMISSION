@@ -83,6 +83,14 @@ export const messageSchema = z.object({
 });
 export type MessageInput = z.infer<typeof messageSchema>;
 
+// --- Messagerie interne (Financier <-> Direction) ---
+export const messageInterneSchema = z.object({
+  texte: z.string().min(1, "Le message ne peut pas être vide").max(5000, "Le message est trop long"),
+  // Requis pour Admin/Super Admin répondant à un financier donné ; ignoré pour un Financier (son fil est implicite).
+  financierId: z.string().min(1).optional(),
+});
+export type MessageInterneInput = z.infer<typeof messageInterneSchema>;
+
 // --- Paiements ---
 export const paiementSchema = z.object({
   dossierId: z.string().min(1),
@@ -170,10 +178,25 @@ export const wizardPersonalInfoSchema = z.object({
 export type WizardPersonalInfoInput = z.infer<typeof wizardPersonalInfoSchema>;
 
 // --- Create dossier ---
-export const dossierCreateSchema = z.object({
-  universiteId: z.string().min(1, "L'université est requise"),
-  formationId: z.string().min(1, "La formation est requise"),
-});
+export const dossierCreateSchema = z
+  .object({
+    // PRIVEE (défaut) : le candidat choisit lui-même — universiteId/formationId requis.
+    // PUBLIQUE : le candidat ne choisit pas — universiteId/formationId ignorés côté serveur au
+    // profit de l'établissement placeholder (cf. src/lib/dossier/procedure-publique.ts).
+    procedure: z.enum(["PRIVEE", "PUBLIQUE"]).default("PRIVEE"),
+    universiteId: z.string().min(1).optional(),
+    formationId: z.string().min(1).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.procedure === "PRIVEE") {
+      if (!data.universiteId) {
+        ctx.addIssue({ code: "custom", path: ["universiteId"], message: "L'université est requise" });
+      }
+      if (!data.formationId) {
+        ctx.addIssue({ code: "custom", path: ["formationId"], message: "La formation est requise" });
+      }
+    }
+  });
 export type DossierCreateInput = z.infer<typeof dossierCreateSchema>;
 
 // --- Update dossier ---
@@ -340,6 +363,12 @@ export const markReadSchema = z.object({
   dossierId: z.string().min(1, "dossierId requis"),
 });
 export type MarkReadInput = z.infer<typeof markReadSchema>;
+
+export const markReadInterneSchema = z.object({
+  // Requis pour Admin/Super Admin (quel fil financier marquer lu) ; ignoré pour un Financier.
+  financierId: z.string().min(1).optional(),
+});
+export type MarkReadInterneInput = z.infer<typeof markReadInterneSchema>;
 
 // --- Manual transaction (staff) ---
 export const manualTransactionSchema = z.object({

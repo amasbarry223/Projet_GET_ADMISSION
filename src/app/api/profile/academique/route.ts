@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profilAcademiqueSchema, validate } from "@/lib/validations";
 import { syncPiecesBrouillonsCandidat } from "@/lib/dossier/sync-pieces";
+import { isCandidatProfileLocked } from "@/lib/dossier/candidat-lock";
 
 function serializeProfil(row: {
   id: string;
@@ -69,6 +70,13 @@ export async function PUT(request: Request) {
   }
 
   const userId = session.user.id;
+
+  if (await isCandidatProfileLocked(db, userId)) {
+    return NextResponse.json(
+      { error: "Votre dossier est en cours de traitement — le profil ne peut plus être modifié." },
+      { status: 403 },
+    );
+  }
 
   let body: unknown;
   try {

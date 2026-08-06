@@ -30,6 +30,7 @@ export type DossierLive = {
     ville: string;
     slug: string;
     coverUrl?: string | null;
+    estPlaceholder?: boolean;
   };
   formation: { intitule: string; niveau: string; domaine: string };
   conseiller: { prenom: string; nom: string; photoUrl?: string | null } | null;

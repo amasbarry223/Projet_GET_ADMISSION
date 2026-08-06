@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profileSchema, validate } from "@/lib/validations";
+import { isCandidatProfileLocked } from "@/lib/dossier/candidat-lock";
 
 // GET /api/profile — profil complet de l'utilisateur connecté
 export async function GET() {
@@ -40,9 +41,13 @@ export async function GET() {
     return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
   }
 
+  const locked =
+    user.role === "CANDIDAT" ? await isCandidatProfileLocked(db, userId) : false;
+
   const profil = user.profilAcademique;
   return NextResponse.json({
     ...user,
+    locked,
     profilAcademique: profil
       ? {
           ...profil,
@@ -80,6 +85,14 @@ export async function PUT(request: Request) {
   }
 
   const userId = session.user.id;
+
+  if (session.user.role === "CANDIDAT" && (await isCandidatProfileLocked(db, userId))) {
+    return NextResponse.json(
+      { error: "Votre dossier est en cours de traitement — le profil ne peut plus être modifié." },
+      { status: 403 },
+    );
+  }
+
   const body = await request.json();
   const parsed = validate(profileSchema, body);
   if (!parsed.success) {

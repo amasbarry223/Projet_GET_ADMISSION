@@ -27,6 +27,7 @@ export async function GET(
     select: {
       reference: true,
       candidatId: true,
+      conseillerId: true,
       candidat: { select: { prenom: true, nom: true } },
       pieces: { orderBy: { createdAt: "asc" } },
     },
@@ -35,7 +36,7 @@ export async function GET(
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
   }
 
-  const access = assertDossierFileAccess(role, userId, dossier.candidatId);
+  const access = assertDossierFileAccess(role, userId, dossier.candidatId, dossier.conseillerId);
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status });
   }
@@ -59,13 +60,19 @@ export async function GET(
   );
 
   const candidatNom = `${dossier.candidat.prenom} ${dossier.candidat.nom}`;
-  const pdfBytes = await buildPiecesDossierPdfBuffer({
-    dossierRef: dossier.reference,
-    candidat: candidatNom,
-    generatedAtStr: formatDateTime(new Date().toISOString()),
-    generatedBy: `${session.user.prenom} ${session.user.nom}`,
-    pieces,
-  });
+  let pdfBytes: Uint8Array;
+  try {
+    pdfBytes = await buildPiecesDossierPdfBuffer({
+      dossierRef: dossier.reference,
+      candidat: candidatNom,
+      generatedAtStr: formatDateTime(new Date().toISOString()),
+      generatedBy: `${session.user.prenom} ${session.user.nom}`,
+      pieces,
+    });
+  } catch (e) {
+    console.error("[pieces/export] PDF generation failed", e);
+    return NextResponse.json({ error: "Impossible de générer le PDF des pièces" }, { status: 500 });
+  }
 
   const { searchParams } = new URL(request.url);
   const disposition = searchParams.get("disposition") === "inline" ? "inline" : "attachment";

@@ -7,6 +7,9 @@ export default async function AdminCataloguePage() {
   await requireAdminPage("catalogue.write");
 
   const universites = await db.universite.findMany({
+    // Établissement technique de la procédure Université Publique — géré uniquement via le panneau
+    // d'affectation sur la fiche dossier, jamais depuis la gestion classique du catalogue.
+    where: { estPlaceholder: false },
     include: { formations: true },
     orderBy: { nom: "asc" },
   });

@@ -47,9 +47,18 @@ import { formatFCFA, formatDate, formatDateTime } from "@/lib/format";
 import { apiFetch, apiJson } from "@/lib/api-client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, CheckCircle2, AlertCircle, FileText, Send, Wallet, Stamp, XCircle, History, MessageSquare, User, ShieldCheck, Eye, AlertTriangle, Info, Loader2, UserPlus, UserMinus, Printer, Download } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, FileText, Send, Wallet, Stamp, XCircle, History, MessageSquare, User, ShieldCheck, Eye, AlertTriangle, Info, Loader2, UserPlus, UserMinus, Printer, Download, FileImage, IdCard, Landmark } from "lucide-react";
+import { ETAPE_PAR_ETAT } from "@/shared/constants";
 
 type Conseiller = { id: string; prenom: string; nom: string; role: string; actif: boolean };
+
+type EtablissementPublic = {
+  id: string;
+  nom: string;
+  ville: string;
+  typeEtablissement?: string;
+  formations: { id: string; intitule: string; niveau: string }[];
+};
 
 type PieceApi = {
   id: string;
@@ -125,6 +134,10 @@ type DossierDetail = {
     email: string;
     nationalite: string;
     telephone: string | null;
+    kycType: string | null;
+    kycRectoPath: string | null;
+    kycVersoPath: string | null;
+    kycVerifie: boolean;
     profilAcademique?: {
       statutCandidat: string;
       aObtenuBac: boolean;
@@ -135,8 +148,9 @@ type DossierDetail = {
       diplomesObtenus?: string[];
     } | null;
   };
-  universite: { nom: string; typeEtablissement?: string };
-  formation: { intitule: string; niveau: string; domaine: string };
+  procedure?: "PRIVEE" | "PUBLIQUE";
+  universite: { id: string; nom: string; typeEtablissement?: string; estPlaceholder?: boolean };
+  formation: { id: string; intitule: string; niveau: string; domaine: string };
   conseiller: { id: string; prenom: string; nom: string } | null;
   pieces: PieceApi[];
   paiements: PaiementApi[];
@@ -177,9 +191,17 @@ export default function DossierDetailClient() {
   const [assigning, setAssigning] = React.useState(false);
   const [unassigning, setUnassigning] = React.useState(false);
 
+  const [etablissementOpen, setEtablissementOpen] = React.useState(false);
+  const [etablissementsPublics, setEtablissementsPublics] = React.useState<EtablissementPublic[] | null>(null);
+  const [selectedUniversitePubliqueId, setSelectedUniversitePubliqueId] = React.useState("");
+  const [selectedFormationPubliqueId, setSelectedFormationPubliqueId] = React.useState("");
+  const [assigningEtablissement, setAssigningEtablissement] = React.useState(false);
+
   const [correctionOpen, setCorrectionOpen] = React.useState(false);
   const [motif, setMotif] = React.useState("");
   const [submittingCorrection, setSubmittingCorrection] = React.useState(false);
+
+  const [downloadingPieces, setDownloadingPieces] = React.useState(false);
 
   const [attestationOpen, setAttestationOpen] = React.useState(false);
   const [attestationFile, setAttestationFile] = React.useState<File | null>(null);
@@ -233,6 +255,10 @@ export default function DossierDetailClient() {
   const candidatNomComplet = `${dossier.candidat.prenom} ${dossier.candidat.nom}`;
   const conseillerNomComplet = dossier.conseiller ? `${dossier.conseiller.prenom} ${dossier.conseiller.nom}` : "Non affecté";
   const etatLower = dossier.etat.toLowerCase();
+  const kycNeedsVerso = dossier.candidat.kycType === "cni" || !dossier.candidat.kycType;
+  const kycHasRecto = !!dossier.candidat.kycRectoPath;
+  const kycHasVerso = !!dossier.candidat.kycVersoPath;
+  const kycComplete = kycHasRecto && (!kycNeedsVerso || kycHasVerso);
 
   const latestDemandeCorrection = dossier.demandesCorrection[0] ?? null;
 
@@ -262,7 +288,19 @@ export default function DossierDetailClient() {
     actions.push({ label: "Confirmer le paiement", icon: Wallet, tone: "primary", toastLabel: "Paiement confirmé", toastDesc: "Dossier transmis automatiquement à l'université.", workflowAction: "confirmer_paiement", confirm: { title: "Confirmer le paiement ?", desc: `Vérifiez que les ${formatFCFA(dossier.fraisAgence)} ont bien été reçus avant de confirmer. Le dossier sera transmis automatiquement à l'université dès la confirmation.` } });
   }
   if (etatLower === "paiement_confirme" && canTransmettre) {
-    actions.push({ label: "Transmettre à l'université", icon: Send, tone: "primary", toastLabel: "Dossier transmis", toastDesc: `${univ?.nom} a été notifié. Passage en attente de réponse.`, workflowAction: "transmettre", confirm: { title: "Transmettre à l'université ?", desc: `Le dossier sera envoyé à ${univ?.nom}. Cette action est irréversible.` } });
+    const etablissementNonAffecte = dossier.procedure === "PUBLIQUE" && !!dossier.universite.estPlaceholder;
+    actions.push({
+      label: "Transmettre à l'université",
+      icon: Send,
+      tone: "primary",
+      toastLabel: "Dossier transmis",
+      toastDesc: `${univ?.nom} a été notifié. Passage en attente de réponse.`,
+      workflowAction: "transmettre",
+      confirm: { title: "Transmettre à l'université ?", desc: `Le dossier sera envoyé à ${univ?.nom}. Cette action est irréversible.` },
+      ...(etablissementNonAffecte
+        ? { disabled: true, disabledReason: "Affectez d'abord un établissement public avant de transmettre." }
+        : {}),
+    });
   }
   if (etatLower === "transmis") {
     actions.push({ label: "Passer en attente de réponse", icon: Send, tone: "primary", toastLabel: "En attente", toastDesc: "L'université examine le dossier.", workflowAction: "attendre_reponse" });
@@ -360,6 +398,12 @@ export default function DossierDetailClient() {
   const assignDisabled = etatLower === "brouillon";
   const showAssignActions = canAssign && etatLower !== "cloture";
 
+  const canAssignEtablissement = hasPermission(session?.user?.role, "etablissement.assign");
+  const etapeActuelleDossier = ETAPE_PAR_ETAT[dossier.etat as keyof typeof ETAPE_PAR_ETAT];
+  const etablissementAssignable =
+    etapeActuelleDossier >= ETAPE_PAR_ETAT.VERIFICATION && etapeActuelleDossier <= ETAPE_PAR_ETAT.PAIEMENT_CONFIRME;
+  const etablissementNonAffecte = !!dossier.universite.estPlaceholder;
+
   const openAssignDialog = () => {
     setSelectedConseillerId("");
     setAssignOpen(true);
@@ -402,6 +446,69 @@ export default function DossierDetailClient() {
     }
     toast.success("Conseiller désaffecté", { description: `${dossier.reference} n'a plus de conseiller affecté.` });
     void loadDossier();
+  };
+
+  const openEtablissementDialog = () => {
+    setSelectedUniversitePubliqueId("");
+    setSelectedFormationPubliqueId("");
+    setEtablissementOpen(true);
+    setEtablissementsPublics((prev) => {
+      if (prev) return prev;
+      void apiFetch<EtablissementPublic[]>("/api/universites").then((result) => {
+        if (!result.ok) {
+          toast.error("Impossible de charger les établissements publics", { description: result.error });
+          setEtablissementsPublics([]);
+          return;
+        }
+        setEtablissementsPublics(result.data.filter((u) => u.typeEtablissement === "PUBLIC"));
+      });
+      return prev;
+    });
+  };
+
+  const confirmAssignEtablissement = async () => {
+    if (!selectedFormationPubliqueId) return;
+    setAssigningEtablissement(true);
+    const result = await apiJson(`/api/dossiers/${dossier.id}`, "PUT", { formationId: selectedFormationPubliqueId });
+    setAssigningEtablissement(false);
+    if (!result.ok) {
+      toast.error("Affectation échouée", { description: result.error });
+      return;
+    }
+    setEtablissementOpen(false);
+    const univ = etablissementsPublics?.find((u) => u.id === selectedUniversitePubliqueId);
+    toast.success("Établissement affecté", { description: univ ? `${univ.nom} → ${dossier.reference}` : dossier.reference });
+    void loadDossier();
+  };
+
+  const downloadAllPieces = async () => {
+    setDownloadingPieces(true);
+    try {
+      const res = await fetch(`/api/dossiers/${dossier.id}/pieces/export`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast.error("Téléchargement impossible", {
+          description: (body as { error?: string })?.error ?? "Le PDF n'a pas pu être généré.",
+        });
+        return;
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+      const filename = match?.[1] ? decodeURIComponent(match[1]) : `Dossier_${dossier.reference}.pdf`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Téléchargement impossible", { description: "Erreur réseau — réessayez." });
+    } finally {
+      setDownloadingPieces(false);
+    }
   };
 
   const messages = dossier.conversation?.messages ?? [];
@@ -491,10 +598,18 @@ export default function DossierDetailClient() {
                   </p>
                 </div>
               )}
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-wrap items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
+                  disabled={!kycComplete || dossier.candidat.kycVerifie}
+                  title={
+                    dossier.candidat.kycVerifie
+                      ? "Le KYC de ce candidat est déjà vérifié."
+                      : !kycComplete
+                        ? `En attente du recto${kycNeedsVerso ? " et du verso" : ""}.`
+                        : undefined
+                  }
                   onClick={async () => {
                     const result = await apiJson("/api/profile/kyc", "PUT", {
                       userId: dossier.candidat.id,
@@ -505,15 +620,31 @@ export default function DossierDetailClient() {
                       return;
                     }
                     toast.success("KYC vérifié");
+                    void loadDossier();
                   }}
                 >
-                  <ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> Valider le KYC
+                  <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+                  {dossier.candidat.kycVerifie ? "KYC vérifié" : "Valider le KYC"}
                 </Button>
-                <Button variant="outline" size="sm" asChild>
-                  <a href={`/api/profile/kyc?side=recto&userId=${dossier.candidat.id}`} target="_blank" rel="noreferrer">
-                    Voir pièce KYC
-                  </a>
-                </Button>
+                {kycHasRecto && (
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={`/api/profile/kyc?side=recto&userId=${dossier.candidat.id}`} target="_blank" rel="noreferrer">
+                      <FileImage className="mr-1.5 h-3.5 w-3.5" /> Voir recto
+                    </a>
+                  </Button>
+                )}
+                {kycHasVerso && (
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={`/api/profile/kyc?side=verso&userId=${dossier.candidat.id}`} target="_blank" rel="noreferrer">
+                      <FileImage className="mr-1.5 h-3.5 w-3.5" /> Voir verso
+                    </a>
+                  </Button>
+                )}
+                {!kycHasRecto && !kycHasVerso && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-ligne px-2.5 py-1.5 text-xs text-ardoise">
+                    <IdCard className="h-3.5 w-3.5" strokeWidth={1.5} /> Aucune pièce d&apos;identité téléversée
+                  </span>
+                )}
               </div>
             </Card>
           </TabsContent>
@@ -532,10 +663,18 @@ export default function DossierDetailClient() {
                         <Printer className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Imprimer tout
                       </a>
                     </Button>
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={`/api/dossiers/${dossier.id}/pieces/export`}>
-                        <Download className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Télécharger tout (PDF)
-                      </a>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={downloadingPieces}
+                      onClick={() => void downloadAllPieces()}
+                    >
+                      {downloadingPieces ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+                      ) : (
+                        <Download className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
+                      )}
+                      Télécharger tout (PDF)
                     </Button>
                   </div>
                 )}
@@ -772,7 +911,7 @@ export default function DossierDetailClient() {
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel className="bg-porcelaine">Annuler</AlertDialogCancel>
+                      <AlertDialogCancel>Annuler</AlertDialogCancel>
                       <AlertDialogAction
                         className="bg-carmin text-blanc hover:bg-carmin/90"
                         disabled={unassigning}
@@ -788,6 +927,39 @@ export default function DossierDetailClient() {
             </div>
             )}
           </Card>
+
+          {dossier.procedure === "PUBLIQUE" && (
+            <Card className="border-ligne bg-card p-5">
+              <p className="text-xs font-medium text-ardoise">Établissement public</p>
+              <div className="mt-2 flex items-center gap-2.5">
+                <Avatar className="h-8 w-8"><AvatarFallback className="bg-lapis/10 font-mono text-lapis"><Landmark className="h-4 w-4" strokeWidth={1.5} /></AvatarFallback></Avatar>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-encre">{univ?.nom}</p>
+                  <p className="text-xs text-ardoise">
+                    {etablissementNonAffecte ? "En attente d'affectation par l'agence" : form?.intitule}
+                  </p>
+                </div>
+              </div>
+              {canAssignEtablissement && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!etablissementAssignable}
+                    title={
+                      !etablissementAssignable
+                        ? "L'affectation est possible entre la vérification et la confirmation du paiement."
+                        : undefined
+                    }
+                    onClick={openEtablissementDialog}
+                  >
+                    <Landmark className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
+                    {etablissementNonAffecte ? "Affecter un établissement" : "Réaffecter"}
+                  </Button>
+                </div>
+              )}
+            </Card>
+          )}
 
           {actions.length > 0 && (
             <Card className="border-lapis/30 bg-lapis/5 p-5">
@@ -834,7 +1006,7 @@ export default function DossierDetailClient() {
                           <AlertDialogDescription className="text-sm text-ardoise">{a.confirm.desc}</AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel className="bg-porcelaine">Annuler</AlertDialogCancel>
+                          <AlertDialogCancel>Annuler</AlertDialogCancel>
                           <AlertDialogAction
                             className={cn(a.tone === "danger" ? "bg-carmin text-blanc hover:bg-carmin/90" : "bg-lapis text-blanc hover:bg-lapis/90")}
                             onClick={execAction(a)}
@@ -1028,6 +1200,77 @@ export default function DossierDetailClient() {
               onClick={() => void confirmAssign()}
             >
               {assigning && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
+              Affecter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={etablissementOpen} onOpenChange={setEtablissementOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{etablissementNonAffecte ? "Affecter un établissement" : "Réaffecter un établissement"}</DialogTitle>
+            <DialogDescription>
+              Choisissez l&apos;établissement public le plus adapté au profil de {dossier.candidat.prenom} {dossier.candidat.nom} pour le dossier {dossier.reference}.
+            </DialogDescription>
+          </DialogHeader>
+
+          {etablissementsPublics === null ? (
+            <div className="flex items-center gap-2 py-2 text-sm text-ardoise">
+              <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} /> Chargement des établissements publics…
+            </div>
+          ) : etablissementsPublics.length === 0 ? (
+            <p className="py-2 text-sm text-ardoise">Aucun établissement public disponible dans le catalogue.</p>
+          ) : (
+            <div className="space-y-3">
+              <Select
+                value={selectedUniversitePubliqueId}
+                onValueChange={(id) => {
+                  setSelectedUniversitePubliqueId(id);
+                  const univPublique = etablissementsPublics.find((u) => u.id === id);
+                  setSelectedFormationPubliqueId(univPublique?.formations[0]?.id ?? "");
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choisir une université publique" />
+                </SelectTrigger>
+                <SelectContent>
+                  {etablissementsPublics.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.nom} — {u.ville}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedUniversitePubliqueId && (
+                <Select value={selectedFormationPubliqueId} onValueChange={setSelectedFormationPubliqueId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choisir une formation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {etablissementsPublics
+                      .find((u) => u.id === selectedUniversitePubliqueId)
+                      ?.formations.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.intitule} ({f.niveau})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEtablissementOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              className="bg-lapis text-blanc hover:bg-lapis/90"
+              disabled={!selectedFormationPubliqueId || assigningEtablissement}
+              onClick={() => void confirmAssignEtablissement()}
+            >
+              {assigningEtablissement && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
               Affecter
             </Button>
           </DialogFooter>

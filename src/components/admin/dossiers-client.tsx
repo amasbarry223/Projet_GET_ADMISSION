@@ -43,6 +43,8 @@ export type DossierRow = {
   universite: string;
   formation: string;
   etat: string;
+  procedure: "PRIVEE" | "PUBLIQUE";
+  etablissementNonAffecte: boolean;
   conseiller: string;
   date: string;
   frais: number;
@@ -165,7 +167,7 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
       {
         label: "Transmettre à l'université",
         icon: Send,
-        hidden: (row) => !canTransmettre || row.etat.toUpperCase() === "CLOTURE",
+        hidden: (row) => !canTransmettre || row.etat.toUpperCase() === "CLOTURE" || row.etablissementNonAffecte,
         confirm: {
           title: "Transmettre à l'université ?",
           description: (row) =>
@@ -209,6 +211,22 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
         header: ({ column }) => <DataTableColumnHeader column={column} title="Université" />,
         cell: ({ row }) => <span className="text-sm text-encre">{row.original.universite}</span>,
         filterFn: (row, _id, value: string) => (value === "tous" ? true : row.original.universite === value),
+      },
+      {
+        id: "procedure",
+        accessorKey: "procedure",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Procédure" />,
+        cell: ({ row }) => (
+          <Badge
+            className={cn(
+              "font-mono text-[10px] uppercase",
+              row.original.procedure === "PUBLIQUE" ? "bg-lapis/10 text-lapis" : "bg-ardoise/10 text-ardoise",
+            )}
+          >
+            {row.original.procedure === "PUBLIQUE" ? "Publique" : "Privée"}
+          </Badge>
+        ),
+        filterFn: (row, _id, value: string) => (value === "tous" ? true : row.original.procedure === value),
       },
       {
         id: "formation",

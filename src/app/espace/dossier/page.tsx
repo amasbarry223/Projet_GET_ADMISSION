@@ -74,6 +74,8 @@ function DossierWizard() {
   const {
     step,
     setStep,
+    procedure,
+    setProcedure,
     universiteId,
     setUniversiteId,
     formationId,
@@ -108,6 +110,7 @@ function DossierWizard() {
     existingDossier,
     setExistingDossier,
   } = useLoadExistingDossier(prefUniv, prefForm, {
+    setProcedure,
     setUniversiteId,
     setFormationId,
     setPersonalInfo,
@@ -200,7 +203,7 @@ function DossierWizard() {
 
   const createDossierIfNeeded = async (): Promise<DossierWizardData | null> => {
     if (existingDossier) return existingDossier;
-    if (!universiteId || !formationId) {
+    if (procedure === "PRIVEE" && (!universiteId || !formationId)) {
       toastApiErrorSync(new Error("Choisissez une université et une formation."), {
         title: "Sélection incomplète",
       });
@@ -218,7 +221,9 @@ function DossierWizard() {
       const response = await fetch(API_ROUTES.DOSSIERS, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ universiteId, formationId }),
+        body: JSON.stringify(
+          procedure === "PUBLIQUE" ? { procedure } : { procedure, universiteId, formationId },
+        ),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -274,7 +279,7 @@ function DossierWizard() {
 
   const goNext = async () => {
     if (step === DOSSIER_WIZARD_STEPS.UNIVERSITE) {
-      if (!universiteId || !formationId) {
+      if (procedure === "PRIVEE" && (!universiteId || !formationId)) {
         toastApiErrorSync(new Error("Choisissez une université et une formation."), {
           title: "Sélection incomplète",
         });
@@ -402,8 +407,20 @@ function DossierWizard() {
   const motifCorrectionActuel = demandesCorrection[0]?.motif ?? null;
   const historiqueMotifs = demandesCorrection.slice(1);
 
+  const isLockedInFlight = !isEditable && !isResubmit && etatUpper !== "REFUSE" && etatUpper !== "CLOTURE";
+
   return (
     <div className="space-y-6">
+      {isLockedInFlight && (
+        <Alert className="border-vert/40 bg-vert/5">
+          <Lock className="h-4 w-4 text-vert" strokeWidth={1.5} />
+          <AlertTitle>Dossier validé — {etatBadge.libelle}</AlertTitle>
+          <AlertDescription>
+            Votre dossier est en cours de traitement par notre équipe et ne peut plus être modifié.{" "}
+            {etatBadge.description}
+          </AlertDescription>
+        </Alert>
+      )}
       {isResubmit && (
         <Alert className="border-amber-500/40 bg-amber-500/5">
           <AlertCircle className="h-4 w-4 text-amber-600" strokeWidth={1.5} />
@@ -527,6 +544,7 @@ function DossierWizard() {
       <Card className="border-border bg-card/60 p-6 backdrop-blur-md sm:p-8">
         {step === DOSSIER_WIZARD_STEPS.UNIVERSITE && (
           <DossierStepUniversite
+            procedure={procedure}
             universites={universites}
             universiteId={universiteId}
             formationId={formationId}
@@ -537,6 +555,7 @@ function DossierWizard() {
             prerequisList={prerequisList}
             isEditable={isEditable}
             hasExistingDossier={!!existingDossier}
+            onProcedureChange={setProcedure}
             onUniversiteChange={(id) => {
               setUniversiteId(id);
               const selected = universites.find((item) => item.id === id);

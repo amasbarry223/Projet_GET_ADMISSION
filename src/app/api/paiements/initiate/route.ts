@@ -6,7 +6,7 @@ import { requireApiUser, parseOrRespond } from "@/lib/api-auth";
 import { logAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notifications";
 import { randomBytes } from "node:crypto";
-import { lockDossierRow } from "@/lib/dossier/paiement-effects";
+import { afterPaiementReussiSideEffects, applyPaiementReussiInTx, lockDossierRow } from "@/lib/dossier/paiement-effects";
 import { initiatePaytechPayment, isPaytechConfigured } from "@/lib/paiement/paytech";
 import { broadcastDossierLive } from "@/lib/dossier/live-broadcast";
 
@@ -34,6 +34,7 @@ export async function POST(request: Request) {
 
   const baseUrl = (process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/$/, "");
   const ref = `REC-${new Date().getFullYear()}-${randomBytes(3).toString("hex").toUpperCase()}`;
+  const paytechConfigured = isPaytechConfigured();
 
   try {
     const created = await db.$transaction(async (tx) => {
@@ -71,7 +72,12 @@ export async function POST(request: Request) {
           candidatId: locked.candidatId,
           montant,
           moyen,
-          statut: "en_attente",
+          // Sans passerelle de paiement branchée, aucune vérification externe supplémentaire n'est
+          // possible : le candidat ne doit pas rester bloqué en attente de validation manuelle, donc
+          // on confirme immédiatement. Dès qu'une vraie passerelle (PayTech) sera configurée, ce
+          // chemin repasse en "en_attente" et c'est le webhook qui confirme réellement le paiement
+          // (cf. plus bas et /api/paiements/webhook/paytech).
+          statut: paytechConfigured ? "en_attente" : "reussi",
           tranche: tranche || "Solde",
         },
       });
@@ -82,14 +88,60 @@ export async function POST(request: Request) {
           etat: locked.etat,
           auteur: auteurLabel,
           auteurId: userId,
-          note: isPaytechConfigured()
+          note: paytechConfigured
             ? `Paiement en ligne initié (${moyen}) : ${montant} FCFA — réf. ${ref}`
-            : `Paiement ${moyen} déclaré : ${montant} FCFA — en attente de validation.`,
+            : `Paiement ${moyen} reçu et confirmé : ${montant} FCFA — réf. ${ref}.`,
         },
       });
 
-      return { paiement, locked };
+      const applied = paytechConfigured
+        ? null
+        : await applyPaiementReussiInTx(tx, {
+            paiement: { id: paiement.id, reference: paiement.reference, montant: paiement.montant, moyen: paiement.moyen, dossierId },
+            dossier: locked,
+            userId,
+            auteurLabel,
+          });
+
+      return { paiement, locked, applied };
     });
+
+    // Pas de passerelle configurée : le paiement est déjà confirmé ci-dessus, rien à initier.
+    if (!paytechConfigured) {
+      const etatFinal = created.applied?.etat ?? created.locked.etat;
+
+      await afterPaiementReussiSideEffects({
+        paiement: {
+          id: created.paiement.id,
+          reference: created.paiement.reference,
+          montant: created.paiement.montant,
+          dossierId,
+        },
+        candidatId: userId,
+        candidat: created.locked.candidat,
+        etat: etatFinal,
+      });
+
+      await logAudit({
+        session: auth.session,
+        action: "CREATE",
+        resource: "paiement",
+        resourceId: created.paiement.id,
+        details: `Paiement ${ref} confirmé automatiquement : ${montant} via ${moyen} (aucune passerelle configurée)`,
+      });
+
+      void broadcastDossierLive({ dossierId, candidatId: userId, etat: etatFinal });
+
+      return NextResponse.json({
+        success: true,
+        mode: "declaration",
+        pending: false,
+        paiement: { ...created.paiement, statut: "reussi" },
+        receiptUrl: `/api/recu/${created.paiement.id}?format=pdf`,
+        redirectUrl: null,
+        paytechConfigured: false,
+      });
+    }
 
     const init = await initiatePaytechPayment({
       reference: ref,
@@ -121,14 +173,8 @@ export async function POST(request: Request) {
 
     await createNotification({
       userId,
-      titre:
-        init.mode === "paytech"
-          ? "Paiement en ligne initié"
-          : "Paiement en cours de validation",
-      message:
-        init.mode === "paytech"
-          ? `Finalisez le paiement de ${montant} FCFA (réf. ${ref}).`
-          : `Votre paiement ${ref} est en attente de confirmation par l'agence.`,
+      titre: "Paiement en ligne initié",
+      message: `Finalisez le paiement de ${montant} FCFA (réf. ${ref}).`,
       type: "paiement",
       lien: "/espace/paiement",
       dossierId,
@@ -146,7 +192,7 @@ export async function POST(request: Request) {
       pending: true,
       paiement: created.paiement,
       redirectUrl: init.mode === "paytech" ? init.redirectUrl : null,
-      paytechConfigured: isPaytechConfigured(),
+      paytechConfigured: true,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";

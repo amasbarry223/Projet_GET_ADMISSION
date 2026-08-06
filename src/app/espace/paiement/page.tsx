@@ -250,13 +250,17 @@ function PaiementInner() {
         return;
       }
 
-      setStatus("pending");
-      toast.success("Paiement enregistré", {
-        description:
-          data.mode === "declaration"
-            ? "Passerelle non configurée — validation manuelle par l'agence."
-            : "En cours de validation par l'agence.",
-      });
+      if (data.pending === false) {
+        setStatus("success");
+        toast.success("Paiement confirmé", {
+          description: "Votre reçu est disponible au téléchargement.",
+        });
+      } else {
+        setStatus("pending");
+        toast.success("Paiement enregistré", {
+          description: "En cours de validation par l'agence.",
+        });
+      }
       loadDossier();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Erreur lors du paiement";
@@ -271,8 +275,8 @@ function PaiementInner() {
         <p className="eyebrow">Paiement & reçus</p>
         <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Réglez les frais d'agence.</h1>
         <p className="text-ardoise">
-          Déclarez un paiement déjà effectué (Mobile Money, Wave, virement ou espèces). L&apos;agence
-          valide l&apos;encaissement avant de délivrer le reçu.
+          Déclarez un paiement déjà effectué (Mobile Money, Wave, virement ou espèces) : votre reçu
+          est généré automatiquement dès l&apos;enregistrement, sans attente.
           {process.env.NEXT_PUBLIC_PAYMENT_GATEWAY_ENABLED === "true"
             ? " Le paiement en ligne sécurisé est aussi disponible ci-dessous."
             : ""}
@@ -465,7 +469,7 @@ function PaiementInner() {
                       </span>
                       <span className="min-w-0">
                         <span className="block text-sm font-medium text-encre">{m.nom}</span>
-                        <span className="block text-[10px] text-ardoise">Déclaration · validation agence</span>
+                        <span className="block text-[10px] text-ardoise">Confirmation immédiate</span>
                       </span>
                     </button>
                   ))}

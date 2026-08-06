@@ -19,18 +19,27 @@ export async function GET() {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
+  const role = session.user.role;
+  const userId = session.user.id;
+  const isConseiller = role === "CONSEILLER";
+
+  // Le conseiller ne voit que ses propres dossiers dans son tableau de bord — pas ceux
+  // affectés à d'autres conseillers, ni ceux gérés par Admin/Super Admin.
+  const dossierWhere = isConseiller ? { conseillerId: userId } : {};
+  const dossierRelWhere = isConseiller ? { dossier: { conseillerId: userId } } : {};
+
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const pipelineStates = [...PIPELINE_DOSSIER_STATES];
   const acceptedStates = [...ACCEPTED_DOSSIER_STATES];
 
   const [totalDossiers, dossiersEnCours, dossiersAcceptes, dossiersRefuses, paiementsMois, attestationsMois] = await Promise.all([
-    db.dossier.count(),
-    db.dossier.count({ where: { etat: { in: pipelineStates } } }),
-    db.dossier.count({ where: { etat: { in: acceptedStates } } }),
-    db.dossier.count({ where: { etat: "REFUSE" } }),
-    db.paiement.aggregate({ _sum: { montant: true }, where: { date: { gte: startOfMonth }, statut: "reussi" } }),
-    db.attestation.count({ where: { dateEmission: { gte: startOfMonth } } }),
+    db.dossier.count({ where: dossierWhere }),
+    db.dossier.count({ where: { ...dossierWhere, etat: { in: pipelineStates } } }),
+    db.dossier.count({ where: { ...dossierWhere, etat: { in: acceptedStates } } }),
+    db.dossier.count({ where: { ...dossierWhere, etat: "REFUSE" } }),
+    db.paiement.aggregate({ _sum: { montant: true }, where: { date: { gte: startOfMonth }, statut: "reussi", ...dossierRelWhere } }),
+    db.attestation.count({ where: { dateEmission: { gte: startOfMonth }, ...dossierRelWhere } }),
   ]);
 
   const totalDecided = dossiersAcceptes + dossiersRefuses;
@@ -39,6 +48,7 @@ export async function GET() {
   // --- Répartition par statut ---
   const repartitionRaw = await db.dossier.groupBy({
     by: ["etat"],
+    where: dossierWhere,
     _count: true,
   });
 
@@ -72,6 +82,7 @@ export async function GET() {
   // --- Top universités ---
   const topUnivsRaw = await db.dossier.groupBy({
     by: ["universiteId"],
+    where: dossierWhere,
     _count: true,
     orderBy: { _count: { universiteId: "desc" } },
     take: 8,
@@ -93,7 +104,7 @@ export async function GET() {
   const sixWeeksAgo = new Date(now);
   sixWeeksAgo.setDate(sixWeeksAgo.getDate() - 42);
   const dossiersPeriode = await db.dossier.findMany({
-    where: { createdAt: { gte: sixWeeksAgo } },
+    where: { createdAt: { gte: sixWeeksAgo }, ...dossierWhere },
     select: { createdAt: true, etat: true },
     orderBy: { createdAt: "asc" },
   });
@@ -116,7 +127,7 @@ export async function GET() {
   // --- Encaissements par mois (6 derniers) ---
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
   const paiements = await db.paiement.findMany({
-    where: { date: { gte: sixMonthsAgo }, statut: "reussi" },
+    where: { date: { gte: sixMonthsAgo }, statut: "reussi", ...dossierRelWhere },
     select: { date: true, montant: true },
   });
 
@@ -137,7 +148,7 @@ export async function GET() {
 
   // --- File prioritaire ---
   const filePrioritaire = await db.dossier.findMany({
-    where: { etat: { in: ["CORRECTION", "PAIEMENT_ATTENTE", "SOUMIS", "VERIFICATION"] } },
+    where: { etat: { in: ["CORRECTION", "PAIEMENT_ATTENTE", "SOUMIS", "VERIFICATION"] }, ...dossierWhere },
     include: {
       candidat: { select: { prenom: true, nom: true } },
       universite: { select: { nom: true } },
@@ -149,6 +160,7 @@ export async function GET() {
 
   // --- Dossiers récents ---
   const dossiersRecents = await db.dossier.findMany({
+    where: dossierWhere,
     include: {
       candidat: { select: { prenom: true, nom: true } },
       universite: { select: { nom: true } },
@@ -160,24 +172,30 @@ export async function GET() {
   });
 
   // --- Top conseillers ---
-  const conseillers = await db.user.findMany({
-    where: { role: "CONSEILLER", actif: true },
-    select: {
-      id: true, prenom: true, nom: true,
-      _count: { select: { dossiersConseiller: true } },
-    },
-  });
+  // Non pertinent pour un conseiller consultant son propre tableau de bord (comparaison
+  // entre pairs) — réservé à Admin/Super Admin/Financier.
+  const conseillers = isConseiller
+    ? []
+    : await db.user.findMany({
+        where: { role: "CONSEILLER", actif: true },
+        select: {
+          id: true, prenom: true, nom: true,
+          _count: { select: { dossiersConseiller: true } },
+        },
+      });
 
   // FIX (N+1) : un seul groupBy pour les acceptés au lieu d'un count par conseiller.
   const conseillerIds = conseillers.map((c) => c.id);
-  const acceptesByConseiller = await db.dossier.groupBy({
-    by: ["conseillerId"],
-    where: {
-      conseillerId: { in: conseillerIds },
-      etat: { in: ["PRE_ADMISSION", "ATTESTATION", "CLOTURE"] },
-    },
-    _count: true,
-  });
+  const acceptesByConseiller = conseillerIds.length
+    ? await db.dossier.groupBy({
+        by: ["conseillerId"],
+        where: {
+          conseillerId: { in: conseillerIds },
+          etat: { in: ["PRE_ADMISSION", "ATTESTATION", "CLOTURE"] },
+        },
+        _count: true,
+      })
+    : [];
   const acceptesMap = new Map(acceptesByConseiller.map((a) => [a.conseillerId, a._count]));
   const topConseillers = conseillers.map((c) => ({
     id: c.id,
@@ -189,14 +207,16 @@ export async function GET() {
   }));
 
   // --- Finance KPIs ---
-  const totalEncaisse = await db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "reussi" } });
-  const enAttente = await db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "en_attente" } });
-  const impayes = await db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "echoue" } });
+  const totalEncaisse = await db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "reussi", ...dossierRelWhere } });
+  const enAttente = await db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "en_attente", ...dossierRelWhere } });
+  const impayes = await db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "echoue", ...dossierRelWhere } });
 
   // --- Ventilation CDC : type établissement + profil candidat ---
+  // repartitionProfilCandidat reste global (agrégat anonyme via ProfilAcademique, non lié à
+  // un dossier/conseiller précis) — ne révèle pas le portefeuille d'un conseiller.
   const [dossiersPublic, dossiersPrive, profilLyceen, profilBachelier] = await Promise.all([
-    db.dossier.count({ where: { universite: { typeEtablissement: "PUBLIC" } } }),
-    db.dossier.count({ where: { universite: { typeEtablissement: "PRIVE" } } }),
+    db.dossier.count({ where: { universite: { typeEtablissement: "PUBLIC" }, ...dossierWhere } }),
+    db.dossier.count({ where: { universite: { typeEtablissement: "PRIVE" }, ...dossierWhere } }),
     db.profilAcademique.count({ where: { statutCandidat: "LYCEEN" } }),
     db.profilAcademique.count({ where: { statutCandidat: "BACHELIER" } }),
   ]);
@@ -226,33 +246,35 @@ export async function GET() {
     paiementsMoisPrec,
     attestationsMoisPrec,
   ] = await Promise.all([
-    db.dossier.count({ where: { createdAt: { gte: startOfMonth } } }),
-    db.dossier.count({ where: { createdAt: { gte: startPrevMonth, lte: endPrevMonth } } }),
+    db.dossier.count({ where: { createdAt: { gte: startOfMonth }, ...dossierWhere } }),
+    db.dossier.count({ where: { createdAt: { gte: startPrevMonth, lte: endPrevMonth }, ...dossierWhere } }),
     db.dossier.count({
       where: {
         etat: { in: pipelineStates },
         updatedAt: { gte: startOfMonth },
+        ...dossierWhere,
       },
     }),
     db.dossier.count({
       where: {
         etat: { in: pipelineStates },
         updatedAt: { gte: startPrevMonth, lte: endPrevMonth },
+        ...dossierWhere,
       },
     }),
     db.dossier.count({
-      where: { etat: { in: acceptedStates }, updatedAt: { gte: startOfMonth } },
+      where: { etat: { in: acceptedStates }, updatedAt: { gte: startOfMonth }, ...dossierWhere },
     }),
     db.dossier.count({
-      where: { etat: { in: acceptedStates }, updatedAt: { gte: startPrevMonth, lte: endPrevMonth } },
+      where: { etat: { in: acceptedStates }, updatedAt: { gte: startPrevMonth, lte: endPrevMonth }, ...dossierWhere },
     }),
-    db.dossier.count({ where: { etat: "REFUSE", updatedAt: { gte: startOfMonth } } }),
-    db.dossier.count({ where: { etat: "REFUSE", updatedAt: { gte: startPrevMonth, lte: endPrevMonth } } }),
+    db.dossier.count({ where: { etat: "REFUSE", updatedAt: { gte: startOfMonth }, ...dossierWhere } }),
+    db.dossier.count({ where: { etat: "REFUSE", updatedAt: { gte: startPrevMonth, lte: endPrevMonth }, ...dossierWhere } }),
     db.paiement.aggregate({
       _sum: { montant: true },
-      where: { date: { gte: startPrevMonth, lte: endPrevMonth }, statut: "reussi" },
+      where: { date: { gte: startPrevMonth, lte: endPrevMonth }, statut: "reussi", ...dossierRelWhere },
     }),
-    db.attestation.count({ where: { dateEmission: { gte: startPrevMonth, lte: endPrevMonth } } }),
+    db.attestation.count({ where: { dateEmission: { gte: startPrevMonth, lte: endPrevMonth }, ...dossierRelWhere } }),
   ]);
 
   const pctDelta = (curr: number, prev: number) => {

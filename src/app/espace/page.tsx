@@ -392,9 +392,11 @@ function EspaceDashboardInner() {
                 <GraduationCap className="h-3.5 w-3.5 text-primary" strokeWidth={1.5} />
                 <span className="truncate">{form?.intitule}</span>
               </div>
-              <Button asChild variant="ghost" size="sm" className="mt-2 -ml-2 text-primary hover:bg-primary/10 hover:text-primary">
-                <Link href={`/universites/${univ.slug}`}>Voir l&apos;université <ArrowRight className="ml-1 h-3 w-3" strokeWidth={1.5} /></Link>
-              </Button>
+              {!univ?.estPlaceholder && (
+                <Button asChild variant="ghost" size="sm" className="mt-2 -ml-2 text-primary hover:bg-primary/10 hover:text-primary">
+                  <Link href={`/universites/${univ?.slug}`}>Voir l&apos;université <ArrowRight className="ml-1 h-3 w-3" strokeWidth={1.5} /></Link>
+                </Button>
+              )}
             </div>
           </Card>
 

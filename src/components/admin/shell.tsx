@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   IdCard,
   FileStack,
+  MessagesSquare,
 } from "lucide-react";
 import { GlobalSearch } from "@/components/admin/global-search";
 import { NotificationsBell } from "@/components/admin/notifications-bell";
@@ -71,6 +72,12 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
       { href: "/admin/finance", label: "Finance", icon: Wallet, permission: "finance.read" },
       { href: "/admin/utilisateurs", label: "Utilisateurs", icon: Users, permission: "users.read" },
       { href: "/admin/attestations", label: "Attestations", icon: Stamp, permission: "attestations.read" },
+    ],
+  },
+  {
+    title: "Communication",
+    items: [
+      { href: "/admin/messages-internes", label: "Messagerie interne", icon: MessagesSquare, permission: "messages.internes" },
     ],
   },
   {

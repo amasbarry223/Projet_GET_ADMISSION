@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
   const dossier = await db.dossier.findUnique({
     where: { id: dossierId },
-    select: { candidatId: true },
+    select: { candidatId: true, conseillerId: true },
   });
   if (!dossier) {
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
@@ -33,6 +33,9 @@ export async function GET(request: Request) {
   } else {
     const gate = requirePermission(role, "dossiers.read");
     if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+    if (role === "CONSEILLER" && dossier.conseillerId !== userId) {
+      return NextResponse.json({ error: "Accès refusé — ce dossier ne vous est pas affecté" }, { status: 403 });
+    }
   }
 
   const conversation = await db.conversation.findUnique({
@@ -86,6 +89,9 @@ export async function POST(request: Request) {
   } else {
     const gate = requirePermission(role, "dossiers.write");
     if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+    if (role === "CONSEILLER" && dossier.conseillerId !== userId) {
+      return NextResponse.json({ error: "Accès refusé — ce dossier ne vous est pas affecté" }, { status: 403 });
+    }
   }
 
   // Trouver ou créer la conversation

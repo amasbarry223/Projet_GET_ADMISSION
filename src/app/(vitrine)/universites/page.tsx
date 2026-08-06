@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function CatalogueUniversitesPage() {
   const [rows, fraisConfig] = await Promise.all([
     db.universite.findMany({
+      where: { estPlaceholder: false },
       include: { formations: true },
       orderBy: { nom: "asc" },
     }),

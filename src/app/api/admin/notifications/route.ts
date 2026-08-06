@@ -4,7 +4,40 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 
-// GET /api/admin/notifications — notifications dynamiques pour le staff
+/**
+ * Persiste (une seule fois) une notification pour l'utilisateur courant : le dédoublonnage se fait
+ * sur (userId, type, titre, message), donc une situation déjà notifiée puis marquée lue ne réapparaît
+ * pas — seul un message réellement différent (nouvel état, nouveau décompte…) recrée une entrée.
+ */
+async function ensureNotif(
+  userId: string,
+  input: { type: string; titre: string; message: string; lien: string; dossierId?: string },
+) {
+  const existing = await db.notification.findFirst({
+    where: { userId, type: input.type, titre: input.titre, message: input.message },
+    select: { id: true },
+  });
+  if (existing) return;
+  await db.notification.create({
+    data: {
+      userId,
+      type: input.type,
+      titre: input.titre,
+      message: input.message,
+      lien: input.lien,
+      dossierId: input.dossierId ?? null,
+    },
+  });
+}
+
+const DOSSIER_ACTION_MESSAGE: Record<string, (nom: string, reference: string) => string> = {
+  SOUMIS: (nom) => `Nouveau dossier soumis par ${nom}`,
+  CORRECTION: (_nom, reference) => `Dossier ${reference} nécessite une correction`,
+  PAIEMENT_ATTENTE: (nom) => `Paiement en attente pour ${nom}`,
+  VERIFICATION: (_nom, reference) => `Dossier ${reference} en cours de vérification`,
+};
+
+// GET /api/admin/notifications — notifications du staff connecté (persistées + détectées).
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
@@ -15,91 +48,90 @@ export async function GET() {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
-  const notifications: { id: string; type: string; message: string; reference: string; href: string; createdAt: string; notifId?: string }[] = [];
+  const userId = session.user.id;
+  // Un conseiller ne doit voir que ce qui le concerne (dossiers qui lui sont affectés) — Admin,
+  // Super Admin et Financier gardent la vue globale déjà en place.
+  const isConseiller = session.user.role === "CONSEILLER";
 
-  // 0. Notifications persistées adressées à cet utilisateur (ex. demandes de correction pour Admin/Super Admin)
-  const notifsPersistees = await db.notification.findMany({
-    where: { userId: session.user.id, lu: false },
-    orderBy: { createdAt: "desc" },
-    take: 10,
-  });
-  for (const n of notifsPersistees) {
-    notifications.push({
-      id: `notif-${n.id}`,
-      type: n.type === "workflow" ? "correction" : "dossier",
-      message: n.message,
-      reference: n.titre,
-      href: n.lien ?? (n.dossierId ? `/admin/dossiers/${n.dossierId}` : "/admin"),
-      createdAt: n.createdAt.toISOString(),
-      notifId: n.id,
-    });
-  }
-
-  // 1. Dossiers en attente d'action (soumis, correction, paiement_attente)
+  // 1. Dossiers en attente d'action
   const dossiersAction = await db.dossier.findMany({
-    where: { etat: { in: ["SOUMIS", "CORRECTION", "PAIEMENT_ATTENTE", "VERIFICATION"] } },
+    where: {
+      etat: { in: ["SOUMIS", "CORRECTION", "PAIEMENT_ATTENTE", "VERIFICATION"] },
+      ...(isConseiller ? { conseillerId: userId } : {}),
+    },
     include: { candidat: { select: { prenom: true, nom: true } } },
     take: 5,
     orderBy: { updatedAt: "desc" },
   });
-
   for (const d of dossiersAction) {
-    const messages: Record<string, string> = {
-      SOUMIS: `Nouveau dossier soumis par ${d.candidat.prenom} ${d.candidat.nom}`,
-      CORRECTION: `Dossier ${d.reference} nécessite une correction`,
-      PAIEMENT_ATTENTE: `Paiement en attente pour ${d.candidat.prenom} ${d.candidat.nom}`,
-      VERIFICATION: `Dossier ${d.reference} en cours de vérification`,
-    };
-    notifications.push({
-      id: `dossier-${d.id}`,
+    const buildMessage = DOSSIER_ACTION_MESSAGE[d.etat];
+    if (!buildMessage) continue;
+    await ensureNotif(userId, {
       type: "dossier",
-      message: messages[d.etat] ?? `Dossier ${d.reference}`,
-      reference: d.reference,
-      href: `/admin/dossiers/${d.id}`,
-      createdAt: d.updatedAt.toISOString(),
+      titre: d.reference,
+      message: buildMessage(`${d.candidat.prenom} ${d.candidat.nom}`, d.reference),
+      lien: `/admin/dossiers/${d.id}`,
+      dossierId: d.id,
     });
   }
 
   // 2. Paiements échoués
   const paiementsEchoues = await db.paiement.findMany({
-    where: { statut: "echoue" },
+    where: {
+      statut: "echoue",
+      ...(isConseiller ? { dossier: { conseillerId: userId } } : {}),
+    },
     include: { candidat: { select: { prenom: true, nom: true } }, dossier: { select: { reference: true } } },
     take: 3,
     orderBy: { date: "desc" },
   });
-
   for (const p of paiementsEchoues) {
-    notifications.push({
-      id: `paiement-${p.id}`,
+    await ensureNotif(userId, {
       type: "paiement",
+      titre: p.reference,
       message: `Paiement échoué — ${p.candidat.prenom} ${p.candidat.nom} (${p.dossier.reference})`,
-      reference: p.reference,
-      href: `/admin/finance`,
-      createdAt: p.date.toISOString(),
+      lien: "/admin/finance",
+      dossierId: p.dossierId,
     });
   }
 
   // 3. Messages non lus (côté conseiller)
   const conversationsNonLues = await db.conversation.findMany({
-    where: { nonLusConseiller: { gt: 0 } },
+    where: {
+      nonLusConseiller: { gt: 0 },
+      ...(isConseiller ? { conseillerId: userId } : {}),
+    },
     include: { candidat: { select: { prenom: true, nom: true } }, dossier: { select: { reference: true, id: true } } },
     take: 3,
     orderBy: { updatedAt: "desc" },
   });
-
   for (const c of conversationsNonLues) {
-    notifications.push({
-      id: `message-${c.id}`,
+    await ensureNotif(userId, {
       type: "message",
+      titre: c.dossier.reference,
+      // Le décompte fait partie du message : un nouveau message qui fait grimper le compteur change
+      // ce texte et redonne donc lieu à une notification, même si la précédente a déjà été lue.
       message: `${c.nonLusConseiller} message(s) non lu(s) de ${c.candidat.prenom} ${c.candidat.nom}`,
-      reference: c.dossier.reference,
-      href: `/admin/dossiers/${c.dossier.id}`,
-      createdAt: c.updatedAt.toISOString(),
+      lien: `/admin/dossiers/${c.dossier.id}`,
+      dossierId: c.dossier.id,
     });
   }
 
-  // Trier par date (plus récent d'abord)
-  notifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const notifs = await db.notification.findMany({
+    where: { userId, lu: false },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+  });
+
+  const notifications = notifs.map((n) => ({
+    id: `notif-${n.id}`,
+    type: n.type === "workflow" ? "correction" : n.type,
+    message: n.message,
+    reference: n.titre,
+    href: n.lien ?? (n.dossierId ? `/admin/dossiers/${n.dossierId}` : "/admin"),
+    createdAt: n.createdAt.toISOString(),
+    notifId: n.id,
+  }));
 
   return NextResponse.json({ notifications, count: notifications.length });
 }

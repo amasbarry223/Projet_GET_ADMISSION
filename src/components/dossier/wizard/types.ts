@@ -28,9 +28,12 @@ export type Universite = {
   drapeau: string;
   pays: string;
   typeEtablissement?: "PUBLIC" | "PRIVE";
+  estPlaceholder?: boolean;
   domaines: string[];
   formations: Formation[];
 };
+
+export type TypeProcedure = "PRIVEE" | "PUBLIQUE";
 
 export type DossierWizardData = {
   id: string;
@@ -40,6 +43,7 @@ export type DossierWizardData = {
   updatedAt?: string;
   fraisAgence: number;
   mrz: string;
+  procedure: TypeProcedure;
   candidat: {
     prenom: string;
     nom: string;
@@ -47,7 +51,7 @@ export type DossierWizardData = {
     nationalite: string;
     telephone: string;
   };
-  universite: { id: string; nom: string; typeEtablissement?: "PUBLIC" | "PRIVE" };
+  universite: { id: string; nom: string; typeEtablissement?: "PUBLIC" | "PRIVE"; estPlaceholder?: boolean };
   formation: { id: string; intitule: string; niveau: string; fraisAgence: number };
   conseiller: { prenom: string; nom: string } | null;
   pieces: PieceRow[];

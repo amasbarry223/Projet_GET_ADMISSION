@@ -10,6 +10,7 @@ import type {
   DossierWizardData,
   PersonalInfo,
   PieceRow,
+  TypeProcedure,
   Universite,
 } from "@/components/dossier/wizard/types";
 import {
@@ -29,6 +30,7 @@ function toDateInputValue(value: string | Date | null | undefined): string {
 
 export function useDossierWizardState() {
   const [step, setStep] = React.useState(1);
+  const [procedure, setProcedure] = React.useState<TypeProcedure>("PRIVEE");
   const [universiteId, setUniversiteId] = React.useState("");
   const [formationId, setFormationId] = React.useState("");
   const [personalInfo, setPersonalInfo] = React.useState<PersonalInfo>({
@@ -52,6 +54,8 @@ export function useDossierWizardState() {
   return {
     step,
     setStep,
+    procedure,
+    setProcedure,
     universiteId,
     setUniversiteId,
     formationId,
@@ -78,6 +82,7 @@ export function useDossierWizardState() {
 }
 
 type LoadSetters = {
+  setProcedure: (procedure: TypeProcedure) => void;
   setUniversiteId: (id: string) => void;
   setFormationId: (id: string) => void;
   setPersonalInfo: React.Dispatch<React.SetStateAction<PersonalInfo>>;
@@ -197,6 +202,7 @@ export function useLoadExistingDossier(
             setExistingDossier(dossier);
             const s = settersRef.current;
             const profile = profileRef.current;
+            s.setProcedure(dossier.procedure ?? "PRIVEE");
             s.setUniversiteId(dossier.universite.id);
             s.setFormationId(dossier.formation.id);
             s.setPersonalInfo({

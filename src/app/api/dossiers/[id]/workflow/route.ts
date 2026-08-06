@@ -53,10 +53,18 @@ export async function POST(
 
   const dossier = await db.dossier.findUnique({
     where: { id },
-    include: { candidat: { select: { id: true, email: true, prenom: true, emailVerified: true } } },
+    include: {
+      candidat: { select: { id: true, email: true, prenom: true, emailVerified: true } },
+      universite: { select: { estPlaceholder: true } },
+    },
   });
   if (!dossier) {
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
+  }
+
+  // Le conseiller ne peut agir que sur les dossiers qui lui sont affectés.
+  if (role === "CONSEILLER" && dossier.conseillerId !== auth.user.id) {
+    return NextResponse.json({ error: "Accès refusé — ce dossier ne vous est pas affecté" }, { status: 403 });
   }
 
   // États sources attendus pour updateMany conditionnel
@@ -130,6 +138,12 @@ export async function POST(
     if (dossier.etat !== "PAIEMENT_CONFIRME") {
       return NextResponse.json(
         { error: "Le dossier doit être en « Paiement confirmé » avant transmission" },
+        { status: 400 },
+      );
+    }
+    if (dossier.procedure === "PUBLIQUE" && dossier.universite.estPlaceholder) {
+      return NextResponse.json(
+        { error: "Affectez d'abord un établissement public avant de transmettre le dossier." },
         { status: 400 },
       );
     }
@@ -255,7 +269,10 @@ export async function POST(
 
   // Le solde a déjà été validé par le conseiller avant PAIEMENT_ATTENTE : une fois le paiement
   // confirmé, le dossier est transmis automatiquement à l'université (pas d'étape manuelle en plus).
-  if (action === "confirmer_paiement") {
+  // Procédure Publique : si l'établissement n'est pas encore affecté (toujours sur le placeholder),
+  // le dossier reste à PAIEMENT_CONFIRME — la transmission attend l'affectation par le staff, puis
+  // se fait manuellement via l'action « transmettre » (paiement et affectation sont indépendants).
+  if (action === "confirmer_paiement" && !(dossier.procedure === "PUBLIQUE" && dossier.universite.estPlaceholder)) {
     try {
       await db.dossier.update({
         where: { id },

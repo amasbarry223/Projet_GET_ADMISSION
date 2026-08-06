@@ -22,7 +22,7 @@ export function Skeleton({ className }: { className?: string }) {
 /** Skeleton d'une carte KPI (icône + valeur + label) */
 export function KpiSkeleton() {
   return (
-    <div className="rounded-lg border border-ligne bg-blanc p-5 shadow-sm">
+    <div className="rounded-lg border border-ligne bg-card p-5 shadow-sm">
       <div className="flex items-start justify-between">
         <Skeleton className="h-12 w-12 rounded-lg" />
         <Skeleton className="h-5 w-12 rounded-full" />
@@ -36,7 +36,7 @@ export function KpiSkeleton() {
 /** Skeleton d'un chart (rectangle de la hauteur du graphique) */
 export function ChartSkeleton({ className }: { className?: string }) {
   return (
-    <div className={cn("rounded-lg border border-ligne bg-blanc p-5 shadow-sm", className)}>
+    <div className={cn("rounded-lg border border-ligne bg-card p-5 shadow-sm", className)}>
       <Skeleton className="h-4 w-40" />
       <Skeleton className="mt-4 h-48 w-full rounded-md" />
     </div>
@@ -65,7 +65,7 @@ export function TableSkeleton({ columns = 6, rows = 5 }: { columns?: number; row
         <Skeleton className="h-9 w-32 rounded-md" />
         <Skeleton className="h-9 w-32 rounded-md" />
       </div>
-      <div className="overflow-hidden rounded-lg border border-ligne bg-blanc">
+      <div className="overflow-hidden rounded-lg border border-ligne bg-card">
         <table className="w-full">
           <thead>
             <tr className="border-b border-ligne">
@@ -109,7 +109,7 @@ export function AdminDashboardSkeleton() {
       <div className="grid gap-4 lg:grid-cols-3">
         <ChartSkeleton />
         <ChartSkeleton />
-        <div className="rounded-lg border border-ligne bg-blanc p-5 shadow-sm">
+        <div className="rounded-lg border border-ligne bg-card p-5 shadow-sm">
           <Skeleton className="h-4 w-32" />
           <div className="mt-4 space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -136,7 +136,7 @@ export function FormPageSkeleton() {
         <Skeleton className="h-3 w-16" />
         <Skeleton className="h-8 w-56" />
       </div>
-      <div className="rounded-lg border border-ligne bg-blanc p-6 space-y-4">
+      <div className="rounded-lg border border-ligne bg-card p-6 space-y-4">
         <div className="flex items-center gap-4">
           <Skeleton className="h-16 w-16 rounded-full" />
           <div className="space-y-2 flex-1">
@@ -167,7 +167,7 @@ export function MessagesSkeleton() {
         <Skeleton className="h-8 w-40" />
       </div>
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-        <div className="rounded-lg border border-ligne bg-blanc p-3 space-y-2">
+        <div className="rounded-lg border border-ligne bg-card p-3 space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="flex gap-3 p-2">
               <Skeleton className="h-10 w-10 rounded-full" />
@@ -178,7 +178,7 @@ export function MessagesSkeleton() {
             </div>
           ))}
         </div>
-        <div className="rounded-lg border border-ligne bg-blanc p-5 space-y-4 min-h-[320px]">
+        <div className="rounded-lg border border-ligne bg-card p-5 space-y-4 min-h-[320px]">
           <Skeleton className="h-4 w-48" />
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className={cn("h-12 rounded-lg", i % 2 === 0 ? "w-3/4 ml-auto" : "w-2/3")} />
@@ -193,7 +193,7 @@ export function MessagesSkeleton() {
 export function EspaceDashboardSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-ligne bg-blanc shadow-sm">
+      <div className="rounded-lg border border-ligne bg-card shadow-sm">
         <div className="grid lg:grid-cols-[1.3fr_1fr]">
           <div className="p-8 space-y-3">
             <Skeleton className="h-3 w-20" />
@@ -211,7 +211,7 @@ export function EspaceDashboardSkeleton() {
         {Array.from({ length: 4 }).map((_, i) => <KpiSkeleton key={i} />)}
       </div>
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <div className="rounded-lg border border-ligne bg-blanc p-5 shadow-sm space-y-3">
+        <div className="rounded-lg border border-ligne bg-card p-5 shadow-sm space-y-3">
           <Skeleton className="h-4 w-40" />
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="flex items-center gap-3 py-2">
@@ -225,7 +225,7 @@ export function EspaceDashboardSkeleton() {
         </div>
         <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="rounded-lg border border-ligne bg-blanc p-4 shadow-sm space-y-2">
+            <div key={i} className="rounded-lg border border-ligne bg-card p-4 shadow-sm space-y-2">
               <Skeleton className="h-3 w-24" />
               <Skeleton className="h-16 w-full rounded-md" />
             </div>
