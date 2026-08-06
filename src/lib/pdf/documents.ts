@@ -47,6 +47,10 @@ const SUPERSCRIPT_TO_BASE: Record<string, string> = {
 };
 // Ponctuation "typographique" déjà couverte par l'encodage WinAnsi (CP1252) de pdf-lib.
 const WINANSI_EXTRA_PUNCTUATION = "–—‘’“”…•™";
+// Espaces Unicode "spéciales" (ex. U+202F utilisée par Intl.NumberFormat("fr-FR") comme séparateur
+// de milliers dans formatFCFA/formatEUR) — hors WinAnsi, mais doivent rester un espace visible
+// plutôt que d'être supprimées (sinon "110 000 FCFA" devient l'illisible "110000FCFA").
+const UNICODE_SPACES_TO_ASCII = "\u00a0\u2007\u2009\u202f\u2060"; // NBSP, figure, thin, narrow-NBSP, word-joiner
 
 /** Ramène tout caractère non encodable par la police standard WinAnsi à un équivalent sûr. */
 function sanitizeForPdf(text: string): string {
@@ -54,6 +58,8 @@ function sanitizeForPdf(text: string): string {
   for (const ch of text) {
     if ((ch.codePointAt(0) ?? 0) <= 0xff || WINANSI_EXTRA_PUNCTUATION.includes(ch)) {
       out += ch;
+    } else if (UNICODE_SPACES_TO_ASCII.includes(ch)) {
+      out += " ";
     } else {
       out += SUPERSCRIPT_TO_BASE[ch] ?? "";
     }
@@ -450,8 +456,9 @@ export async function buildReceiptPdfBuffer(input: ReceiptDocInput): Promise<Uin
     font: bold,
     color: COLOR.or,
   });
-  const montantWidth = bold.widthOfTextAtSize(input.montantLabel, 16);
-  page.drawText(input.montantLabel, {
+  const montantLabelSafe = sanitizeForPdf(input.montantLabel);
+  const montantWidth = bold.widthOfTextAtSize(montantLabelSafe, 16);
+  page.drawText(montantLabelSafe, {
     x: PAGE_WIDTH - MARGIN - 14 - montantWidth,
     y: cursorY - totalHeight / 2 - 6,
     size: 16,
