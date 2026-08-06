@@ -351,13 +351,10 @@ export default function ContactPage() {
                       </span>
                       <div>
                         <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">
-                          Agences
+                          Agence
                         </p>
                         <p className="mt-0.5 font-medium text-foreground">
                           {contactInfo.adresses || "—"}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Plateau (Abidjan), Mermoz (Dakar), Bè (Lomé)
                         </p>
                       </div>
                     </li>

@@ -180,7 +180,7 @@ function AttestationInner() {
       const updated = (await res.json()) as Attestation;
       setAttestation((prev) => (prev ? { ...prev, modeRemise: updated.modeRemise } : prev));
       toast.success(agence ? "Retrait à l'agence enregistré" : "Téléchargement sélectionné", {
-        description: agence ? "Présentez-vous à l'agence — Dakar." : undefined,
+        description: agence ? "Présentez-vous à l'agence — Bamako." : undefined,
       });
     } catch (e) {
       setRemiseAgence(!agence);

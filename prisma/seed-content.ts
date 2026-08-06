@@ -25,8 +25,10 @@ async function main() {
   await db.contactInfo.upsert({
     where: { id: 1 },
     update: {
+      email: "contact@getadm.com",
       telephone: "+223 77879114 / +223 74303197 / +223 92588109",
       adresses: "Bacodjicoroni-Golf en face de fitini market",
+      horaires: "Lun – Ven : 9h – 18h",
     },
     create: {
       id: 1,

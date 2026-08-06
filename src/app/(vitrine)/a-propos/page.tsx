@@ -121,7 +121,7 @@ export default async function AProposPage() {
               Le passage vers l&apos;international.
             </h1>
             <p className="mt-5 max-w-lg text-pretty text-base leading-relaxed text-blanc/80 sm:text-lg">
-              Une agence d&apos;admission à taille humaine, basée à Dakar, Abidjan et Lomé —
+              Une agence d&apos;admission à taille humaine, basée à Bamako —
               pour les étudiants d&apos;Afrique de l&apos;Ouest.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -213,7 +213,7 @@ export default async function AProposPage() {
               {[
                 {
                   icon: MapPin,
-                  label: "Bureaux à Dakar, Abidjan et Lomé",
+                  label: "Bureau à Bamako, Bacodjicoroni-Golf",
                 },
                 {
                   icon: Building2,
@@ -344,7 +344,7 @@ export default async function AProposPage() {
                 Des conseillers qui connaissent le terrain.
               </h2>
               <p className="mt-4 text-muted-foreground">
-                Une équipe basée à Dakar, Abidjan et Lomé, qui a elle-même étudié à l&apos;étranger.
+                Une équipe basée à Bamako, qui a elle-même étudié à l&apos;étranger.
               </p>
             </Reveal>
           </div>
