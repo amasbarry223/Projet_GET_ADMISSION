@@ -12,6 +12,7 @@ import {
   CreditCard,
   MessageSquare,
   Stamp,
+  BedDouble,
   User,
   LogOut,
   Bell,
@@ -49,6 +50,7 @@ const NAV_BASE = [
   { href: "/espace/paiement", label: "Paiement", icon: CreditCard },
   { href: "/espace/messages", label: "Messages", icon: MessageSquare, showBadge: "messages" as const },
   { href: "/espace/attestation", label: "Attestation", icon: Stamp },
+  { href: "/espace/logement", label: "Réservation de logement", icon: BedDouble },
   { href: "/espace/profil", label: "Profil", icon: User },
 ];
 
