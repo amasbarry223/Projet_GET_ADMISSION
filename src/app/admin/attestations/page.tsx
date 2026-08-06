@@ -18,6 +18,7 @@ export default async function AdminAttestationsPage() {
     candidat: { select: { prenom: true, nom: true } },
     universite: { select: { nom: true, ecusson: true } },
     formation: { select: { intitule: true } },
+    attestation: { select: { cheminFichier: true, nomFichier: true } },
   } as const;
 
   const [aEmettreRaw, emisesRaw, modelesRaw] = await Promise.all([
@@ -27,7 +28,7 @@ export default async function AdminAttestationsPage() {
       orderBy: { updatedAt: "asc" },
     }),
     db.dossier.findMany({
-      where: { etat: { in: ["ATTESTATION", "CLOTURE"] } },
+      where: { attestation: { isNot: null } },
       select,
       orderBy: { updatedAt: "desc" },
     }),
@@ -44,6 +45,8 @@ export default async function AdminAttestationsPage() {
     universiteNom: d.universite?.nom ?? "—",
     universiteEcusson: d.universite?.ecusson ?? "—",
     formationIntitule: d.formation?.intitule ?? "",
+    hasFile: !!d.attestation?.cheminFichier,
+    nomFichier: d.attestation?.nomFichier ?? null,
   });
 
   const modeles: ModeleAttestationProp[] = modelesRaw.map((m) => ({

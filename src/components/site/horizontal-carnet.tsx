@@ -9,6 +9,7 @@ import { ArrowUpRight } from "lucide-react";
 import { usePrefersReducedMotion } from "@/lib/motion";
 import { formatFCFACompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { MediaImage } from "@/components/media-image";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -149,7 +150,7 @@ function CarnetCards({ universites }: { universites: CarnetUniv[] }) {
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             {u.logoUrl ? (
               <span className="absolute left-4 top-4 flex h-12 w-12 overflow-hidden rounded-full border-2 border-blanc bg-card shadow-md">
-                <Image src={u.logoUrl} alt="" width={48} height={48} className="object-cover" />
+                <MediaImage src={u.logoUrl} alt="" width={48} height={48} className="object-cover" />
               </span>
             ) : (
               <span className="absolute left-4 top-4 flex h-12 w-12 items-center justify-center rounded-full bg-card font-mono text-xs font-bold text-primary shadow-md">

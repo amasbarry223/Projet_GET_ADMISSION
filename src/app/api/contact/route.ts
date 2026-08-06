@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { contactSchema, validate } from "@/lib/validations";
+import { contactSchema, paginationQuerySchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 
 // POST /api/contact — soumission du formulaire de contact (public)
@@ -52,15 +52,19 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const role = (session.user as any).role;
+  const role = session.user.role;
   if (role === "CANDIDAT") {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
   const hasPagination = searchParams.has("page");
-  const page = Math.max(1, Number(searchParams.get("page") ?? "1"));
-  const pageSize = Math.min(50, Math.max(1, Number(searchParams.get("pageSize") ?? "20")));
+  const query = paginationQuerySchema.parse({
+    page: searchParams.get("page") ?? undefined,
+    pageSize: searchParams.get("pageSize") ?? undefined,
+  });
+  const page = query.page;
+  const pageSize = Math.min(50, query.pageSize);
   const traite = searchParams.get("traite");
 
   const where = traite === "true" ? { traite: true } : traite === "false" ? { traite: false } : {};

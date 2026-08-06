@@ -10,12 +10,30 @@ export async function GET() {
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
-  const gate = requirePermission((session.user as { role?: string }).role, "dashboard");
+  const gate = requirePermission(session.user.role, "dashboard");
   if (!gate.ok) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
-  const notifications: { id: string; type: string; message: string; reference: string; href: string; createdAt: string }[] = [];
+  const notifications: { id: string; type: string; message: string; reference: string; href: string; createdAt: string; notifId?: string }[] = [];
+
+  // 0. Notifications persistées adressées à cet utilisateur (ex. demandes de correction pour Admin/Super Admin)
+  const notifsPersistees = await db.notification.findMany({
+    where: { userId: session.user.id, lu: false },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  });
+  for (const n of notifsPersistees) {
+    notifications.push({
+      id: `notif-${n.id}`,
+      type: n.type === "workflow" ? "correction" : "dossier",
+      message: n.message,
+      reference: n.titre,
+      href: n.lien ?? (n.dossierId ? `/admin/dossiers/${n.dossierId}` : "/admin"),
+      createdAt: n.createdAt.toISOString(),
+      notifId: n.id,
+    });
+  }
 
   // 1. Dossiers en attente d'action (soumis, correction, paiement_attente)
   const dossiersAction = await db.dossier.findMany({

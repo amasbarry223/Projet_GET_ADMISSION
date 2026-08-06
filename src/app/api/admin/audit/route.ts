@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
+import { paginationQuerySchema } from "@/lib/validations";
 
 // GET /api/admin/audit — journal d'audit (staff uniquement, §4.7)
 export async function GET(request: Request) {
@@ -10,7 +11,7 @@ export async function GET(request: Request) {
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
-  const gate = requirePermission((session.user as { role?: string }).role, "audit.read");
+  const gate = requirePermission(session.user.role, "audit.read");
   if (!gate.ok) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
@@ -18,8 +19,12 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const resource = searchParams.get("resource");
   const action = searchParams.get("action");
-  const page = Math.max(1, Number(searchParams.get("page") ?? "1"));
-  const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") ?? "50")));
+  const query = paginationQuerySchema.parse({
+    page: searchParams.get("page") ?? undefined,
+    pageSize: searchParams.get("pageSize") ?? undefined,
+  });
+  const page = query.page;
+  const pageSize = query.pageSize;
 
   const where = {
     ...(resource && resource !== "tous" ? { resource } : {}),

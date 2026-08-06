@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { cn } from "@/lib/utils";
 import { COULEUR_BADGE, etatParCode, type EtatCode } from "@/lib/etats";
 import { formatFCFA, formatFCFACompact } from "@/lib/format";
@@ -30,7 +29,7 @@ type Props = {
  * Bande MRZ en bas (Geist Mono, fond or-pale).
  */
 export function BoardingPass({
-  reference,
+  reference: _reference,
   universiteNom,
   formationLabel,
   etat,
@@ -44,8 +43,6 @@ export function BoardingPass({
   className,
 }: Props) {
   const reduce = useReducedMotion();
-  const e = etatParCode(etat);
-  const couleur = COULEUR_BADGE[e.couleur];
 
   const isHero = variant === "hero";
   const isCompact = variant === "compact";
@@ -53,7 +50,7 @@ export function BoardingPass({
   return (
     <motion.article
       initial={animateOnMount && !reduce ? { opacity: 0, y: 12 } : false}
-      whileInView={animateOnMount ? { opacity: 1, y: 0 } : undefined}
+      {...(animateOnMount ? { whileInView: { opacity: 1, y: 0 } } : {})}
       viewport={{ once: true, margin: "-80px" }}
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
@@ -137,7 +134,7 @@ export function StampBadge({ etat, animate = false }: { etat: EtatCode | string;
   return (
     <motion.div
       initial={animate && !reduce ? { opacity: 0, scale: 1.6, rotate: -12 } : false}
-      animate={animate ? { opacity: 1, scale: 1, rotate: -6 } : undefined}
+      {...(animate ? { animate: { opacity: 1, scale: 1, rotate: -6 } } : {})}
       transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1], delay: 0.35 }}
       className={cn(
         "mt-8 inline-flex flex-col items-center justify-center rounded-md border-2 px-3 py-1.5",

@@ -68,11 +68,9 @@ export const WORKFLOW_TRANSITIONS: Record<string, WorkflowTransition> = {
     to: "REFUSE",
     permission: "dossiers.write",
   },
-  emettre_attestation: {
-    from: ["PRE_ADMISSION"],
-    to: "ATTESTATION",
-    permission: "attestations.emit",
-  },
+  // emettre_attestation : retiré du workflow générique — l'émission se fait exclusivement via
+  // l'upload du document de préinscription (POST /api/dossiers/[id]/attestation/upload), qui
+  // gère lui-même la transition PRE_ADMISSION → ATTESTATION.
   cloturer: {
     from: ["ATTESTATION", "REFUSE"],
     to: "CLOTURE",

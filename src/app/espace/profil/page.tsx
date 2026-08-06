@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,6 +47,7 @@ type ProfileErrors = Partial<Record<"prenom" | "nom", string>>;
 type PasswordErrors = Partial<Record<"current" | "next" | "confirm", string>>;
 
 export default function ProfilPage() {
+  const { update: updateSession } = useSession();
   const [profile, setProfile] = React.useState<Profile | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
@@ -129,6 +131,7 @@ export default function ProfilPage() {
         throw new Error(messageFromBody(data) ?? getApiErrorMessageSync(res.status));
       }
       setProfile((p) => (p ? { ...p, ...data } : p));
+      void updateSession();
       toast.success("Profil enregistré", { description: "Vos informations ont été mises à jour." });
     } catch (e) {
       toast.error("Enregistrement échoué", { description: getApiErrorMessageSync(e) });
@@ -146,6 +149,7 @@ export default function ProfilPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(messageFromBody(data) ?? getApiErrorMessageSync(res.status));
       setProfile((p) => (p ? { ...p, photoUrl: data.photoUrl } : p));
+      void updateSession();
       toast.success("Photo mise à jour");
     } catch (e) {
       toast.error("Photo", { description: getApiErrorMessageSync(e) });
@@ -484,7 +488,10 @@ export default function ProfilPage() {
                   value={password.current}
                   onChange={(e) => {
                     setPassword((p) => ({ ...p, current: e.target.value }));
-                    setPasswordErrors((prev) => ({ ...prev, current: undefined }));
+                    setPasswordErrors((prev) => {
+                      const { current: _, ...rest } = prev;
+                      return rest;
+                    });
                   }}
                   autoComplete="current-password"
                   aria-invalid={!!passwordErrors.current}
@@ -500,7 +507,10 @@ export default function ProfilPage() {
                   value={password.next}
                   onChange={(e) => {
                     setPassword((p) => ({ ...p, next: e.target.value }));
-                    setPasswordErrors((prev) => ({ ...prev, next: undefined }));
+                    setPasswordErrors((prev) => {
+                      const { next: _, ...rest } = prev;
+                      return rest;
+                    });
                   }}
                   autoComplete="new-password"
                   aria-invalid={!!passwordErrors.next}
@@ -516,7 +526,10 @@ export default function ProfilPage() {
                   value={password.confirm}
                   onChange={(e) => {
                     setPassword((p) => ({ ...p, confirm: e.target.value }));
-                    setPasswordErrors((prev) => ({ ...prev, confirm: undefined }));
+                    setPasswordErrors((prev) => {
+                      const { confirm: _, ...rest } = prev;
+                      return rest;
+                    });
                   }}
                   autoComplete="new-password"
                   aria-invalid={!!passwordErrors.confirm}

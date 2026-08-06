@@ -13,8 +13,8 @@ export async function POST(_req: Request, { params }: Ctx) {
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
-  const role = (session.user as { role?: string }).role;
-  const userId = (session.user as { id: string }).id;
+  const role = session.user.role;
+  const userId = session.user.id;
   const gate = requirePermission(role, "matrice.write");
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
 

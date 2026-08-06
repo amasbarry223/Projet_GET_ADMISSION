@@ -14,7 +14,7 @@ export async function POST(_req: Request, { params }: Ctx) {
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
-  const gate = requirePermission((session.user as { role?: string }).role, "matrice.write");
+  const gate = requirePermission(session.user.role, "matrice.write");
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
 
   const { id } = await params;

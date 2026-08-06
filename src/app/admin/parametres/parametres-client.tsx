@@ -9,10 +9,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useSession } from "next-auth/react";
 import { apiFetch, apiJson } from "@/lib/api-client";
 import { toast } from "sonner";
-import { Lock, Save, ShieldCheck, CreditCard, Bell, GitBranch, Loader2, FileText } from "lucide-react";
+import { Lock, Save, ShieldCheck, CreditCard, Bell, GitBranch, Loader2, FileText, Database, Download, AlertTriangle } from "lucide-react";
+
+const RESET_CONFIRM_PHRASE = "REINITIALISER";
 
 type ParamsState = {
   fraisMin: string;
@@ -47,6 +57,11 @@ export default function AdminParametresClient() {
   });
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
+  const [exporting, setExporting] = React.useState(false);
+  const [hasExported, setHasExported] = React.useState(false);
+  const [resetOpen, setResetOpen] = React.useState(false);
+  const [resetConfirmText, setResetConfirmText] = React.useState("");
+  const [resetting, setResetting] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -106,6 +121,52 @@ export default function AdminParametresClient() {
     toast.success("Paramètres enregistrés");
   };
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await fetch("/api/admin/backup/export");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? "Export échoué");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `getadmission-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setHasExported(true);
+      toast.success("Export généré", { description: "Le fichier JSON a été téléchargé." });
+    } catch (e) {
+      toast.error("Export échoué", { description: e instanceof Error ? e.message : "Erreur inconnue" });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleReset = async () => {
+    setResetting(true);
+    const result = await apiJson<{ deleted: { dossiers: number; notifications: number; auditLogs: number } }>(
+      "/api/admin/backup/reset",
+      "POST",
+      { confirm: resetConfirmText },
+    );
+    setResetting(false);
+    if (!result.ok) {
+      toast.error("Réinitialisation échouée", { description: result.error });
+      return;
+    }
+    setResetOpen(false);
+    setResetConfirmText("");
+    const { dossiers, notifications, auditLogs } = result.data.deleted;
+    toast.success("Données d'activité réinitialisées", {
+      description: `${dossiers} dossier(s), ${notifications} notification(s), ${auditLogs} entrée(s) d'audit supprimées.`,
+    });
+  };
+
   return (
     <div className="space-y-5">
       <div>
@@ -137,6 +198,9 @@ export default function AdminParametresClient() {
           </TabsTrigger>
           <TabsTrigger value="systeme">
             <ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> Système
+          </TabsTrigger>
+          <TabsTrigger value="donnees">
+            <Database className="mr-1.5 h-3.5 w-3.5" /> Données
           </TabsTrigger>
         </TabsList>
 
@@ -253,7 +317,109 @@ export default function AdminParametresClient() {
             />
           </Card>
         </TabsContent>
+
+        <TabsContent value="donnees" className="space-y-4">
+          <Card className={cardLocked(isSuperAdmin)}>
+            <SectionHeader icon={Download} title="Sauvegarde" />
+            <p className="mb-4 text-xs text-ardoise">
+              Exporte l&apos;intégralité des données de l&apos;application (dossiers, utilisateurs, catalogue,
+              paiements, contenu…) dans un fichier JSON téléchargeable. Les mots de passe et jetons de sécurité
+              sont exclus de l&apos;export.
+            </p>
+            <Button
+              variant="outline"
+              onClick={handleExport}
+              disabled={!isSuperAdmin || exporting}
+            >
+              {exporting ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />
+              ) : (
+                <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} />
+              )}
+              Exporter toutes les données (JSON)
+            </Button>
+          </Card>
+
+          <Card className={`border-carmin/30 bg-carmin/5 p-5 ${!isSuperAdmin ? "opacity-70" : ""}`}>
+            <div className="mb-4 flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
+              <h2 className="font-display text-base font-bold text-carmin">Zone dangereuse</h2>
+            </div>
+            <p className="mb-1 text-sm text-encre">Réinitialiser les données d&apos;activité</p>
+            <p className="mb-4 text-xs text-ardoise">
+              Supprime définitivement tous les dossiers (et leurs pièces, paiements, historiques,
+              attestations, messages, demandes de correction), toutes les notifications et le journal
+              d&apos;audit. Le catalogue (universités/formations), les comptes utilisateurs et les paramètres
+              sont conservés. <strong>Cette action est irréversible</strong> — exportez une sauvegarde avant
+              de continuer.
+            </p>
+            <Button
+              variant="outline"
+              className="border-carmin/40 text-carmin hover:bg-carmin/10"
+              disabled={!isSuperAdmin}
+              onClick={() => {
+                setResetConfirmText("");
+                setResetOpen(true);
+              }}
+            >
+              <AlertTriangle className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Réinitialiser les données d&apos;activité
+            </Button>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      <Dialog open={resetOpen} onOpenChange={setResetOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-carmin">
+              <AlertTriangle className="h-5 w-5" strokeWidth={1.5} /> Réinitialiser les données d&apos;activité ?
+            </DialogTitle>
+            <DialogDescription>
+              Tous les dossiers, pièces, paiements, historiques, attestations, messages, demandes de
+              correction, notifications et le journal d&apos;audit seront supprimés définitivement. Le
+              catalogue, les comptes utilisateurs et les paramètres sont conservés. Cette action est
+              irréversible.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!hasExported && (
+            <Alert className="border-ambre/40 bg-ambre/5">
+              <AlertTriangle className="h-4 w-4 text-ambre" strokeWidth={1.5} />
+              <AlertDescription className="text-sm text-ardoise">
+                Vous n&apos;avez pas encore exporté de sauvegarde dans cette session. Il est fortement
+                recommandé de le faire avant de continuer.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="reset-confirm">
+              Saisissez <span className="font-mono font-semibold">{RESET_CONFIRM_PHRASE}</span> pour confirmer
+            </Label>
+            <Input
+              id="reset-confirm"
+              value={resetConfirmText}
+              onChange={(e) => setResetConfirmText(e.target.value)}
+              className="font-mono"
+              autoComplete="off"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              className="bg-carmin text-blanc hover:bg-carmin/90"
+              disabled={resetConfirmText !== RESET_CONFIRM_PHRASE || resetting}
+              onClick={() => void handleReset()}
+            >
+              {resetting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
+              Réinitialiser définitivement
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex justify-end">
         <Button className="bg-lapis text-blanc hover:bg-lapis/90" onClick={handleSave} disabled={saving || loading || !isSuperAdmin}>
@@ -266,7 +432,7 @@ export default function AdminParametresClient() {
 }
 
 function cardLocked(isSuperAdmin: boolean) {
-  return `border-ligne bg-blanc p-5 ${!isSuperAdmin ? "opacity-70" : ""}`;
+  return `border-ligne bg-card p-5 ${!isSuperAdmin ? "opacity-70" : ""}`;
 }
 
 function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: string }) {

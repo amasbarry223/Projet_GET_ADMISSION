@@ -1,4 +1,3 @@
-import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -55,8 +54,12 @@ const EQUIPE_PHOTOS_BY_ORDER = [
   "/images/apropos/equipe-yasmine.png",
 ] as const;
 
-function photoForMember(nom: string, index: number) {
-  return EQUIPE_PHOTOS[nom] ?? EQUIPE_PHOTOS_BY_ORDER[index % EQUIPE_PHOTOS_BY_ORDER.length];
+function photoForMember(nom: string, index: number): string {
+  return (
+    EQUIPE_PHOTOS[nom] ??
+    EQUIPE_PHOTOS_BY_ORDER[index % EQUIPE_PHOTOS_BY_ORDER.length] ??
+    EQUIPE_PHOTOS_BY_ORDER[0]!
+  );
 }
 
 /* --------------------------------- Page ----------------------------------- */

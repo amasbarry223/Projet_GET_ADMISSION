@@ -1,11 +1,10 @@
 import { AdminShell } from "@/components/admin/shell";
-import { ForceLightDocument } from "@/components/site/force-light-document";
+import { AdminThemeProvider } from "@/components/admin/admin-theme-provider";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <>
-      <ForceLightDocument />
+    <AdminThemeProvider>
       <AdminShell>{children}</AdminShell>
-    </>
+    </AdminThemeProvider>
   );
 }

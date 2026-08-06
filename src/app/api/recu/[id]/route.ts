@@ -37,8 +37,8 @@ export async function GET(
     return NextResponse.json({ error: "Paiement non trouvé" }, { status: 404 });
   }
 
-  const role = (session.user as { role?: string }).role;
-  const userId = (session.user as { id: string }).id;
+  const role = session.user.role;
+  const userId = session.user.id;
   if (role === "CANDIDAT") {
     if (paiement.candidatId !== userId) {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
@@ -92,8 +92,9 @@ export async function GET(
 <style>
   body { font-family: 'General Sans', Inter, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; color: #1A1A1A; }
   .header { text-align: center; border-bottom: 2px solid #3CA936; padding-bottom: 20px; margin-bottom: 30px; }
-  .header h1 { font-size: 24px; margin: 0; }
-  .header p { color: #6B7280; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; }
+  .header img { height: 42px; width: auto; }
+  .header h1 { font-size: 22px; margin: 14px 0 0; }
+  .header p { color: #6B7280; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin: 4px 0 0; }
   .recu { border: 1px solid #E5E7EB; border-radius: 8px; padding: 24px; }
   .recu h2 { font-size: 18px; margin: 0 0 16px; }
   .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F3F4F6; }
@@ -109,8 +110,9 @@ export async function GET(
 </head>
 <body>
   <div class="header">
-    <p>GET Admission</p>
+    <img src="/images/brand/logo-get-admission.png" alt="GET Admission" />
     <h1>Reçu de paiement</h1>
+    <p>GET Admission</p>
   </div>
   <div class="recu">
     <h2>Référence : <span class="mono">${e(paiement.reference)}</span></h2>

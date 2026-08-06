@@ -94,8 +94,10 @@ export function UtilisateursClient({
   initialData,
   currentRole,
   currentUserId,
+  hideTitle,
 }: {
   initialData: UserRow[];
+  hideTitle?: boolean;
   currentRole: ActorRole;
   currentUserId: string;
 }) {
@@ -492,9 +494,11 @@ export function UtilisateursClient({
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">
-            Personnel &amp; rôles.
-          </h1>
+          {!hideTitle && (
+            <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">
+              Personnel &amp; rôles.
+            </h1>
+          )}
           <p className="text-sm text-ardoise">
             {data.length} membres · {data.filter((u) => u.actif).length} actifs
             {!canWrite && (
@@ -517,7 +521,7 @@ export function UtilisateursClient({
                 <Plus className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Ajouter un membre
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-blanc sm:max-w-md">
+            <DialogContent className="bg-card sm:max-w-md">
               <DialogHeader>
                 <DialogTitle className="font-display text-lg font-bold text-encre">
                   Ajouter un membre
@@ -528,7 +532,7 @@ export function UtilisateursClient({
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleInvite} className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label htmlFor="invite-prenom">Prénom</Label>
                     <Input
@@ -654,7 +658,7 @@ export function UtilisateursClient({
             }
           }}
         >
-          <DialogContent className="bg-blanc sm:max-w-md">
+          <DialogContent className="bg-card sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="font-display text-lg font-bold text-encre">
                 {editing?.id === currentUserId ? "Modifier mes accès" : "Modifier le membre"}
@@ -666,7 +670,7 @@ export function UtilisateursClient({
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleEdit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="edit-prenom">Prénom</Label>
                   <Input
@@ -817,7 +821,7 @@ export function UtilisateursClient({
         )}
       />
 
-      <Alert className="border-ligne bg-blanc">
+      <Alert className="border-ligne bg-card">
         {canWrite ? (
           <Crown className="h-4 w-4 text-or" strokeWidth={1.5} />
         ) : (

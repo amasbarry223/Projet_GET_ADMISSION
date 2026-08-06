@@ -51,6 +51,12 @@ export type DossierWizardData = {
   formation: { id: string; intitule: string; niveau: string; fraisAgence: number };
   conseiller: { prenom: string; nom: string } | null;
   pieces: PieceRow[];
+  demandesCorrection?: {
+    id: string;
+    motif: string;
+    statut: "EN_ATTENTE" | "SOUMISE" | "VALIDEE" | "REMPLACEE";
+    createdAt: string;
+  }[];
 };
 
 export type PersonalInfo = {

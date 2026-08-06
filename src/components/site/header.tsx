@@ -26,7 +26,7 @@ export function SiteHeader() {
   const [open, setOpen] = React.useState(false);
   const pathname = usePathname();
   const { data: session, status } = useSession();
-  const role = (session?.user as { role?: string } | undefined)?.role;
+  const role = session?.user?.role;
   const isCandidat = status === "authenticated" && role === "CANDIDAT";
 
   React.useEffect(() => {

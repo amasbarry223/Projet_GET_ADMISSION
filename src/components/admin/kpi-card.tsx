@@ -61,7 +61,7 @@ export function KpiCard({
 
   return (
     <Card className={cn(
-      "border-ligne bg-blanc p-5 shadow-sm transition-shadow duration-300 hover:shadow-[0_8px_24px_rgba(60,169,54,0.16)]",
+      "border-ligne bg-card p-5 shadow-sm transition-shadow duration-300 hover:shadow-[0_8px_24px_rgba(60,169,54,0.16)]",
       className
     )}>
       <div className="flex items-start justify-between">

@@ -73,19 +73,23 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
   };
 
   const data: CatalogueRow[] = React.useMemo(() => {
-    return universites.map((u) => ({
-      id: u.id,
-      nom: u.nom,
-      ecusson: u.ecusson,
-      drapeau: u.drapeau,
-      ville: u.ville,
-      pays: u.pays,
-      domaines: u.domaines ?? [],
-      formations: u.formations?.length ?? 0,
-      fraisMin: u.fraisMin,
-      fraisMax: u.fraisMax,
-      typeEtablissement: (u as { typeEtablissement?: "PUBLIC" | "PRIVE" }).typeEtablissement,
-    }));
+    return universites.map((u) => {
+      const typeEtablissement = (u as { typeEtablissement?: "PUBLIC" | "PRIVE" })
+        .typeEtablissement;
+      return {
+        id: u.id,
+        nom: u.nom,
+        ecusson: u.ecusson,
+        drapeau: u.drapeau,
+        ville: u.ville,
+        pays: u.pays,
+        domaines: u.domaines ?? [],
+        formations: u.formations?.length ?? 0,
+        fraisMin: u.fraisMin,
+        fraisMax: u.fraisMax,
+        ...(typeEtablissement !== undefined ? { typeEtablissement } : {}),
+      };
+    });
   }, [universites]);
 
   const paysList = React.useMemo(() => {
@@ -218,7 +222,7 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
               {formatFCFACompact(row.original.fraisMin)} – {formatFCFACompact(row.original.fraisMax)}
             </span>
             <p className="font-mono text-[10px] uppercase text-ardoise">
-              {row.original.typeEtablissement === "PUBLIC" ? "Public · 65k" : "Privé · 110k"}
+              {row.original.typeEtablissement === "PUBLIC" ? "Public" : "Privé"}
             </p>
           </div>
         ),
@@ -286,7 +290,7 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
               <Plus className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Ajouter une université
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-blanc sm:max-w-lg">
+          <DialogContent className="bg-card sm:max-w-lg">
             <DialogHeader>
               <DialogTitle className="font-display text-lg font-bold text-encre">
                 Ajouter une université partenaire
@@ -296,7 +300,7 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleNew} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium text-encre">Nom</Label>
                   <Input
@@ -347,13 +351,20 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="PUBLIC">Public — {formatFCFA(resolveFraisAgence("PUBLIC"))}</SelectItem>
-                      <SelectItem value="PRIVE">Privé — {formatFCFA(resolveFraisAgence("PRIVE"))}</SelectItem>
+                      <SelectItem value="PUBLIC">Public</SelectItem>
+                      <SelectItem value="PRIVE">Privé</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-ardoise">
-                    Frais fixés par le barème de l&apos;agence selon ce statut — non modifiables par université.
+                    Public ou privé sert seulement à fixer les frais d&apos;agence GET Admission.
+                    Ce n&apos;est pas le prix de l&apos;école.
                   </p>
+                  <div className="rounded-xl border border-ligne bg-porcelaine/60 px-3 py-2.5">
+                    <p className="text-xs font-medium text-encre">Frais d&apos;agence GET Admission</p>
+                    <p className="mt-0.5 font-mono text-sm font-semibold text-encre">
+                      {formatFCFA(resolveFraisAgence(formType))}
+                    </p>
+                  </div>
                 </div>
               </div>
               <DialogFooter>
@@ -421,7 +432,7 @@ export function CatalogueClient({ initialData }: { initialData: UniversiteNormal
         )}
       />
 
-      <Alert className="border-ligne bg-blanc">
+      <Alert className="border-ligne bg-card">
         <Info className="h-4 w-4 text-lapis" strokeWidth={1.5} />
         <AlertTitle className="font-display text-sm font-bold text-encre">
           Catalogue des universités partenaires

@@ -4,7 +4,7 @@
  * Élimine le bloc répété dans ~40 routes :
  *   const session = await getServerSession(authOptions);
  *   if (!session?.user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
- *   const role = (session.user as { role?: string }).role;   // cast inutile — voir next-auth.d.ts
+ *   const role = session.user.role;   // cast inutile — voir next-auth.d.ts
  *   const gate = requirePermission(role, "...");
  *   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
  *

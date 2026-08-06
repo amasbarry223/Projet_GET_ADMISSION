@@ -31,8 +31,8 @@ export async function PUT(request: Request) {
   }
   const { dossierId } = parsed.data;
 
-  const role = (session.user as { role?: string }).role;
-  const userId = (session.user as { id: string }).id;
+  const role = session.user.role;
+  const userId = session.user.id;
 
   const conversation = await db.conversation.findUnique({
     where: { dossierId },

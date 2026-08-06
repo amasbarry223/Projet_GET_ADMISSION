@@ -44,6 +44,15 @@ export type DossierLive = {
   }[];
   historiques: { id: string; date: string; etat: string; auteur: string; note: string }[];
   conversation: { nonLusCandidat: number } | null;
+  demandesCorrection: {
+    id: string;
+    motif: string;
+    statut: string;
+    createdAt: string;
+    soumiseLe: string | null;
+    traiteeLe: string | null;
+    conseiller: { prenom: string; nom: string };
+  }[];
 };
 
 export type LiveStatus = "connecting" | "live" | "polling" | "offline";

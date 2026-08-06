@@ -17,7 +17,7 @@ export function StatStrip({ items, className }: { items: StatItem[]; className?:
   return (
     <div
       className={cn(
-        "grid grid-cols-2 divide-y divide-ligne rounded-xl border border-ligne bg-blanc sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-5",
+        "grid grid-cols-2 divide-y divide-ligne rounded-xl border border-ligne bg-card sm:grid-cols-3 sm:divide-y-0 sm:divide-x lg:grid-cols-5",
         className,
       )}
     >

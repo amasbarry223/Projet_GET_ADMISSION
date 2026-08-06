@@ -1,11 +1,19 @@
-import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { workflowSchema } from "@/lib/validations";
 import { requireApiUser, parseOrRespond } from "@/lib/api-auth";
 import { hasPermission } from "@/lib/rbac";
-import { notifyDossierTransition } from "@/lib/notifications";
+import {
+  notifyDossierTransition,
+  notifyStaffCorrectionRequested,
+  postCorrectionMessage,
+} from "@/lib/notifications";
+import {
+  requestCorrection,
+  markCorrectionSubmitted,
+  markCorrectionValidated,
+} from "@/lib/dossier/correction";
 import {
   ETAPE_PAR_ETAT,
   WORKFLOW_TRANSITIONS,
@@ -170,32 +178,6 @@ export async function POST(
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
   }
 
-  if (nouvelEtat === "ATTESTATION") {
-    const existing = await db.attestation.findUnique({ where: { dossierId: id } });
-    if (!existing) {
-      const reference = `ATT-${new Date().getFullYear()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
-      const codeVerification = `VRF-${crypto.randomBytes(4).toString("hex").toUpperCase()}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
-      await db.attestation.create({
-        data: {
-          reference,
-          codeVerification,
-          dossierId: id,
-          emetteurId: auth.user.id,
-        },
-      });
-      const modele = await db.modeleAttestation.findFirst({
-        where: { actif: true },
-        orderBy: { ordre: "asc" },
-      });
-      if (modele) {
-        await db.modeleAttestation.update({
-          where: { id: modele.id },
-          data: { nbUsages: { increment: 1 } },
-        });
-      }
-    }
-  }
-
   const noteFinale =
     note ||
     `Transition vers ${nouvelEtat.replace(/_/g, " ").toLowerCase()}`;
@@ -218,6 +200,46 @@ export async function POST(
     details: `Transition ${dossier.reference} → ${nouvelEtat}${note ? ` (${note})` : ""}`,
   });
 
+  // Boucle correction ↔ vérification : traçabilité + notifications dédiées
+  if (action === "correction") {
+    try {
+      const auteurNom = `${auth.user.prenom} ${auth.user.nom}`;
+      const motif = (note ?? "").trim();
+      await requestCorrection(db, {
+        dossierId: id,
+        conseillerId: auth.user.id,
+        motif,
+      });
+      await postCorrectionMessage({
+        dossierId: id,
+        candidatId: dossier.candidatId,
+        conseillerId: auth.user.id,
+        motif,
+      });
+      await notifyStaffCorrectionRequested({
+        dossierId: id,
+        reference: dossier.reference,
+        conseillerNom: auteurNom,
+        motif,
+      });
+    } catch (e) {
+      console.error("[workflow] correction request error", e);
+    }
+  } else if (action === "verifier_corrections") {
+    try {
+      await markCorrectionSubmitted(db, id);
+    } catch (e) {
+      console.error("[workflow] correction submitted error", e);
+    }
+  } else if (nouvelEtat === "PAIEMENT_ATTENTE") {
+    // Sortie de VERIFICATION vers l'avant = correction jugée conforme par le conseiller
+    try {
+      await markCorrectionValidated(db, id);
+    } catch (e) {
+      console.error("[workflow] correction validated error", e);
+    }
+  }
+
   // Notifications in-app + e-mail (via notifyDossierTransition)
   try {
     await notifyDossierTransition({
@@ -229,6 +251,42 @@ export async function POST(
     });
   } catch (e) {
     console.error("[workflow] notif error", e);
+  }
+
+  // Le solde a déjà été validé par le conseiller avant PAIEMENT_ATTENTE : une fois le paiement
+  // confirmé, le dossier est transmis automatiquement à l'université (pas d'étape manuelle en plus).
+  if (action === "confirmer_paiement") {
+    try {
+      await db.dossier.update({
+        where: { id },
+        data: { etat: "TRANSMIS", etapeActuelle: ETAPE_PAR_ETAT.TRANSMIS },
+      });
+      await db.historique.create({
+        data: {
+          dossierId: id,
+          etat: "TRANSMIS",
+          auteur: `${auth.user.prenom} ${auth.user.nom}`,
+          auteurId: auth.user.id,
+          note: "Dossier transmis automatiquement à l'université après confirmation du paiement.",
+        },
+      });
+      await logAudit({
+        session: auth.session,
+        action: "WORKFLOW",
+        resource: "dossier",
+        resourceId: id,
+        details: `Transition ${dossier.reference} → TRANSMIS (automatique après confirmation du paiement)`,
+      });
+      await notifyDossierTransition({
+        candidatId: dossier.candidatId,
+        dossierId: id,
+        reference: dossier.reference,
+        nouvelEtat: "TRANSMIS",
+        note: "Frais d'agence réglés — votre dossier a été transmis à l'université.",
+      });
+    } catch (e) {
+      console.error("[workflow] auto-transmit after confirmer_paiement error", e);
+    }
   }
 
   const finalDossier = await db.dossier.findUnique({ where: { id } });

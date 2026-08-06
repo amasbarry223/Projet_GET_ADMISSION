@@ -130,7 +130,6 @@ export function buildPiecesFromRegles(
   const sorted = [...regles].sort((a, b) => a.ordre - b.ordre);
   const isLyceen = profil.statutCandidat === "LYCEEN";
   const isBachelier = profil.statutCandidat === "BACHELIER";
-  const aObtenuBac = Boolean(profil.aObtenuBac) || isBachelier;
   const niveau = (profil.niveauEtudesSuperieures ?? "AUCUN") as NiveauSuperieurInput;
   const diplomes = parseDiplomes(profil.diplomesObtenus);
   const redoublements = parseList<{ niveau: string; anneeScolaire: string }>(profil.redoublements);

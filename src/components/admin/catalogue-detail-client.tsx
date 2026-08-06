@@ -1,13 +1,11 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ExternalLink,
-  GraduationCap,
   ImagePlus,
   Loader2,
   MapPin,
@@ -17,10 +15,12 @@ import {
 import { toast } from "sonner";
 
 import type { normalizeUniversite } from "@/lib/types";
-import { formatFCFA } from "@/lib/format";
+import { parseJsonArray } from "@/lib/parse-json";
+import { formatEUR, formatFCFA } from "@/lib/format";
 import { resolveFraisAgence } from "@/lib/dossier/frais-agence";
 import { apiFetch, apiJson } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { MediaImage } from "@/components/media-image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -73,12 +73,12 @@ function MediaPreview({
   if (isLocal) {
     return (
       <div className={cn("relative overflow-hidden bg-porcelaine", className)}>
-        <Image src={trimmed} alt={alt} fill className="object-cover" sizes="400px" />
+        <MediaImage src={trimmed} alt={alt} fill className="object-cover" sizes="400px" />
       </div>
     );
   }
   return (
-     
+    // eslint-disable-next-line @next/next/no-img-element
     <img src={trimmed} alt={alt} className={cn("object-cover", className)} />
   );
 }
@@ -110,6 +110,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
     niveau: string;
     domaine: string;
     duree: string;
+    fraisFormationEuros?: number | null;
     prerequis?: string[] | string;
     piecesRequises?: string[] | string;
   };
@@ -122,12 +123,17 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
   const [deletingFormationId, setDeletingFormationId] = React.useState<string | null>(null);
   const [formFormation, setFormFormation] = React.useState({
     intitule: "",
-    niveau: "Licence" as "Licence" | "Master" | "Doctorat",
+    niveau: "Licence",
+    niveauPreset: "Licence" as string,
     domaine: "",
     duree: "3 ans",
+    fraisFormationEuros: "" as string,
     prerequisText: "",
     piecesText: "",
   });
+
+  const NIVEAU_PRESETS = ["Licence", "Master", "Doctorat"] as const;
+  const NIVEAU_AUTRE = "__autre__";
 
   const linesToArr = (text: string) =>
     text
@@ -139,34 +145,26 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
     const prereq = Array.isArray(f.prerequis)
       ? f.prerequis
       : typeof f.prerequis === "string"
-        ? (() => {
-            try {
-              return JSON.parse(f.prerequis) as string[];
-            } catch {
-              return [];
-            }
-          })()
+        ? parseJsonArray(f.prerequis)
         : [];
     const pieces = Array.isArray(f.piecesRequises)
       ? f.piecesRequises
       : typeof f.piecesRequises === "string"
-        ? (() => {
-            try {
-              return JSON.parse(f.piecesRequises) as string[];
-            } catch {
-              return [];
-            }
-          })()
+        ? parseJsonArray(f.piecesRequises)
         : [];
+    const isPreset = (NIVEAU_PRESETS as readonly string[]).includes(f.niveau);
     setEditingFormationId(f.id);
     setFormOpen(true);
     setFormFormation({
       intitule: f.intitule,
-      niveau: (["Licence", "Master", "Doctorat"].includes(f.niveau)
-        ? f.niveau
-        : "Licence") as "Licence" | "Master" | "Doctorat",
+      niveau: f.niveau || "Licence",
+      niveauPreset: isPreset ? f.niveau : NIVEAU_AUTRE,
       domaine: f.domaine,
       duree: f.duree,
+      fraisFormationEuros:
+        f.fraisFormationEuros != null && f.fraisFormationEuros > 0
+          ? String(f.fraisFormationEuros)
+          : "",
       prerequisText: prereq.join("\n"),
       piecesText: pieces.join("\n"),
     });
@@ -177,13 +175,36 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
       toast.error("Intitulé et domaine requis");
       return;
     }
+    const niveauValue =
+      formFormation.niveauPreset === NIVEAU_AUTRE
+        ? formFormation.niveau.trim()
+        : formFormation.niveauPreset.trim();
+    if (!niveauValue) {
+      toast.error("Niveau requis", {
+        description: "Choisissez un niveau ou saisissez une valeur personnalisée.",
+      });
+      return;
+    }
+    const fraisRaw = formFormation.fraisFormationEuros.trim();
+    let fraisFormationEuros: number | null = null;
+    if (fraisRaw !== "") {
+      const n = Number(fraisRaw.replace(/\s/g, "").replace(",", "."));
+      if (!Number.isInteger(n) || n <= 0) {
+        toast.error("Frais de formation invalides", {
+          description: "Saisissez un montant entier en euros, ou laissez vide.",
+        });
+        return;
+      }
+      fraisFormationEuros = n;
+    }
     setSavingFormation(true);
     const payload = {
       universiteId: universite.id,
       intitule: formFormation.intitule.trim(),
-      niveau: formFormation.niveau,
+      niveau: niveauValue,
       domaine: formFormation.domaine.trim(),
       duree: formFormation.duree.trim() || "3 ans",
+      fraisFormationEuros,
       prerequis: linesToArr(formFormation.prerequisText),
       piecesRequises: linesToArr(formFormation.piecesText),
     };
@@ -355,7 +376,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
       </div>
 
       {/* Hero */}
-      <header className="relative overflow-hidden rounded-2xl border border-ligne bg-blanc shadow-sm">
+      <header className="relative overflow-hidden rounded-2xl border border-ligne bg-card shadow-sm">
         <div className="relative h-44 sm:h-56">
           <div
             className={cn(
@@ -368,7 +389,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
           ) : null}
           <div className="absolute inset-0 bg-gradient-to-t from-encre/70 via-encre/25 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 flex items-end gap-4 p-5 sm:p-6">
-            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 border-blanc bg-blanc shadow-md sm:h-20 sm:w-20">
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 border-blanc bg-card shadow-md sm:h-20 sm:w-20">
               {logoUrl.trim() ? (
                 <MediaPreview src={logoUrl} alt="" className="h-full w-full" />
               ) : (
@@ -402,7 +423,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">
           {/* Identité */}
-          <section className="rounded-2xl border border-ligne bg-blanc p-5 sm:p-6">
+          <section className="rounded-2xl border border-ligne bg-card p-5 sm:p-6">
             <h2 className="font-display text-lg font-bold text-encre">Fiche établissement</h2>
             <div className="mt-5 space-y-4">
               <div className="space-y-1.5">
@@ -414,7 +435,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
-                  className="w-full rounded-md border border-ligne bg-blanc px-3 py-2 text-sm text-encre"
+                  className="w-full rounded-md border border-ligne bg-card px-3 py-2 text-sm text-encre"
                 />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -442,12 +463,24 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="PUBLIC">Public — {formatFCFA(resolveFraisAgence("PUBLIC"))}</SelectItem>
-                      <SelectItem value="PRIVE">Privé — {formatFCFA(resolveFraisAgence("PRIVE"))}</SelectItem>
+                      <SelectItem value="PUBLIC">Public</SelectItem>
+                      <SelectItem value="PRIVE">Privé</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-ardoise">
-                    Frais fixés par le barème de l&apos;agence selon ce statut — non modifiables par université.
+                    Public ou privé sert seulement à fixer les frais d&apos;agence GET Admission.
+                    Ce n&apos;est pas le prix de l&apos;école.
+                  </p>
+                </div>
+                <div className="space-y-1.5 rounded-xl border border-ligne bg-porcelaine/60 px-3 py-3 sm:col-span-2">
+                  <p className="text-xs font-medium text-encre">Frais d&apos;agence GET Admission</p>
+                  <p className="font-mono text-sm font-semibold text-encre">
+                    {formatFCFA(resolveFraisAgence(typeEtablissement))}
+                  </p>
+                  <p className="text-[11px] text-ardoise">
+                    Montant payé à l&apos;agence (pas à l&apos;école). Public{" "}
+                    {formatFCFA(resolveFraisAgence("PUBLIC"))} · Privé{" "}
+                    {formatFCFA(resolveFraisAgence("PRIVE"))}.
                   </p>
                 </div>
               </div>
@@ -455,7 +488,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
           </section>
 
           {/* Médias */}
-          <section className="rounded-2xl border border-ligne bg-blanc p-5 sm:p-6">
+          <section className="rounded-2xl border border-ligne bg-card p-5 sm:p-6">
             <h2 className="font-display text-lg font-bold text-encre">Visuels &amp; site</h2>
 
             <div className="mt-5 space-y-5">
@@ -681,7 +714,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
           </section>
 
           {/* Formations */}
-          <section className="rounded-2xl border border-ligne bg-blanc p-5 sm:p-6">
+          <section className="rounded-2xl border border-ligne bg-card p-5 sm:p-6">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="font-display text-lg font-bold text-encre">
@@ -699,8 +732,10 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                   setFormFormation({
                     intitule: "",
                     niveau: "Licence",
+                    niveauPreset: "Licence",
                     domaine: "",
                     duree: "3 ans",
+                    fraisFormationEuros: "",
                     prerequisText: "",
                     piecesText: "",
                   });
@@ -726,11 +761,12 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                   <div>
                     <Label>Niveau</Label>
                     <Select
-                      value={formFormation.niveau}
+                      value={formFormation.niveauPreset}
                       onValueChange={(v) =>
                         setFormFormation((f) => ({
                           ...f,
-                          niveau: v as "Licence" | "Master" | "Doctorat",
+                          niveauPreset: v,
+                          niveau: v === NIVEAU_AUTRE ? (f.niveauPreset === NIVEAU_AUTRE ? f.niveau : "") : v,
                         }))
                       }
                     >
@@ -738,11 +774,25 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Licence">Licence</SelectItem>
-                        <SelectItem value="Master">Master</SelectItem>
-                        <SelectItem value="Doctorat">Doctorat</SelectItem>
+                        {NIVEAU_PRESETS.map((n) => (
+                          <SelectItem key={n} value={n}>
+                            {n}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value={NIVEAU_AUTRE}>Autre…</SelectItem>
                       </SelectContent>
                     </Select>
+                    {formFormation.niveauPreset === NIVEAU_AUTRE && (
+                      <Input
+                        className="mt-2"
+                        placeholder="Ex. Bachelor, BTS, MBA…"
+                        value={formFormation.niveau}
+                        onChange={(e) =>
+                          setFormFormation((f) => ({ ...f, niveau: e.target.value }))
+                        }
+                        maxLength={80}
+                      />
+                    )}
                   </div>
                   <div>
                     <Label>Domaine</Label>
@@ -764,6 +814,28 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                       className="mt-1"
                     />
                   </div>
+                  <div>
+                    <Label>Prix de la formation (€ / an) — optionnel</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      step={1}
+                      inputMode="numeric"
+                      placeholder="Ex. 4300"
+                      value={formFormation.fraisFormationEuros}
+                      onChange={(e) =>
+                        setFormFormation((f) => ({
+                          ...f,
+                          fraisFormationEuros: e.target.value,
+                        }))
+                      }
+                      className="mt-1"
+                    />
+                    <p className="mt-1 text-[11px] text-ardoise">
+                      Prix de l&apos;école en euros. Les frais d&apos;agence GET Admission (
+                      {formatFCFA(resolveFraisAgence(typeEtablissement))}) sont à part.
+                    </p>
+                  </div>
                   <div className="sm:col-span-2">
                     <Label>Prérequis (un par ligne)</Label>
                     <textarea
@@ -771,7 +843,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                       onChange={(e) =>
                         setFormFormation((f) => ({ ...f, prerequisText: e.target.value }))
                       }
-                      className="mt-1 min-h-[72px] w-full rounded-md border border-ligne bg-blanc px-3 py-2 text-sm"
+                      className="mt-1 min-h-[72px] w-full rounded-md border border-ligne bg-card px-3 py-2 text-sm"
                     />
                   </div>
                   <div className="sm:col-span-2">
@@ -781,7 +853,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                       onChange={(e) =>
                         setFormFormation((f) => ({ ...f, piecesText: e.target.value }))
                       }
-                      className="mt-1 min-h-[72px] w-full rounded-md border border-ligne bg-blanc px-3 py-2 text-sm"
+                      className="mt-1 min-h-[72px] w-full rounded-md border border-ligne bg-card px-3 py-2 text-sm"
                     />
                   </div>
                 </div>
@@ -827,6 +899,14 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                     <p className="text-xs text-ardoise">
                       {f.niveau} · {f.domaine} · {f.duree}
                     </p>
+                    <p className="mt-1 text-[11px] text-ardoise">
+                      Prix de la formation (école) :{" "}
+                      {f.fraisFormationEuros != null && f.fraisFormationEuros > 0
+                        ? `${formatEUR(f.fraisFormationEuros)} / an`
+                        : "Sur devis"}
+                      {" · "}
+                      Frais d&apos;agence : {formatFCFA(resolveFraisAgence(typeEtablissement))}
+                    </p>
                     {Array.isArray(f.piecesRequises) && f.piecesRequises.length > 0 && (
                       <p className="mt-1 text-[11px] text-ardoise">
                         Pièces + : {f.piecesRequises.join(", ")}
@@ -835,7 +915,9 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-sm font-semibold text-encre">
-                      {formatFCFA(resolveFraisAgence(typeEtablissement))}
+                      {f.fraisFormationEuros != null && f.fraisFormationEuros > 0
+                        ? formatEUR(f.fraisFormationEuros)
+                        : "Sur devis"}
                     </span>
                     <Button
                       type="button"
@@ -861,7 +943,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                           )}
                         </Button>
                       </AlertDialogTrigger>
-                      <AlertDialogContent className="bg-blanc">
+                      <AlertDialogContent className="bg-card">
                         <AlertDialogHeader>
                           <AlertDialogTitle className="font-display">
                             Supprimer cette formation ?
@@ -895,7 +977,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
 
         {/* Rail résumé */}
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-          <div className="rounded-2xl border border-ligne bg-blanc p-5">
+          <div className="rounded-2xl border border-ligne bg-card p-5">
             <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Aperçu</p>
             <dl className="mt-4 space-y-3 text-sm">
               <div className="flex justify-between gap-3 border-b border-ligne pb-3">
@@ -907,7 +989,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
                 <dd className="font-medium text-encre">{pays || "—"}</dd>
               </div>
               <div className="flex justify-between gap-3">
-                <dt className="text-ardoise">Frais d&apos;agence</dt>
+                <dt className="text-ardoise">Frais d&apos;agence GET Admission</dt>
                 <dd className="font-mono text-encre">{formatFCFA(resolveFraisAgence(typeEtablissement))}</dd>
               </div>
             </dl>
@@ -934,7 +1016,7 @@ export function CatalogueDetailClient({ universite }: { universite: UniversiteNo
               )}
             </Button>
           </AlertDialogTrigger>
-          <AlertDialogContent className="bg-blanc">
+          <AlertDialogContent className="bg-card">
             <AlertDialogHeader>
               <AlertDialogTitle className="font-display">Supprimer cette université ?</AlertDialogTitle>
               <AlertDialogDescription>

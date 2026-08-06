@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { formationSchema } from "@/lib/validations";
+import { parseJsonArray } from "@/lib/parse-json";
 import { requireApiPermission, parseOrRespond } from "@/lib/api-auth";
 import { logAudit } from "@/lib/audit";
 
@@ -25,8 +26,12 @@ export async function PUT(
     domaine: body.domaine ?? existing.domaine,
     duree: body.duree ?? existing.duree,
     fraisAgence: body.fraisAgence,
-    prerequis: body.prerequis ?? JSON.parse(existing.prerequis || "[]"),
-    piecesRequises: body.piecesRequises ?? JSON.parse(existing.piecesRequises || "[]"),
+    fraisFormationEuros:
+      body.fraisFormationEuros === undefined
+        ? existing.fraisFormationEuros
+        : body.fraisFormationEuros,
+    prerequis: body.prerequis ?? parseJsonArray(existing.prerequis),
+    piecesRequises: body.piecesRequises ?? parseJsonArray(existing.piecesRequises),
   });
   if (!parsed.ok) return parsed.response;
   const data = parsed.data;
@@ -39,6 +44,9 @@ export async function PUT(
       domaine: data.domaine,
       duree: data.duree,
       ...(data.fraisAgence !== undefined ? { fraisAgence: data.fraisAgence } : {}),
+      ...(data.fraisFormationEuros !== undefined
+        ? { fraisFormationEuros: data.fraisFormationEuros }
+        : {}),
       prerequis: JSON.stringify(data.prerequis ?? []),
       piecesRequises: JSON.stringify(data.piecesRequises ?? []),
     },
@@ -54,8 +62,8 @@ export async function PUT(
 
   return NextResponse.json({
     ...formation,
-    prerequis: JSON.parse(formation.prerequis),
-    piecesRequises: JSON.parse(formation.piecesRequises),
+    prerequis: parseJsonArray(formation.prerequis),
+    piecesRequises: parseJsonArray(formation.piecesRequises),
   });
 }
 

@@ -316,7 +316,7 @@ export function FinanceClient({
                 <Plus className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Nouvelle transaction
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-blanc sm:max-w-md">
+            <DialogContent className="bg-card sm:max-w-md">
               <DialogHeader>
                 <DialogTitle className="font-display text-lg font-bold text-encre">
                   Nouvelle transaction manuelle
@@ -326,7 +326,7 @@ export function FinanceClient({
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleNewTransaction} className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className="text-sm font-medium text-encre">Dossier</Label>
                     <Popover open={dossierPickerOpen} onOpenChange={setDossierPickerOpen}>

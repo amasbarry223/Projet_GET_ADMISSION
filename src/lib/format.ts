@@ -1,6 +1,11 @@
-// Utilitaires de formatage — français, FCFA, dates
+// Utilitaires de formatage — français, FCFA, euros, dates
 export function formatFCFA(montant: number): string {
   return `${new Intl.NumberFormat("fr-FR").format(montant)} FCFA`;
+}
+
+/** Montant entier en euros (frais de formation / scolarité). */
+export function formatEUR(montant: number): string {
+  return `${new Intl.NumberFormat("fr-FR").format(montant)}\u00a0€`;
 }
 
 export function formatFCFACompact(montant: number): string {

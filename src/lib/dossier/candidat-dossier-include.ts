@@ -16,6 +16,10 @@ export const CANDIDAT_DOSSIER_INCLUDE = {
   paiements: true,
   historiques: { orderBy: { date: "asc" as const } },
   conversation: { select: { nonLusCandidat: true } },
+  demandesCorrection: {
+    orderBy: { createdAt: "desc" as const },
+    include: { conseiller: { select: { prenom: true, nom: true } } },
+  },
 } as const;
 
 /** Empreinte légère pour détecter un changement sans sérialiser tout le graphe. */
@@ -29,9 +33,11 @@ export function dossierLiveFingerprint(d: {
   historiques: { id: string }[];
   paiements: { id: string; statut: string }[];
   conversation: { nonLusCandidat: number } | null;
+  demandesCorrection: { id: string; statut: string }[];
 }): string {
   const piecesSig = d.pieces.map((p) => `${p.id}:${p.statut}`).join(",");
   const paySig = d.paiements.map((p) => `${p.id}:${p.statut}`).join(",");
+  const correctionSig = d.demandesCorrection.map((c) => `${c.id}:${c.statut}`).join(",");
   const updated =
     d.updatedAt instanceof Date ? d.updatedAt.toISOString() : String(d.updatedAt);
   return [
@@ -44,5 +50,6 @@ export function dossierLiveFingerprint(d: {
     piecesSig,
     paySig,
     d.conversation?.nonLusCandidat ?? 0,
+    correctionSig,
   ].join("|");
 }

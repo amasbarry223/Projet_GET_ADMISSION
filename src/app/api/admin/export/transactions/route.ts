@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
-  const gate = requirePermission((session.user as { role?: string }).role, "finance.read");
+  const gate = requirePermission(session.user.role, "finance.read");
   if (!gate.ok) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }

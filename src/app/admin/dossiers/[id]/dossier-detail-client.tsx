@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { hasPermission } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,13 +26,30 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { BoardingPass } from "@/components/getadm/boarding-pass";
 import { etatParCode, COULEUR_BADGE } from "@/lib/etats";
 import { formatFCFA, formatDate, formatDateTime } from "@/lib/format";
 import { apiFetch, apiJson } from "@/lib/api-client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, CheckCircle2, AlertCircle, FileText, Send, Wallet, Stamp, XCircle, History, MessageSquare, User, ShieldCheck, Eye, AlertTriangle, Info, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, FileText, Send, Wallet, Stamp, XCircle, History, MessageSquare, User, ShieldCheck, Eye, AlertTriangle, Info, Loader2, UserPlus, UserMinus, Printer, Download } from "lucide-react";
+
+type Conseiller = { id: string; prenom: string; nom: string; role: string; actif: boolean };
 
 type PieceApi = {
   id: string;
@@ -68,6 +88,26 @@ type MessageApi = {
   auteurId: string;
 };
 
+type DemandeCorrectionApi = {
+  id: string;
+  motif: string;
+  statut: "EN_ATTENTE" | "SOUMISE" | "VALIDEE" | "REMPLACEE";
+  createdAt: string;
+  soumiseLe: string | null;
+  traiteeLe: string | null;
+  conseiller: { prenom: string; nom: string };
+};
+
+const STATUT_DEMANDE_CORRECTION: Record<
+  DemandeCorrectionApi["statut"],
+  { label: string; color: string; bg: string }
+> = {
+  EN_ATTENTE: { label: "En attente du candidat", color: "text-ambre", bg: "bg-ambre/10" },
+  SOUMISE: { label: "Resoumise — à vérifier", color: "text-lapis", bg: "bg-lapis/10" },
+  VALIDEE: { label: "Validée", color: "text-vert", bg: "bg-vert/10" },
+  REMPLACEE: { label: "Remplacée", color: "text-ardoise", bg: "bg-ardoise/10" },
+};
+
 type DossierDetail = {
   id: string;
   reference: string;
@@ -97,11 +137,13 @@ type DossierDetail = {
   };
   universite: { nom: string; typeEtablissement?: string };
   formation: { intitule: string; niveau: string; domaine: string };
-  conseiller: { prenom: string; nom: string } | null;
+  conseiller: { id: string; prenom: string; nom: string } | null;
   pieces: PieceApi[];
   paiements: PaiementApi[];
   historiques: HistoriqueApi[];
-  conversation: { messages: MessageApi[] } | null;
+  conversation: { messages: MessageApi[]; nonLusConseiller?: number } | null;
+  demandesCorrection: DemandeCorrectionApi[];
+  attestation: { id: string; nomFichier: string | null; cheminFichier: string | null } | null;
 };
 
 type ActionDef = {
@@ -112,14 +154,36 @@ type ActionDef = {
   toastDesc: string;
   workflowAction?: string;
   confirm?: { title: string; desc: string };
+  /** Ouvre le dialog de saisie du motif de correction au lieu d'une simple confirmation. */
+  motifDialog?: boolean;
+  /** Ouvre le dialog de téléversement du document d'attestation. */
+  fileDialog?: boolean;
+  disabled?: boolean;
+  disabledReason?: string;
 };
 
 export default function DossierDetailClient() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
+  const { data: session } = useSession();
+  const canAssign = hasPermission(session?.user?.role, "dossiers.assign");
+  const canTransmettre = hasPermission(session?.user?.role, "dossiers.transmettre");
   const [dossier, setDossier] = React.useState<DossierDetail | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+
+  const [assignOpen, setAssignOpen] = React.useState(false);
+  const [conseillers, setConseillers] = React.useState<Conseiller[] | null>(null);
+  const [selectedConseillerId, setSelectedConseillerId] = React.useState("");
+  const [assigning, setAssigning] = React.useState(false);
+  const [unassigning, setUnassigning] = React.useState(false);
+
+  const [correctionOpen, setCorrectionOpen] = React.useState(false);
+  const [motif, setMotif] = React.useState("");
+  const [submittingCorrection, setSubmittingCorrection] = React.useState(false);
+
+  const [attestationOpen, setAttestationOpen] = React.useState(false);
+  const [attestationFile, setAttestationFile] = React.useState<File | null>(null);
+  const [uploadingAttestation, setUploadingAttestation] = React.useState(false);
 
   const loadDossier = React.useCallback(async () => {
     setLoading(true);
@@ -170,22 +234,34 @@ export default function DossierDetailClient() {
   const conseillerNomComplet = dossier.conseiller ? `${dossier.conseiller.prenom} ${dossier.conseiller.nom}` : "Non affecté";
   const etatLower = dossier.etat.toLowerCase();
 
+  const latestDemandeCorrection = dossier.demandesCorrection[0] ?? null;
+
   const actions: ActionDef[] = [];
   if (etatLower === "soumis") {
     actions.push({ label: "Prendre en charge", icon: ShieldCheck, tone: "primary", toastLabel: "Vérification démarrée", toastDesc: "Dossier passé en « En vérification ».", workflowAction: "demarrer_verification" });
-    actions.push({ label: "Demander correction", icon: AlertCircle, tone: "outline", toastLabel: "Correction demandée", toastDesc: "Le candidat a été notifié.", workflowAction: "correction", confirm: { title: "Demander une correction ?", desc: `Le candidat ${dossier.candidat.prenom} sera notifié et le dossier repassera en « À corriger ».` } });
+    actions.push({ label: "Demander correction", icon: AlertCircle, tone: "outline", toastLabel: "Correction demandée", toastDesc: "Le candidat, l'admin et le super admin ont été notifiés.", workflowAction: "correction", motifDialog: true });
   }
   if (etatLower === "verification") {
     actions.push({ label: "Valider le dossier", icon: ShieldCheck, tone: "primary", toastLabel: "Dossier validé", toastDesc: "Transition vers « Paiement en attente ».", workflowAction: "valider_dossier" });
-    actions.push({ label: "Demander correction", icon: AlertCircle, tone: "outline", toastLabel: "Correction demandée", toastDesc: "Le candidat a été notifié.", workflowAction: "correction", confirm: { title: "Demander une correction ?", desc: `Le candidat ${dossier.candidat.prenom} sera notifié et le dossier repassera en « À corriger ».` } });
+    actions.push({ label: "Demander correction", icon: AlertCircle, tone: "outline", toastLabel: "Correction demandée", toastDesc: "Le candidat, l'admin et le super admin ont été notifiés.", workflowAction: "correction", motifDialog: true });
   }
   if (etatLower === "correction") {
-    actions.push({ label: "Vérifier les corrections", icon: ShieldCheck, tone: "primary", toastLabel: "Corrections vérifiées", toastDesc: "Le dossier reprend son parcours.", workflowAction: "verifier_corrections" });
+    const dejaResoumis = latestDemandeCorrection?.statut === "SOUMISE";
+    actions.push({
+      label: "Vérifier les corrections",
+      icon: ShieldCheck,
+      tone: "primary",
+      toastLabel: "Corrections vérifiées",
+      toastDesc: "Le dossier reprend son parcours.",
+      workflowAction: "verifier_corrections",
+      disabled: !dejaResoumis,
+      disabledReason: "En attente de la resoumission du candidat",
+    });
   }
   if (etatLower === "paiement_attente") {
-    actions.push({ label: "Confirmer le paiement", icon: Wallet, tone: "primary", toastLabel: "Paiement confirmé", toastDesc: "Dossier prêt à être transmis.", workflowAction: "confirmer_paiement", confirm: { title: "Confirmer le paiement ?", desc: `Vérifiez que les ${formatFCFA(dossier.fraisAgence)} ont bien été reçus avant de confirmer.` } });
+    actions.push({ label: "Confirmer le paiement", icon: Wallet, tone: "primary", toastLabel: "Paiement confirmé", toastDesc: "Dossier transmis automatiquement à l'université.", workflowAction: "confirmer_paiement", confirm: { title: "Confirmer le paiement ?", desc: `Vérifiez que les ${formatFCFA(dossier.fraisAgence)} ont bien été reçus avant de confirmer. Le dossier sera transmis automatiquement à l'université dès la confirmation.` } });
   }
-  if (etatLower === "paiement_confirme") {
+  if (etatLower === "paiement_confirme" && canTransmettre) {
     actions.push({ label: "Transmettre à l'université", icon: Send, tone: "primary", toastLabel: "Dossier transmis", toastDesc: `${univ?.nom} a été notifié. Passage en attente de réponse.`, workflowAction: "transmettre", confirm: { title: "Transmettre à l'université ?", desc: `Le dossier sera envoyé à ${univ?.nom}. Cette action est irréversible.` } });
   }
   if (etatLower === "transmis") {
@@ -198,7 +274,10 @@ export default function DossierDetailClient() {
     actions.push({ label: "Marquer refusé", icon: XCircle, tone: "danger", toastLabel: "Candidature refusée", toastDesc: "Le candidat a été informé.", workflowAction: "refuser", confirm: { title: "Marquer la candidature refusée ?", desc: `Cette action notifiera ${dossier.candidat.prenom} du refus de ${univ?.nom}.` } });
   }
   if (etatLower === "pre_admission") {
-    actions.push({ label: "Émettre l'attestation", icon: Stamp, tone: "primary", toastLabel: "Attestation émise", toastDesc: "Disponible dans l'espace candidat.", workflowAction: "emettre_attestation", confirm: { title: "Émettre l'attestation ?", desc: "L'attestation de pré-inscription sera générée avec sceau officiel et code de vérification." } });
+    actions.push({ label: "Téléverser l'attestation", icon: Stamp, tone: "primary", toastLabel: "Attestation émise", toastDesc: "Le candidat a été félicité et notifié.", fileDialog: true });
+  }
+  if (etatLower === "attestation") {
+    actions.push({ label: "Remplacer le document", icon: Stamp, tone: "outline", toastLabel: "Document remplacé", toastDesc: "Le nouveau document est disponible côté candidat.", fileDialog: true });
   }
   if (etatLower === "attestation" || etatLower === "refuse") {
     actions.push({ label: "Clôturer le dossier", icon: CheckCircle2, tone: "outline", toastLabel: "Dossier clôturé", toastDesc: "Archivage effectué.", workflowAction: "cloturer", confirm: { title: "Clôturer le dossier ?", desc: "Le dossier sera archivé et ne pourra plus être modifié." } });
@@ -220,7 +299,121 @@ export default function DossierDetailClient() {
     void loadDossier();
   };
 
+  const openCorrectionDialog = () => {
+    setMotif("");
+    setCorrectionOpen(true);
+  };
+
+  const confirmCorrection = async () => {
+    const trimmed = motif.trim();
+    if (!trimmed) return;
+    setSubmittingCorrection(true);
+    const result = await apiJson(`/api/dossiers/${dossier.id}/workflow`, "POST", {
+      action: "correction",
+      note: trimmed,
+    });
+    setSubmittingCorrection(false);
+    if (!result.ok) {
+      toast.error("Demande de correction échouée", { description: result.error });
+      return;
+    }
+    setCorrectionOpen(false);
+    toast.success("Correction demandée", {
+      description: "Le candidat, l'admin et le super admin ont été notifiés.",
+    });
+    void loadDossier();
+  };
+
+  const openAttestationDialog = () => {
+    setAttestationFile(null);
+    setAttestationOpen(true);
+  };
+
+  const confirmAttestationUpload = async () => {
+    if (!attestationFile) return;
+    setUploadingAttestation(true);
+    const fd = new FormData();
+    fd.append("file", attestationFile);
+    const res = await fetch(`/api/dossiers/${dossier.id}/attestation/upload`, {
+      method: "POST",
+      body: fd,
+    });
+    const body = await res.json().catch(() => ({}));
+    setUploadingAttestation(false);
+    if (!res.ok) {
+      toast.error("Téléversement échoué", { description: (body as { error?: string })?.error });
+      return;
+    }
+    setAttestationOpen(false);
+    toast.success(
+      etatLower === "pre_admission" ? "Attestation émise" : "Document remplacé",
+      {
+        description:
+          etatLower === "pre_admission"
+            ? "Le candidat a été félicité et notifié."
+            : "Le nouveau document est disponible côté candidat.",
+      },
+    );
+    void loadDossier();
+  };
+
+  const assignDisabled = etatLower === "brouillon";
+  const showAssignActions = canAssign && etatLower !== "cloture";
+
+  const openAssignDialog = () => {
+    setSelectedConseillerId("");
+    setAssignOpen(true);
+    setConseillers((prev) => {
+      if (prev) return prev;
+      void apiFetch<Conseiller[]>("/api/admin/users").then((result) => {
+        if (!result.ok) {
+          toast.error("Impossible de charger les conseillers", { description: result.error });
+          setConseillers([]);
+          return;
+        }
+        setConseillers(result.data.filter((u) => u.role === "CONSEILLER" && u.actif));
+      });
+      return prev;
+    });
+  };
+
+  const confirmAssign = async () => {
+    const cons = conseillers?.find((c) => c.id === selectedConseillerId);
+    if (!cons) return;
+    setAssigning(true);
+    const result = await apiJson(`/api/dossiers/${dossier.id}`, "PUT", { conseillerId: cons.id });
+    setAssigning(false);
+    if (!result.ok) {
+      toast.error("Affectation échouée", { description: result.error });
+      return;
+    }
+    setAssignOpen(false);
+    toast.success("Conseiller affecté", { description: `${cons.prenom} ${cons.nom} → ${dossier.reference}` });
+    void loadDossier();
+  };
+
+  const confirmUnassign = async () => {
+    setUnassigning(true);
+    const result = await apiJson(`/api/dossiers/${dossier.id}`, "PUT", { conseillerId: null });
+    setUnassigning(false);
+    if (!result.ok) {
+      toast.error("Désaffectation impossible", { description: result.error });
+      return;
+    }
+    toast.success("Conseiller désaffecté", { description: `${dossier.reference} n'a plus de conseiller affecté.` });
+    void loadDossier();
+  };
+
   const messages = dossier.conversation?.messages ?? [];
+
+  const handleTabChange = (value: string) => {
+    if (value === "messages" && (dossier.conversation?.nonLusConseiller ?? 0) > 0) {
+      setDossier((prev) =>
+        prev?.conversation ? { ...prev, conversation: { ...prev.conversation, nonLusConseiller: 0 } } : prev,
+      );
+      void apiJson(`/api/messages/read`, "PUT", { dossierId: dossier.id });
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -249,7 +442,7 @@ export default function DossierDetailClient() {
 
       <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
         {/* Main: tabs */}
-        <Tabs defaultValue="profil">
+        <Tabs defaultValue="profil" onValueChange={handleTabChange}>
           <TabsList className="bg-porcelaine">
             <TabsTrigger value="profil"><User className="mr-1.5 h-3.5 w-3.5" /> Profil candidat</TabsTrigger>
             <TabsTrigger value="pieces"><FileText className="mr-1.5 h-3.5 w-3.5" /> Pièces</TabsTrigger>
@@ -259,7 +452,7 @@ export default function DossierDetailClient() {
           </TabsList>
 
           <TabsContent value="profil">
-            <Card className="border-ligne bg-blanc p-6">
+            <Card className="border-ligne bg-card p-6">
               <div className="flex items-center gap-4">
                 <Avatar className="h-14 w-14 border border-ligne">
                   <AvatarFallback className="bg-lapis/10 font-mono text-base font-bold text-lapis">{dossier.candidat.nom.slice(0, 2)}</AvatarFallback>
@@ -326,10 +519,26 @@ export default function DossierDetailClient() {
           </TabsContent>
 
           <TabsContent value="pieces">
-            <Card className="border-ligne bg-blanc p-0 overflow-hidden">
-              <div className="border-b border-ligne px-6 py-4">
-                <h2 className="font-display text-base font-bold text-encre">Pièces du dossier</h2>
-                <p className="mt-0.5 text-xs text-ardoise">{dossier.pieces.length} document(s)</p>
+            <Card className="border-ligne bg-card p-0 overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ligne px-6 py-4">
+                <div>
+                  <h2 className="font-display text-base font-bold text-encre">Pièces du dossier</h2>
+                  <p className="mt-0.5 text-xs text-ardoise">{dossier.pieces.length} document(s)</p>
+                </div>
+                {dossier.pieces.some((p) => (p as { cheminFichier?: string }).cheminFichier) && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={`/api/dossiers/${dossier.id}/pieces/export/print`} target="_blank" rel="noreferrer">
+                        <Printer className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Imprimer tout
+                      </a>
+                    </Button>
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={`/api/dossiers/${dossier.id}/pieces/export`}>
+                        <Download className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Télécharger tout (PDF)
+                      </a>
+                    </Button>
+                  </div>
+                )}
               </div>
               {dossier.pieces.length === 0 ? (
                 <p className="px-6 py-10 text-center text-sm text-ardoise">Aucune pièce enregistrée.</p>
@@ -361,20 +570,40 @@ export default function DossierDetailClient() {
                           </p>
                         </div>
                         <Badge className={cn("font-mono text-[10px] uppercase", cfg.color, "border-current")}>{cfg.label}</Badge>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Télécharger la pièce"
-                          asChild={!!(p as { cheminFichier?: string }).cheminFichier}
-                        >
-                          {(p as { cheminFichier?: string }).cheminFichier ? (
-                            <a href={`/api/dossiers/${dossier.id}/pieces/${p.id}/download`} target="_blank" rel="noreferrer">
-                              <Eye className="h-4 w-4" strokeWidth={1.5} />
-                            </a>
-                          ) : (
-                            <Eye className="h-4 w-4 opacity-40" strokeWidth={1.5} />
-                          )}
-                        </Button>
+                        {(() => {
+                          const hasFile = !!(p as { cheminFichier?: string }).cheminFichier;
+                          return (
+                            <div className="flex items-center">
+                              <Button variant="ghost" size="icon" aria-label="Voir la pièce" disabled={!hasFile} asChild={hasFile}>
+                                {hasFile ? (
+                                  <a href={`/api/dossiers/${dossier.id}/pieces/${p.id}/download?disposition=inline`} target="_blank" rel="noreferrer">
+                                    <Eye className="h-4 w-4" strokeWidth={1.5} />
+                                  </a>
+                                ) : (
+                                  <Eye className="h-4 w-4 opacity-40" strokeWidth={1.5} />
+                                )}
+                              </Button>
+                              <Button variant="ghost" size="icon" aria-label="Imprimer la pièce" disabled={!hasFile} asChild={hasFile}>
+                                {hasFile ? (
+                                  <a href={`/api/dossiers/${dossier.id}/pieces/${p.id}/print`} target="_blank" rel="noreferrer">
+                                    <Printer className="h-4 w-4" strokeWidth={1.5} />
+                                  </a>
+                                ) : (
+                                  <Printer className="h-4 w-4 opacity-40" strokeWidth={1.5} />
+                                )}
+                              </Button>
+                              <Button variant="ghost" size="icon" aria-label="Télécharger la pièce" disabled={!hasFile} asChild={hasFile}>
+                                {hasFile ? (
+                                  <a href={`/api/dossiers/${dossier.id}/pieces/${p.id}/download`}>
+                                    <Download className="h-4 w-4" strokeWidth={1.5} />
+                                  </a>
+                                ) : (
+                                  <Download className="h-4 w-4 opacity-40" strokeWidth={1.5} />
+                                )}
+                              </Button>
+                            </div>
+                          );
+                        })()}
                       </li>
                     );
                   })}
@@ -384,7 +613,7 @@ export default function DossierDetailClient() {
           </TabsContent>
 
           <TabsContent value="paiements">
-            <Card className="border-ligne bg-blanc p-0 overflow-hidden">
+            <Card className="border-ligne bg-card p-0 overflow-hidden">
               <div className="border-b border-ligne px-6 py-4">
                 <h2 className="font-display text-base font-bold text-encre">Transactions</h2>
                 <p className="mt-0.5 text-xs text-ardoise">{dossier.paiements.length} paiement(s)</p>
@@ -419,7 +648,7 @@ export default function DossierDetailClient() {
           </TabsContent>
 
           <TabsContent value="historique">
-            <Card className="border-ligne bg-blanc p-6">
+            <Card className="border-ligne bg-card p-6">
               <h2 className="font-display text-base font-bold text-encre">Historique du dossier</h2>
               <ol className="mt-4 space-y-3">
                 {dossier.historiques.slice().reverse().map((h) => {
@@ -444,7 +673,7 @@ export default function DossierDetailClient() {
           </TabsContent>
 
           <TabsContent value="messages">
-            <Card className="border-ligne bg-blanc p-6">
+            <Card className="border-ligne bg-card p-6">
               <h2 className="font-display text-base font-bold text-encre">Conversation avec {dossier.candidat.prenom}</h2>
               {messages.length === 0 ? (
                 <p className="mt-4 text-sm text-ardoise">Aucun message échangé pour le moment.</p>
@@ -453,7 +682,7 @@ export default function DossierDetailClient() {
                   {messages.map((m) => {
                     const isStaffMsg = m.auteurId !== dossier.candidat.id;
                     return (
-                      <div key={m.id} className={cn("max-w-[80%] rounded-md px-3.5 py-2.5 text-sm", isStaffMsg ? "ml-auto bg-lapis text-blanc" : "border border-ligne bg-blanc text-encre")}>
+                      <div key={m.id} className={cn("max-w-[80%] rounded-md px-3.5 py-2.5 text-sm", isStaffMsg ? "ml-auto bg-lapis text-blanc" : "border border-ligne bg-card text-encre")}>
                         {m.texte}
                         <p className={cn("mt-1 font-mono text-[10px]", isStaffMsg ? "text-blanc/60" : "text-ardoise")}>{formatDateTime(m.createdAt)}</p>
                       </div>
@@ -490,7 +719,7 @@ export default function DossierDetailClient() {
 
         {/* Sidebar: workflow + statut */}
         <div className="space-y-4">
-          <Card className="border-ligne bg-blanc p-5">
+          <Card className="border-ligne bg-card p-5">
             <p className="text-xs font-medium text-ardoise">Statut courant</p>
             <Badge className={cn("mt-2 font-mono text-[10px] uppercase", c.text, c.border, c.bg)}>{e.libelle}</Badge>
             <p className="mt-2 text-xs text-ardoise">{e.description}</p>
@@ -505,7 +734,7 @@ export default function DossierDetailClient() {
             </div>
           </Card>
 
-          <Card className="border-ligne bg-blanc p-5">
+          <Card className="border-ligne bg-card p-5">
             <p className="text-xs font-medium text-ardoise">Conseiller affecté</p>
             <div className="mt-2 flex items-center gap-2.5">
               <Avatar className="h-8 w-8"><AvatarFallback className="bg-lapis/10 font-mono text-[10px] font-semibold text-lapis">{conseillerNomComplet.split(" ").map((w) => w[0]).join("").slice(0, 2)}</AvatarFallback></Avatar>
@@ -514,6 +743,50 @@ export default function DossierDetailClient() {
                 <p className="text-xs text-ardoise">Conseiller(ère)</p>
               </div>
             </div>
+            {showAssignActions && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={assignDisabled}
+                title={assignDisabled ? "Le dossier doit être soumis avant d'être affecté à un conseiller." : undefined}
+                onClick={openAssignDialog}
+              >
+                <UserPlus className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
+                {dossier.conseiller ? "Réaffecter" : "Affecter un conseiller"}
+              </Button>
+              {dossier.conseiller && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="border-carmin/40 text-carmin hover:bg-carmin/5">
+                      <UserMinus className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Désaffecter
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="bg-card">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="font-display text-lg flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5 text-carmin" strokeWidth={1.5} /> Désaffecter le conseiller ?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription className="text-sm text-ardoise">
+                        {conseillerNomComplet} ne sera plus responsable du dossier {dossier.reference}.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel className="bg-porcelaine">Annuler</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-carmin text-blanc hover:bg-carmin/90"
+                        disabled={unassigning}
+                        onClick={() => void confirmUnassign()}
+                      >
+                        {unassigning && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
+                        Désaffecter
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
+            )}
           </Card>
 
           {actions.length > 0 && (
@@ -521,7 +794,27 @@ export default function DossierDetailClient() {
               <p className="text-sm font-medium text-encre">Actions de workflow</p>
               <div className="mt-3 space-y-2">
                 {actions.map((a) =>
-                  a.confirm ? (
+                  a.motifDialog ? (
+                    <Button
+                      key={a.label}
+                      variant="outline"
+                      className="w-full justify-start"
+                      size="sm"
+                      onClick={openCorrectionDialog}
+                    >
+                      <a.icon className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> {a.label}
+                    </Button>
+                  ) : a.fileDialog ? (
+                    <Button
+                      key={a.label}
+                      variant={a.tone === "primary" ? "default" : "outline"}
+                      className={cn("w-full justify-start", a.tone === "primary" && "bg-lapis text-blanc hover:bg-lapis/90")}
+                      size="sm"
+                      onClick={openAttestationDialog}
+                    >
+                      <a.icon className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> {a.label}
+                    </Button>
+                  ) : a.confirm ? (
                     <AlertDialog key={a.label}>
                       <AlertDialogTrigger asChild>
                         <Button
@@ -532,7 +825,7 @@ export default function DossierDetailClient() {
                           <a.icon className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> {a.label}
                         </Button>
                       </AlertDialogTrigger>
-                      <AlertDialogContent className="bg-blanc">
+                      <AlertDialogContent className="bg-card">
                         <AlertDialogHeader>
                           <AlertDialogTitle className="font-display text-lg flex items-center gap-2">
                             {a.tone === "danger" ? <AlertTriangle className="h-5 w-5 text-carmin" strokeWidth={1.5} /> : <Info className="h-5 w-5 text-lapis" strokeWidth={1.5} />}
@@ -557,6 +850,8 @@ export default function DossierDetailClient() {
                       variant={a.tone === "primary" ? "default" : "outline"}
                       className={cn("w-full justify-start", a.tone === "primary" && "bg-lapis text-blanc hover:bg-lapis/90")}
                       size="sm"
+                      disabled={a.disabled}
+                      title={a.disabled ? a.disabledReason : undefined}
                       onClick={execAction(a)}
                     >
                       <a.icon className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> {a.label}
@@ -564,6 +859,32 @@ export default function DossierDetailClient() {
                   )
                 )}
               </div>
+              {etatLower === "correction" && latestDemandeCorrection?.statut !== "SOUMISE" && (
+                <p className="mt-2 text-xs text-ardoise">
+                  Le candidat n&apos;a pas encore resoumis son dossier depuis la dernière demande de correction.
+                </p>
+              )}
+            </Card>
+          )}
+
+          {dossier.demandesCorrection.length > 0 && (
+            <Card className="border-ligne bg-card p-5">
+              <p className="text-sm font-medium text-encre">Historique des corrections</p>
+              <ol className="mt-3 space-y-3">
+                {dossier.demandesCorrection.map((d) => {
+                  const cfg = STATUT_DEMANDE_CORRECTION[d.statut];
+                  return (
+                    <li key={d.id} className="border-b border-ligne/60 pb-3 last:border-0 last:pb-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge className={cn("font-mono text-[10px] uppercase", cfg.color, cfg.bg, "border-transparent")}>{cfg.label}</Badge>
+                        <span className="font-mono text-[10px] text-ardoise">{formatDateTime(d.createdAt)}</span>
+                      </div>
+                      <p className="mt-1 text-sm text-encre">{d.motif}</p>
+                      <p className="mt-0.5 text-xs text-ardoise">Par {d.conseiller.prenom} {d.conseiller.nom}</p>
+                    </li>
+                  );
+                })}
+              </ol>
             </Card>
           )}
 
@@ -578,6 +899,140 @@ export default function DossierDetailClient() {
           )}
         </div>
       </div>
+
+      <Dialog open={correctionOpen} onOpenChange={setCorrectionOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Demander une correction</DialogTitle>
+            <DialogDescription>
+              Le motif sera envoyé à {dossier.candidat.prenom} (message + notification) et le dossier repassera en « À corriger ». L&apos;admin et le super admin seront notifiés.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-1.5">
+            <Textarea
+              value={motif}
+              onChange={(e) => setMotif(e.target.value)}
+              placeholder="Décrivez précisément ce qui doit être corrigé…"
+              rows={5}
+              aria-label="Motif de la demande de correction"
+            />
+            {motif.trim().length === 0 && (
+              <p className="text-xs text-carmin">Le motif est obligatoire.</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCorrectionOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              className="bg-lapis text-blanc hover:bg-lapis/90"
+              disabled={motif.trim().length === 0 || submittingCorrection}
+              onClick={() => void confirmCorrection()}
+            >
+              {submittingCorrection && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
+              Envoyer la demande
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={attestationOpen} onOpenChange={setAttestationOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {dossier.attestation?.cheminFichier ? "Remplacer le document d'attestation" : "Téléverser l'attestation"}
+            </DialogTitle>
+            <DialogDescription>
+              {dossier.attestation?.cheminFichier
+                ? "Le nouveau fichier remplacera le document actuellement visible par le candidat."
+                : `Téléversez le document de préinscription envoyé par ${univ?.nom}. ${dossier.candidat.prenom} sera notifié avec un message de félicitations et pourra le consulter dans son espace.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {dossier.attestation?.cheminFichier && (
+            <a
+              href={`/api/dossiers/${dossier.id}/attestation/download?disposition=inline`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm text-lapis underline-offset-2 hover:underline"
+            >
+              Voir le document actuel ({dossier.attestation.nomFichier ?? "fichier"})
+            </a>
+          )}
+
+          <div className="space-y-1.5">
+            <Input
+              type="file"
+              accept="application/pdf,image/jpeg,image/png,image/webp"
+              onChange={(e) => setAttestationFile(e.target.files?.[0] ?? null)}
+              aria-label="Document d'attestation"
+            />
+            {!attestationFile && (
+              <p className="text-xs text-ardoise">PDF, JPG, PNG ou WEBP — 10 Mo max.</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAttestationOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              className="bg-lapis text-blanc hover:bg-lapis/90"
+              disabled={!attestationFile || uploadingAttestation}
+              onClick={() => void confirmAttestationUpload()}
+            >
+              {uploadingAttestation && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
+              {dossier.attestation?.cheminFichier ? "Remplacer" : "Envoyer au candidat"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{dossier.conseiller ? "Réaffecter un conseiller" : "Affecter un conseiller"}</DialogTitle>
+            <DialogDescription>Choisissez le conseiller responsable du dossier {dossier.reference}.</DialogDescription>
+          </DialogHeader>
+
+          {conseillers === null ? (
+            <div className="flex items-center gap-2 py-2 text-sm text-ardoise">
+              <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} /> Chargement des conseillers…
+            </div>
+          ) : conseillers.length === 0 ? (
+            <p className="py-2 text-sm text-ardoise">Aucun conseiller actif disponible.</p>
+          ) : (
+            <Select value={selectedConseillerId} onValueChange={setSelectedConseillerId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choisir un conseiller" />
+              </SelectTrigger>
+              <SelectContent>
+                {conseillers.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.prenom} {c.nom}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              className="bg-lapis text-blanc hover:bg-lapis/90"
+              disabled={!selectedConseillerId || assigning}
+              onClick={() => void confirmAssign()}
+            >
+              {assigning && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
+              Affecter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

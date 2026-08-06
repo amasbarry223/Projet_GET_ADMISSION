@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { saveUpload, deleteUpload } from "@/lib/storage";
-import { mkdir, copyFile } from "fs/promises";
-import path from "path";
+import { saveUpload, deletePublicMedia } from "@/lib/storage";
 
 // POST /api/profile/photo — upload photo de profil (BF-09)
 export async function POST(request: Request) {
@@ -13,7 +11,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const userId = (session.user as { id: string }).id;
+  const userId = session.user.id;
   const form = await request.formData();
   const file = form.get("file");
 
@@ -31,7 +29,7 @@ export async function POST(request: Request) {
 
   let uploaded;
   try {
-    uploaded = await saveUpload(file, `photos/${userId}`);
+    uploaded = await saveUpload(file, `photos/${userId}`, { visibility: "public" });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Upload échoué" },
@@ -39,18 +37,13 @@ export async function POST(request: Request) {
     );
   }
 
-  // Copie vers public/uploads pour servir en static
-  const publicDir = path.join(process.cwd(), "public", "uploads", "photos", userId);
-  await mkdir(publicDir, { recursive: true });
-  const fileName = path.basename(uploaded.cheminRelatif);
-  const absUpload = path.join(process.cwd(), "upload", uploaded.cheminRelatif);
-  const publicPath = path.join(publicDir, fileName);
-  await copyFile(absUpload, publicPath);
+  const photoUrl = uploaded.publicUrl;
+  if (!photoUrl) {
+    return NextResponse.json({ error: "Publication du fichier échouée" }, { status: 500 });
+  }
 
-  const photoUrl = `/uploads/photos/${userId}/${fileName}`;
-
-  if (user.photoUrl?.startsWith("/uploads/")) {
-    // ancien fichier laissé ; deleteUpload sur ancien chemin upload si possible
+  if (user.photoUrl) {
+    await deletePublicMedia(user.photoUrl);
   }
 
   await db.user.update({

@@ -15,13 +15,24 @@ import {
 
 // --- Auth ---
 export const registerSchema = z.object({
-  prenom: z.string().min(1, "Le prénom est requis").max(NAME_MAX_LENGTH),
-  nom: z.string().min(1, "Le nom est requis").max(NAME_MAX_LENGTH),
-  email: z.string().email("L'e-mail saisi n'est pas valide").max(EMAIL_MAX_LENGTH),
+  prenom: z
+    .string()
+    .trim()
+    .min(1, "Le prénom est requis")
+    .max(NAME_MAX_LENGTH)
+    .regex(/^[\p{L}][\p{L}\s'.-]*$/u, "Le prénom contient des caractères non autorisés"),
+  nom: z
+    .string()
+    .trim()
+    .min(1, "Le nom est requis")
+    .max(NAME_MAX_LENGTH)
+    .regex(/^[\p{L}][\p{L}\s'.-]*$/u, "Le nom contient des caractères non autorisés"),
+  email: z.string().trim().email("L'e-mail saisi n'est pas valide").max(EMAIL_MAX_LENGTH),
   password: z
     .string()
-    .min(PASSWORD_MIN_LENGTH, `Le mot de passe doit contenir au moins ${PASSWORD_MIN_LENGTH} caractères`),
-  nationalite: z.string().min(1, "La nationalité est requise").max(NAME_MAX_LENGTH),
+    .min(PASSWORD_MIN_LENGTH, `Le mot de passe doit contenir au moins ${PASSWORD_MIN_LENGTH} caractères`)
+    .max(PASSWORD_MAX_LENGTH, `Le mot de passe ne peut pas dépasser ${PASSWORD_MAX_LENGTH} caractères`),
+  nationalite: z.string().trim().min(1, "La nationalité est requise").max(NAME_MAX_LENGTH),
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
 
@@ -40,23 +51,27 @@ export const otpRequestLoginSchema = z.object({
 export type OtpRequestLoginInput = z.infer<typeof otpRequestLoginSchema>;
 
 // --- Dossiers ---
-export const workflowSchema = z.object({
-  action: z.enum([
-    "verifier",
-    "demarrer_verification",
-    "valider_dossier",
-    "correction",
-    "verifier_corrections",
-    "confirmer_paiement",
-    "transmettre",
-    "attendre_reponse",
-    "accepter",
-    "refuser",
-    "emettre_attestation",
-    "cloturer",
-  ]),
-  note: z.string().max(1000).optional(),
-});
+export const workflowSchema = z
+  .object({
+    action: z.enum([
+      "verifier",
+      "demarrer_verification",
+      "valider_dossier",
+      "correction",
+      "verifier_corrections",
+      "confirmer_paiement",
+      "transmettre",
+      "attendre_reponse",
+      "accepter",
+      "refuser",
+      "cloturer",
+    ]),
+    note: z.string().max(1000).optional(),
+  })
+  .refine((data) => data.action !== "correction" || !!data.note?.trim(), {
+    message: "Le motif de la demande de correction est obligatoire",
+    path: ["note"],
+  });
 export type WorkflowInput = z.infer<typeof workflowSchema>;
 
 // --- Messages ---
@@ -217,10 +232,12 @@ export type UniversiteInput = z.infer<typeof universiteSchema>;
 export const formationSchema = z.object({
   universiteId: z.string().min(1).optional(),
   intitule: z.string().min(1, "L'intitulé est requis").max(200),
-  niveau: z.enum(["Licence", "Master", "Doctorat"]),
+  niveau: z.string().trim().min(1, "Le niveau est requis").max(80),
   domaine: z.string().min(1).max(100),
   duree: z.string().min(1).max(50),
   fraisAgence: z.number().int().min(0).optional(),
+  /** Scolarité annuelle indicative (€) — distincte des frais d'agence */
+  fraisFormationEuros: z.number().int().positive().nullable().optional(),
   prerequis: z.array(z.string().max(200)).default([]),
   piecesRequises: z.array(z.string().max(200)).default([]),
 });
@@ -287,6 +304,26 @@ export const adminUserUpdateSchema = z
   );
 export type AdminUserUpdateInput = z.infer<typeof adminUserUpdateSchema>;
 
+// --- Admin candidat management (Personnel & rôles > Candidats) ---
+export const adminCandidatCreateSchema = z.object({
+  prenom: z.string().min(1, "Le prénom est requis").max(NAME_MAX_LENGTH),
+  nom: z.string().min(1, "Le nom est requis").max(NAME_MAX_LENGTH),
+  email: z.string().trim().email("L'e-mail saisi n'est pas valide").max(EMAIL_MAX_LENGTH),
+  telephone: z.string().max(PHONE_MAX_LENGTH).optional(),
+  nationalite: z.string().max(NAME_MAX_LENGTH).optional(),
+});
+export type AdminCandidatCreateInput = z.infer<typeof adminCandidatCreateSchema>;
+
+export const adminCandidatUpdateSchema = z.object({
+  prenom: z.string().min(1).max(NAME_MAX_LENGTH).optional(),
+  nom: z.string().min(1).max(NAME_MAX_LENGTH).optional(),
+  email: z.string().trim().email("L'e-mail saisi n'est pas valide").max(EMAIL_MAX_LENGTH).optional(),
+  telephone: z.string().max(PHONE_MAX_LENGTH).optional().nullable(),
+  nationalite: z.string().max(NAME_MAX_LENGTH).optional().nullable(),
+  actif: z.boolean().optional(),
+});
+export type AdminCandidatUpdateInput = z.infer<typeof adminCandidatUpdateSchema>;
+
 // --- Contact form ---
 export const contactSchema = z.object({
   prenom: z.string().min(1, "Le prénom est requis").max(50),
@@ -328,6 +365,127 @@ export const parametresSchema = z.object({
   politiqueConfidentialite: z.string().max(50000).optional(),
 });
 export type ParametresInput = z.infer<typeof parametresSchema>;
+
+// --- Pagination / listes admin ---
+export const paginationQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  q: z.string().max(200).optional(),
+  format: z.enum(["json", "csv"]).optional(),
+});
+export type PaginationQueryInput = z.infer<typeof paginationQuerySchema>;
+
+export const listQuerySchema = paginationQuerySchema;
+export type ListQueryInput = PaginationQueryInput;
+
+// --- Matrice ---
+export const matriceDraftCreateSchema = z.object({
+  libelle: z.string().max(200).optional(),
+  notes: z.string().max(5000).optional(),
+  fromActive: z.boolean().optional().default(true),
+});
+export type MatriceDraftCreateInput = z.infer<typeof matriceDraftCreateSchema>;
+
+// --- Paiements ---
+export const paiementPatchSchema = z.object({
+  id: z.string().min(1, "id requis"),
+  statut: z.enum(["rembourse", "echoue", "reussi", "en_attente"]),
+});
+export type PaiementPatchInput = z.infer<typeof paiementPatchSchema>;
+
+export const paytechIpnSchema = z
+  .object({
+    ref_command: z.union([z.string(), z.number()]).optional(),
+    custom_field: z.union([z.string(), z.record(z.string(), z.unknown())]).optional(),
+    type_event: z.string().optional(),
+    type: z.string().optional(),
+    api_key_sha256: z.string().optional(),
+    api_secret_sha256: z.string().optional(),
+  })
+  .passthrough();
+export type PaytechIpnInput = z.infer<typeof paytechIpnSchema>;
+
+// --- Notifications ---
+export const notificationsMarkReadSchema = z
+  .object({
+    ids: z.array(z.string().min(1)).optional(),
+    all: z.boolean().optional(),
+  })
+  .refine((d) => d.all === true || (Array.isArray(d.ids) && d.ids.length > 0), {
+    message: "Indiquez all=true ou une liste d'ids non vide",
+  });
+export type NotificationsMarkReadInput = z.infer<typeof notificationsMarkReadSchema>;
+
+// --- KYC / photo ---
+export const kycUploadFieldsSchema = z.object({
+  side: z.enum(["recto", "verso"]),
+  kycType: z.string().max(50).optional(),
+  kycNumero: z.string().max(100).optional(),
+  /** Staff (kyc.write) téléversant pour le compte d'un candidat — sinon upload pour soi-même */
+  targetUserId: z.string().min(1).optional(),
+});
+export type KycUploadFieldsInput = z.infer<typeof kycUploadFieldsSchema>;
+
+export const kycDeleteSchema = z.object({
+  userId: z.string().min(1, "userId requis"),
+  side: z.enum(["recto", "verso", "both"]),
+});
+export type KycDeleteInput = z.infer<typeof kycDeleteSchema>;
+
+export const kycVerifySchema = z.object({
+  userId: z.string().min(1),
+  verifie: z.boolean(),
+});
+export type KycVerifyInput = z.infer<typeof kycVerifySchema>;
+
+// --- Université media ---
+export const universiteMediaKindSchema = z.enum(["cover", "logo", "gallery"]);
+export const universiteMediaUploadSchema = z.object({
+  kind: universiteMediaKindSchema,
+});
+export type UniversiteMediaUploadInput = z.infer<typeof universiteMediaUploadSchema>;
+
+export const universiteMediaDeleteSchema = z
+  .object({
+    kind: universiteMediaKindSchema,
+    url: z.string().url().optional(),
+  })
+  .refine((d) => d.kind !== "gallery" || !!d.url, {
+    message: "url requis pour supprimer une image de galerie",
+    path: ["url"],
+  });
+export type UniversiteMediaDeleteInput = z.infer<typeof universiteMediaDeleteSchema>;
+
+// --- Auth auxiliaire ---
+export const resendVerificationSchema = z.object({
+  email: z.string().email("L'e-mail saisi n'est pas valide").max(EMAIL_MAX_LENGTH),
+  dryRun: z.boolean().optional(),
+});
+export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;
+
+export const staffLoginStatusSchema = z.object({
+  email: z.string().email("L'e-mail saisi n'est pas valide").max(EMAIL_MAX_LENGTH),
+  password: z.string().min(1, "Mot de passe requis"),
+});
+export type StaffLoginStatusInput = z.infer<typeof staffLoginStatusSchema>;
+
+// --- Attestations ---
+export const attestationModeRemiseSchema = z.object({
+  modeRemise: z.enum(["telechargement", "agence"]),
+});
+export type AttestationModeRemiseInput = z.infer<typeof attestationModeRemiseSchema>;
+
+export const modeleAttestationCreateSchema = z.object({
+  nom: z.string().min(1, "Le nom est requis").max(200),
+  description: z.string().max(2000).optional(),
+});
+export type ModeleAttestationCreateInput = z.infer<typeof modeleAttestationCreateSchema>;
+
+// --- Pièces upload FormData (champs texte) ---
+export const pieceUploadFormSchema = z.object({
+  libelle: z.string().min(1, "Le libellé est requis").max(200),
+});
+export type PieceUploadFormInput = z.infer<typeof pieceUploadFormSchema>;
 
 // --- Helper : valider et retourner une réponse d'erreur standardisée ---
 export function validate<T>(schema: z.ZodSchema<T>, data: unknown):

@@ -21,7 +21,8 @@ import {
 } from "lucide-react";
 import { GlobalSearch } from "@/components/admin/global-search";
 import { NotificationsBell } from "@/components/admin/notifications-bell";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AdminThemeToggle } from "@/components/admin/admin-theme-toggle";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { hasPermission, type Permission } from "@/lib/rbac";
 import type { Role } from "@prisma/client";
 import {
@@ -174,8 +175,12 @@ function AdminUser() {
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2.5 rounded-lg bg-or-pale/40 px-2 py-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:px-0">
+      <Link
+        href="/admin/profil"
+        className="flex items-center gap-2.5 rounded-lg bg-or-pale/40 px-2 py-2 transition-colors hover:bg-or-pale/70 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:px-0"
+      >
         <Avatar className="h-8 w-8 border border-sidebar-border">
+          {u?.image && <AvatarImage src={u.image} alt={`${u.prenom} ${u.nom}`} />}
           <AvatarFallback className="bg-lapis/10 font-mono text-xs font-semibold text-lapis">
             {initiales}
           </AvatarFallback>
@@ -186,7 +191,7 @@ function AdminUser() {
           </p>
           <p className="truncate font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">{roleLabel}</p>
         </div>
-      </div>
+      </Link>
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton
@@ -226,17 +231,18 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <SidebarRail />
       </Sidebar>
 
-      <SidebarInset className="min-h-svh overflow-hidden bg-blanc md:max-h-[calc(100svh-1rem)]">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-ligne bg-blanc/90 px-4 backdrop-blur-md sm:px-6">
+      <SidebarInset className="min-h-svh overflow-hidden bg-card md:max-h-[calc(100svh-1rem)]">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-ligne bg-card/90 px-4 backdrop-blur-md sm:px-6">
           <SidebarTrigger className="-ml-1 text-ardoise hover:text-encre" />
           <div className="h-4 w-px bg-ligne" aria-hidden />
           <GlobalSearch />
           <div className="ml-auto flex items-center gap-1.5">
+            <AdminThemeToggle />
             <NotificationsBell />
           </div>
         </header>
 
-        <div className="flex h-10 shrink-0 items-center border-b border-ligne bg-blanc px-4 sm:px-6">
+        <div className="flex h-10 shrink-0 items-center border-b border-ligne bg-card px-4 sm:px-6">
           <nav className="flex items-center gap-1.5 text-sm" aria-label="Fil d'Ariane">
             <Link href="/admin" className="text-ardoise hover:text-lapis">
               Admin

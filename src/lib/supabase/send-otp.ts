@@ -95,7 +95,7 @@ export async function provisionAndSendEmailOtp(params: {
         return {
           ok: false,
           error: createError.message || "Impossible de provisionner l'auth",
-          code: createError.code,
+          ...(createError.code !== undefined ? { code: createError.code } : {}),
         };
       }
     } else {
@@ -180,5 +180,9 @@ export async function provisionAndSendEmailOtp(params: {
     };
   }
 
-  return { ok: true, supabaseUserId, channel: "resend" };
+  return {
+    ok: true,
+    channel: "resend",
+    ...(supabaseUserId !== undefined ? { supabaseUserId } : {}),
+  };
 }

@@ -1,9 +1,10 @@
 import type { EtatDossier, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, notifyDossierTransition } from "@/lib/notifications";
 import { broadcastDossierLive } from "@/lib/dossier/live-broadcast";
-import { sendMail } from "@/lib/mail";
-import { escapeHtml } from "@/lib/escape-html";
+import { sendMail, receiptEmailHtml } from "@/lib/mail";
+import { formatFCFA, formatDate } from "@/lib/format";
+import { logAudit } from "@/lib/audit";
 import { ETAPE_PAR_ETAT, PAYMENT_STATUSES } from "@/shared/constants";
 
 type Tx = Prisma.TransactionClient;
@@ -43,13 +44,17 @@ export async function applyPaiementReussiInTx(
 
   const updateData: {
     paiementStatut: string;
-    etat?: "PAIEMENT_CONFIRME";
+    etat?: "TRANSMIS";
     etapeActuelle?: number;
   } = { paiementStatut };
 
-  if (dossier.etat === "PAIEMENT_ATTENTE" && paiementStatut === PAYMENT_STATUSES.COMPLET) {
-    updateData.etat = "PAIEMENT_CONFIRME";
-    updateData.etapeActuelle = ETAPE_PAR_ETAT.PAIEMENT_CONFIRME;
+  // Le solde complet a déjà été validé par le conseiller avant la mise en attente de paiement
+  // (VERIFICATION → PAIEMENT_ATTENTE) : une fois les frais réglés, le dossier est transmis
+  // automatiquement à l'université, sans étape manuelle supplémentaire.
+  const autoTransmis = dossier.etat === "PAIEMENT_ATTENTE" && paiementStatut === PAYMENT_STATUSES.COMPLET;
+  if (autoTransmis) {
+    updateData.etat = "TRANSMIS";
+    updateData.etapeActuelle = ETAPE_PAR_ETAT.TRANSMIS;
   }
 
   await tx.dossier.update({ where: { id: dossier.id }, data: updateData });
@@ -57,12 +62,24 @@ export async function applyPaiementReussiInTx(
   await tx.historique.create({
     data: {
       dossierId: dossier.id,
-      etat: (updateData.etat ?? dossier.etat) as EtatDossier,
+      etat: (autoTransmis ? "PAIEMENT_CONFIRME" : dossier.etat) as EtatDossier,
       auteur: auteurLabel,
       auteurId: userId,
       note: `Paiement ${paiement.moyen} confirmé : ${paiement.montant} FCFA (${paiementStatut}).`,
     },
   });
+
+  if (autoTransmis) {
+    await tx.historique.create({
+      data: {
+        dossierId: dossier.id,
+        etat: "TRANSMIS",
+        auteur: auteurLabel,
+        auteurId: userId,
+        note: "Dossier transmis automatiquement à l'université après confirmation du paiement.",
+      },
+    });
+  }
 
   return {
     etat: updateData.etat ?? dossier.etat,
@@ -92,12 +109,47 @@ export async function afterPaiementReussiSideEffects(opts: {
     etat: opts.etat,
   });
 
+  const base = process.env.NEXTAUTH_URL || "http://localhost:3000";
+  const dossier = await db.dossier.findUnique({
+    where: { id: opts.paiement.dossierId },
+    select: { reference: true },
+  });
+
   if (opts.candidat.email) {
-    const base = process.env.NEXTAUTH_URL || "http://localhost:3000";
     await sendMail({
       to: opts.candidat.email,
       subject: `Reçu ${opts.paiement.reference} — GET Admission`,
-      html: `<p>Bonjour ${escapeHtml(opts.candidat.prenom)},</p><p>Votre paiement de <strong>${opts.paiement.montant} FCFA</strong> a été confirmé (réf. ${escapeHtml(opts.paiement.reference)}).</p><p><a href="${escapeHtml(`${base}/api/recu/${opts.paiement.id}`)}">Télécharger le reçu</a></p>`,
+      html: receiptEmailHtml({
+        prenom: opts.candidat.prenom,
+        reference: opts.paiement.reference,
+        montantLabel: formatFCFA(opts.paiement.montant),
+        dateStr: formatDate(new Date().toISOString()),
+        ...(dossier?.reference ? { dossierRef: dossier.reference } : {}),
+        recuUrl: `${base}/api/recu/${opts.paiement.id}?format=pdf`,
+        logoUrl: `${base}/images/brand/logo-get-admission.png`,
+      }),
+    });
+  }
+
+  // Paiement complet reçu pendant PAIEMENT_ATTENTE → dossier auto-transmis (cf. applyPaiementReussiInTx)
+  if (opts.etat === "TRANSMIS" && dossier?.reference) {
+    try {
+      await notifyDossierTransition({
+        candidatId: opts.candidatId,
+        dossierId: opts.paiement.dossierId,
+        reference: dossier.reference,
+        nouvelEtat: "TRANSMIS",
+        note: "Frais d'agence réglés — votre dossier a été transmis à l'université.",
+      });
+    } catch (e) {
+      console.error("[paiement-effects] notifyDossierTransition TRANSMIS", e);
+    }
+    await logAudit({
+      session: null,
+      action: "WORKFLOW",
+      resource: "dossier",
+      resourceId: opts.paiement.dossierId,
+      details: `Transition ${dossier.reference} → TRANSMIS (automatique après confirmation du paiement ${opts.paiement.reference})`,
     });
   }
 }

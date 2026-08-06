@@ -85,6 +85,7 @@ export function ProfilAcademiqueForm({
   showSaveButton = true,
 }: Props) {
   const [diplomeDraft, setDiplomeDraft] = React.useState("");
+  const disabledProp = disabled !== undefined ? { disabled } : {};
 
   const set = <K extends keyof ProfilAcademiqueFormState>(key: K, v: ProfilAcademiqueFormState[K]) => {
     onChange({ ...value, [key]: v });
@@ -96,7 +97,7 @@ export function ProfilAcademiqueForm({
         <Label>Statut académique</Label>
         <Select
           value={value.statutCandidat}
-          disabled={disabled}
+          {...disabledProp}
           onValueChange={(v) => set("statutCandidat", v as "LYCEEN" | "BACHELIER")}
         >
           <SelectTrigger>
@@ -116,19 +117,19 @@ export function ProfilAcademiqueForm({
             <TrimestreSelect
               label="Trimestres Seconde"
               value={value.trimestresSeconde}
-              disabled={disabled}
+              {...disabledProp}
               onChange={(n) => set("trimestresSeconde", n)}
             />
             <TrimestreSelect
               label="Trimestres Première"
               value={value.trimestresPremiere}
-              disabled={disabled}
+              {...disabledProp}
               onChange={(n) => set("trimestresPremiere", n)}
             />
             <TrimestreSelect
               label="Trimestres Terminale disponibles"
               value={value.trimestresTerminale}
-              disabled={disabled}
+              {...disabledProp}
               onChange={(n) => set("trimestresTerminale", n)}
             />
           </div>
@@ -137,7 +138,7 @@ export function ProfilAcademiqueForm({
               type="checkbox"
               className="h-4 w-4 rounded border"
               checked={value.aObtenuBac}
-              disabled={disabled}
+              {...disabledProp}
               onChange={(e) => set("aObtenuBac", e.target.checked)}
             />
             J&apos;ai déjà obtenu mon baccalauréat
@@ -147,7 +148,7 @@ export function ProfilAcademiqueForm({
               type="checkbox"
               className="h-4 w-4 rounded border"
               checked={value.attestationScolariteDisponible}
-              disabled={disabled}
+              {...disabledProp}
               onChange={(e) => set("attestationScolariteDisponible", e.target.checked)}
             />
             J&apos;ai une attestation de scolarité disponible
@@ -160,7 +161,7 @@ export function ProfilAcademiqueForm({
             <Label>Niveau d&apos;études atteint</Label>
             <Select
               value={value.niveauEtudesSuperieures}
-              disabled={disabled}
+              {...disabledProp}
               onValueChange={(v) =>
                 set("niveauEtudesSuperieures", v as ProfilAcademiqueFormState["niveauEtudesSuperieures"])
               }
@@ -183,7 +184,7 @@ export function ProfilAcademiqueForm({
               type="checkbox"
               className="h-4 w-4 rounded border"
               checked={value.formationEnCours}
-              disabled={disabled}
+              {...disabledProp}
               onChange={(e) => set("formationEnCours", e.target.checked)}
             />
             Formation actuellement en cours
@@ -265,10 +266,12 @@ export function ProfilAcademiqueForm({
           <div key={i} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
             <Select
               value={r.niveau}
-              disabled={disabled}
+              {...disabledProp}
               onValueChange={(v) => {
                 const next = [...value.redoublements];
-                next[i] = { ...next[i], niveau: v };
+                const item = next[i];
+                if (!item) return;
+                next[i] = { ...item, niveau: v };
                 set("redoublements", next);
               }}
             >
@@ -286,10 +289,12 @@ export function ProfilAcademiqueForm({
             <Input
               placeholder="Année scolaire (ex. 2023-2024)"
               value={r.anneeScolaire}
-              disabled={disabled}
+              {...disabledProp}
               onChange={(e) => {
                 const next = [...value.redoublements];
-                next[i] = { ...next[i], anneeScolaire: e.target.value };
+                const item = next[i];
+                if (!item) return;
+                next[i] = { ...item, anneeScolaire: e.target.value };
                 set("redoublements", next);
               }}
             />
@@ -341,10 +346,12 @@ export function ProfilAcademiqueForm({
           <div key={i} className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-2">
             <Select
               value={it.type}
-              disabled={disabled}
+              {...disabledProp}
               onValueChange={(v) => {
                 const next = [...value.interruptions];
-                next[i] = { ...next[i], type: v as InterruptionForm["type"] };
+                const item = next[i];
+                if (!item) return;
+                next[i] = { ...item, type: v as InterruptionForm["type"] };
                 set("interruptions", next);
               }}
             >
@@ -363,20 +370,24 @@ export function ProfilAcademiqueForm({
             <Input
               placeholder="Libellé (optionnel)"
               value={it.libelle ?? ""}
-              disabled={disabled}
+              {...disabledProp}
               onChange={(e) => {
                 const next = [...value.interruptions];
-                next[i] = { ...next[i], libelle: e.target.value };
+                const item = next[i];
+                if (!item) return;
+                next[i] = { ...item, libelle: e.target.value };
                 set("interruptions", next);
               }}
             />
             <Input
               placeholder="Début (ex. 2022)"
               value={it.anneeDebut}
-              disabled={disabled}
+              {...disabledProp}
               onChange={(e) => {
                 const next = [...value.interruptions];
-                next[i] = { ...next[i], anneeDebut: e.target.value };
+                const item = next[i];
+                if (!item) return;
+                next[i] = { ...item, anneeDebut: e.target.value };
                 set("interruptions", next);
               }}
             />
@@ -384,10 +395,12 @@ export function ProfilAcademiqueForm({
               <Input
                 placeholder="Fin (ex. 2023)"
                 value={it.anneeFin}
-                disabled={disabled}
+                {...disabledProp}
                 onChange={(e) => {
                   const next = [...value.interruptions];
-                  next[i] = { ...next[i], anneeFin: e.target.value };
+                  const item = next[i];
+                  if (!item) return;
+                  next[i] = { ...item, anneeFin: e.target.value };
                   set("interruptions", next);
                 }}
               />
@@ -434,12 +447,13 @@ function TrimestreSelect({
   onChange: (n: number) => void;
   disabled?: boolean;
 }) {
+  const disabledProp = disabled !== undefined ? { disabled } : {};
   return (
     <div className="space-y-1.5">
       <Label>{label}</Label>
       <Select
         value={String(value)}
-        disabled={disabled}
+        {...disabledProp}
         onValueChange={(v) => onChange(Number(v))}
       >
         <SelectTrigger>

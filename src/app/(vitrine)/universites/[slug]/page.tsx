@@ -86,6 +86,7 @@ export default async function UniversiteDetailPage({
     domaine: f.domaine,
     duree: f.duree,
     fraisAgence: frais,
+    fraisFormationEuros: f.fraisFormationEuros ?? null,
     prerequis: parseStringArray(f.prerequis),
     piecesRequises: parseStringArray(f.piecesRequises),
   }));

@@ -96,9 +96,12 @@ export function SocialProof({
   candidateCountLabel?: string;
 }) {
   const reduce = useReducedMotion();
-  const withPhotos = testimonials.map((t, i) => ({
-    ...t,
-    photoUrl: t.photoUrl || FALLBACK_PORTRAITS[i % FALLBACK_PORTRAITS.length],
+  const withPhotos: Array<Testimonial & { photoUrl: string }> = testimonials.map((t, i) => ({
+    nom: t.nom,
+    citation: t.citation,
+    parcours: t.parcours,
+    pays: t.pays,
+    photoUrl: t.photoUrl ?? FALLBACK_PORTRAITS[i % FALLBACK_PORTRAITS.length]!,
   }));
 
   const loop = React.useMemo(

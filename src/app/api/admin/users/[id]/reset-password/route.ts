@@ -32,7 +32,7 @@ export async function POST(request: Request, { params }: Ctx) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const role = (session.user as { role?: string }).role ?? "";
+  const role = session.user.role ?? "";
   if (!isStaffManagementRole(role)) {
     return NextResponse.json(
       { error: "Seul un super-administrateur peut gérer le personnel" },

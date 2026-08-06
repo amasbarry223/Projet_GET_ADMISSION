@@ -41,7 +41,7 @@ import {
   SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { useDossiersQuery } from "@/hooks/use-primary-dossier";
+import { useDossiersQuery, type EspaceDossierSummary } from "@/hooks/use-primary-dossier";
 
 const NAV_BASE = [
   { href: "/espace", label: "Tableau de bord", icon: LayoutDashboard, exact: true },
@@ -89,7 +89,7 @@ function useUnreadCounts() {
   }, [refreshNotifs]);
 
   const messages = React.useMemo(() => {
-    const list = dossiersQuery.data ?? [];
+    const list: EspaceDossierSummary[] = dossiersQuery.data ?? [];
     let sum = 0;
     for (const d of list) {
       sum += d.conversation?.nonLusCandidat ?? 0;

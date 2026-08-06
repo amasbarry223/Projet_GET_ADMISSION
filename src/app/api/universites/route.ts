@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { universiteSchema, validate } from "@/lib/validations";
+import { parseJsonArray } from "@/lib/parse-json";
 import { uniqueSlug } from "@/lib/utils";
 import { logAudit } from "@/lib/audit";
 import { requirePermission } from "@/lib/rbac";
@@ -41,15 +42,9 @@ export async function GET(request: Request) {
       ...u,
       fraisMin: frais,
       fraisMax: frais,
-      domaines: JSON.parse(u.domaines),
-      pointsForts: JSON.parse(u.pointsForts),
-      galleryUrls: (() => {
-        try {
-          return JSON.parse(u.galleryUrls || "[]");
-        } catch {
-          return [];
-        }
-      })(),
+      domaines: parseJsonArray(u.domaines),
+      pointsForts: parseJsonArray(u.pointsForts),
+      galleryUrls: parseJsonArray(u.galleryUrls),
       formations: u.formations.map((f) => ({
         ...f,
         fraisAgence: frais,
@@ -71,7 +66,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const gate = requirePermission((session.user as { role?: string }).role, "catalogue.write");
+  const gate = requirePermission(session.user.role, "catalogue.write");
   if (!gate.ok) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
@@ -151,8 +146,8 @@ export async function POST(request: Request) {
   // Recharger avec formations pour cohérence avec GET
   const result = {
     ...created,
-    domaines: JSON.parse(created.domaines),
-    pointsForts: JSON.parse(created.pointsForts),
+    domaines: parseJsonArray(created.domaines),
+    pointsForts: parseJsonArray(created.pointsForts),
   };
 
   return NextResponse.json(result, { status: 201 });

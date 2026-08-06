@@ -17,7 +17,13 @@ export type Permission =
   | "parametres.read"
   | "parametres.write"
   | "audit.read"
-  | "roles.write";
+  | "roles.write"
+  | "backup.manage"
+  | "kyc.read"
+  | "kyc.write"
+  | "dossiers.assign"
+  | "candidats.read"
+  | "candidats.write";
 
 const MATRIX: Record<Role, Permission[]> = {
   CANDIDAT: [],
@@ -28,6 +34,7 @@ const MATRIX: Record<Role, Permission[]> = {
     "dossiers.transmettre",
     "attestations.read",
     "attestations.emit", // ◐ — émission autorisée
+    "kyc.read", // ◐ — consultation uniquement, pas de modification
   ],
   FINANCIER: [
     "dashboard",
@@ -39,7 +46,9 @@ const MATRIX: Record<Role, Permission[]> = {
     "dashboard",
     "dossiers.read",
     "dossiers.write",
-    "dossiers.transmettre",
+    // dossiers.transmettre volontairement absent : Admin ne transmet plus à l'université (chaque
+    // université a son propre canal distinct) — action réservée à Conseiller et Super Admin.
+    "dossiers.assign",
     "attestations.read",
     "attestations.emit",
     "finance.read",
@@ -48,12 +57,17 @@ const MATRIX: Record<Role, Permission[]> = {
     "matrice.write",
     "users.read",
     "parametres.read", // ◐
+    "kyc.read",
+    "kyc.write",
+    "candidats.read",
+    "candidats.write",
   ],
   SUPER_ADMIN: [
     "dashboard",
     "dossiers.read",
     "dossiers.write",
     "dossiers.transmettre",
+    "dossiers.assign",
     "attestations.read",
     "attestations.emit",
     "finance.read",
@@ -66,6 +80,11 @@ const MATRIX: Record<Role, Permission[]> = {
     "parametres.write",
     "audit.read",
     "roles.write",
+    "backup.manage",
+    "kyc.read",
+    "kyc.write",
+    "candidats.read",
+    "candidats.write",
   ],
 };
 
@@ -96,7 +115,7 @@ export function requirePermission(
 export function permissionForAdminPath(pathname: string): Permission | null {
   if (pathname === "/admin" || pathname === "/admin/") return "dashboard";
   if (pathname.startsWith("/admin/dossiers")) return "dossiers.read";
-  if (pathname.startsWith("/admin/kyc")) return "dossiers.read";
+  if (pathname.startsWith("/admin/kyc")) return "kyc.read";
   if (pathname.startsWith("/admin/catalogue")) return "catalogue.write";
   if (pathname.startsWith("/admin/matrice")) return "matrice.write";
   if (pathname.startsWith("/admin/finance")) return "finance.read";

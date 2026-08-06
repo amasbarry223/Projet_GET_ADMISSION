@@ -88,8 +88,8 @@ export async function GET(
   const format = url.searchParams.get("format") || "pdf";
   const wantDraft = url.searchParams.get("draft") === "1";
 
-  const role = (session.user as { role?: string }).role;
-  const userId = (session.user as { id: string }).id;
+  const role = session.user.role;
+  const userId = session.user.id;
 
   const [attestation, modele] = await Promise.all([
     db.attestation.findUnique({
@@ -183,7 +183,7 @@ export async function GET(
   }
 
   const staffName =
-    `${(session.user as { prenom?: string }).prenom ?? ""} ${(session.user as { nom?: string }).nom ?? ""}`.trim() ||
+    `${session.user.prenom ?? ""} ${session.user.nom ?? ""}`.trim() ||
     session.user.name ||
     "Conseiller GET";
 

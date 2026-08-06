@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { pieceSchema, validate } from "@/lib/validations";
+import { parseOrRespond } from "@/lib/api-auth";
+import { pieceSchema, pieceUploadFormSchema, validate } from "@/lib/validations";
 import { saveUpload, deleteUpload } from "@/lib/storage";
 import { hasPermission, requirePermission } from "@/lib/rbac";
 import { isDossierEditableByCandidate } from "@/shared/constants";
@@ -20,8 +21,8 @@ export async function POST(
   }
 
   const { id } = await params;
-  const role = (session.user as { role?: string }).role;
-  const userId = (session.user as { id: string }).id;
+  const role = session.user.role;
+  const userId = session.user.id;
 
   const dossier = await db.dossier.findUnique({
     where: { id },
@@ -53,17 +54,18 @@ export async function POST(
 
     const form = await request.formData();
     const file = form.get("file");
-    const libelle = String(form.get("libelle") || "").trim();
-    if (!libelle) {
-      return NextResponse.json({ error: "Libellé requis" }, { status: 400 });
-    }
+    const fieldsParsed = parseOrRespond(pieceUploadFormSchema, {
+      libelle: String(form.get("libelle") || "").trim(),
+    });
+    if (!fieldsParsed.ok) return fieldsParsed.response;
+    const { libelle } = fieldsParsed.data;
     if (!(file instanceof File) || file.size === 0) {
       return NextResponse.json({ error: "Fichier requis" }, { status: 400 });
     }
 
     let uploaded;
     try {
-      uploaded = await saveUpload(file, `pieces/${id}`);
+      uploaded = await saveUpload(file, `pieces/${id}`, { visibility: "private" });
     } catch (e) {
       return NextResponse.json(
         { error: e instanceof Error ? e.message : "Upload échoué" },
@@ -73,7 +75,7 @@ export async function POST(
 
     const existing = await db.piece.findFirst({ where: { dossierId: id, libelle } });
     if (existing?.cheminFichier) {
-      await deleteUpload(existing.cheminFichier);
+      await deleteUpload(existing.cheminFichier, "private");
     }
 
     const data = {
@@ -93,7 +95,7 @@ export async function POST(
       data: {
         dossierId: id,
         etat: dossier.etat,
-        auteur: `${(session.user as { prenom: string }).prenom} ${(session.user as { nom: string }).nom}`,
+        auteur: `${session.user.prenom} ${session.user.nom}`,
         auteurId: userId,
         note: `Pièce « ${libelle} » téléversée (${uploaded.nomFichier}, ${uploaded.taille})`,
       },
@@ -187,14 +189,14 @@ export async function POST(
   }
 
   if (previousPath) {
-    await deleteUpload(previousPath);
+    await deleteUpload(previousPath, "private");
   }
 
   await db.historique.create({
     data: {
       dossierId: id,
       etat: dossier.etat,
-      auteur: `${(session.user as { prenom: string }).prenom} ${(session.user as { nom: string }).nom}`,
+      auteur: `${session.user.prenom} ${session.user.nom}`,
       auteurId: userId,
       note: `Pièce « ${libelle} » → ${statut.replace(/_/g, " ").toLowerCase()}`,
     },
@@ -213,8 +215,8 @@ export async function GET(
   }
 
   const { id } = await params;
-  const role = (session.user as { role?: string }).role;
-  const userId = (session.user as { id: string }).id;
+  const role = session.user.role;
+  const userId = session.user.id;
 
   const dossier = await db.dossier.findUnique({
     where: { id },

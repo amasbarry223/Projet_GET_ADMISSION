@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 type FieldErrorProps = {
   id?: string;
-  message?: string | null;
+  message?: string | null | undefined;
   className?: string;
 };
 

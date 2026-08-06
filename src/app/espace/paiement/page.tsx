@@ -18,23 +18,9 @@ import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FormPageSkeleton } from "@/components/ui/skeleton-card";
 import { getApiErrorMessageSync } from "@/lib/api-error";
-import { usePrimaryDossier } from "@/hooks/use-primary-dossier";
+import { usePrimaryDossier, type EspaceDossierSummary } from "@/hooks/use-primary-dossier";
 import { CheckCircle2, Download, Loader2, Lock, CreditCard, Smartphone, ShieldCheck, AlertCircle, Clock, FolderOpen, ArrowRight } from "lucide-react";
 
-type Dossier = {
-  id: string;
-  reference: string;
-  etat: string;
-  updatedAt: string;
-  fraisAgence: number;
-  paiementStatut?: string;
-  mrz: string;
-  candidat: { prenom: string; nom: string };
-  universite: { nom: string };
-  formation: { intitule: string; niveau: string };
-  conseiller: { prenom: string; nom: string } | null;
-  paiements: { id: string; reference: string; date: string; montant: number; moyen: string; statut: string; tranche?: string | null }[];
-};
 
 type MoyenPaiement = {
   id: number;
@@ -97,7 +83,8 @@ function PaiementInner() {
       .then((data: MoyenPaiement[]) => {
         const list = Array.isArray(data) ? data : [];
         setMethods(list);
-        if (list.length > 0) setMethod(list[0].nom);
+        const first = list[0];
+        if (first) setMethod(first.nom);
         setMethodsLoading(false);
       })
       .catch((e) => {
@@ -182,7 +169,15 @@ function PaiementInner() {
     );
   }
 
-  const d = {
+  const d: EspaceDossierSummary & {
+    fraisAgence: number;
+    paiements: NonNullable<EspaceDossierSummary["paiements"]>;
+    candidat: NonNullable<EspaceDossierSummary["candidat"]>;
+    universite: NonNullable<EspaceDossierSummary["universite"]>;
+    formation: NonNullable<EspaceDossierSummary["formation"]> & { niveau?: string };
+    mrz: string;
+    reference: string;
+  } = {
     ...dossier,
     fraisAgence: dossier.fraisAgence ?? 0,
     paiements: dossier.paiements ?? [],

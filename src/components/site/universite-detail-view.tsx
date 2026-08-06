@@ -17,9 +17,10 @@ import {
   Phone,
   ShieldCheck,
 } from "lucide-react";
+import { MediaImage } from "@/components/media-image";
 
 import { cn } from "@/lib/utils";
-import { formatFCFA, formatFCFACompact } from "@/lib/format";
+import { formatEUR, formatFCFA, formatFCFACompact } from "@/lib/format";
 import { resolveFraisAgence } from "@/lib/dossier/frais-agence";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +55,8 @@ export type FormationDetailData = {
   domaine: string;
   duree: string;
   fraisAgence: number;
+  /** Scolarité annuelle indicative (€), absente si inconnue */
+  fraisFormationEuros: number | null;
   prerequis: string[];
   piecesRequises: string[];
 };
@@ -175,7 +178,7 @@ export function UniversiteDetailView({
             <div className="mb-6 flex items-center gap-4">
               <span className="relative flex h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-blanc/40 bg-card shadow-lg sm:h-20 sm:w-20">
                 {universite.logoUrl ? (
-                  <Image
+                  <MediaImage
                     src={universite.logoUrl}
                     alt=""
                     width={80}
@@ -256,7 +259,7 @@ export function UniversiteDetailView({
               {item.label}
               {activeSection === item.id ? (
                 <motion.span
-                  layoutId={reduce ? undefined : "univ-nav-ink"}
+                  {...(!reduce ? { layoutId: "univ-nav-ink" } : {})}
                   className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-primary"
                   transition={{ type: "spring", stiffness: 380, damping: 32 }}
                 />
@@ -406,7 +409,7 @@ export function UniversiteDetailView({
                             layout={!reduce}
                             initial={reduce ? false : { opacity: 0, y: 12 }}
                             animate={{ opacity: 1, y: 0 }}
-                            exit={reduce ? undefined : { opacity: 0, y: -8 }}
+                            {...(!reduce ? { exit: { opacity: 0, y: -8 } } : {})}
                             transition={{ duration: 0.35, ease }}
                             className={cn(
                               "overflow-hidden rounded-xl border bg-card transition-shadow",
@@ -435,10 +438,18 @@ export function UniversiteDetailView({
                                 <p className="mt-2 font-display text-lg font-bold text-foreground sm:text-xl">
                                   {f.intitule}
                                 </p>
-                                <p className="mt-1 font-mono text-sm font-semibold text-primary">
+                                <p className="mt-1 font-mono text-sm font-semibold text-foreground">
+                                  {f.fraisFormationEuros != null && f.fraisFormationEuros > 0
+                                    ? formatEUR(f.fraisFormationEuros)
+                                    : "Sur devis"}{" "}
+                                  <span className="font-sans text-xs font-normal text-muted-foreground">
+                                    prix de la formation / an
+                                  </span>
+                                </p>
+                                <p className="mt-0.5 font-mono text-sm font-semibold text-primary">
                                   {formatFCFA(fraisAgence)}{" "}
                                   <span className="font-sans text-xs font-normal text-muted-foreground">
-                                    frais d&apos;agence
+                                    frais d&apos;agence GET Admission
                                     {universite.typeEtablissement === "PUBLIC"
                                       ? " (public)"
                                       : " (privé)"}
@@ -461,7 +472,7 @@ export function UniversiteDetailView({
                                   key="details"
                                   initial={reduce ? false : { height: 0, opacity: 0 }}
                                   animate={{ height: "auto", opacity: 1 }}
-                                  exit={reduce ? undefined : { height: 0, opacity: 0 }}
+                                  {...(!reduce ? { exit: { height: 0, opacity: 0 } } : {})}
                                   transition={{ duration: 0.35, ease }}
                                   className="overflow-hidden"
                                 >
@@ -608,13 +619,18 @@ export function UniversiteDetailView({
 
               <div className="relative mt-5 border-y border-border py-4">
                 <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">
-                  Frais d&apos;agence
+                  Frais d&apos;agence GET Admission
                 </p>
                 <p className="mt-1 font-mono text-base font-semibold text-foreground">
                   {formatFCFA(fraisAgence)}
                   <span className="ml-2 font-sans text-xs font-normal text-muted-foreground">
-                    {universite.typeEtablissement === "PUBLIC" ? "établissement public" : "établissement privé"}
+                    {universite.typeEtablissement === "PUBLIC"
+                      ? "barème public"
+                      : "barème privé"}
                   </span>
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Ce montant va à l&apos;agence, pas à l&apos;école. Le prix de chaque formation est indiqué ci-dessus.
                 </p>
               </div>
 
@@ -659,7 +675,9 @@ export function UniversiteDetailView({
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 p-3 backdrop-blur-md lg:hidden">
         <div className="mx-auto flex max-w-content items-center gap-3">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs text-muted-foreground">{universite.ville}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              Frais d&apos;agence GET Admission
+            </p>
             <p className="truncate font-mono text-sm font-semibold text-foreground">
               {formatFCFACompact(fraisAgence)}
             </p>

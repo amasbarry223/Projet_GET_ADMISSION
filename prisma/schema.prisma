@@ -62,6 +62,7 @@ model User {
   conversationsConseiller Conversation[] @relation("ConvConseiller")
   notifications        Notification[]
   profilAcademique     ProfilAcademique?
+  demandesCorrectionEmises DemandeCorrection[] @relation("ConseillerDemandesCorrection")
 }
 
 /* --------------------------- Catalogue --------------------------- */
@@ -142,19 +143,21 @@ model ProfilAcademique {
 }
 
 model Formation {
-  id             String      @id @default(cuid())
-  universiteId   String
-  intitule       String
-  niveau         String // Licence | Master | Doctorat
-  domaine        String
-  duree          String
-  fraisAgence    Int
-  prerequis      String // JSON array
-  piecesRequises String // JSON array
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
-  universite     Universite  @relation(fields: [universiteId], references: [id], onDelete: Cascade)
-  dossiers       Dossier[]
+  id                   String      @id @default(cuid())
+  universiteId         String
+  intitule             String
+  niveau               String // Licence | Master | Doctorat
+  domaine              String
+  duree                String
+  fraisAgence          Int
+  /// Scolarité annuelle indicative (€), optionnelle — distincte des frais d'agence (FCFA)
+  fraisFormationEuros  Int?
+  prerequis            String // JSON array
+  piecesRequises       String // JSON array
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+  universite           Universite  @relation(fields: [universiteId], references: [id], onDelete: Cascade)
+  dossiers             Dossier[]
 }
 
 /* --------------------------- Dossiers --------------------------- */
@@ -201,6 +204,7 @@ model Dossier {
   historiques     Historique[]
   attestation     Attestation?
   conversation    Conversation?
+  demandesCorrection DemandeCorrection[]
 
   @@index([candidatId])
   @@index([conseillerId])
@@ -245,6 +249,36 @@ model Historique {
   auteurId  String?
 
   @@index([dossierId])
+}
+
+/// Cycle de vie d'une demande de correction (conseiller → candidat → conseiller)
+enum StatutDemandeCorrection {
+  /// Motif envoyé au candidat, en attente de sa correction
+  EN_ATTENTE
+  /// Le candidat a resoumis le dossier, en attente de re-vérification par le conseiller
+  SOUMISE
+  /// Le conseiller a jugé la correction conforme et validé le dossier
+  VALIDEE
+  /// Correction jugée non conforme : remplacée par une nouvelle demande (motif différent)
+  REMPLACEE
+}
+
+/// Traçabilité complète des demandes de correction successives sur un dossier (§ boucle correction ↔ vérification)
+model DemandeCorrection {
+  id           String                  @id @default(cuid())
+  dossierId    String
+  conseillerId String
+  motif        String
+  statut       StatutDemandeCorrection @default(EN_ATTENTE)
+  createdAt    DateTime                @default(now())
+  soumiseLe    DateTime?
+  traiteeLe    DateTime?
+
+  dossier      Dossier                 @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  conseiller   User                    @relation("ConseillerDemandesCorrection", fields: [conseillerId], references: [id])
+
+  @@index([dossierId, createdAt])
+  @@index([dossierId, statut])
 }
 
 /* --------------------------- Finance --------------------------- */
@@ -304,6 +338,11 @@ model Attestation {
   dateEmission  DateTime  @default(now())
   modeRemise    String    @default("telechargement") // telechargement | agence
   emetteurId    String
+  /// Document réel de préinscription envoyé par l'université, téléversé par le conseiller
+  /// (chemin objet Supabase Storage, bucket privé). Null pour les attestations émises
+  /// avant l'introduction de l'upload (PDF généré par l'agence, cf. /api/attestation-pdf).
+  cheminFichier String?
+  nomFichier    String?
   dossier       Dossier   @relation(fields: [dossierId], references: [id], onDelete: Cascade)
   emetteur      User      @relation("AttestationEmetteur", fields: [emetteurId], references: [id])
 }

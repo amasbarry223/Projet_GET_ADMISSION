@@ -200,7 +200,10 @@ function BackOfficeLoginInner() {
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
-                  setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                  setFieldErrors((prev) => {
+                    const { email: _, ...rest } = prev;
+                    return rest;
+                  });
                 }}
                 className="h-11 rounded-lg border-ligne bg-porcelaine/40 pl-9 focus-visible:bg-blanc"
                 placeholder="prenom.nom@getadm.com"
@@ -235,7 +238,10 @@ function BackOfficeLoginInner() {
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
-                  setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                  setFieldErrors((prev) => {
+                    const { password: _, ...rest } = prev;
+                    return rest;
+                  });
                 }}
                 className="h-11 rounded-lg border-ligne bg-porcelaine/40 pl-9 focus-visible:bg-blanc"
                 placeholder="••••••••"

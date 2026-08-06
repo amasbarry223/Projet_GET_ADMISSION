@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { hasPermission } from "@/lib/rbac";
 import type { ColumnDef, Table } from "@tanstack/react-table";
 import {
   DataTable,
@@ -31,7 +33,7 @@ import { ETATS, etatParCode, COULEUR_BADGE } from "@/lib/etats";
 import { formatFCFA, formatDate } from "@/lib/format";
 import { apiFetch, apiJson } from "@/lib/api-client";
 import { toast } from "sonner";
-import { FolderOpen, UserCog, Download, Eye, UserPlus, Send, Loader2 } from "lucide-react";
+import { FolderOpen, UserCog, Download, Eye, UserPlus, UserMinus, Send, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type DossierRow = {
@@ -50,7 +52,10 @@ type Conseiller = { id: string; prenom: string; nom: string; role: string; actif
 
 export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
   const router = useRouter();
-  const [data] = React.useState<DossierRow[]>(initialData);
+  const { data: session } = useSession();
+  const canAssign = hasPermission(session?.user?.role, "dossiers.assign");
+  const canTransmettre = hasPermission(session?.user?.role, "dossiers.transmettre");
+  const data = initialData;
 
   const universiteOptions = React.useMemo(() => {
     return Array.from(new Set(data.map((r) => r.universite).filter((v) => v && v !== "—"))).sort();
@@ -114,6 +119,19 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
     router.refresh();
   }, [assignTargets, conseillers, router, selectedConseillerId]);
 
+  const unassignConseiller = React.useCallback(
+    async (row: DossierRow) => {
+      const result = await apiJson(`/api/dossiers/${row.id}`, "PUT", { conseillerId: null });
+      if (!result.ok) {
+        toast.error("Désaffectation impossible", { description: result.error });
+        return;
+      }
+      toast.success("Conseiller désaffecté", { description: `${row.reference} n'a plus de conseiller affecté.` });
+      router.refresh();
+    },
+    [router],
+  );
+
   const actions: ActionItem<DossierRow>[] = React.useMemo(
     () => [
       {
@@ -122,13 +140,32 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
         onClick: (row) => router.push(`/admin/dossiers/${row.id}`),
       },
       {
-        label: "Affecter un conseiller",
+        label: (row) => (row.conseiller === "Non affecté" ? "Affecter un conseiller" : "Réaffecter un conseiller"),
         icon: UserPlus,
+        hidden: () => !canAssign,
+        disabled: (row) => row.etat.toLowerCase() === "brouillon" || row.etat.toUpperCase() === "CLOTURE",
+        disabledReason: (row) =>
+          row.etat.toUpperCase() === "CLOTURE"
+            ? "Le dossier est clôturé."
+            : "Le dossier doit être soumis avant d'être affecté à un conseiller.",
         onClick: (row) => openAssign([row]),
+      },
+      {
+        label: "Désaffecter le conseiller",
+        icon: UserMinus,
+        tone: "danger",
+        hidden: (row) => !canAssign || row.conseiller === "Non affecté" || row.etat.toUpperCase() === "CLOTURE",
+        confirm: {
+          title: "Désaffecter le conseiller ?",
+          description: (row) => `${row.conseiller} ne sera plus responsable du dossier ${row.reference}.`,
+          confirmLabel: "Désaffecter",
+          onConfirm: unassignConseiller,
+        },
       },
       {
         label: "Transmettre à l'université",
         icon: Send,
+        hidden: (row) => !canTransmettre || row.etat.toUpperCase() === "CLOTURE",
         confirm: {
           title: "Transmettre à l'université ?",
           description: (row) =>
@@ -146,7 +183,7 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
         },
       },
     ],
-    [router, openAssign],
+    [router, openAssign, unassignConseiller, canAssign, canTransmettre],
   );
 
   const columns: ColumnDef<DossierRow>[] = React.useMemo(
@@ -306,12 +343,18 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
         selectionBar={(table: Table<DossierRow>) => {
           const selectedRows = table.getFilteredSelectedRowModel().rows;
           const count = selectedRows.length;
+          const hasBrouillonOuCloture = selectedRows.some(
+            (r) => r.original.etat.toLowerCase() === "brouillon" || r.original.etat.toUpperCase() === "CLOTURE",
+          );
           return (
             <>
+              {canAssign && (
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 border-ligne bg-blanc"
+                className="h-8 border-ligne bg-card"
+                disabled={hasBrouillonOuCloture}
+                title={hasBrouillonOuCloture ? "Retirez les dossiers en brouillon ou clôturés de la sélection pour affecter un conseiller." : undefined}
                 onClick={() =>
                   openAssign(
                     selectedRows.map((r) => r.original),
@@ -321,10 +364,11 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
               >
                 <UserCog className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Affecter un conseiller
               </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 border-ligne bg-blanc"
+                className="h-8 border-ligne bg-card"
                 onClick={() => window.open("/api/admin/export/dossiers", "_blank")}
               >
                 <Download className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Exporter ({count})

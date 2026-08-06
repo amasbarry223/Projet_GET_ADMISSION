@@ -3,8 +3,6 @@
 import { useSession } from "next-auth/react";
 import type { Role } from "@prisma/client";
 
-type RoleLower = "candidat" | "conseiller" | "financier" | "admin" | "super-admin";
-
 /**
  * Hook RBAC — vérifie les permissions basées sur le rôle de l'utilisateur connecté.
  */

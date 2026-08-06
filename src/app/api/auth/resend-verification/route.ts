@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { parseOrRespond } from "@/lib/api-auth";
 import { db } from "@/lib/db";
+import { resendVerificationSchema } from "@/lib/validations";
 import { sendMail, verificationEmailHtml } from "@/lib/mail";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { createVerifyToken } from "@/lib/verify-token";
@@ -13,17 +15,16 @@ export async function POST(request: Request) {
   const rateLimited = await checkRateLimit(getClientId(request), "/api/auth/resend-verification");
   if (rateLimited) return rateLimited;
 
-  let body: { email?: string; dryRun?: boolean };
+  let raw: unknown;
   try {
-    body = await request.json();
+    raw = await request.json();
   } catch {
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
-
-  const email = (body.email || "").toLowerCase().trim();
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return NextResponse.json({ error: "E-mail invalide" }, { status: 400 });
-  }
+  const parsed = parseOrRespond(resendVerificationSchema, raw);
+  if (!parsed.ok) return parsed.response;
+  const { email: emailRaw, dryRun } = parsed.data;
+  const email = emailRaw.toLowerCase().trim();
 
   const user = await db.user.findUnique({
     where: { email },
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
 
   // Ne pas révéler si l'e-mail n'existe pas (sauf dryRun pour UX login)
   if (!user) {
-    if (body.dryRun) {
+    if (dryRun) {
       return NextResponse.json({ needsVerification: false });
     }
     return NextResponse.json({
@@ -50,13 +51,13 @@ export async function POST(request: Request) {
   }
 
   if (user.emailVerified) {
-    if (body.dryRun) {
+    if (dryRun) {
       return NextResponse.json({ needsVerification: false });
     }
     return NextResponse.json({ error: "Cet e-mail est déjà vérifié." }, { status: 400 });
   }
 
-  if (body.dryRun) {
+  if (dryRun) {
     return NextResponse.json({ needsVerification: true }, { status: 409 });
   }
 

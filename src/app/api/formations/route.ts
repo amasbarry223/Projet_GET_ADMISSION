@@ -36,6 +36,9 @@ export async function POST(request: Request) {
       domaine: data.domaine,
       duree: data.duree,
       fraisAgence: frais,
+      ...(data.fraisFormationEuros !== undefined
+        ? { fraisFormationEuros: data.fraisFormationEuros }
+        : {}),
       prerequis: JSON.stringify(data.prerequis ?? []),
       piecesRequises: JSON.stringify(data.piecesRequises ?? []),
     },

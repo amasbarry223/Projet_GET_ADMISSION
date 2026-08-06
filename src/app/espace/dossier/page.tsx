@@ -341,7 +341,7 @@ function DossierWizard() {
             : undefined;
         toastApiErrorSync(response.status, {
           title: "Soumission impossible",
-          description: detail,
+          ...(detail !== undefined ? { description: detail } : {}),
           body: data,
         });
         if (manquantes.length > 0) setStep(DOSSIER_WIZARD_STEPS.DOCUMENTS);
@@ -398,6 +398,10 @@ function DossierWizard() {
     ? `${existingDossier.conseiller.prenom} ${existingDossier.conseiller.nom}`
     : "Non affecté";
 
+  const demandesCorrection = existingDossier?.demandesCorrection ?? [];
+  const motifCorrectionActuel = demandesCorrection[0]?.motif ?? null;
+  const historiqueMotifs = demandesCorrection.slice(1);
+
   return (
     <div className="space-y-6">
       {isResubmit && (
@@ -405,7 +409,25 @@ function DossierWizard() {
           <AlertCircle className="h-4 w-4 text-amber-600" strokeWidth={1.5} />
           <AlertTitle>Corrections demandées</AlertTitle>
           <AlertDescription>
-            Corrigez les pièces marquées « À corriger », puis renvoyez le dossier.
+            {motifCorrectionActuel ? (
+              <>Votre conseiller a demandé une correction : « {motifCorrectionActuel} »</>
+            ) : (
+              "Corrigez les pièces marquées « À corriger », puis renvoyez le dossier."
+            )}
+            {historiqueMotifs.length > 0 && (
+              <details className="mt-2 text-sm">
+                <summary className="cursor-pointer font-medium text-amber-700">
+                  {historiqueMotifs.length} motif(s) précédent(s)
+                </summary>
+                <ul className="mt-1.5 space-y-1">
+                  {historiqueMotifs.map((m) => (
+                    <li key={m.id} className="text-muted-foreground">
+                      <span className="font-mono text-xs">{new Date(m.createdAt).toLocaleDateString("fr-FR")}</span> — {m.motif}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -541,7 +563,9 @@ function DossierWizard() {
             profil={profil}
             isEditable={isEditable}
             onChange={setProfil}
-            formationPiecesRequises={formation?.piecesRequises}
+            {...(formation?.piecesRequises != null
+              ? { formationPiecesRequises: formation.piecesRequises }
+              : {})}
           />
         )}
 

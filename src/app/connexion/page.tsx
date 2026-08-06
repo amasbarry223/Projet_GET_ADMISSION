@@ -175,7 +175,10 @@ function ConnexionInner() {
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
-                setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                setFieldErrors((prev) => {
+                  const { email: _, ...rest } = prev;
+                  return rest;
+                });
               }}
               className="pl-9"
               placeholder="vous@exemple.com"
@@ -209,7 +212,10 @@ function ConnexionInner() {
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
-                setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                setFieldErrors((prev) => {
+                  const { password: _, ...rest } = prev;
+                  return rest;
+                });
               }}
               className="pl-9"
               placeholder="••••••••"

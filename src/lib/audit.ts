@@ -26,7 +26,7 @@ export async function logAudit(params: {
   ip?: string;
 }): Promise<void> {
   try {
-    const user = params.session?.user as any;
+    const user = params.session?.user;
     await db.auditLog.create({
       data: {
         userId: user?.id ?? null,

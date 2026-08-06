@@ -85,7 +85,12 @@ export async function initiatePaytechPayment(
       };
     }
 
-    return { ok: true, mode: "paytech", redirectUrl, token: data.token };
+    return {
+      ok: true,
+      mode: "paytech",
+      redirectUrl,
+      ...(data.token !== undefined ? { token: data.token } : {}),
+    };
   } catch (e) {
     return {
       ok: false,

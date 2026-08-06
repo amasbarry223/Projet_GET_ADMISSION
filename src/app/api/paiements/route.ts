@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { paiementSchema, validate } from "@/lib/validations";
+import { parseOrRespond } from "@/lib/api-auth";
+import { paiementPatchSchema, paiementSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { logAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notifications";
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const role = (session.user as { role?: string }).role;
+  const role = session.user.role;
   if (role === "CANDIDAT") {
     return NextResponse.json(
       {
@@ -46,8 +47,8 @@ export async function POST(request: Request) {
   const { dossierId, montant, moyen, tranche } = parsed.data;
   const forceStatut = typeof body.statut === "string" ? body.statut : null;
 
-  const userId = (session.user as { id: string }).id;
-  const auteurLabel = `${(session.user as { prenom: string }).prenom} ${(session.user as { nom: string }).nom}`;
+  const userId = session.user.id;
+  const auteurLabel = `${session.user.prenom} ${session.user.nom}`;
 
   const dossierProbe = await db.dossier.findUnique({
     where: { id: dossierId },
@@ -137,7 +138,7 @@ export async function POST(request: Request) {
         paiement,
         candidatId: locked.candidatId,
         candidat: locked.candidat,
-        etatApres,
+        ...(etatApres !== undefined ? { etatApres } : {}),
       };
     });
   } catch (e) {
@@ -219,20 +220,23 @@ export async function PATCH(request: Request) {
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
-  const role = (session.user as { role?: string }).role;
+  const role = session.user.role;
   if (!hasPermission(role, "finance.write")) {
     return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
-  const body = await request.json();
-  const id = String(body.id || "");
-  const statut = String(body.statut || "");
-  if (!id || !["rembourse", "echoue", "reussi", "en_attente"].includes(statut)) {
-    return NextResponse.json({ error: "id et statut valides requis" }, { status: 400 });
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
+  const parsed = parseOrRespond(paiementPatchSchema, body);
+  if (!parsed.ok) return parsed.response;
+  const { id, statut } = parsed.data;
 
-  const userId = (session.user as { id: string }).id;
-  const auteurLabel = `${(session.user as { prenom: string }).prenom} ${(session.user as { nom: string }).nom}`;
+  const userId = session.user.id;
+  const auteurLabel = `${session.user.prenom} ${session.user.nom}`;
 
   type PatchResult = {
     paiement: { id: string; reference: string; montant: number; moyen: string; dossierId: string; statut: string };
@@ -420,8 +424,8 @@ export async function GET() {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const role = (session.user as { role?: string }).role;
-  const userId = (session.user as { id: string }).id;
+  const role = session.user.role;
+  const userId = session.user.id;
 
   let paiements;
   if (role === "CANDIDAT") {

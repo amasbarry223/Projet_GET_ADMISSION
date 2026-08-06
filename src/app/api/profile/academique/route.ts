@@ -45,7 +45,7 @@ export async function GET() {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const userId = (session.user as { id: string }).id;
+  const userId = session.user.id;
   const profil = await db.profilAcademique.findUnique({ where: { userId } });
   if (!profil) {
     return NextResponse.json(null);
@@ -60,7 +60,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const role = (session.user as { role?: string }).role;
+  const role = session.user.role;
   if (role !== "CANDIDAT") {
     return NextResponse.json(
       { error: "Réservé aux candidats" },
@@ -68,7 +68,7 @@ export async function PUT(request: Request) {
     );
   }
 
-  const userId = (session.user as { id: string }).id;
+  const userId = session.user.id;
 
   let body: unknown;
   try {

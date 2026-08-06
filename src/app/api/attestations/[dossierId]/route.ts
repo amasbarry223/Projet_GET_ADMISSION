@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { parseOrRespond } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { isStaff, requirePermission } from "@/lib/rbac";
+import { attestationModeRemiseSchema } from "@/lib/validations";
 import { logAudit } from "@/lib/audit";
 
 // GET /api/attestations/[dossierId] — attestation d'un dossier (auth requis)
@@ -16,8 +18,8 @@ export async function GET(
   }
 
   const { dossierId } = await params;
-  const role = (session.user as { role?: string }).role;
-  const userId = (session.user as { id: string }).id;
+  const role = session.user.role;
+  const userId = session.user.id;
 
   const dossier = await db.dossier.findUnique({
     where: { id: dossierId },
@@ -72,8 +74,8 @@ export async function PATCH(
   }
 
   const { dossierId } = await params;
-  const role = (session.user as { role?: string }).role;
-  const userId = (session.user as { id: string }).id;
+  const role = session.user.role;
+  const userId = session.user.id;
 
   let body: unknown;
   try {
@@ -82,17 +84,9 @@ export async function PATCH(
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
 
-  const modeRemise =
-    typeof body === "object" && body && "modeRemise" in body
-      ? String((body as { modeRemise: unknown }).modeRemise)
-      : "";
-
-  if (modeRemise !== "telechargement" && modeRemise !== "agence") {
-    return NextResponse.json(
-      { error: "modeRemise doit être 'telechargement' ou 'agence'" },
-      { status: 400 }
-    );
-  }
+  const parsed = parseOrRespond(attestationModeRemiseSchema, body);
+  if (!parsed.ok) return parsed.response;
+  const { modeRemise } = parsed.data;
 
   const dossier = await db.dossier.findUnique({
     where: { id: dossierId },

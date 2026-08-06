@@ -44,7 +44,7 @@ async function main() {
     },
   });
 
-  const conseiller2 = await db.user.upsert({
+  await db.user.upsert({
     where: { email: "o.nguema@getadm.com" },
     update: { isDemo: true, emailVerified: new Date(), passwordHash },
     create: {
@@ -59,7 +59,7 @@ async function main() {
     },
   });
 
-  const financier = await db.user.upsert({
+  await db.user.upsert({
     where: { email: "m.kouassi@getadm.com" },
     update: { isDemo: true, emailVerified: new Date(), passwordHash },
     create: {
@@ -74,7 +74,7 @@ async function main() {
     },
   });
 
-  const admin = await db.user.upsert({
+  await db.user.upsert({
     where: { email: "y.bensaid@getadm.com" },
     update: { isDemo: true, emailVerified: new Date(), passwordHash },
     create: {
@@ -89,7 +89,7 @@ async function main() {
     },
   });
 
-  const superAdmin = await db.user.upsert({
+  await db.user.upsert({
     where: { email: "o.toure@getadm.com" },
     update: { isDemo: true, emailVerified: new Date(), passwordHash },
     create: {

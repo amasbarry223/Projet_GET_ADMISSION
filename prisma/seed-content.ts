@@ -52,7 +52,8 @@ async function main() {
   // --- Nationalites ---
   const nationalites = ["Sénégalaise", "Ivoirienne", "Malienne", "Burkinabè", "Guinéenne", "Béninoise", "Togolaise", "Nigérienne", "Camerounaise", "Marocaine", "Tunisienne", "Gabonaise", "Congolaise", "Autre"];
   for (let i = 0; i < nationalites.length; i++) {
-    await db.nationalite.upsert({ where: { nom: nationalites[i] }, update: { ordre: i + 1 }, create: { nom: nationalites[i], ordre: i + 1 } });
+    const nom = nationalites[i]!;
+    await db.nationalite.upsert({ where: { nom }, update: { ordre: i + 1 }, create: { nom, ordre: i + 1 } });
   }
   console.log("✓ Nationalités créées");
 
@@ -71,7 +72,8 @@ async function main() {
   // --- ObjetContact ---
   const objets = ["Question générale", "Demande de dossier", "Suivi de dossier", "Partenariat", "Autre"];
   for (let i = 0; i < objets.length; i++) {
-    await db.objetContact.upsert({ where: { id: i + 1 }, update: { nom: objets[i], ordre: i + 1 }, create: { nom: objets[i], ordre: i + 1 } });
+    const nom = objets[i]!;
+    await db.objetContact.upsert({ where: { id: i + 1 }, update: { nom, ordre: i + 1 }, create: { nom, ordre: i + 1 } });
   }
   console.log("✓ Objets contact créés");
 

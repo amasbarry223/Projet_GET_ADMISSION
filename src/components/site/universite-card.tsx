@@ -1,13 +1,12 @@
 "use client";
 
-import * as React from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { formatFCFACompact } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
+import { MediaImage } from "@/components/media-image";
 
 /** Type local pour la carte université (compatible DB et API). */
 export type UniversiteCardData = {
@@ -61,7 +60,7 @@ export function UniversiteCard({ universite, className, showFooter = true }: Pro
         aria-hidden
       >
         {universite.coverUrl ? (
-          <Image
+          <MediaImage
             src={universite.coverUrl}
             alt=""
             fill
@@ -73,7 +72,7 @@ export function UniversiteCard({ universite, className, showFooter = true }: Pro
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
         <span className="absolute left-1/2 top-1/2 z-10 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full border-2 border-white/90 bg-white/95 shadow-md">
           {universite.logoUrl ? (
-            <Image
+            <MediaImage
               src={universite.logoUrl}
               alt=""
               width={56}
@@ -128,7 +127,7 @@ export function UniversiteCard({ universite, className, showFooter = true }: Pro
           <div className="mt-auto flex items-end justify-between border-t border-border pt-3">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">
-                Frais d&apos;agence
+                Frais d&apos;agence GET Admission
               </p>
               <p className="mt-0.5 font-mono text-sm font-semibold text-foreground">
                 {formatFCFACompact(universite.fraisMin)} –{" "}

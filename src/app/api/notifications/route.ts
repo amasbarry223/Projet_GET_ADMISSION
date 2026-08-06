@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { parseOrRespond } from "@/lib/api-auth";
 import { db } from "@/lib/db";
+import { notificationsMarkReadSchema } from "@/lib/validations";
 
 // GET /api/notifications — notifications de l'utilisateur connecté
 export async function GET(request: Request) {
@@ -10,7 +12,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const userId = (session.user as { id: string }).id;
+  const userId = session.user.id;
   const { searchParams } = new URL(request.url);
   const unreadOnly = searchParams.get("unread") === "1";
 
@@ -35,14 +37,22 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const userId = (session.user as { id: string }).id;
-  const body = await request.json().catch(() => ({}));
+  const userId = session.user.id;
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
+  }
+  const parsed = parseOrRespond(notificationsMarkReadSchema, body);
+  if (!parsed.ok) return parsed.response;
+  const data = parsed.data;
 
-  if (body.all) {
+  if (data.all) {
     await db.notification.updateMany({ where: { userId, lu: false }, data: { lu: true } });
-  } else if (Array.isArray(body.ids) && body.ids.length > 0) {
+  } else if (data.ids?.length) {
     await db.notification.updateMany({
-      where: { userId, id: { in: body.ids } },
+      where: { userId, id: { in: data.ids } },
       data: { lu: true },
     });
   }

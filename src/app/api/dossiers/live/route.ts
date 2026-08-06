@@ -31,6 +31,15 @@ function serializeLiveDossier(d: {
   paiements: { date: Date }[];
   historiques: { date: Date }[];
   conversation: { nonLusCandidat: number } | null;
+  demandesCorrection: {
+    id: string;
+    motif: string;
+    statut: string;
+    createdAt: Date;
+    soumiseLe: Date | null;
+    traiteeLe: Date | null;
+    conseiller: { prenom: string; nom: string };
+  }[];
 }) {
   return {
     ...d,
@@ -49,6 +58,12 @@ function serializeLiveDossier(d: {
       date: h.date.toISOString(),
     })),
     conversation: d.conversation,
+    demandesCorrection: d.demandesCorrection.map((c) => ({
+      ...c,
+      createdAt: c.createdAt.toISOString(),
+      soumiseLe: c.soumiseLe?.toISOString() ?? null,
+      traiteeLe: c.traiteeLe?.toISOString() ?? null,
+    })),
   };
 }
 
@@ -65,8 +80,8 @@ export async function GET(request: Request) {
     });
   }
 
-  const role = (session.user as { role?: string }).role;
-  const userId = (session.user as { id?: string }).id;
+  const role = session.user.role;
+  const userId = session.user.id;
   if (role !== "CANDIDAT" || !userId) {
     return new Response(JSON.stringify({ error: "Réservé aux candidats" }), {
       status: 403,

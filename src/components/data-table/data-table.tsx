@@ -4,7 +4,6 @@ import * as React from "react";
 import {
   type ColumnDef,
   type ColumnFiltersState,
-  type Row,
   type SortingState,
   type VisibilityState,
   flexRender,
@@ -14,7 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ChevronDown, ChevronUp, ChevronsUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, MoreHorizontal, AlertTriangle, Info } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, MoreHorizontal, AlertTriangle, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDebounce } from "@/lib/use-debounce";
 import { Button } from "@/components/ui/button";
@@ -111,11 +110,15 @@ export function createSelectColumn<TData>(): ColumnDef<TData> {
 /* ----------------------- Colonne Actions (dropdown menu cohérent) ----------------------- */
 
 export type ActionItem<TData> = {
-  label: string;
+  label: string | ((row: TData) => string);
   icon: React.ElementType;
   tone?: "default" | "danger";
   /** Masquer l'action pour certaines lignes */
   hidden?: (row: TData) => boolean;
+  /** Désactiver l'action pour certaines lignes (visible mais non cliquable) */
+  disabled?: (row: TData) => boolean;
+  /** Raison affichée (tooltip natif) quand l'action est désactivée */
+  disabledReason?: (row: TData) => string | undefined;
   /** Action directe (toast, navigation, etc.) */
   onClick?: (row: TData) => void;
   /** Action nécessitant confirmation (destructive / irréversible) — ouvre un AlertDialog */
@@ -134,7 +137,16 @@ export function createActionsColumn<TData>(
   return {
     id: "actions",
     header: () => <span className="sr-only">Actions</span>,
-    cell: ({ row }) => <RowActions row={row.original} actions={actions} ariaLabel={options?.ariaLabel?.(row.original)} />,
+    cell: ({ row }) => {
+      const ariaLabel = options?.ariaLabel?.(row.original);
+      return (
+        <RowActions
+          row={row.original}
+          actions={actions}
+          {...(ariaLabel !== undefined ? { ariaLabel } : {})}
+        />
+      );
+    },
     enableSorting: false,
     enableHiding: false,
   };
@@ -153,15 +165,33 @@ function RowActions<TData>({ row, actions, ariaLabel }: { row: TData; actions: A
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Actions</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {visible.map((action, i) =>
-            action.confirm ? (
+          {visible.map((action, i) => {
+            const label = typeof action.label === "function" ? action.label(row) : action.label;
+            const isDisabled = action.disabled?.(row) ?? false;
+            const disabledReason = isDisabled ? action.disabledReason?.(row) : undefined;
+
+            if (isDisabled) {
+              return (
+                <DropdownMenuItem
+                  key={i}
+                  disabled
+                  title={disabledReason}
+                  className="gap-2 text-sm"
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  <action.icon className="h-4 w-4" strokeWidth={1.5} /> {label}
+                </DropdownMenuItem>
+              );
+            }
+
+            return action.confirm ? (
               <AlertDialog key={i}>
                 <AlertDialogTrigger asChild>
                   <DropdownMenuItem
                     className={cn("gap-2 text-sm", action.tone === "danger" && "text-carmin focus:text-carmin")}
                     onSelect={(e) => e.preventDefault()}
                   >
-                    <action.icon className="h-4 w-4" strokeWidth={1.5} /> {action.label}
+                    <action.icon className="h-4 w-4" strokeWidth={1.5} /> {label}
                   </DropdownMenuItem>
                 </AlertDialogTrigger>
                 <AlertDialogContent className="bg-blanc">
@@ -191,10 +221,10 @@ function RowActions<TData>({ row, actions, ariaLabel }: { row: TData; actions: A
                 className={cn("gap-2 text-sm", action.tone === "danger" && "text-carmin focus:text-carmin")}
                 onClick={() => action.onClick?.(row)}
               >
-                <action.icon className="h-4 w-4" strokeWidth={1.5} /> {action.label}
+                <action.icon className="h-4 w-4" strokeWidth={1.5} /> {label}
               </DropdownMenuItem>
-            )
-          )}
+            );
+          })}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

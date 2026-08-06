@@ -1,4 +1,3 @@
-import * as React from "react";
 
 import { HomeHero } from "@/components/sections/hero";
 import { PartnerMarquee } from "@/components/sections/partner-marquee";
@@ -12,6 +11,7 @@ import { FinalCta } from "@/components/sections/final-cta";
 import { HorizontalCarnet } from "@/components/site/horizontal-carnet";
 
 import { db } from "@/lib/db";
+import { parseJsonArray } from "@/lib/parse-json";
 import { ETATS } from "@/lib/etats";
 import { isValidPartnerLogo } from "@/lib/partner-logos";
 
@@ -56,8 +56,8 @@ export default async function AccueilPage() {
   });
   const mapUniv = (u: (typeof univRows)[0]) => ({
     ...u,
-    domaines: JSON.parse(u.domaines) as string[],
-    pointsForts: JSON.parse(u.pointsForts) as string[],
+    domaines: parseJsonArray(u.domaines),
+    pointsForts: parseJsonArray(u.pointsForts),
   });
   const universities = univRows.map(mapUniv);
 
@@ -132,9 +132,11 @@ export default async function AccueilPage() {
           parcours: t.parcours,
           pays: t.pays,
         }))}
-        candidateCountLabel={
-          candidateStat ? `${candidateStat.valeur} ${candidateStat.libelle.toLowerCase()}` : undefined
-        }
+        {...(candidateStat
+          ? {
+              candidateCountLabel: `${candidateStat.valeur} ${candidateStat.libelle.toLowerCase()}`,
+            }
+          : {})}
       />
       <PartnersGrid
         partners={universities.map((u) => ({

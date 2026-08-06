@@ -1,8 +1,14 @@
-import { mkdir, writeFile, unlink } from "fs/promises";
-import path from "path";
 import { randomBytes } from "crypto";
+import path from "path";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
-const UPLOAD_ROOT = path.join(process.cwd(), "upload");
+export type StorageVisibility = "public" | "private";
+
+const BUCKET = {
+  public: "public-media",
+  private: "private-docs",
+} as const;
+
 const MAX_BYTES = 10 * 1024 * 1024; // 10 Mo (NFR)
 
 const ALLOWED_MIME: Record<string, string> = {
@@ -11,6 +17,14 @@ const ALLOWED_MIME: Record<string, string> = {
   "image/jpg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
+};
+
+const MIME_FROM_EXT: Record<string, string> = {
+  pdf: "application/pdf",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
 };
 
 /** Signatures magiques (magic bytes) pour les formats autorisés */
@@ -47,8 +61,41 @@ function detectExtFromMagic(buffer: Buffer): string | null {
   return null;
 }
 
-export function getUploadRoot() {
-  return UPLOAD_ROOT;
+function bucketFor(visibility: StorageVisibility) {
+  return BUCKET[visibility];
+}
+
+function sanitizeSubdir(subdir: string): string {
+  return subdir.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+}
+
+/**
+ * Extrait le chemin objet depuis une URL publique Supabase Storage,
+ * ou retourne le chemin tel quel s'il n'est pas une URL absolue.
+ * Ignore les anciennes URLs locales `/uploads/...`.
+ */
+export function storagePathFromUrlOrPath(urlOrPath: string | null | undefined): string | null {
+  if (!urlOrPath) return null;
+  const value = urlOrPath.trim();
+  if (!value) return null;
+
+  // Legacy FS paths — plus de fichier local en prod
+  if (value.startsWith("/uploads/") || value.startsWith("upload/")) {
+    return null;
+  }
+
+  const publicMarker = `/storage/v1/object/public/${BUCKET.public}/`;
+  const idx = value.indexOf(publicMarker);
+  if (idx !== -1) {
+    return decodeURIComponent(value.slice(idx + publicMarker.length).split("?")[0] ?? "");
+  }
+
+  // Chemin relatif storage déjà stocké (private-docs)
+  if (!value.startsWith("http://") && !value.startsWith("https://")) {
+    return value.replace(/^\/+/, "");
+  }
+
+  return null;
 }
 
 export function formatTaille(bytes: number): string {
@@ -57,10 +104,21 @@ export function formatTaille(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
 }
 
+export type SaveUploadResult = {
+  /** Chemin objet dans le bucket (ex. partenaires/{id}/file.png) */
+  cheminRelatif: string;
+  /** URL publique CDN — non null si visibility = public */
+  publicUrl: string | null;
+  nomFichier: string;
+  taille: string;
+  type: "pdf" | "image" | "autre";
+};
+
 export async function saveUpload(
   file: File,
-  subdir: string
-): Promise<{ cheminRelatif: string; nomFichier: string; taille: string; type: "pdf" | "image" | "autre" }> {
+  subdir: string,
+  options: { visibility: StorageVisibility },
+): Promise<SaveUploadResult> {
   if (file.size > MAX_BYTES) {
     throw new Error("Fichier trop volumineux (max 10 Mo)");
   }
@@ -75,40 +133,97 @@ export async function saveUpload(
   if (!magicExt) {
     throw new Error("Contenu fichier non reconnu (signature invalide)");
   }
-  // Le type déclaré client doit coller au contenu (jpg/jpeg → jpg)
   if (magicExt !== claimedExt) {
     throw new Error("Type MIME incohérent avec le contenu du fichier");
   }
 
-  const dir = path.join(UPLOAD_ROOT, subdir);
-  await mkdir(dir, { recursive: true });
-
   const safeName = `${Date.now()}-${randomBytes(6).toString("hex")}.${magicExt}`;
-  const abs = path.join(dir, safeName);
-  await writeFile(abs, buffer);
+  const objectPath = `${sanitizeSubdir(subdir)}/${safeName}`;
+  const bucket = bucketFor(options.visibility);
+  const contentType = MIME_FROM_EXT[magicExt] ?? file.type;
+
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase.storage.from(bucket).upload(objectPath, buffer, {
+    contentType,
+    upsert: false,
+    cacheControl: "3600",
+  });
+
+  if (error) {
+    throw new Error(error.message || "Upload échoué");
+  }
+
+  let publicUrl: string | null = null;
+  if (options.visibility === "public") {
+    const { data } = supabase.storage.from(bucket).getPublicUrl(objectPath);
+    publicUrl = data.publicUrl;
+  }
 
   const type: "pdf" | "image" | "autre" = magicExt === "pdf" ? "pdf" : "image";
   return {
-    cheminRelatif: path.join(subdir, safeName).replace(/\\/g, "/"),
+    cheminRelatif: objectPath,
+    publicUrl,
     nomFichier: file.name || safeName,
     taille: formatTaille(file.size),
     type,
   };
 }
 
-export function resolveUploadPath(cheminRelatif: string): string {
-  const resolved = path.resolve(UPLOAD_ROOT, cheminRelatif);
-  if (!resolved.startsWith(path.resolve(UPLOAD_ROOT))) {
-    throw new Error("Chemin invalide");
+export async function deleteUpload(
+  cheminRelatif: string | null | undefined,
+  visibility: StorageVisibility = "private",
+) {
+  const objectPath = storagePathFromUrlOrPath(cheminRelatif);
+  if (!objectPath) return;
+
+  try {
+    const supabase = createSupabaseAdminClient();
+    await supabase.storage.from(bucketFor(visibility)).remove([objectPath]);
+  } catch {
+    // ignore missing / network
   }
-  return resolved;
 }
 
-export async function deleteUpload(cheminRelatif: string | null | undefined) {
-  if (!cheminRelatif) return;
-  try {
-    await unlink(resolveUploadPath(cheminRelatif));
-  } catch {
-    // ignore
+/** Supprime un média public à partir de son URL publique ou chemin storage. */
+export async function deletePublicMedia(urlOrPath: string | null | undefined) {
+  await deleteUpload(urlOrPath, "public");
+}
+
+export async function readUpload(
+  cheminRelatif: string,
+  visibility: StorageVisibility = "private",
+): Promise<{ buffer: Buffer; contentType: string; fileName: string }> {
+  const objectPath = storagePathFromUrlOrPath(cheminRelatif);
+  if (!objectPath) {
+    throw new Error("Chemin fichier invalide");
   }
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.storage.from(bucketFor(visibility)).download(objectPath);
+  if (error || !data) {
+    throw new Error(error?.message || "Fichier inaccessible");
+  }
+
+  const arrayBuffer = await data.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const ext = path.extname(objectPath).replace(".", "").toLowerCase();
+  const contentType = data.type || MIME_FROM_EXT[ext] || "application/octet-stream";
+
+  return {
+    buffer,
+    contentType,
+    fileName: path.basename(objectPath),
+  };
+}
+
+/** @deprecated Utiliser readUpload — conservé pour compat imports éventuels */
+export function resolveUploadPath(_cheminRelatif: string): string {
+  throw new Error(
+    "resolveUploadPath n'est plus supporté : les fichiers sont sur Supabase Storage. Utilisez readUpload().",
+  );
+}
+
+/** @deprecated Plus de FS local */
+export function getUploadRoot() {
+  return "";
 }

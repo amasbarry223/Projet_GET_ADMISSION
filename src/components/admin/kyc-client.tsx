@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import type { ColumnDef, Table } from "@tanstack/react-table";
 import {
   CheckCircle2,
@@ -9,11 +10,14 @@ import {
   Eye,
   FileImage,
   IdCard,
+  Loader2,
   Mail,
   MapPin,
   Phone,
   ShieldOff,
   ShieldCheck,
+  Trash2,
+  Upload,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -26,6 +30,7 @@ import {
 } from "@/components/data-table/data-table";
 import { formatDateTime } from "@/lib/format";
 import { apiJson } from "@/lib/api-client";
+import { hasPermission } from "@/lib/rbac";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -118,14 +123,37 @@ function PieceSlot({
   present,
   userId,
   needsVerso,
+  canWrite,
+  onReplace,
+  onDelete,
+  busy,
 }: {
   side: "recto" | "verso";
   present: boolean;
   userId: string;
   needsVerso: boolean;
+  canWrite: boolean;
+  onReplace: (side: "recto" | "verso", file: File) => void;
+  onDelete: (side: "recto" | "verso") => void;
+  busy: boolean;
 }) {
   const label = side === "recto" ? "Recto" : "Verso";
   const optionalPass = side === "verso" && !needsVerso;
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  const fileInput = canWrite ? (
+    <input
+      ref={inputRef}
+      type="file"
+      accept="image/jpeg,image/png,image/webp,application/pdf"
+      className="sr-only"
+      onChange={(e) => {
+        const f = e.target.files?.[0];
+        if (f) onReplace(side, f);
+        e.target.value = "";
+      }}
+    />
+  ) : null;
 
   if (optionalPass && !present) {
     return (
@@ -141,16 +169,16 @@ function PieceSlot({
 
   if (present) {
     return (
-      <a
-        href={`/api/profile/kyc?side=${side}&userId=${userId}`}
-        target="_blank"
-        rel="noreferrer"
-        className={cn(
-          "group relative flex min-h-[140px] flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-lapis/25 bg-or-pale/60 px-3 py-4 text-center outline-none transition-colors duration-200",
-          "hover:border-lapis/50 hover:bg-or-pale focus-visible:ring-2 focus-visible:ring-lapis/40 focus-visible:ring-offset-2",
-        )}
-      >
-        <span className="absolute right-2.5 top-2.5 rounded-md bg-blanc/95 p-1 text-ardoise opacity-0 shadow-sm transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+      <div className="group relative flex min-h-[140px] flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-lapis/25 bg-or-pale/60 px-3 py-4 text-center">
+        {fileInput}
+        <a
+          href={`/api/profile/kyc?side=${side}&userId=${userId}`}
+          target="_blank"
+          rel="noreferrer"
+          className="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-lapis/40 focus-visible:ring-offset-2"
+          aria-label={`Ouvrir la pièce ${label}`}
+        />
+        <span className="pointer-events-none absolute right-2.5 top-2.5 rounded-md bg-card/95 p-1 text-ardoise opacity-0 shadow-sm transition-opacity duration-200 group-hover:opacity-100">
           <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
         </span>
         <FileImage className="h-8 w-8 text-lapis" strokeWidth={1.25} aria-hidden />
@@ -158,7 +186,31 @@ function PieceSlot({
           <p className="text-sm font-medium text-encre">{label}</p>
           <p className="mt-0.5 text-xs font-medium text-vert">Ouvrir la pièce</p>
         </div>
-      </a>
+        {canWrite && (
+          <div className="relative z-10 mt-1 flex gap-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 text-[11px]"
+              disabled={busy}
+              onClick={() => inputRef.current?.click()}
+            >
+              {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" strokeWidth={1.5} />}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 text-[11px] border-carmin/40 text-carmin hover:bg-carmin/5"
+              disabled={busy}
+              onClick={() => onDelete(side)}
+            >
+              <Trash2 className="h-3 w-3" strokeWidth={1.5} />
+            </Button>
+          </div>
+        )}
+      </div>
     );
   }
 
@@ -167,11 +219,25 @@ function PieceSlot({
       className="flex min-h-[140px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-ambre/50 bg-jaune-pale/50 px-3 py-4 text-center"
       role="status"
     >
+      {fileInput}
       <XCircle className="h-7 w-7 text-ambre" strokeWidth={1.25} aria-hidden />
       <div>
         <p className="text-sm font-medium text-encre">{label} manquant</p>
         <p className="mt-0.5 text-xs text-ardoise">Pas encore déposé</p>
       </div>
+      {canWrite && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-6 px-2 text-[11px]"
+          disabled={busy}
+          onClick={() => inputRef.current?.click()}
+        >
+          {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Upload className="mr-1 h-3 w-3" strokeWidth={1.5} />}
+          Téléverser
+        </Button>
+      )}
     </div>
   );
 }
@@ -204,10 +270,18 @@ function DetailPanel({
   row,
   onValidate,
   onInvalidate,
+  canWrite,
+  onReplace,
+  onDeletePiece,
+  pieceBusy,
 }: {
   row: KycRow;
   onValidate: (id: string) => void;
   onInvalidate: (id: string) => void;
+  canWrite: boolean;
+  onReplace: (side: "recto" | "verso", file: File) => void;
+  onDeletePiece: (side: "recto" | "verso") => void;
+  pieceBusy: boolean;
 }) {
   const needsVerso = row.kycType === "cni" || !row.kycType;
   const canValidate = !row.kycVerifie && (row.hasRecto || row.hasVerso);
@@ -332,7 +406,7 @@ function DetailPanel({
               style={{ width: `${progress}%` }}
             />
           </div>
-          <ul className="mt-3 space-y-2.5 rounded-xl border border-ligne bg-blanc px-3.5 py-3">
+          <ul className="mt-3 space-y-2.5 rounded-xl border border-ligne bg-card px-3.5 py-3">
             {checks.map((c) => (
               <ChecklistRow key={c.label} done={c.done} label={c.label} detail={c.detail} />
             ))}
@@ -342,18 +416,18 @@ function DetailPanel({
         {/* Métadonnées */}
         <section>
           <h3 className="text-xs font-medium uppercase tracking-wide text-ardoise">Document</h3>
-          <dl className="mt-2.5 grid grid-cols-2 gap-2.5">
-            <div className="rounded-lg border border-ligne bg-blanc px-3 py-2.5">
+          <dl className="mt-2.5 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            <div className="rounded-lg border border-ligne bg-card px-3 py-2.5">
               <dt className="text-[11px] text-ardoise">Type</dt>
               <dd className="mt-0.5 text-sm font-medium text-encre">{typeLabel(row.kycType)}</dd>
             </div>
-            <div className="rounded-lg border border-ligne bg-blanc px-3 py-2.5">
+            <div className="rounded-lg border border-ligne bg-card px-3 py-2.5">
               <dt className="text-[11px] text-ardoise">Numéro</dt>
               <dd className="mt-0.5 truncate font-mono text-sm font-medium tracking-wide text-encre">
                 {row.kycNumero?.trim() || "—"}
               </dd>
             </div>
-            <div className="col-span-2 rounded-lg border border-ligne bg-blanc px-3 py-2.5">
+            <div className="col-span-2 rounded-lg border border-ligne bg-card px-3 py-2.5">
               <dt className="text-[11px] text-ardoise">{dateLabel}</dt>
               <dd className="mt-0.5 font-mono text-xs text-encre">{dateValue}</dd>
             </div>
@@ -369,38 +443,65 @@ function DetailPanel({
               {needsVerso ? 2 : 1}
             </span>
           </div>
-          <div className="mt-2.5 grid grid-cols-2 gap-2.5">
-            <PieceSlot side="recto" present={row.hasRecto} userId={row.id} needsVerso={needsVerso} />
-            <PieceSlot side="verso" present={row.hasVerso} userId={row.id} needsVerso={needsVerso} />
+          <div className="mt-2.5 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            <PieceSlot
+              side="recto"
+              present={row.hasRecto}
+              userId={row.id}
+              needsVerso={needsVerso}
+              canWrite={canWrite}
+              onReplace={onReplace}
+              onDelete={onDeletePiece}
+              busy={pieceBusy}
+            />
+            <PieceSlot
+              side="verso"
+              present={row.hasVerso}
+              userId={row.id}
+              needsVerso={needsVerso}
+              canWrite={canWrite}
+              onReplace={onReplace}
+              onDelete={onDeletePiece}
+              busy={pieceBusy}
+            />
           </div>
         </section>
       </div>
 
-      <SheetFooter className="shrink-0 gap-2 border-t border-ligne bg-blanc px-0 pt-4 sm:flex-col">
-        {canValidate ? (
-          <Button
-            className="w-full bg-vert text-blanc hover:bg-vert/90"
-            onClick={() => onValidate(row.id)}
-          >
-            <ShieldCheck className="mr-1.5 h-4 w-4" strokeWidth={1.5} />
-            Valider le KYC
-          </Button>
-        ) : null}
-        {row.kycVerifie ? (
-          <Button
-            variant="outline"
-            className="w-full border-carmin/35 text-carmin hover:bg-carmin/5"
-            onClick={() => onInvalidate(row.id)}
-          >
-            <ShieldOff className="mr-1.5 h-4 w-4" strokeWidth={1.5} />
-            Invalider la vérification
-          </Button>
-        ) : null}
-        {!canValidate && !row.kycVerifie ? (
+      <SheetFooter className="shrink-0 gap-2 border-t border-ligne bg-card px-0 pt-4 sm:flex-col">
+        {!canWrite ? (
           <p className="text-center text-xs leading-relaxed text-ardoise">
-            Validation indisponible tant qu’aucune face n’est déposée.
+            Consultation seule — la validation et la modification du KYC sont réservées à
+            l&apos;administrateur.
           </p>
-        ) : null}
+        ) : (
+          <>
+            {canValidate ? (
+              <Button
+                className="w-full bg-vert text-blanc hover:bg-vert/90"
+                onClick={() => onValidate(row.id)}
+              >
+                <ShieldCheck className="mr-1.5 h-4 w-4" strokeWidth={1.5} />
+                Valider le KYC
+              </Button>
+            ) : null}
+            {row.kycVerifie ? (
+              <Button
+                variant="outline"
+                className="w-full border-carmin/35 text-carmin hover:bg-carmin/5"
+                onClick={() => onInvalidate(row.id)}
+              >
+                <ShieldOff className="mr-1.5 h-4 w-4" strokeWidth={1.5} />
+                Invalider la vérification
+              </Button>
+            ) : null}
+            {!canValidate && !row.kycVerifie ? (
+              <p className="text-center text-xs leading-relaxed text-ardoise">
+                Validation indisponible tant qu’aucune face n’est déposée.
+              </p>
+            ) : null}
+          </>
+        )}
       </SheetFooter>
     </div>
   );
@@ -408,10 +509,13 @@ function DetailPanel({
 
 export function KycClient({ initialData }: { initialData: KycRow[] }) {
   const router = useRouter();
+  const { data: session } = useSession();
+  const canWrite = hasPermission(session?.user?.role, "kyc.write");
   const data = initialData;
   const [statutFilter, setStatutFilter] = React.useState<string>("tous");
   const [selected, setSelected] = React.useState<KycRow | null>(null);
   const [sheetOpen, setSheetOpen] = React.useState(false);
+  const [pieceBusy, setPieceBusy] = React.useState(false);
 
   const kpis = React.useMemo(() => {
     let en_attente = 0;
@@ -451,6 +555,43 @@ export function KycClient({ initialData }: { initialData: KycRow[] }) {
     setSheetOpen(true);
   }, []);
 
+  const replacePiece = React.useCallback(
+    async (userId: string, side: "recto" | "verso", file: File) => {
+      setPieceBusy(true);
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("side", side);
+      fd.append("targetUserId", userId);
+      const res = await fetch("/api/profile/kyc", { method: "POST", body: fd });
+      const body = await res.json().catch(() => ({}));
+      setPieceBusy(false);
+      if (!res.ok) {
+        toast.error("Téléversement échoué", { description: (body as { error?: string })?.error });
+        return;
+      }
+      toast.success(`${side === "recto" ? "Recto" : "Verso"} téléversé`);
+      setSheetOpen(false);
+      router.refresh();
+    },
+    [router],
+  );
+
+  const deletePiece = React.useCallback(
+    async (userId: string, side: "recto" | "verso") => {
+      setPieceBusy(true);
+      const result = await apiJson("/api/profile/kyc", "DELETE", { userId, side });
+      setPieceBusy(false);
+      if (!result.ok) {
+        toast.error("Suppression échouée", { description: result.error });
+        return;
+      }
+      toast.success(`${side === "recto" ? "Recto" : "Verso"} supprimé`);
+      setSheetOpen(false);
+      router.refresh();
+    },
+    [router],
+  );
+
   const actions: ActionItem<KycRow>[] = React.useMemo(
     () => [
       {
@@ -473,18 +614,18 @@ export function KycClient({ initialData }: { initialData: KycRow[] }) {
       {
         label: "Valider le KYC",
         icon: ShieldCheck,
-        hidden: (row) => row.kycVerifie || (!row.hasRecto && !row.hasVerso),
+        hidden: (row) => !canWrite || row.kycVerifie || (!row.hasRecto && !row.hasVerso),
         onClick: (row) => void setKyc(row.id, true),
       },
       {
         label: "Invalider",
         icon: ShieldOff,
         tone: "danger",
-        hidden: (row) => !row.kycVerifie,
+        hidden: (row) => !canWrite || !row.kycVerifie,
         onClick: (row) => void setKyc(row.id, false),
       },
     ],
-    [openDetail, setKyc],
+    [openDetail, setKyc, canWrite],
   );
 
   const columns: ColumnDef<KycRow>[] = React.useMemo(
@@ -561,6 +702,7 @@ export function KycClient({ initialData }: { initialData: KycRow[] }) {
         </h1>
         <p className="mt-1 text-sm text-ardoise">
           Vérifiez les documents d&apos;identité déposés par les candidats.
+          {!canWrite && " Accès en lecture seule — la validation et la modification sont réservées à l'administrateur."}
         </p>
       </div>
 
@@ -592,7 +734,7 @@ export function KycClient({ initialData }: { initialData: KycRow[] }) {
             type="button"
             onClick={() => setStatutFilter((prev) => (prev === kpi.key ? "tous" : kpi.key))}
             className={cn(
-              "rounded-2xl border bg-blanc px-4 py-3 text-left transition-colors",
+              "rounded-2xl border bg-card px-4 py-3 text-left transition-colors",
               statutFilter === kpi.key
                 ? "border-lapis/40 bg-or-pale/40"
                 : "border-ligne hover:border-lapis/25",
@@ -624,7 +766,7 @@ export function KycClient({ initialData }: { initialData: KycRow[] }) {
         toolbar={(_table: Table<KycRow>) => (
           <>
             <Select value={statutFilter} onValueChange={setStatutFilter}>
-              <SelectTrigger className="h-9 w-[180px] bg-blanc">
+              <SelectTrigger className="h-9 w-[180px] bg-card">
                 <SelectValue placeholder="Statut" />
               </SelectTrigger>
               <SelectContent>
@@ -642,7 +784,7 @@ export function KycClient({ initialData }: { initialData: KycRow[] }) {
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent
           side="right"
-          className="flex w-full max-w-md flex-col gap-0 overflow-hidden bg-blanc p-0 sm:max-w-lg"
+          className="flex w-full max-w-md flex-col gap-0 overflow-hidden bg-card p-0 sm:max-w-lg"
         >
           <SheetHeader className="shrink-0 space-y-1 border-b border-ligne px-5 py-4 pr-12 text-left">
             <SheetTitle className="font-display text-left text-xl font-bold tracking-tight text-encre">
@@ -658,6 +800,10 @@ export function KycClient({ initialData }: { initialData: KycRow[] }) {
                 row={selected}
                 onValidate={(id) => void setKyc(id, true)}
                 onInvalidate={(id) => void setKyc(id, false)}
+                canWrite={canWrite}
+                onReplace={(side, file) => void replacePiece(selected.id, side, file)}
+                onDeletePiece={(side) => void deletePiece(selected.id, side)}
+                pieceBusy={pieceBusy}
               />
             ) : null}
           </div>

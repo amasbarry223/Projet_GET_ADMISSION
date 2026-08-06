@@ -40,20 +40,23 @@ async function fetchDossiersList(): Promise<EspaceDossierSummary[]> {
 }
 
 export function useDossiersQuery(options?: { refetchInterval?: number | false }) {
-  return useQuery({
+  return useQuery<EspaceDossierSummary[]>({
     queryKey: DOSSIERS_QUERY_KEY,
     queryFn: fetchDossiersList,
     staleTime: 15_000,
-    refetchInterval: options?.refetchInterval,
+    ...(options?.refetchInterval !== undefined
+      ? { refetchInterval: options.refetchInterval }
+      : {}),
   });
 }
 
 export function usePrimaryDossier(preferredId?: string | null) {
   const query = useDossiersQuery();
-  const dossier = pickPrimaryDossier(query.data ?? [], preferredId) ?? null;
+  const dossiers: EspaceDossierSummary[] = query.data ?? [];
+  const dossier = pickPrimaryDossier(dossiers, preferredId) ?? null;
   return {
     dossier,
-    dossiers: query.data ?? [],
+    dossiers,
     loading: query.isLoading,
     error: query.error
       ? query.error instanceof Error

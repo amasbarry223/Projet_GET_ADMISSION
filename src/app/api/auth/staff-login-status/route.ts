@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { parseOrRespond } from "@/lib/api-auth";
+import { staffLoginStatusSchema } from "@/lib/validations";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { isStaff } from "@/lib/rbac";
@@ -20,20 +22,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: "invalid" as const });
   }
 
-  const email =
-    typeof body === "object" && body && "email" in body
-      ? String((body as { email?: unknown }).email ?? "")
-          .toLowerCase()
-          .trim()
-      : "";
-  const password =
-    typeof body === "object" && body && "password" in body
-      ? String((body as { password?: unknown }).password ?? "")
-      : "";
-
-  if (!email || !password || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  const parsed = parseOrRespond(staffLoginStatusSchema, body);
+  if (!parsed.ok) {
     return NextResponse.json({ status: "invalid" as const });
   }
+  const email = parsed.data.email.toLowerCase().trim();
+  const password = parsed.data.password;
 
   const user = await db.user.findUnique({
     where: { email },

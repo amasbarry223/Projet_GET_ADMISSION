@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { resolveUploadPath } from "@/lib/storage";
-import { requirePermission } from "@/lib/rbac";
-import { readFile } from "fs/promises";
-import path from "path";
+import { readUpload } from "@/lib/storage";
+import { assertDossierFileAccess } from "@/lib/dossier/piece-print";
 
 // GET /api/dossiers/[id]/pieces/[pieceId]/download — téléchargement fichier
+// Query params optionnels : ?disposition=inline (vue navigateur au lieu de forcer l'enregistrement)
+//                            ?filename=... (nom de fichier personnalisé, ex. convention NomEtudiant_TypePiece_Date)
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string; pieceId: string }> }
 ) {
   const session = await getServerSession(authOptions);
@@ -18,8 +18,8 @@ export async function GET(
   }
 
   const { id, pieceId } = await params;
-  const role = (session.user as { role?: string }).role;
-  const userId = (session.user as { id: string }).id;
+  const role = session.user.role;
+  const userId = session.user.id;
 
   const piece = await db.piece.findFirst({
     where: { id: pieceId, dossierId: id },
@@ -30,32 +30,23 @@ export async function GET(
     return NextResponse.json({ error: "Fichier introuvable" }, { status: 404 });
   }
 
-  if (role === "CANDIDAT") {
-    if (piece.dossier.candidatId !== userId) {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
-    }
-  } else {
-    const gate = requirePermission(role, "dossiers.read");
-    if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  const access = assertDossierFileAccess(role, userId, piece.dossier.candidatId);
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
   }
 
-  try {
-    const abs = resolveUploadPath(piece.cheminFichier);
-    const buffer = await readFile(abs);
-    const ext = path.extname(piece.cheminFichier).toLowerCase();
-    const mime =
-      ext === ".pdf"
-        ? "application/pdf"
-        : ext === ".png"
-          ? "image/png"
-          : ext === ".webp"
-            ? "image/webp"
-            : "image/jpeg";
+  const { searchParams } = new URL(request.url);
+  const disposition = searchParams.get("disposition") === "inline" ? "inline" : "attachment";
+  const customFilename = searchParams.get("filename");
 
-    return new NextResponse(buffer, {
+  try {
+    const { buffer, contentType } = await readUpload(piece.cheminFichier, "private");
+    const fileName = (customFilename && customFilename.trim()) || piece.nomFichier || "piece";
+
+    return new NextResponse(new Uint8Array(buffer), {
       headers: {
-        "Content-Type": mime,
-        "Content-Disposition": `attachment; filename="${encodeURIComponent(piece.nomFichier || "piece")}"`,
+        "Content-Type": contentType,
+        "Content-Disposition": `${disposition}; filename="${encodeURIComponent(fileName)}"`,
         "Content-Length": String(buffer.length),
       },
     });

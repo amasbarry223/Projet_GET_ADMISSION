@@ -11,7 +11,7 @@ export async function GET() {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const userId = (session.user as any).id;
+  const userId = session.user.id;
   const user = await db.user.findUnique({
     where: { id: userId },
     select: {
@@ -79,7 +79,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const userId = (session.user as any).id;
+  const userId = session.user.id;
   const body = await request.json();
   const parsed = validate(profileSchema, body);
   if (!parsed.success) {

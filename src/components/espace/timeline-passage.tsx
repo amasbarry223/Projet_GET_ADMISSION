@@ -66,7 +66,7 @@ export function TimelinePassage({
                 key={current?.code}
                 initial={reduce ? false : { opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={reduce ? undefined : { opacity: 0, y: -6 }}
+                {...(!reduce ? { exit: { opacity: 0, y: -6 } } : {})}
                 transition={{ duration: 0.28 }}
                 className="mt-1 font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl"
               >
@@ -122,6 +122,7 @@ export function TimelinePassage({
           const isFuture = etat.ordre > etapeActuelle && !skipped;
           const date = dates.get(etat.code.toLowerCase()) ?? dates.get(etat.code);
           const isTerminalRefuse = etat.code === "refuse" && isCurrent;
+          const isTerminalCloture = etat.code === "cloture" && isCurrent;
 
           return (
             <motion.li
@@ -187,7 +188,7 @@ export function TimelinePassage({
                           : "bg-primary/15 text-primary",
                       )}
                     >
-                      {isTerminalRefuse ? "Terminé" : "En cours"}
+                      {isTerminalRefuse ? "Terminé" : isTerminalCloture ? "Fin" : "En cours"}
                     </span>
                   )}
                   {skipped && (

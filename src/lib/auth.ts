@@ -206,7 +206,7 @@ export const authOptions: NextAuthOptions = {
         if (!databaseUser || !databaseUser.actif) {
           token.error = "inactive";
           token.lastValidated = Date.now();
-          delete (token as { role?: unknown }).role;
+          Reflect.deleteProperty(token, "role");
           return token;
         }
         token.role = databaseUser.role;
@@ -223,12 +223,11 @@ export const authOptions: NextAuthOptions = {
         return { ...session, user: undefined as unknown as typeof session.user };
       }
       if (session.user) {
-        const sessionUser = session.user as Record<string, unknown>;
-        sessionUser.id = token.id;
-        sessionUser.role = token.role;
-        sessionUser.prenom = token.prenom;
-        sessionUser.nom = token.nom;
-        sessionUser.image = token.image;
+        session.user.id = token.id;
+        session.user.role = token.role;
+        session.user.prenom = token.prenom;
+        session.user.nom = token.nom;
+        session.user.image = token.image;
       }
       return session;
     },

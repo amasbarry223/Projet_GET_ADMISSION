@@ -299,17 +299,18 @@ async function enrichExisting() {
   for (const u of existing) {
     const assets = assetPaths(u.slug);
     const coverUrl = assets.coverUrl;
+    const siteUrl =
+      u.slug === "sorbonne-universite"
+        ? "https://www.sorbonne-universite.fr/"
+        : u.slug.includes("montreal")
+          ? "https://www.umontreal.ca/"
+          : undefined;
     await db.universite.update({
       where: { id: u.id },
       data: {
         ...assets,
         coverUrl,
-        siteUrl:
-          u.slug === "sorbonne-universite"
-            ? "https://www.sorbonne-universite.fr/"
-            : u.slug.includes("montreal")
-              ? "https://www.umontreal.ca/"
-              : undefined,
+        ...(siteUrl !== undefined ? { siteUrl } : {}),
       },
     });
   }

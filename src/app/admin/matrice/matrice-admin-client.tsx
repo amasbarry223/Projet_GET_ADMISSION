@@ -290,7 +290,7 @@ export function MatriceAdminClient() {
                   <Trash2 className="mr-1 h-4 w-4" /> Supprimer
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent className="bg-blanc">
+              <AlertDialogContent className="bg-card">
                 <AlertDialogHeader>
                   <AlertDialogTitle className="font-display">
                     Supprimer ce brouillon ?
@@ -328,7 +328,7 @@ export function MatriceAdminClient() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
-        <aside className="space-y-2 rounded-2xl border border-ligne bg-blanc p-3 shadow-sm">
+        <aside className="space-y-2 rounded-2xl border border-ligne bg-card p-3 shadow-sm">
           <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Versions</p>
           {versions.map((v) => (
             <button
@@ -377,7 +377,7 @@ export function MatriceAdminClient() {
 
           <div className="max-h-[480px] space-y-3 overflow-y-auto pr-1">
             {regles.map((r, i) => (
-              <div key={`${r.code}-${i}`} className="grid gap-2 rounded-xl border border-ligne bg-blanc p-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div key={`${r.code}-${i}`} className="grid gap-2 rounded-xl border border-ligne bg-card p-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-1">
                   <Label className="text-xs">Code</Label>
                   <Input value={r.code} onChange={(e) => updateRegle(i, { code: e.target.value })} disabled={statut === "ARCHIVEE"} />

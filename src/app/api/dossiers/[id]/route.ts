@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dossierUpdateSchema, validate } from "@/lib/validations";
+import { parseJsonArray } from "@/lib/parse-json";
 import { notifyDossierTransition } from "@/lib/notifications";
 import { requirePermission } from "@/lib/rbac";
 import {
@@ -12,7 +13,9 @@ import {
   submitDraftDossier,
   updateDossierDraft,
 } from "@/lib/dossier/dossier-update";
+import type { PersonalInfoUpdate } from "@/lib/dossier/dossier-update";
 import { syncPiecesDossier } from "@/lib/dossier/sync-pieces";
+import { stripUndefined } from "@/shared/types/utils.types";
 import { isDossierEditableByCandidate } from "@/shared/constants";
 
 // GET /api/dossiers/[id] — détail (candidat propriétaire ou staff avec dossiers.read)
@@ -26,8 +29,8 @@ export async function GET(
   }
 
   const { id } = await params;
-  const role = (session.user as { role?: string }).role;
-  const userId = (session.user as { id: string }).id;
+  const role = session.user.role;
+  const userId = session.user.id;
 
   const dossier = await db.dossier.findUnique({
     where: { id },
@@ -50,6 +53,11 @@ export async function GET(
       paiements: true,
       historiques: { orderBy: { date: "asc" } },
       conversation: { include: { messages: { orderBy: { createdAt: "asc" } } } },
+      demandesCorrection: {
+        orderBy: { createdAt: "desc" },
+        include: { conseiller: { select: { prenom: true, nom: true } } },
+      },
+      attestation: true,
     },
   });
 
@@ -99,13 +107,13 @@ export async function GET(
     },
     universite: {
       ...dossier.universite,
-      domaines: JSON.parse(dossier.universite.domaines),
-      pointsForts: JSON.parse(dossier.universite.pointsForts),
+      domaines: parseJsonArray(dossier.universite.domaines),
+      pointsForts: parseJsonArray(dossier.universite.pointsForts),
     },
     formation: {
       ...dossier.formation,
-      prerequis: JSON.parse(dossier.formation.prerequis),
-      piecesRequises: JSON.parse(dossier.formation.piecesRequises),
+      prerequis: parseJsonArray(dossier.formation.prerequis),
+      piecesRequises: parseJsonArray(dossier.formation.piecesRequises),
     },
   };
 
@@ -122,8 +130,8 @@ export async function PUT(
   }
 
   const { id } = await params;
-  const role = (session.user as { role?: string }).role;
-  const userId = (session.user as { id: string }).id;
+  const role = session.user.role;
+  const userId = session.user.id;
 
   const dossier = await db.dossier.findUnique({
     where: { id },
@@ -163,11 +171,17 @@ export async function PUT(
   const { etapeActuelle, info, pieces, action } = parsed.data;
   const conseillerId = (body as { conseillerId?: string | null })?.conseillerId;
 
-  if (conseillerId !== undefined && role === "CANDIDAT") {
-    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  if (conseillerId !== undefined) {
+    if (role === "CANDIDAT") {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+    const assignGate = requirePermission(role, "dossiers.assign");
+    if (!assignGate.ok) {
+      return NextResponse.json({ error: assignGate.error }, { status: assignGate.status });
+    }
   }
 
-  const auteurLabel = `${(session.user as { prenom: string }).prenom} ${(session.user as { nom: string }).nom}`;
+  const auteurLabel = `${session.user.prenom} ${session.user.nom}`;
 
   if (action === "soumettre" || action === "resoumettre") {
     if (action === "soumettre" && dossier.etat !== "BROUILLON") {
@@ -209,7 +223,9 @@ export async function PUT(
           redoublements: candidatProfil.redoublements,
           interruptions: candidatProfil.interruptions,
         },
-        { formationPiecesRequises: dossierFormation?.formation.piecesRequises },
+        { ...(dossierFormation?.formation.piecesRequises != null
+            ? { formationPiecesRequises: dossierFormation.formation.piecesRequises }
+            : {}) },
       );
     }
 
@@ -247,9 +263,9 @@ export async function PUT(
           dossierId: id,
           candidatId: dossier.candidatId,
           role,
-          etapeActuelle,
-          info,
-          pieces,
+          ...(etapeActuelle !== undefined ? { etapeActuelle } : {}),
+          ...(info ? { info: stripUndefined(info) as PersonalInfoUpdate } : {}),
+          ...(pieces ? { pieces } : {}),
           notes,
         });
       }
@@ -260,8 +276,8 @@ export async function PUT(
           dossierId: id,
           candidatId: dossier.candidatId,
           role,
-          info,
-          pieces,
+          ...(info ? { info: stripUndefined(info) as PersonalInfoUpdate } : {}),
+          ...(pieces ? { pieces } : {}),
           notes,
         });
       }

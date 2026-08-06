@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireApiPermission } from "@/lib/api-auth";
+import { parseOrRespond, requireApiPermission } from "@/lib/api-auth";
+import { modeleAttestationCreateSchema } from "@/lib/validations";
 
 export const revalidate = 3600;
 
@@ -15,11 +16,15 @@ export async function POST(request: Request) {
   const auth = await requireApiPermission("attestations.emit");
   if (!auth.ok) return auth.response;
 
-  const body = await request.json();
-  const { nom, description } = body;
-  if (!nom) {
-    return NextResponse.json({ error: "Le nom est requis" }, { status: 400 });
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
+  const parsed = parseOrRespond(modeleAttestationCreateSchema, body);
+  if (!parsed.ok) return parsed.response;
+  const { nom, description } = parsed.data;
 
   const maxOrdre = await db.modeleAttestation.aggregate({ _max: { ordre: true } });
   const modele = await db.modeleAttestation.create({

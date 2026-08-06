@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { EtatDossier, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { listPiecesManquantes } from "@/lib/dossier/pieces-requises";
+import { markCorrectionSubmitted } from "@/lib/dossier/correction";
 import {
   CLOSED_DOSSIER_STATES,
   ETAPE_PAR_ETAT,
@@ -18,6 +19,8 @@ type PersonalInfoUpdate = {
   dateNaissance?: string;
   adresse?: string;
 };
+
+export type { PersonalInfoUpdate };
 
 type PieceUpdateInput = {
   libelle: string;
@@ -128,6 +131,7 @@ export async function resubmitCorrectedDossier(
   if (locked.count === 0) {
     throw new Error("SUBMIT_RACE");
   }
+  await markCorrectionSubmitted(tx, params.dossierId);
   params.notes.push("Corrections resoumises — retour en vérification");
   return "VERIFICATION";
 }

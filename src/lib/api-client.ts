@@ -43,6 +43,6 @@ export function apiJson<T = unknown>(
   return apiFetch<T>(url, {
     method,
     headers: { "Content-Type": "application/json" },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
 }

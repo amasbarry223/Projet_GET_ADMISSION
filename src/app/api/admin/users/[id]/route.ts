@@ -22,7 +22,7 @@ export async function PUT(
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const role = (session.user as { role?: string }).role ?? "";
+  const role = session.user.role ?? "";
   if (!isStaffManagementRole(role)) {
     return NextResponse.json(
       { error: "Seul un super-administrateur peut gérer le personnel" },
@@ -30,7 +30,7 @@ export async function PUT(
     );
   }
 
-  const userId = (session.user as { id: string }).id;
+  const userId = session.user.id;
   const { id } = await params;
 
   const target = await db.user.findUnique({
@@ -164,7 +164,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const role = (session.user as { role?: string }).role ?? "";
+  const role = session.user.role ?? "";
   if (!isStaffManagementRole(role)) {
     return NextResponse.json(
       { error: "Seul un super-administrateur peut gérer le personnel" },
@@ -172,7 +172,7 @@ export async function DELETE(
     );
   }
 
-  const userId = (session.user as { id: string }).id;
+  const userId = session.user.id;
   const { id } = await params;
 
   if (id === userId) {

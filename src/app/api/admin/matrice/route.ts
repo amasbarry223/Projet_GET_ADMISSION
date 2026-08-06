@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireApiPermission } from "@/lib/api-auth";
+import { parseOrRespond, requireApiPermission } from "@/lib/api-auth";
+import { matriceDraftCreateSchema } from "@/lib/validations";
 import { logAudit } from "@/lib/audit";
-import { invalidateMatriceCache } from "@/lib/dossier/matrice-loader";
 import { MATRICE_V1_REGLES } from "@/lib/dossier/matrice-v1-regles";
 
 // GET /api/admin/matrice — liste des versions
@@ -23,12 +23,15 @@ export async function POST(request: Request) {
   if (!auth.ok) return auth.response;
   const userId = auth.user.id;
 
-  let body: { libelle?: string; notes?: string; fromActive?: boolean } = {};
+  let raw: unknown = {};
   try {
-    body = await request.json();
+    raw = await request.json();
   } catch {
-    body = {};
+    raw = {};
   }
+  const parsed = parseOrRespond(matriceDraftCreateSchema, raw);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
 
   const last = await db.matriceVersion.findFirst({ orderBy: { numero: "desc" } });
   const nextNumero = (last?.numero ?? 0) + 1;

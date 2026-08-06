@@ -55,7 +55,7 @@ export function DossierStepIdentite({
               state={piece.statut}
               loading={togglingPiece === piece.libelle}
               disabled={!isEditable}
-              anchorId={piece.code ? `piece-${piece.code}` : undefined}
+              anchorId={piece.code ? `piece-${piece.code}` : null}
               onUpload={(file) => onUpload(piece.libelle, file)}
             />
           ))}

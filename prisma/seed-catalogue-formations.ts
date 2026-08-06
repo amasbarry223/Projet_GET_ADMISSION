@@ -7,6 +7,7 @@
 import { db } from "../src/lib/db";
 import { resolveFraisAgenceAsync } from "../src/lib/dossier/frais-agence-server";
 import { FORMATIONS_CANONIQUES } from "./catalogue-formations-canoniques";
+import { lookupFraisFormationEuros } from "./frais-formation-recherche";
 
 async function main() {
   console.log("🌱 Seed catalogue formations unifiées (PSTM + Galileo)…");
@@ -37,6 +38,7 @@ async function main() {
   let totalUpdated = 0;
   let totalDeleted = 0;
   let totalKeptLinked = 0;
+  let totalFraisEuros = 0;
 
   const canonicalTitles = new Set(FORMATIONS_CANONIQUES.map((f) => f.intitule));
 
@@ -55,11 +57,15 @@ async function main() {
     // 2. Upsert chaque formation canonique
     let created = 0;
     let updated = 0;
+    let fraisSet = 0;
     for (const f of FORMATIONS_CANONIQUES) {
       const existing = await db.formation.findFirst({
         where: { universiteId: univ.id, intitule: f.intitule },
         select: { id: true },
       });
+
+      const fraisFormationEuros = lookupFraisFormationEuros(univ.slug, f.intitule);
+      if (fraisFormationEuros != null) fraisSet++;
 
       const data = {
         niveau: f.niveau,
@@ -68,6 +74,8 @@ async function main() {
         fraisAgence,
         prerequis: JSON.stringify(f.prerequis),
         piecesRequises: JSON.stringify(f.piecesRequises),
+        // N'écrit les € que si source connue (ne force pas null sur upsert seed)
+        ...(fraisFormationEuros != null ? { fraisFormationEuros } : {}),
       };
 
       if (existing) {
@@ -100,15 +108,16 @@ async function main() {
     totalCreated += created;
     totalUpdated += updated;
     totalKeptLinked += kept;
+    totalFraisEuros += fraisSet;
 
     console.log(
-      `  ✓ ${univ.slug}: −${deleted.count} libres · +${created} créées · ~${updated} maj` +
+      `  ✓ ${univ.slug}: −${deleted.count} libres · +${created} créées · ~${updated} maj · €=${fraisSet}` +
         (kept ? ` · ${kept} liées dossiers conservées` : ""),
     );
   }
 
   console.log(
-    `\n🎉 Terminé — ${universites.length} univ · créées=${totalCreated} · maj=${totalUpdated} · supprimées=${totalDeleted} · conservées=${totalKeptLinked}`,
+    `\n🎉 Terminé — ${universites.length} univ · créées=${totalCreated} · maj=${totalUpdated} · supprimées=${totalDeleted} · conservées=${totalKeptLinked} · grilles€=${totalFraisEuros}`,
   );
   await db.$disconnect();
 }

@@ -52,7 +52,7 @@ export function HeroSlideshow() {
   const [index, setIndex] = React.useState(0);
   const [paused, setPaused] = React.useState(false);
   const regionRef = React.useRef<HTMLElement>(null);
-  const slide = SLIDES[index];
+  const slide = SLIDES[index] ?? SLIDES[0]!;
 
   React.useEffect(() => {
     if (reduceMotion || paused) return;
@@ -153,7 +153,7 @@ export function HeroSlideshow() {
                 key={slide.src}
                 initial={reduceMotion ? false : { opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={reduceMotion ? undefined : { opacity: 0, y: -10 }}
+                {...(!reduceMotion ? { exit: { opacity: 0, y: -10 } } : {})}
                 transition={copyTransition}
               >
                 <p className="inline-flex items-center gap-2 font-mono text-[12px] uppercase tracking-eyebrow text-or">

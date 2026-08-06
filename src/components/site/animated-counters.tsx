@@ -8,7 +8,9 @@ function parseStatValue(raw: string): { target: number; prefix: string; suffix: 
   const cleaned = raw.replace(/\s/g, "");
   const match = cleaned.match(/^([^\d]*)([\d.,]+)(.*)$/);
   if (!match) return { target: 0, prefix: "", suffix: raw };
-  const num = parseFloat(match[2].replace(",", "."));
+  const numStr = match[2];
+  if (!numStr) return { target: 0, prefix: match[1] ?? "", suffix: raw };
+  const num = parseFloat(numStr.replace(",", "."));
   return {
     target: Number.isFinite(num) ? num : 0,
     prefix: match[1] ?? "",
@@ -38,6 +40,7 @@ function Counter({ valeur, libelle }: { valeur: string; libelle: string }) {
     }
     motionVal.set(0);
     motionVal.set(target);
+    return undefined;
   }, [inView, reduce, target, valeur, motionVal]);
 
   React.useEffect(() => {

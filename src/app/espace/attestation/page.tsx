@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FormPageSkeleton } from "@/components/ui/skeleton-card";
 import { getApiErrorMessageSync } from "@/lib/api-error";
-import { usePrimaryDossier } from "@/hooks/use-primary-dossier";
+import { usePrimaryDossier, type EspaceDossierSummary } from "@/hooks/use-primary-dossier";
 import { pickPrimaryDossier } from "@/lib/dossier/pick-dossier";
 import { runAsyncEffect } from "@/lib/run-async-effect";
 import {
@@ -31,17 +31,6 @@ import {
   ArrowRight,
 } from "lucide-react";
 
-type Dossier = {
-  id: string;
-  reference: string;
-  etat: string;
-  updatedAt: string;
-  mrz: string;
-  candidat: { prenom: string; nom: string };
-  universite: { nom: string; ville: string; pays: string };
-  formation: { intitule: string };
-  historiques: { id: string; date: string; etat: string; auteur: string; note: string }[];
-};
 
 type Attestation = {
   id: string;
@@ -50,6 +39,8 @@ type Attestation = {
   dateEmission: string;
   modeRemise: string;
   emetteur: { prenom: string; nom: string; role: string };
+  cheminFichier: string | null;
+  nomFichier: string | null;
 };
 
 export default function AttestationPage() {
@@ -145,7 +136,10 @@ function AttestationInner() {
 
   const loadPage = React.useCallback(() => {
     void refetchDossier().then((result) => {
-      const picked = pickPrimaryDossier(result.data ?? [], preferredId);
+      const picked = pickPrimaryDossier(
+        (result.data ?? []) as EspaceDossierSummary[],
+        preferredId,
+      );
       if (picked?.id) void loadAttestation(picked.id);
     });
   }, [refetchDossier, preferredId, loadAttestation]);
@@ -237,9 +231,15 @@ function AttestationInner() {
   const isIssued = !!displayAttestation;
   const phaseAttestation = etatUpper === "ATTESTATION" || etatUpper === "CLOTURE";
   const historiques = d.historiques ?? [];
-  const preAdmissionEntry = historiques.find((h) => h.etat.toUpperCase() === "PRE_ADMISSION");
+  const preAdmissionEntry = historiques.find(
+    (h: { etat: string; date: string }) => h.etat.toUpperCase() === "PRE_ADMISSION",
+  );
   const preAdmissionDate = preAdmissionEntry?.date;
   const emissionDate = displayAttestation?.dateEmission;
+  const hasUploadedFile = !!displayAttestation?.cheminFichier;
+  const downloadUrl = hasUploadedFile
+    ? `/api/dossiers/${dossier.id}/attestation/download`
+    : `/api/attestation-pdf/${dossier.id}`;
 
   return (
     <div className="space-y-6">
@@ -264,9 +264,18 @@ function AttestationInner() {
       ) : isIssued ? (
         <Alert className="border-vert/30 bg-vert/5 p-6">
           <CheckCircle2 className="h-5 w-5 text-vert" strokeWidth={1.5} />
-          <AlertTitle className="font-display text-xl font-bold text-encre">Attestation disponible.</AlertTitle>
+          <AlertTitle className="font-display text-xl font-bold text-encre">
+            {hasUploadedFile ? "🎉 Félicitations, votre préinscription est accordée !" : "Attestation disponible."}
+          </AlertTitle>
           <AlertDescription className="mt-1 text-sm text-ardoise">
-            Votre attestation est émise. Téléchargez-la ou récupérez-la à l&apos;agence.
+            {hasUploadedFile ? (
+              <>
+                <span className="font-semibold text-encre">{d.universite.nom}</span> a accordé votre
+                préinscription. Téléchargez le document ci-dessous ou récupérez-le à l&apos;agence.
+              </>
+            ) : (
+              "Votre attestation est émise. Téléchargez-la ou récupérez-la à l'agence."
+            )}
           </AlertDescription>
         </Alert>
       ) : phaseAttestation ? (
@@ -312,9 +321,13 @@ function AttestationInner() {
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-vert/10">
             <Stamp className="h-7 w-7 text-vert" strokeWidth={1.5} />
           </div>
-          <h2 className="font-display text-xl font-bold text-encre">Attestation prête à être récupérée.</h2>
+          <h2 className="font-display text-xl font-bold text-encre">
+            {hasUploadedFile ? "Toutes nos félicitations !" : "Attestation prête à être récupérée."}
+          </h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-ardoise">
-            Téléchargez votre attestation officielle ci-dessous ou activez le retrait à l&apos;agence.
+            {hasUploadedFile
+              ? `Le document officiel envoyé par ${d.universite.nom} est prêt. Téléchargez-le ci-dessous ou activez le retrait à l'agence.`
+              : "Téléchargez votre attestation officielle ci-dessous ou activez le retrait à l'agence."}
           </p>
 
           <div className="mx-auto mt-5 max-w-sm rounded-md border border-vert/30 bg-vert/5 p-4 text-left">
@@ -339,8 +352,9 @@ function AttestationInner() {
           </div>
 
           <div className="mt-6 flex flex-wrap justify-center gap-2">
-            <Button onClick={() => window.open(`/api/attestation-pdf/${dossier.id}`, "_blank")}>
-              <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Télécharger le PDF
+            <Button onClick={() => window.open(downloadUrl, "_blank")}>
+              <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} />
+              {hasUploadedFile ? "Télécharger le document" : "Télécharger le PDF"}
             </Button>
             <Button variant="outline" onClick={() => setShowPreview((s) => !s)}>
               {showPreview ? (
@@ -357,7 +371,24 @@ function AttestationInner() {
         </Card>
       )}
 
-      {isIssued && showPreview && displayAttestation && (
+      {isIssued && showPreview && hasUploadedFile && (
+        <Card className="overflow-hidden border-ligne bg-blanc p-0">
+          <div className="border-b border-ligne bg-porcelaine px-6 py-3">
+            <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
+              Document officiel envoyé par {d.universite.nom}
+            </p>
+          </div>
+          <div className="h-[70vh] w-full bg-porcelaine">
+            <iframe
+              src={`/api/dossiers/${dossier.id}/attestation/download?disposition=inline`}
+              title="Attestation de préinscription"
+              className="h-full w-full border-0"
+            />
+          </div>
+        </Card>
+      )}
+
+      {isIssued && showPreview && !hasUploadedFile && displayAttestation && (
         <Card className="overflow-hidden border-ligne bg-blanc p-0">
           <div className="border-b border-ligne bg-porcelaine px-6 py-3">
             <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
@@ -414,7 +445,7 @@ function AttestationInner() {
               </p>
 
               <div className="rounded-md border border-ligne bg-porcelaine p-4">
-                <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                   <div>
                     <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
                       Code vérification

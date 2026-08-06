@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { parseOrRespond } from "@/lib/api-auth";
 import { verifyPaytechIpn } from "@/lib/paiement/paytech";
+import { paytechIpnSchema } from "@/lib/validations";
 import {
   afterPaiementReussiSideEffects,
   applyPaiementReussiInTx,
@@ -27,7 +29,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Payload invalide" }, { status: 400 });
   }
 
-  const verified = verifyPaytechIpn(payload);
+  const validated = parseOrRespond(paytechIpnSchema, payload);
+  if (!validated.ok) return validated.response;
+
+  const verified = verifyPaytechIpn(validated.data as Record<string, unknown>);
   if (!verified.ok) {
     return NextResponse.json(
       { error: "Notification non authentifiée ou référence manquante" },

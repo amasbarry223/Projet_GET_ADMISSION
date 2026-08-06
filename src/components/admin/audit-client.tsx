@@ -324,7 +324,7 @@ export function AuditClient({ initialData }: { initialData: AuditEntry[] }) {
             type="button"
             onClick={() => setActionFilter((prev) => (prev === a ? "tous" : a))}
             className={cn(
-              "rounded-2xl border bg-blanc px-4 py-3 text-left transition-colors",
+              "rounded-2xl border bg-card px-4 py-3 text-left transition-colors",
               actionFilter === a ? "border-lapis/40 bg-or-pale/40" : "border-ligne hover:border-lapis/25",
             )}
           >
@@ -332,7 +332,7 @@ export function AuditClient({ initialData }: { initialData: AuditEntry[] }) {
             <p className="mt-1 font-display text-2xl font-bold text-encre">{kpis.counts[a] ?? 0}</p>
           </button>
         ))}
-        <div className="rounded-2xl border border-ligne bg-blanc px-4 py-3">
+        <div className="rounded-2xl border border-ligne bg-card px-4 py-3">
           <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Autres</p>
           <p className="mt-1 font-display text-2xl font-bold text-encre">{kpis.other}</p>
         </div>
@@ -349,17 +349,18 @@ export function AuditClient({ initialData }: { initialData: AuditEntry[] }) {
             className="border-0 bg-transparent py-8"
             icon={<ShieldAlert className="h-5 w-5" strokeWidth={1.5} />}
             title={loading ? "Chargement du journal…" : "Aucune entrée"}
-            description={
-              loading
-                ? undefined
-                : "Aucun événement ne correspond à ces filtres. Élargissez la recherche ou réinitialisez les filtres."
-            }
+            {...(loading
+              ? {}
+              : {
+                  description:
+                    "Aucun événement ne correspond à ces filtres. Élargissez la recherche ou réinitialisez les filtres.",
+                })}
           />
         }
         toolbar={(_table: Table<AuditEntry>) => (
           <>
             <Select value={resourceFilter} onValueChange={setResourceFilter}>
-              <SelectTrigger className="h-9 w-[170px] bg-blanc">
+              <SelectTrigger className="h-9 w-[170px] bg-card">
                 <SelectValue placeholder="Ressource" />
               </SelectTrigger>
               <SelectContent>
@@ -372,7 +373,7 @@ export function AuditClient({ initialData }: { initialData: AuditEntry[] }) {
               </SelectContent>
             </Select>
             <Select value={actionFilter} onValueChange={setActionFilter}>
-              <SelectTrigger className="h-9 w-[170px] bg-blanc">
+              <SelectTrigger className="h-9 w-[170px] bg-card">
                 <SelectValue placeholder="Action" />
               </SelectTrigger>
               <SelectContent>
@@ -392,7 +393,7 @@ export function AuditClient({ initialData }: { initialData: AuditEntry[] }) {
       />
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent side="right" className="w-full max-w-md bg-blanc sm:max-w-md">
+        <SheetContent side="right" className="w-full max-w-md bg-card sm:max-w-md">
           <SheetHeader>
             <SheetTitle className="font-display text-left">Détail audit</SheetTitle>
           </SheetHeader>

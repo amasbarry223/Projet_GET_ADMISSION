@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   CheckCircle2,
+  Download,
   Eye,
-  FileText,
   Loader2,
   Plus,
   Search,
   Stamp,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -41,6 +42,8 @@ export type AttestationDossier = {
   universiteNom: string;
   universiteEcusson: string;
   formationIntitule: string;
+  hasFile: boolean;
+  nomFichier: string | null;
 };
 
 export type ModeleAttestation = {
@@ -54,16 +57,12 @@ export type ModeleAttestation = {
 
 type TabKey = "a-emettre" | "emises" | "modeles";
 
-function previewUrl(dossierId: string, draft: boolean) {
-  const q = new URLSearchParams({ format: "html" });
-  if (draft) q.set("draft", "1");
-  return `/api/attestation-pdf/${dossierId}?${q.toString()}`;
+function attestationViewUrl(dossierId: string) {
+  return `/api/dossiers/${dossierId}/attestation/download?disposition=inline`;
 }
 
-function pdfUrl(dossierId: string, draft: boolean) {
-  const q = new URLSearchParams({ format: "pdf" });
-  if (draft) q.set("draft", "1");
-  return `/api/attestation-pdf/${dossierId}?${q.toString()}`;
+function attestationDownloadUrl(dossierId: string) {
+  return `/api/dossiers/${dossierId}/attestation/download`;
 }
 
 export function AttestationsClient({
@@ -86,7 +85,9 @@ export function AttestationsClient({
   const [selectedId, setSelectedId] = React.useState<string | null>(
     initialAEmettre[0]?.id ?? initialEmises[0]?.id ?? null,
   );
-  const [emittingId, setEmittingId] = React.useState<string | null>(null);
+  const [uploadOpen, setUploadOpen] = React.useState(false);
+  const [uploadFile, setUploadFile] = React.useState<File | null>(null);
+  const [uploading, setUploading] = React.useState(false);
   const [modeleOpen, setModeleOpen] = React.useState(false);
   const [modeleNom, setModeleNom] = React.useState("");
   const [modeleDesc, setModeleDesc] = React.useState("");
@@ -131,9 +132,7 @@ export function AttestationsClient({
   const selectedIsDraft =
     !!selected && (selected.etat === "PRE_ADMISSION" || aEmettre.some((d) => d.id === selected.id));
 
-  const iframeSrc = selected
-    ? previewUrl(selected.id, selectedIsDraft)
-    : null;
+  const iframeSrc = selected?.hasFile ? attestationViewUrl(selected.id) : null;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -151,26 +150,42 @@ export function AttestationsClient({
     };
   }, [tab, listAEmettre, listEmises, selectedId]);
 
-  const emettreAttestation = async (dossierId: string, reference: string) => {
-    setEmittingId(dossierId);
-    const result = await apiJson(`/api/dossiers/${dossierId}/workflow`, "POST", {
-      action: "emettre_attestation",
+  const confirmUploadAttestation = async () => {
+    if (!selected || !uploadFile) return;
+    const dossierId = selected.id;
+    const reference = selected.reference;
+    setUploading(true);
+    const fd = new FormData();
+    fd.append("file", uploadFile);
+    const res = await fetch(`/api/dossiers/${dossierId}/attestation/upload`, {
+      method: "POST",
+      body: fd,
     });
-    setEmittingId(null);
-    if (!result.ok) {
-      toast.error("Émission échouée", { description: result.error });
+    const body = await res.json().catch(() => ({}));
+    setUploading(false);
+    if (!res.ok) {
+      toast.error("Téléversement échoué", { description: (body as { error?: string })?.error });
       return;
     }
-    toast.success("Attestation émise", {
-      description: `${reference} — disponible dans l'espace candidat.`,
+    setUploadOpen(false);
+    setUploadFile(null);
+    const wasDraft = selectedIsDraft;
+    toast.success(wasDraft ? "Attestation émise" : "Document remplacé", {
+      description: wasDraft
+        ? `${reference} — le candidat a été félicité et notifié.`
+        : `${reference} — nouveau document disponible.`,
     });
-    setAEmettre((prev) => prev.filter((d) => d.id !== dossierId));
-    setEmises((prev) => {
-      const moved = aEmettre.find((d) => d.id === dossierId);
-      if (!moved) return prev;
-      return [{ ...moved, etat: "ATTESTATION" }, ...prev];
-    });
-    setTab("emises");
+    if (wasDraft) {
+      setAEmettre((prev) => prev.filter((d) => d.id !== dossierId));
+      setEmises((prev) => {
+        const moved = aEmettre.find((d) => d.id === dossierId);
+        if (!moved) return prev;
+        return [{ ...moved, etat: "ATTESTATION", hasFile: true }, ...prev];
+      });
+      setTab("emises");
+    } else {
+      setEmises((prev) => prev.map((d) => (d.id === dossierId ? { ...d, hasFile: true } : d)));
+    }
     setSelectedId(dossierId);
     router.refresh();
   };
@@ -209,7 +224,7 @@ export function AttestationsClient({
           "flex w-full items-start gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors",
           active
             ? "border-lapis/40 bg-or-pale/50"
-            : "border-transparent hover:border-ligne hover:bg-blanc",
+            : "border-transparent hover:border-ligne hover:bg-card",
         )}
       >
         <div
@@ -252,11 +267,11 @@ export function AttestationsClient({
 
       {/* KPIs */}
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-ligne bg-blanc px-5 py-4">
+        <div className="rounded-2xl border border-ligne bg-card px-5 py-4">
           <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">À émettre</p>
           <p className="mt-1 font-display text-3xl font-bold text-ambre">{aEmettre.length}</p>
         </div>
-        <div className="rounded-2xl border border-ligne bg-blanc px-5 py-4">
+        <div className="rounded-2xl border border-ligne bg-card px-5 py-4">
           <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Émises</p>
           <p className="mt-1 font-display text-3xl font-bold text-vert">{emises.length}</p>
         </div>
@@ -267,13 +282,13 @@ export function AttestationsClient({
         <div className="min-w-0 space-y-4">
           <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="gap-4">
             <TabsList className="h-auto w-full grid grid-cols-3 bg-porcelaine p-1">
-              <TabsTrigger value="a-emettre" className="py-2 data-[state=active]:bg-blanc">
+              <TabsTrigger value="a-emettre" className="py-2 data-[state=active]:bg-card">
                 À émettre
               </TabsTrigger>
-              <TabsTrigger value="emises" className="py-2 data-[state=active]:bg-blanc">
+              <TabsTrigger value="emises" className="py-2 data-[state=active]:bg-card">
                 Émises
               </TabsTrigger>
-              <TabsTrigger value="modeles" className="py-2 data-[state=active]:bg-blanc">
+              <TabsTrigger value="modeles" className="py-2 data-[state=active]:bg-card">
                 Modèles
               </TabsTrigger>
             </TabsList>
@@ -288,13 +303,13 @@ export function AttestationsClient({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Filtrer nom, référence, école…"
-                  className="pl-9 bg-blanc"
+                  className="pl-9 bg-card"
                 />
               </div>
             )}
 
             <TabsContent value="a-emettre" className="mt-0">
-              <div className="rounded-2xl border border-ligne bg-blanc p-2">
+              <div className="rounded-2xl border border-ligne bg-card p-2">
                 {listAEmettre.length === 0 ? (
                   <div className="px-4 py-12 text-center">
                     <CheckCircle2 className="mx-auto h-8 w-8 text-vert" strokeWidth={1.5} />
@@ -309,7 +324,7 @@ export function AttestationsClient({
             </TabsContent>
 
             <TabsContent value="emises" className="mt-0">
-              <div className="rounded-2xl border border-ligne bg-blanc p-2">
+              <div className="rounded-2xl border border-ligne bg-card p-2">
                 {listEmises.length === 0 ? (
                   <div className="px-4 py-12 text-center">
                     <Stamp className="mx-auto h-8 w-8 text-ardoise/40" strokeWidth={1.5} />
@@ -326,7 +341,7 @@ export function AttestationsClient({
             <TabsContent value="modeles" className="mt-0">
               <div className="space-y-2">
                 {modeles.length === 0 ? (
-                  <div className="rounded-2xl border border-ligne bg-blanc px-4 py-12 text-center">
+                  <div className="rounded-2xl border border-ligne bg-card px-4 py-12 text-center">
                     <Stamp className="mx-auto h-8 w-8 text-ardoise/40" strokeWidth={1.5} />
                     <p className="mt-2 text-sm text-ardoise">Aucun modèle actif.</p>
                   </div>
@@ -334,7 +349,7 @@ export function AttestationsClient({
                   modeles.map((m) => (
                     <div
                       key={m.id}
-                      className="flex items-start gap-3 rounded-2xl border border-ligne bg-blanc p-4"
+                      className="flex items-start gap-3 rounded-2xl border border-ligne bg-card p-4"
                     >
                       <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-or-pale text-or">
                         <Stamp className="h-4 w-4" strokeWidth={1.5} />
@@ -363,7 +378,7 @@ export function AttestationsClient({
 
         {/* Panneau aperçu */}
         <aside className="lg:sticky lg:top-24 lg:self-start">
-          <div className="overflow-hidden rounded-2xl border border-ligne bg-blanc shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-ligne bg-card shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ligne px-4 py-3">
               <div>
                 <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Aperçu</p>
@@ -373,11 +388,13 @@ export function AttestationsClient({
                     : "Aucun dossier sélectionné"}
                 </p>
               </div>
-              {selectedIsDraft && selected ? (
-                <Badge className="bg-ambre/15 font-mono text-[10px] uppercase text-ambre">Brouillon</Badge>
-              ) : selected ? (
+              {selected?.hasFile ? (
                 <Badge className="bg-vert/10 font-mono text-[10px] uppercase text-vert">
                   {selected.etat?.toLowerCase() === "cloture" ? "Récupérée" : "Émise"}
+                </Badge>
+              ) : selected ? (
+                <Badge className="bg-ambre/15 font-mono text-[10px] uppercase text-ambre">
+                  Document à téléverser
                 </Badge>
               ) : null}
             </div>
@@ -389,16 +406,24 @@ export function AttestationsClient({
                     key={iframeSrc}
                     initial={reduce ? false : { opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    exit={reduce ? undefined : { opacity: 0 }}
+                    {...(!reduce ? { exit: { opacity: 0 } } : {})}
                     transition={{ duration: 0.25 }}
                     className="aspect-[3/4] w-full sm:aspect-[4/5]"
                   >
                     <iframe
                       title="Aperçu attestation"
                       src={iframeSrc}
-                      className="h-full w-full border-0 bg-blanc"
+                      className="h-full w-full border-0 bg-card"
                     />
                   </motion.div>
+                ) : selected ? (
+                  <div className="flex aspect-[3/4] flex-col items-center justify-center gap-2 px-6 text-center sm:aspect-[4/5]">
+                    <Upload className="h-8 w-8 text-ardoise/40" strokeWidth={1.5} />
+                    <p className="text-sm text-ardoise">
+                      Aucun document téléversé pour ce dossier. Téléversez le document envoyé par
+                      l&apos;université pour l&apos;émettre auprès du candidat.
+                    </p>
+                  </div>
                 ) : (
                   <div className="flex aspect-[3/4] flex-col items-center justify-center gap-2 px-6 text-center sm:aspect-[4/5]">
                     <Eye className="h-8 w-8 text-ardoise/40" strokeWidth={1.5} />
@@ -412,48 +437,89 @@ export function AttestationsClient({
 
             {selected && (
               <div className="flex flex-wrap gap-2 border-t border-ligne p-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 border-ligne"
-                  onClick={() => window.open(pdfUrl(selected.id, selectedIsDraft), "_blank")}
-                >
-                  <FileText className="mr-1.5 h-3.5 w-3.5" />
-                  PDF
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 border-ligne"
-                  onClick={() => window.open(previewUrl(selected.id, selectedIsDraft), "_blank")}
-                >
-                  <Eye className="mr-1.5 h-3.5 w-3.5" />
-                  Plein écran
-                </Button>
-                {selectedIsDraft && (
-                  <Button
-                    size="sm"
-                    className="w-full bg-lapis text-blanc hover:bg-lapis/90 sm:w-auto sm:flex-1"
-                    disabled={emittingId === selected.id}
-                    onClick={() => emettreAttestation(selected.id, selected.reference)}
-                  >
-                    {emittingId === selected.id ? (
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
-                    ) : (
-                      <Stamp className="mr-1.5 h-3.5 w-3.5" />
-                    )}
-                    Émettre
-                  </Button>
+                {selected.hasFile && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 border-ligne"
+                      onClick={() => window.open(attestationDownloadUrl(selected.id), "_blank")}
+                    >
+                      <Download className="mr-1.5 h-3.5 w-3.5" />
+                      Télécharger
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 border-ligne"
+                      onClick={() => window.open(attestationViewUrl(selected.id), "_blank")}
+                    >
+                      <Eye className="mr-1.5 h-3.5 w-3.5" />
+                      Plein écran
+                    </Button>
+                  </>
                 )}
+                <Button
+                  size="sm"
+                  className={cn(
+                    "bg-lapis text-blanc hover:bg-lapis/90",
+                    selected.hasFile ? "w-full sm:w-auto" : "w-full flex-1",
+                  )}
+                  onClick={() => {
+                    setUploadFile(null);
+                    setUploadOpen(true);
+                  }}
+                >
+                  <Stamp className="mr-1.5 h-3.5 w-3.5" />
+                  {selected.hasFile ? "Remplacer" : "Téléverser & émettre"}
+                </Button>
               </div>
             )}
           </div>
         </aside>
       </div>
 
+      {/* Dialog téléversement attestation */}
+      <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+        <DialogContent className="bg-card sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">
+              {selected?.hasFile ? "Remplacer le document" : "Téléverser l'attestation"}
+            </DialogTitle>
+            <DialogDescription>
+              {selected?.hasFile
+                ? "Le nouveau fichier remplacera le document actuellement visible par le candidat."
+                : `Téléversez le document de préinscription envoyé par ${selected?.universiteNom ?? "l'université"}. ${selected?.candidatPrenom ?? "Le candidat"} sera notifié avec un message de félicitations.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Input
+              type="file"
+              accept="application/pdf,image/jpeg,image/png,image/webp"
+              onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+              aria-label="Document d'attestation"
+            />
+            {!uploadFile && <p className="text-xs text-ardoise">PDF, JPG, PNG ou WEBP — 10 Mo max.</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUploadOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              className="bg-lapis text-blanc hover:bg-lapis/90"
+              disabled={!uploadFile || uploading}
+              onClick={() => void confirmUploadAttestation()}
+            >
+              {uploading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
+              {selected?.hasFile ? "Remplacer" : "Envoyer au candidat"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Dialog nouveau modèle */}
       <Dialog open={modeleOpen} onOpenChange={setModeleOpen}>
-        <DialogContent className="bg-blanc sm:max-w-md">
+        <DialogContent className="bg-card sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-display">Nouveau modèle</DialogTitle>
             <DialogDescription>
@@ -477,7 +543,7 @@ export function AttestationsClient({
                 value={modeleDesc}
                 onChange={(e) => setModeleDesc(e.target.value)}
                 rows={3}
-                className="w-full rounded-md border border-ligne bg-blanc px-3 py-2 text-sm"
+                className="w-full rounded-md border border-ligne bg-card px-3 py-2 text-sm"
                 placeholder="Document officiel GET Admission…"
               />
             </div>

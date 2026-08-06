@@ -442,3 +442,250 @@ export async function buildReceiptPdfBuffer(input: ReceiptDocInput): Promise<Uin
 
   return pdfDoc.save();
 }
+
+/* --------------------------- Compilation des pièces d'un dossier --------------------------- */
+
+const PIECE_STATUT_LABEL: Record<string, string> = {
+  manquante: "Manquante",
+  televersee: "Téléversée",
+  a_corriger: "À corriger",
+  validee: "Validée",
+};
+
+export type PieceDossierInput = {
+  libelle: string;
+  statut: string;
+  /** null si aucun fichier téléversé ou fichier illisible */
+  buffer: Buffer | null;
+  /** "application/pdf" | "image/jpeg" | "image/png" | "image/webp" | null */
+  contentType: string | null;
+};
+
+export type PiecesDossierDocInput = {
+  dossierRef: string;
+  candidat: string;
+  generatedAtStr: string;
+  generatedBy: string;
+  pieces: PieceDossierInput[];
+};
+
+async function embedAnyImage(pdfDoc: PDFDocument, buffer: Buffer, contentType: string | null) {
+  if (contentType === "image/png") return pdfDoc.embedPng(buffer);
+  if (contentType === "image/jpeg" || contentType === "image/jpg") return pdfDoc.embedJpg(buffer);
+  // WEBP (ou type non identifié) — pdf-lib ne l'embarque pas nativement : conversion PNG via sharp
+  const { default: sharp } = await import("sharp");
+  const pngBuffer = await sharp(buffer).png().toBuffer();
+  return pdfDoc.embedPng(pngBuffer);
+}
+
+function drawDividerPage(
+  pdfDoc: PDFDocument,
+  bold: PDFFont,
+  regular: PDFFont,
+  opts: { title: string; index: number; total: number },
+) {
+  const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  const centerY = PAGE_HEIGHT / 2;
+
+  page.drawLine({
+    start: { x: MARGIN, y: centerY + 30 },
+    end: { x: PAGE_WIDTH - MARGIN, y: centerY + 30 },
+    thickness: 1.4,
+    color: COLOR.lapis,
+  });
+  page.drawText(`PIÈCE ${opts.index}/${opts.total}`, {
+    x: MARGIN,
+    y: centerY + 42,
+    size: 9,
+    font: regular,
+    color: COLOR.ardoise,
+  });
+  let y = centerY;
+  for (const line of wrapText(opts.title, bold, 22, CONTENT_WIDTH)) {
+    page.drawText(line, { x: MARGIN, y, size: 22, font: bold, color: COLOR.or });
+    y -= 28;
+  }
+  return page;
+}
+
+/**
+ * Assemble toutes les pièces d'un dossier (PDF fusionnés, images converties en pages) en un
+ * seul PDF imprimable/téléchargeable, précédé d'une page de garde listant chaque pièce et son statut.
+ */
+export async function buildPiecesDossierPdfBuffer(input: PiecesDossierDocInput): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.create();
+  pdfDoc.setTitle(`Pièces du dossier ${input.dossierRef}`);
+  pdfDoc.setAuthor("GET Admission");
+  pdfDoc.setSubject(`Compilation des pièces — ${input.candidat}`);
+
+  const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  // Page de garde réservée en premier (dessinée en dernier, une fois le statut de chaque pièce connu).
+  const coverPage = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+
+  const summary: { libelle: string; statutLabel: string; included: boolean; note?: string }[] = [];
+
+  let index = 0;
+  const total = input.pieces.length;
+  for (const piece of input.pieces) {
+    index += 1;
+    const statutLabel = PIECE_STATUT_LABEL[piece.statut] ?? piece.statut;
+
+    if (!piece.buffer || !piece.contentType) {
+      summary.push({ libelle: piece.libelle, statutLabel, included: false, note: "aucun fichier" });
+      continue;
+    }
+
+    try {
+      if (piece.contentType === "application/pdf") {
+        const srcDoc = await PDFDocument.load(piece.buffer, { ignoreEncryption: true });
+        const pageIndices = srcDoc.getPageIndices();
+        if (pageIndices.length === 0) throw new Error("PDF vide");
+        drawDividerPage(pdfDoc, bold, regular, { title: piece.libelle, index, total });
+        const copied = await pdfDoc.copyPages(srcDoc, pageIndices);
+        for (const p of copied) pdfDoc.addPage(p);
+      } else {
+        const image = await embedAnyImage(pdfDoc, piece.buffer, piece.contentType);
+        drawDividerPage(pdfDoc, bold, regular, { title: piece.libelle, index, total });
+        const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+        const maxW = CONTENT_WIDTH;
+        const maxH = PAGE_HEIGHT - MARGIN * 2;
+        const scale = Math.min(maxW / image.width, maxH / image.height, 1);
+        const w = image.width * scale;
+        const h = image.height * scale;
+        page.drawImage(image, {
+          x: (PAGE_WIDTH - w) / 2,
+          y: (PAGE_HEIGHT - h) / 2,
+          width: w,
+          height: h,
+        });
+      }
+      summary.push({ libelle: piece.libelle, statutLabel, included: true });
+    } catch {
+      summary.push({ libelle: piece.libelle, statutLabel, included: false, note: "fichier illisible" });
+    }
+  }
+
+  // --- Page de garde ---
+  let cursorY = (await drawBrandHeader(pdfDoc, coverPage)) - 34;
+  coverPage.drawText("Pièces du dossier", { x: MARGIN, y: cursorY, size: 21, font: bold, color: COLOR.or });
+  cursorY -= 34;
+
+  cursorY = drawInfoBox(coverPage, {
+    topY: cursorY,
+    bold,
+    regular,
+    rows: [
+      ["Dossier", input.dossierRef],
+      ["Candidat", input.candidat],
+      ["Généré le", input.generatedAtStr],
+      ["Généré par", input.generatedBy],
+      ["Pièces incluses", `${summary.filter((s) => s.included).length} / ${summary.length}`],
+    ],
+  });
+  cursorY -= 24;
+
+  coverPage.drawText("CONTENU", { x: MARGIN, y: cursorY, size: 9, font: bold, color: COLOR.ardoise });
+  cursorY -= 18;
+  for (const item of summary) {
+    if (cursorY < MARGIN + 40) break; // page de garde : liste tronquée au-delà d'une page (cas limite)
+    const label = item.included
+      ? `${item.libelle} — ${item.statutLabel}`
+      : `${item.libelle} — ${item.statutLabel} (non incluse : ${item.note})`;
+    const color = item.included ? COLOR.encre : COLOR.carmin;
+    for (const line of wrapText(`• ${label}`, regular, 10, CONTENT_WIDTH)) {
+      coverPage.drawText(line, { x: MARGIN, y: cursorY, size: 10, font: regular, color });
+      cursorY -= 14;
+    }
+  }
+
+  drawFooter(
+    coverPage,
+    regular,
+    `GET Admission · Confidentiel — document généré électroniquement le ${input.generatedAtStr}.`,
+  );
+
+  return pdfDoc.save();
+}
+
+/* --------------------------- Listing tabulaire (candidats, etc.) --------------------------- */
+
+export type ListingColumn = { label: string; width: number };
+export type ListingDocInput = {
+  titre: string;
+  sousTitre?: string;
+  generatedAtStr: string;
+  generatedBy: string;
+  columns: ListingColumn[];
+  rows: string[][];
+};
+
+/** Compile une liste tabulaire générique (ex. candidats) en PDF paginé, avec en-tête de marque. */
+export async function buildListingPdfBuffer(input: ListingDocInput): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.create();
+  pdfDoc.setTitle(input.titre);
+  pdfDoc.setAuthor("GET Admission");
+
+  const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const rowHeight = 20;
+  const headerRowHeight = 22;
+
+  let page!: PDFPage;
+  let cursorY = 0;
+
+  const drawColumnHeaders = () => {
+    let x = MARGIN;
+    page.drawRectangle({ x: MARGIN, y: cursorY - headerRowHeight, width: CONTENT_WIDTH, height: headerRowHeight, color: COLOR.porcelaine });
+    for (const col of input.columns) {
+      page.drawText(col.label.toUpperCase(), { x: x + 4, y: cursorY - headerRowHeight + 7, size: 7.5, font: bold, color: COLOR.ardoise });
+      x += col.width;
+    }
+    cursorY -= headerRowHeight;
+  };
+
+  const startPage = async (first: boolean) => {
+    page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    if (first) {
+      cursorY = (await drawBrandHeader(pdfDoc, page)) - 34;
+      page.drawText(input.titre, { x: MARGIN, y: cursorY, size: 19, font: bold, color: COLOR.or });
+      cursorY -= 20;
+      if (input.sousTitre) {
+        page.drawText(input.sousTitre, { x: MARGIN, y: cursorY, size: 10, font: regular, color: COLOR.ardoise });
+        cursorY -= 18;
+      }
+      cursorY -= 10;
+    } else {
+      cursorY = PAGE_HEIGHT - MARGIN;
+    }
+    drawColumnHeaders();
+  };
+
+  await startPage(true);
+
+  let rowIndex = 0;
+  for (const row of input.rows) {
+    if (cursorY - rowHeight < MARGIN + 40) {
+      await startPage(false);
+    }
+    if (rowIndex % 2 === 1) {
+      page.drawRectangle({ x: MARGIN, y: cursorY - rowHeight, width: CONTENT_WIDTH, height: rowHeight, color: COLOR.porcelaine, opacity: 0.5 });
+    }
+    let x = MARGIN;
+    for (let i = 0; i < input.columns.length; i++) {
+      const col = input.columns[i]!;
+      const cell = row[i] ?? "";
+      const lines = wrapText(cell, regular, 9, col.width - 8);
+      page.drawText(lines[0] ?? "", { x: x + 4, y: cursorY - rowHeight + 6, size: 9, font: regular, color: COLOR.encre });
+      x += col.width;
+    }
+    cursorY -= rowHeight;
+    rowIndex += 1;
+  }
+
+  drawFooter(page, regular, `${input.rows.length} ligne(s) — Généré par ${input.generatedBy} le ${input.generatedAtStr}.`);
+
+  return pdfDoc.save();
+}

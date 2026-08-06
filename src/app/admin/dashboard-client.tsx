@@ -121,7 +121,7 @@ export default function AdminDashboardClient() {
       {/* Charts */}
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Évolution dossiers */}
-        <Card className="border-ligne bg-blanc p-5 lg:col-span-2 shadow-sm">
+        <Card className="border-ligne bg-card p-5 lg:col-span-2 shadow-sm">
           <ChartSectionHeader title="Dossiers & pré-admissions">
             <Select value={periodeDossiers} onValueChange={setPeriodeDossiers}>
               <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue /></SelectTrigger>
@@ -158,7 +158,7 @@ export default function AdminDashboardClient() {
         </Card>
 
         {/* Répartition statuts */}
-        <Card className="border-ligne bg-blanc p-5 shadow-sm">
+        <Card className="border-ligne bg-card p-5 shadow-sm">
           <ChartSectionHeader title="Dossiers par statut" />
           <div className="mt-4 h-44">
             <ResponsiveContainer width="100%" height="100%">
@@ -184,7 +184,7 @@ export default function AdminDashboardClient() {
 
       {/* Ventilation CDC : public/privé + profil */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-ligne bg-blanc p-5 shadow-sm">
+        <Card className="border-ligne bg-card p-5 shadow-sm">
           <ChartSectionHeader title="Répartition public / privé" />
           <ul className="mt-4 space-y-2">
             {(stats.repartitionTypeEtablissement ?? []).map((s) => (
@@ -196,7 +196,7 @@ export default function AdminDashboardClient() {
             ))}
           </ul>
         </Card>
-        <Card className="border-ligne bg-blanc p-5 shadow-sm">
+        <Card className="border-ligne bg-card p-5 shadow-sm">
           <ChartSectionHeader title="Répartition par profil académique" />
           <ul className="mt-4 space-y-2">
             {(stats.repartitionProfilCandidat ?? []).map((s) => (
@@ -213,7 +213,7 @@ export default function AdminDashboardClient() {
       {/* Top universités + Encaissements + Top conseillers */}
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Top universités */}
-        <Card className="border-ligne bg-blanc p-5 shadow-sm">
+        <Card className="border-ligne bg-card p-5 shadow-sm">
           <ChartSectionHeader title="Top universités par dossiers" />
           <div className="mt-4 h-48">
             <ResponsiveContainer width="100%" height="100%">
@@ -229,7 +229,7 @@ export default function AdminDashboardClient() {
         </Card>
 
         {/* Encaissements */}
-        <Card className="border-ligne bg-blanc p-5 shadow-sm">
+        <Card className="border-ligne bg-card p-5 shadow-sm">
           <ChartSectionHeader title="Encaissements (FCFA)">
             <Select value={periodeFinance} onValueChange={setPeriodeFinance}>
               <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue /></SelectTrigger>
@@ -259,7 +259,7 @@ export default function AdminDashboardClient() {
         </Card>
 
         {/* Top conseillers */}
-        <Card className="border-ligne bg-blanc p-5 shadow-sm">
+        <Card className="border-ligne bg-card p-5 shadow-sm">
           <ChartSectionHeader title="Top conseillers" />
           {stats.topConseillers.length === 0 ? (
             <EmptyState
@@ -303,7 +303,7 @@ export default function AdminDashboardClient() {
       )}
 
       {/* Dossiers récents */}
-      <Card className="border-ligne bg-blanc p-0 overflow-hidden shadow-sm">
+      <Card className="border-ligne bg-card p-0 overflow-hidden shadow-sm">
         <div className="flex items-center justify-between border-b border-ligne px-6 py-4">
           <h2 className="font-display text-base font-bold text-encre">Dossiers récents</h2>
           <Link href="/admin/dossiers" className="text-sm font-medium text-or hover:underline">Tout voir</Link>

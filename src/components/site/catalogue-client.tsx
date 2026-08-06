@@ -19,13 +19,13 @@ import {
 // Conformes à la forme attendue par <UniversiteCard />.
 // Définis localement (aucune dépendance mock).
 
-export type Niveau = "Licence" | "Master" | "Doctorat";
+export type Niveau = string;
 
 export type CatalogueFormation = {
   id: string;
   universiteId: string;
   intitule: string;
-  niveau: Niveau;
+  niveau: string;
   domaine: string;
   duree: string;
   fraisAgence: number;
@@ -66,9 +66,17 @@ const TRIS: { value: Tri; label: string }[] = [
   { value: "frais_desc", label: "Frais décroissants" },
 ];
 
-const NIVEAUX_LIST: Niveau[] = ["Licence", "Master", "Doctorat"];
+const NIVEAUX_PRESETS = ["Licence", "Master", "Doctorat"] as const;
 
 const PAGE_SIZE = 8;
+
+/** Normalise pour une recherche insensible aux accents/majuscules ("École" ~ "ecole"). */
+function normalizeSearch(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+}
 
 /* -------------------------------- Component ------------------------------- */
 
@@ -100,6 +108,12 @@ export function CatalogueClient({ universites }: Props) {
       ),
     [universites]
   );
+  const niveauxList = React.useMemo(() => {
+    const fromData = universites.flatMap((u) => u.formations.map((f) => f.niveau)).filter(Boolean);
+    return Array.from(new Set<string>([...NIVEAUX_PRESETS, ...fromData])).sort((a, b) =>
+      a.localeCompare(b, "fr"),
+    );
+  }, [universites]);
 
   // Réinitialise le "charger plus" à chaque changement de filtre (ajustement pendant le render).
   const filterKey = `${recherche}|${pays}|${domaine}|${niveau}|${typeEtab}|${tri}`;
@@ -111,7 +125,7 @@ export function CatalogueClient({ universites }: Props) {
 
   // Pour chaque université, calculer les niveaux effectivement disponibles (via formations).
   const niveauxParUniversite = React.useMemo(() => {
-    const map = new Map<string, Set<Niveau>>();
+    const map = new Map<string, Set<string>>();
     for (const u of universites) map.set(u.id, new Set());
     for (const u of universites) {
       for (const f of u.formations) {
@@ -123,17 +137,20 @@ export function CatalogueClient({ universites }: Props) {
   }, [universites]);
 
   const resultat = React.useMemo(() => {
-    const q = recherche.trim().toLowerCase();
+    const q = normalizeSearch(recherche.trim());
     const liste = universites.filter((u) => {
       if (pays !== "tous" && u.pays !== pays) return false;
       if (domaine !== "tous" && !u.domaines.includes(domaine)) return false;
       if (typeEtab !== "tous" && (u.typeEtablissement ?? "PRIVE") !== typeEtab) return false;
       if (niveau !== "tous") {
         const nv = niveauxParUniversite.get(u.id);
-        if (!nv || !nv.has(niveau as Niveau)) return false;
+        if (!nv || !nv.has(niveau)) return false;
       }
       if (q) {
-        const hay = `${u.nom} ${u.ville} ${u.pays} ${u.domaines.join(" ")}`.toLowerCase();
+        const formationsHay = u.formations.map((f) => `${f.intitule} ${f.domaine} ${f.niveau}`).join(" ");
+        const hay = normalizeSearch(
+          `${u.nom} ${u.ville} ${u.pays} ${u.domaines.join(" ")} ${formationsHay}`,
+        );
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -201,7 +218,7 @@ export function CatalogueClient({ universites }: Props) {
               />
               <Input
                 type="search"
-                placeholder="Rechercher par nom, ville, domaine…"
+                placeholder="Rechercher par nom, ville, domaine, formation…"
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}
                 className="border-border bg-card/60 pl-9"
@@ -244,7 +261,7 @@ export function CatalogueClient({ universites }: Props) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="tous">Tous les niveaux</SelectItem>
-                  {NIVEAUX_LIST.map((n) => (
+                  {niveauxList.map((n) => (
                     <SelectItem key={n} value={n}>
                       {n}
                     </SelectItem>

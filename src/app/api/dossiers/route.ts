@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { dossierCreateSchema } from "@/lib/validations";
+import { dossierCreateSchema, paginationQuerySchema } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { requireApiUser, parseOrRespond } from "@/lib/api-auth";
 import { requirePermission } from "@/lib/rbac";
@@ -27,11 +27,19 @@ export async function GET(request: Request) {
   // --- Params de pagination (optionnels) ---
   const { searchParams } = new URL(request.url);
   const hasPagination = searchParams.has("page");
-  const page = Math.max(1, Number(searchParams.get("page") ?? "1"));
-  const pageSize = Math.min(50, Math.max(1, Number(searchParams.get("pageSize") ?? "20")));
+  const query = paginationQuerySchema.parse({
+    page: searchParams.get("page") ?? undefined,
+    pageSize: searchParams.get("pageSize") ?? undefined,
+  });
+  const page = query.page;
+  const pageSize = Math.min(50, query.pageSize);
 
   // --- Where + include partagés ---
   const where = role === "CANDIDAT" ? { candidatId: userId } : {};
+  const demandesCorrectionInclude = {
+    orderBy: { createdAt: "desc" as const },
+    include: { conseiller: { select: { prenom: true, nom: true } } },
+  };
   const include =
     role === "CANDIDAT"
       ? {
@@ -43,6 +51,7 @@ export async function GET(request: Request) {
           paiements: true,
           historiques: { orderBy: { date: "asc" as const } },
           conversation: { select: { nonLusCandidat: true } },
+          demandesCorrection: demandesCorrectionInclude,
         }
       : {
           candidat: { select: { prenom: true, nom: true, email: true, nationalite: true } },
@@ -53,6 +62,7 @@ export async function GET(request: Request) {
           paiements: true,
           historiques: { orderBy: { date: "asc" as const } },
           conversation: { select: { nonLusCandidat: true } },
+          demandesCorrection: demandesCorrectionInclude,
         };
 
   if (hasPagination) {

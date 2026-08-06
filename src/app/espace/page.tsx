@@ -53,8 +53,9 @@ function getNextCandidateAction(params: {
   fraisAgence: number;
   universiteNom: string;
   attestationPret: boolean;
+  motifCorrection?: string | null;
 }): CandidateNextAction {
-  const { etatUpper, etatInfo, payePartiel, fraisAgence, universiteNom, attestationPret } =
+  const { etatUpper, etatInfo, payePartiel, fraisAgence, universiteNom, attestationPret, motifCorrection } =
     params;
 
   if (etatUpper === "BROUILLON") {
@@ -68,7 +69,9 @@ function getNextCandidateAction(params: {
   if (etatUpper === "CORRECTION") {
     return {
       titre: "Corrections demandées",
-      desc: "Votre conseiller a renvoyé le dossier. Corrigez les pièces concernées puis renvoyez.",
+      desc: motifCorrection
+        ? `Votre conseiller a renvoyé le dossier : « ${motifCorrection} »`
+        : "Votre conseiller a renvoyé le dossier. Corrigez les pièces concernées puis renvoyez.",
       href: "/espace/dossier",
       cta: "Corriger mon dossier",
     };
@@ -129,6 +132,7 @@ function EspaceDashboardInner() {
   });
   const liveMeta = liveLabel(liveStatus);
   const [detailsOpen, setDetailsOpen] = React.useState(false);
+  const [correctionHistOpen, setCorrectionHistOpen] = React.useState(false);
 
   if (loading) {
     return <EspaceDashboardSkeleton />;
@@ -201,6 +205,10 @@ function EspaceDashboardInner() {
   const attestationPret = etatUpper === "ATTESTATION" || etatUpper === "CLOTURE";
   const coverSrc = univ.coverUrl || "/images/campus-sorbonne.jpg";
 
+  const demandesCorrection = d.demandesCorrection ?? [];
+  const motifCorrectionActuel = demandesCorrection[0]?.motif ?? null;
+  const historiqueMotifs = demandesCorrection.slice(1);
+
   const prochaine = getNextCandidateAction({
     etatUpper,
     etatInfo,
@@ -208,6 +216,7 @@ function EspaceDashboardInner() {
     fraisAgence: d.fraisAgence,
     universiteNom: univ.nom,
     attestationPret,
+    motifCorrection: motifCorrectionActuel,
   });
 
   const secondaryNotes: string[] = [];
@@ -344,7 +353,7 @@ function EspaceDashboardInner() {
               etats={ETATS}
               etapeActuelle={workflowStep}
               dateParEtat={dateParEtat}
-              noteCourante={noteCourante}
+              noteCourante={noteCourante ?? null}
               live={liveStatus === "live" || liveStatus === "polling"}
             />
           </div>
@@ -388,6 +397,35 @@ function EspaceDashboardInner() {
               </Button>
             </div>
           </Card>
+
+          {etatUpper === "CORRECTION" && motifCorrectionActuel && (
+            <Card className="border-primary/30 bg-primary/5 p-4 shadow-sm backdrop-blur-md">
+              <p className="mb-2 font-mono text-[10px] uppercase tracking-eyebrow text-primary">Motif de la correction demandée</p>
+              <p className="text-sm text-foreground">{motifCorrectionActuel}</p>
+              {historiqueMotifs.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    className="mt-3 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                    onClick={() => setCorrectionHistOpen((open) => !open)}
+                    aria-expanded={correctionHistOpen}
+                  >
+                    {historiqueMotifs.length} motif(s) précédent(s)
+                    <ChevronDown className={cn("h-3 w-3 transition-transform", correctionHistOpen && "rotate-180")} strokeWidth={1.5} />
+                  </button>
+                  {correctionHistOpen && (
+                    <ul className="mt-2 space-y-2 border-t border-border/60 pt-2">
+                      {historiqueMotifs.map((m) => (
+                        <li key={m.id} className="text-xs text-muted-foreground">
+                          <span className="font-mono">{formatDate(m.createdAt)}</span> — {m.motif}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+            </Card>
+          )}
 
           <Card className="border-border bg-card/60 p-4 shadow-sm backdrop-blur-md">
             <p className="mb-3 font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">Votre conseillère</p>

@@ -11,6 +11,7 @@ import {
   staggerContainer,
   staggerItem,
 } from "@/lib/animations";
+import { MediaImage } from "@/components/media-image";
 
 export type PartnerCard = {
   id: string;
@@ -85,7 +86,7 @@ export function PartnersGrid({ partners }: { partners: PartnerCard[] }) {
                   <div className="flex items-center gap-2">
                     <span className="relative flex h-8 w-8 overflow-hidden rounded-full border border-border bg-muted">
                       {u.logoUrl ? (
-                        <Image src={u.logoUrl} alt="" width={32} height={32} className="object-cover" />
+                        <MediaImage src={u.logoUrl} alt="" width={32} height={32} className="object-cover" />
                       ) : (
                         <span className="flex h-full w-full items-center justify-center font-mono text-[9px] text-primary">
                           {u.ecusson.slice(0, 3)}

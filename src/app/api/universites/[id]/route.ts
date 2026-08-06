@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { universiteSchema, validate } from "@/lib/validations";
+import { parseJsonArray } from "@/lib/parse-json";
 import { uniqueSlug } from "@/lib/utils";
 import { logAudit } from "@/lib/audit";
 import { requirePermission } from "@/lib/rbac";
@@ -10,7 +11,7 @@ import { resolveFraisAgence, resolveFraisRange, getFraisAgenceConfig } from "@/l
 
 // GET /api/universites/[id] — détail par ID (staff) — alias de la route /by-slug
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
@@ -29,15 +30,15 @@ export async function GET(
   const frais = resolveFraisAgence(universite.typeEtablissement, fraisConfig);
   const result = {
     ...universite,
-    domaines: JSON.parse(universite.domaines),
-    pointsForts: JSON.parse(universite.pointsForts),
+    domaines: parseJsonArray(universite.domaines),
+    pointsForts: parseJsonArray(universite.pointsForts),
     fraisMin: frais,
     fraisMax: frais,
     formations: universite.formations.map((f) => ({
       ...f,
       fraisAgence: frais,
-      prerequis: JSON.parse(f.prerequis),
-      piecesRequises: JSON.parse(f.piecesRequises),
+      prerequis: parseJsonArray(f.prerequis),
+      piecesRequises: parseJsonArray(f.piecesRequises),
     })),
   };
 
@@ -54,7 +55,7 @@ export async function PUT(
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const gate = requirePermission((session.user as { role?: string }).role, "catalogue.write");
+  const gate = requirePermission(session.user.role, "catalogue.write");
   if (!gate.ok) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
@@ -168,8 +169,8 @@ export async function PUT(
 
   const result = {
     ...updated,
-    domaines: JSON.parse(updated.domaines),
-    pointsForts: JSON.parse(updated.pointsForts),
+    domaines: parseJsonArray(updated.domaines),
+    pointsForts: parseJsonArray(updated.pointsForts),
   };
 
   return NextResponse.json(result);
@@ -177,7 +178,7 @@ export async function PUT(
 
 // DELETE /api/universites/[id] — supprimer une université
 export async function DELETE(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
@@ -185,7 +186,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const gate = requirePermission((session.user as { role?: string }).role, "catalogue.write");
+  const gate = requirePermission(session.user.role, "catalogue.write");
   if (!gate.ok) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }

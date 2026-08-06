@@ -8,7 +8,7 @@ export async function requireAdminPage(permission: Permission) {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/back-office");
 
-  const role = (session.user as { role?: string }).role;
+  const role = session.user.role;
   const gate = requirePermission(role, permission);
   if (!gate.ok) {
     if (hasPermission(role, "dossiers.read")) redirect("/admin/dossiers");

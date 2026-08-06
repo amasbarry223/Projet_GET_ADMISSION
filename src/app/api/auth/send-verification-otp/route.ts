@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { parseOrRespond } from "@/lib/api-auth";
 import { db } from "@/lib/db";
+import { otpRequestLoginSchema } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { provisionAndSendEmailOtp } from "@/lib/supabase/send-otp";
 import { API_ERROR_CODES, API_ROUTES } from "@/shared/constants";
@@ -12,13 +14,15 @@ export async function POST(request: Request) {
   if (rateLimited) return rateLimited;
 
   try {
-    const body = await request.json();
-    const email = String(body?.email || "")
-      .toLowerCase()
-      .trim();
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return NextResponse.json({ error: "E-mail invalide" }, { status: 400 });
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
     }
+    const parsed = parseOrRespond(otpRequestLoginSchema, body);
+    if (!parsed.ok) return parsed.response;
+    const email = parsed.data.email.toLowerCase().trim();
 
     const user = await db.user.findUnique({
       where: { email },
@@ -82,9 +86,9 @@ export async function POST(request: Request) {
         },
         {
           status,
-          headers: sent.retryAfterSec
-            ? { "Retry-After": String(sent.retryAfterSec) }
-            : undefined,
+          ...(sent.retryAfterSec
+            ? { headers: { "Retry-After": String(sent.retryAfterSec) } }
+            : {}),
         },
       );
     }

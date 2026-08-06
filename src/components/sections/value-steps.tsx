@@ -65,7 +65,7 @@ export function ValueSteps({ steps }: { steps: ValueStep[] }) {
                   <motion.article
                     key={etape.numero}
                     variants={motionSafeVariants(reduce, staggerItem)}
-                    whileHover={reduce ? undefined : { y: -4 }}
+                    {...(!reduce ? { whileHover: { y: -4 } } : {})}
                     className="group h-full rounded-xl border border-border bg-card/60 p-6 shadow-sm backdrop-blur-sm transition-colors hover:border-primary/40"
                   >
                     <div className="flex items-center justify-between">

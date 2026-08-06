@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { parseJsonArray } from "@/lib/parse-json";
 import { getFraisAgenceConfig, resolveFraisAgence } from "@/lib/dossier/frais-agence-server";
 import {
   CatalogueClient,
@@ -27,9 +28,9 @@ export default async function CatalogueUniversitesPage() {
       drapeau: u.drapeau,
       ville: u.ville,
       ecusson: u.ecusson,
-      domaines: JSON.parse(u.domaines) as string[],
+      domaines: parseJsonArray(u.domaines),
       description: u.description,
-      pointsForts: JSON.parse(u.pointsForts) as string[],
+      pointsForts: parseJsonArray(u.pointsForts),
       imageCouleur: u.imageCouleur,
       fraisMin: frais,
       fraisMax: frais,
@@ -47,8 +48,8 @@ export default async function CatalogueUniversitesPage() {
         domaine: f.domaine,
         duree: f.duree,
         fraisAgence: frais,
-        prerequis: JSON.parse(f.prerequis) as string[],
-        piecesRequises: JSON.parse(f.piecesRequises) as string[],
+        prerequis: parseJsonArray(f.prerequis),
+        piecesRequises: parseJsonArray(f.piecesRequises),
       })),
     };
   });

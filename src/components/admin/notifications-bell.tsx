@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, BellOff, Loader2, FileText, CreditCard, MessageSquare } from "lucide-react";
+import { Bell, BellOff, Loader2, FileText, CreditCard, MessageSquare, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -19,12 +19,14 @@ type Notification = {
   reference: string;
   href: string;
   createdAt: string;
+  notifId?: string;
 };
 
 const ICON_MAP: Record<string, React.ElementType> = {
   dossier: FileText,
   paiement: CreditCard,
   message: MessageSquare,
+  correction: AlertCircle,
 };
 
 export function NotificationsBell() {
@@ -50,17 +52,25 @@ export function NotificationsBell() {
 
   React.useEffect(() => {
     loadNotifications();
-    // Poll toutes les 60 secondes
-    const interval = setInterval(loadNotifications, 60_000);
+    // Poll toutes les 30 secondes (aligné sur la cloche candidat)
+    const interval = setInterval(loadNotifications, 30_000);
     return () => clearInterval(interval);
   }, [loadNotifications]);
 
   const count = notifications.length;
   const hasUnread = count > 0;
 
-  const handleClick = (href: string) => {
+  const handleClick = (n: Notification) => {
     setOpen(false);
-    router.push(href);
+    if (n.notifId) {
+      fetch("/api/notifications", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [n.notifId] }),
+      }).catch(() => {});
+      setNotifications((prev) => prev.filter((item) => item.id !== n.id));
+    }
+    router.push(n.href);
   };
 
   return (
@@ -75,7 +85,7 @@ export function NotificationsBell() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 bg-blanc p-0">
+      <PopoverContent align="end" className="w-80 bg-card p-0">
         <div className="border-b border-ligne px-4 py-3">
           <div className="flex items-center justify-between">
             <p className="font-display text-sm font-bold text-encre">Notifications</p>
@@ -99,7 +109,7 @@ export function NotificationsBell() {
                 return (
                   <li key={n.id}>
                     <button
-                      onClick={() => handleClick(n.href)}
+                      onClick={() => handleClick(n)}
                       className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-porcelaine"
                     >
                       <div className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-lapis/10">

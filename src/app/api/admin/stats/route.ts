@@ -14,7 +14,7 @@ export async function GET() {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const gate = requirePermission((session.user as { role?: string }).role, "dashboard");
+  const gate = requirePermission(session.user.role, "dashboard");
   if (!gate.ok) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
@@ -124,11 +124,12 @@ export async function GET() {
   const moisMap = new Map<string, number>();
   for (let i = 5; i >= 0; i--) {
     const m = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    moisMap.set(MOIS[m.getMonth()], 0);
+    const moisKey = MOIS[m.getMonth()] ?? "";
+    if (moisKey) moisMap.set(moisKey, 0);
   }
   for (const p of paiements) {
-    const key = MOIS[p.date.getMonth()];
-    if (moisMap.has(key)) {
+    const key = MOIS[p.date.getMonth()] ?? "";
+    if (key && moisMap.has(key)) {
       moisMap.set(key, moisMap.get(key)! + p.montant);
     }
   }

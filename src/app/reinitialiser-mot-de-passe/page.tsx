@@ -109,7 +109,10 @@ function ResetForm() {
             value={password}
             onChange={(e) => {
               setPassword(e.target.value);
-              setFieldErrors((prev) => ({ ...prev, password: undefined }));
+              setFieldErrors((prev) => {
+                const { password: _, ...rest } = prev;
+                return rest;
+              });
             }}
             autoComplete="new-password"
             aria-invalid={!!fieldErrors.password}
@@ -126,7 +129,10 @@ function ResetForm() {
           value={confirm}
           onChange={(e) => {
             setConfirm(e.target.value);
-            setFieldErrors((prev) => ({ ...prev, confirm: undefined }));
+            setFieldErrors((prev) => {
+              const { confirm: _, ...rest } = prev;
+              return rest;
+            });
           }}
           autoComplete="new-password"
           aria-invalid={!!fieldErrors.confirm}
