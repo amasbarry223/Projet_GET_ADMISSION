@@ -1,6 +1,6 @@
 "use client";
 
-import { UserPlus, FileText, CreditCard, Stamp, type LucideIcon } from "lucide-react";
+import { UserPlus, FileText, CreditCard, Stamp, Receipt, type LucideIcon } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { formatFCFA } from "@/lib/format";
 import {
@@ -87,30 +87,60 @@ export function ValueSteps({ steps }: { steps: ValueStep[] }) {
             whileInView="visible"
             viewport={revealViewport}
             variants={motionSafeVariants(reduce, fadeInUp)}
-            className="glass-card sticky top-28 rounded-xl p-6 shadow-lg"
+            className="glass-card sticky top-28 overflow-hidden rounded-xl shadow-lg"
           >
-            <p className="font-mono text-[11px] uppercase tracking-eyebrow text-primary">Frais d&apos;agence</p>
-            <p className="mt-3 font-display text-3xl font-bold text-foreground">
-              dès {formatFCFA(280000)}
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Montant indicatif — selon le type d&apos;établissement. Paiement en ligne ou déclaration
-              Mobile Money / Wave.
-            </p>
-            <ul className="mt-5 space-y-2 text-sm text-foreground/85">
-              <li className="flex justify-between border-b border-border py-2">
-                <span className="text-muted-foreground">Conseiller dédié</span>
-                <span className="font-medium">Inclus</span>
-              </li>
-              <li className="flex justify-between border-b border-border py-2">
-                <span className="text-muted-foreground">Suivi 12 étapes</span>
-                <span className="font-medium">Temps réel</span>
-              </li>
-              <li className="flex justify-between py-2">
-                <span className="text-muted-foreground">Attestation officielle</span>
-                <span className="font-medium">Vérifiable</span>
-              </li>
-            </ul>
+            <div className="flex items-center gap-3 px-6 pt-6">
+              <span className="flex h-9 w-9 flex-none items-center justify-center rounded-md bg-primary/10 text-primary">
+                <Receipt className="h-4.5 w-4.5" strokeWidth={1.5} />
+              </span>
+              <p className="font-mono text-[11px] uppercase tracking-eyebrow text-primary">
+                Frais d&apos;agence
+              </p>
+            </div>
+
+            <div className="px-6 pt-5">
+              <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">
+                À partir de
+              </p>
+              <p className="mt-1.5 font-display text-3xl font-bold tracking-tight text-foreground">
+                {formatFCFA(280000)}
+              </p>
+              <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
+                Montant indicatif — selon le type d&apos;établissement. Paiement en ligne ou
+                déclaration Mobile Money / Wave.
+              </p>
+            </div>
+
+            {/* Ligne perforée — esprit billet, en écho à la carte d'embarquement GET Admission */}
+            <div className="relative mt-6" aria-hidden>
+              <div className="border-t border-dashed border-border" />
+              <span className="absolute -left-2.5 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full bg-background" />
+              <span className="absolute -right-2.5 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full bg-background" />
+            </div>
+
+            <motion.ul
+              className="space-y-3 px-6 py-5"
+              initial="hidden"
+              whileInView="visible"
+              viewport={revealViewport}
+              variants={motionSafeVariants(reduce, staggerContainer)}
+            >
+              {[
+                ["Conseiller dédié", "Inclus"],
+                ["Suivi 12 étapes", "Temps réel"],
+                ["Attestation officielle", "Vérifiable"],
+              ].map(([label, value]) => (
+                <motion.li
+                  key={label}
+                  variants={motionSafeVariants(reduce, staggerItem)}
+                  className="flex items-baseline gap-2 font-mono text-xs"
+                >
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="h-px flex-1 -translate-y-0.5 border-b border-dotted border-border" />
+                  <span className="font-semibold text-foreground">{value}</span>
+                </motion.li>
+              ))}
+            </motion.ul>
           </motion.aside>
         </div>
       </div>
