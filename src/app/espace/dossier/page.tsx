@@ -43,6 +43,9 @@ import {
   ArrowRight,
   Save,
   Check,
+  CheckCircle2,
+  Clock,
+  Send,
   Lock,
   Plane,
   Loader2,
@@ -53,6 +56,7 @@ import {
   API_ROUTES,
   DOSSIER_WIZARD_STEP_COUNT,
   DOSSIER_WIZARD_STEPS,
+  ETAPE_PAR_ETAT,
   isDossierEditableByCandidate,
 } from "@/shared/constants";
 
@@ -408,16 +412,43 @@ function DossierWizard() {
   const historiqueMotifs = demandesCorrection.slice(1);
 
   const isLockedInFlight = !isEditable && !isResubmit && etatUpper !== "REFUSE" && etatUpper !== "CLOTURE";
+  const etapeCourante = ETAPE_PAR_ETAT[etatUpper as keyof typeof ETAPE_PAR_ETAT] ?? 0;
+  // "Validé" au sens strict : le conseiller a vérifié le dossier et l'a laissé passer (donc à
+  // partir de PAIEMENT_ATTENTE). Avant ça (Soumis, En vérification), rien n'a encore été validé —
+  // annoncer une validation prématurément induirait le candidat en erreur.
+  const isDossierValide = isLockedInFlight && etapeCourante >= ETAPE_PAR_ETAT.PAIEMENT_ATTENTE;
+  const isEnAttenteTraitement = isLockedInFlight && etatUpper === "SOUMIS";
+  const isEnVerification = isLockedInFlight && etatUpper === "VERIFICATION";
 
   return (
     <div className="space-y-6">
-      {isLockedInFlight && (
+      {isDossierValide && (
         <Alert className="border-vert/40 bg-vert/5">
-          <Lock className="h-4 w-4 text-vert" strokeWidth={1.5} />
-          <AlertTitle>Dossier validé — {etatBadge.libelle}</AlertTitle>
+          <CheckCircle2 className="h-4 w-4 text-vert" strokeWidth={1.5} />
+          <AlertTitle>Dossier validé avec succès !</AlertTitle>
           <AlertDescription>
-            Votre dossier est en cours de traitement par notre équipe et ne peut plus être modifié.{" "}
+            Votre conseiller a vérifié et validé votre dossier ; il ne peut plus être modifié.{" "}
             {etatBadge.description}
+          </AlertDescription>
+        </Alert>
+      )}
+      {isEnAttenteTraitement && (
+        <Alert className="border-ambre/40 bg-ambre/5">
+          <Send className="h-4 w-4 text-ambre" strokeWidth={1.5} />
+          <AlertTitle>Dossier soumis — en attente de prise en charge</AlertTitle>
+          <AlertDescription>
+            Votre dossier a bien été transmis à l&apos;agence et ne peut plus être modifié. Un
+            conseiller va prochainement l&apos;examiner.
+          </AlertDescription>
+        </Alert>
+      )}
+      {isEnVerification && (
+        <Alert className="border-ambre/40 bg-ambre/5">
+          <Clock className="h-4 w-4 text-ambre" strokeWidth={1.5} />
+          <AlertTitle>Vérification en cours</AlertTitle>
+          <AlertDescription>
+            Votre conseiller vérifie actuellement l&apos;éligibilité et la complétude de votre
+            dossier. Vous serez notifié dès que la vérification sera terminée.
           </AlertDescription>
         </Alert>
       )}

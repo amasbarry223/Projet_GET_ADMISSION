@@ -2,9 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { hasPermission } from "@/lib/rbac";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { DOSSIER_LIVE_CHANNEL, type DossierLiveBroadcastPayload } from "@/lib/dossier/live-broadcast";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,7 +50,7 @@ import { formatFCFA, formatDate, formatDateTime } from "@/lib/format";
 import { apiFetch, apiJson } from "@/lib/api-client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, CheckCircle2, AlertCircle, FileText, Send, Wallet, Stamp, XCircle, History, MessageSquare, User, ShieldCheck, Eye, AlertTriangle, Info, Loader2, UserPlus, UserMinus, Printer, Download, FileImage, IdCard, Landmark } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, FileText, Send, Wallet, Stamp, XCircle, History, MessageSquare, User, ShieldCheck, Eye, AlertTriangle, Info, Loader2, UserPlus, UserMinus, Printer, Download, FileImage, IdCard, Landmark, Share2 } from "lucide-react";
 import { ETAPE_PAR_ETAT } from "@/shared/constants";
 
 type Conseiller = { id: string; prenom: string; nom: string; role: string; actif: boolean };
@@ -178,12 +181,15 @@ type ActionDef = {
 
 export default function DossierDetailClient() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const { data: session } = useSession();
   const canAssign = hasPermission(session?.user?.role, "dossiers.assign");
   const canTransmettre = hasPermission(session?.user?.role, "dossiers.transmettre");
+  const canManageCrous = hasPermission(session?.user?.role, "crous.manage");
   const [dossier, setDossier] = React.useState<DossierDetail | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [creatingCrous, setCreatingCrous] = React.useState(false);
 
   const [assignOpen, setAssignOpen] = React.useState(false);
   const [conseillers, setConseillers] = React.useState<Conseiller[] | null>(null);
@@ -207,18 +213,21 @@ export default function DossierDetailClient() {
   const [attestationFile, setAttestationFile] = React.useState<File | null>(null);
   const [uploadingAttestation, setUploadingAttestation] = React.useState(false);
 
-  const loadDossier = React.useCallback(async () => {
-    setLoading(true);
-    const result = await apiFetch<DossierDetail>(`/api/dossiers/${params.id}`);
-    if (!result.ok) {
-      setError(result.error);
-      setLoading(false);
-      return;
-    }
-    setDossier(result.data);
-    setError(null);
-    setLoading(false);
-  }, [params.id]);
+  const loadDossier = React.useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) setLoading(true);
+      const result = await apiFetch<DossierDetail>(`/api/dossiers/${params.id}`);
+      if (!result.ok) {
+        setError(result.error);
+        if (!opts?.silent) setLoading(false);
+        return;
+      }
+      setDossier(result.data);
+      setError(null);
+      if (!opts?.silent) setLoading(false);
+    },
+    [params.id],
+  );
 
   React.useEffect(() => {
     let cancelled = false;
@@ -229,6 +238,37 @@ export default function DossierDetailClient() {
       cancelled = true;
     };
   }, [loadDossier]);
+
+  // Un autre membre du staff peut prendre en charge ce même dossier pendant que cette page est
+  // ouverte (ex. « Prendre en charge » cliqué ailleurs) — on s'abonne au même canal temps réel que
+  // l'espace candidat (broadcastDossierLive, déjà déclenché à chaque transition de workflow) pour
+  // que le statut affiché ne reste pas figé tant que la page n'est pas rechargée manuellement.
+  React.useEffect(() => {
+    let cancelled = false;
+    let supabase: ReturnType<typeof createSupabaseBrowserClient> | null = null;
+    let channel: RealtimeChannel | null = null;
+
+    void (async () => {
+      try {
+        supabase = createSupabaseBrowserClient();
+        channel = supabase
+          .channel(DOSSIER_LIVE_CHANNEL)
+          .on("broadcast", { event: "dossier_updated" }, (msg) => {
+            const payload = (msg as { payload?: DossierLiveBroadcastPayload }).payload;
+            if (cancelled || !payload || payload.dossierId !== params.id) return;
+            void loadDossier({ silent: true });
+          })
+          .subscribe();
+      } catch {
+        // abonnement temps réel optionnel — la page reste fonctionnelle sans lui
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (supabase && channel) void supabase.removeChannel(channel);
+    };
+  }, [params.id, loadDossier]);
 
   if (loading) {
     return (
@@ -403,6 +443,19 @@ export default function DossierDetailClient() {
   const etablissementAssignable =
     etapeActuelleDossier >= ETAPE_PAR_ETAT.VERIFICATION && etapeActuelleDossier <= ETAPE_PAR_ETAT.PAIEMENT_CONFIRME;
   const etablissementNonAffecte = !!dossier.universite.estPlaceholder;
+
+  const handleCreateCrous = async () => {
+    setCreatingCrous(true);
+    const result = await apiJson<{ demande: { id: string } }>("/api/admin/crous", "POST", {
+      dossierId: dossier.id,
+    });
+    setCreatingCrous(false);
+    if (!result.ok) {
+      toast.error("Création de la demande CROUS échouée", { description: result.error });
+      return;
+    }
+    router.push(`/admin/crous/${result.data.demande.id}`);
+  };
 
   const openAssignDialog = () => {
     setSelectedConseillerId("");
@@ -958,6 +1011,25 @@ export default function DossierDetailClient() {
                   </Button>
                 </div>
               )}
+            </Card>
+          )}
+
+          {canManageCrous && (
+            <Card className="border-ligne bg-card p-5">
+              <p className="text-xs font-medium text-ardoise">Demande CROUS</p>
+              <p className="mt-2 text-xs text-ardoise">
+                Partagez les informations du candidat et ses documents avec le CROUS (accès réservé Super Admin).
+              </p>
+              <div className="mt-3">
+                <Button variant="outline" size="sm" disabled={creatingCrous} onClick={() => void handleCreateCrous()}>
+                  {creatingCrous ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+                  ) : (
+                    <Share2 className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
+                  )}
+                  Créer / ouvrir la demande CROUS
+                </Button>
+              </div>
             </Card>
           )}
 

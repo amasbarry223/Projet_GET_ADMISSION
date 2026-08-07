@@ -216,6 +216,32 @@ export async function readUpload(
   };
 }
 
+/**
+ * Génère une URL signée temporaire vers un fichier du bucket privé — utilisée pour transmettre un
+ * document à un tiers externe (ex. partenaire logement) sans jamais exposer d'URL publique permanente.
+ */
+export async function createSignedUrl(
+  cheminRelatif: string,
+  visibility: StorageVisibility = "private",
+  expiresInSeconds = 7 * 24 * 60 * 60,
+): Promise<string> {
+  const objectPath = storagePathFromUrlOrPath(cheminRelatif);
+  if (!objectPath) {
+    throw new Error("Chemin fichier invalide");
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.storage
+    .from(bucketFor(visibility))
+    .createSignedUrl(objectPath, expiresInSeconds);
+
+  if (error || !data?.signedUrl) {
+    throw new Error(error?.message || "Impossible de générer le lien du fichier");
+  }
+
+  return data.signedUrl;
+}
+
 /** @deprecated Utiliser readUpload — conservé pour compat imports éventuels */
 export function resolveUploadPath(_cheminRelatif: string): string {
   throw new Error(

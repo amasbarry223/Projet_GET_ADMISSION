@@ -100,6 +100,29 @@ export const paiementSchema = z.object({
 });
 export type PaiementInput = z.infer<typeof paiementSchema>;
 
+// --- Demandes CROUS (partage — SUPER_ADMIN uniquement) ---
+export const crousCreateSchema = z.object({
+  dossierId: z.string().min(1),
+});
+export type CrousCreateInput = z.infer<typeof crousCreateSchema>;
+
+export const crousPartageInclureSchema = z.object({
+  infosCandidat: z.boolean().default(false),
+  kyc: z.boolean().default(false),
+  visa: z.boolean().default(false),
+  accordPrealable: z.boolean().default(false),
+  docsCrous: z.boolean().default(false),
+});
+
+export const crousPartageSchema = z.object({
+  mode: z.enum(["email", "lien", "pdf", "zip"]),
+  destinataire: z.string().email("Adresse e-mail invalide").max(255),
+  objet: z.string().min(1, "L'objet est requis").max(255),
+  message: z.string().max(5000).optional(),
+  inclure: crousPartageInclureSchema,
+});
+export type CrousPartageInput = z.infer<typeof crousPartageSchema>;
+
 // --- Profile ---
 export const profileSchema = z.object({
   prenom: z.string().min(1).max(NAME_MAX_LENGTH).optional(),
@@ -515,6 +538,31 @@ export const pieceUploadFormSchema = z.object({
   libelle: z.string().min(1, "Le libellé est requis").max(200),
 });
 export type PieceUploadFormInput = z.infer<typeof pieceUploadFormSchema>;
+
+// --- Réservation de logement (espace candidat) ---
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide (AAAA-MM-JJ)");
+
+export const logementReservationSchema = z.object({
+  civilite: z.enum(["M", "MME"]),
+  nom: z.string().min(1, "Le nom est requis").max(NAME_MAX_LENGTH),
+  prenom: z.string().min(1, "Le prénom est requis").max(NAME_MAX_LENGTH),
+  dateNaissance: isoDate.refine(
+    (v) => new Date(v).getTime() < Date.now(),
+    "La date de naissance doit être dans le passé",
+  ),
+  nationalite: z.string().min(1, "La nationalité est requise").max(NAME_MAX_LENGTH),
+  telephone: z.string().min(1, "Le téléphone est requis").max(PHONE_MAX_LENGTH),
+  email: z.string().min(1, "L'e-mail est requis").email("L'e-mail saisi n'est pas valide").max(EMAIL_MAX_LENGTH),
+  agenceAccompagnante: z.string().max(200).optional().or(z.literal("")),
+  numeroPasseport: z.string().min(1, "Le numéro de passeport est requis").max(50),
+  paysDemandeVisa: z.string().min(1, "Le pays de demande de visa est requis").max(NAME_MAX_LENGTH),
+  villeEtablissementFrance: z.string().min(1, "La ville de l'établissement est requise").max(NAME_MAX_LENGTH),
+  dateArriveePrevue: isoDate.refine(
+    (v) => new Date(v).getTime() > Date.now(),
+    "La date d'arrivée prévue doit être dans le futur",
+  ),
+});
+export type LogementReservationInput = z.infer<typeof logementReservationSchema>;
 
 // --- Helper : valider et retourner une réponse d'erreur standardisée ---
 export function validate<T>(schema: z.ZodSchema<T>, data: unknown):

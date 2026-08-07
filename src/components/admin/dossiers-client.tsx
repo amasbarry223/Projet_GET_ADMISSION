@@ -35,6 +35,9 @@ import { apiFetch, apiJson } from "@/lib/api-client";
 import { toast } from "sonner";
 import { FolderOpen, UserCog, Download, Eye, UserPlus, UserMinus, Send, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { DOSSIER_LIVE_CHANNEL } from "@/lib/dossier/live-broadcast";
 
 export type DossierRow = {
   id: string;
@@ -58,6 +61,42 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
   const canAssign = hasPermission(session?.user?.role, "dossiers.assign");
   const canTransmettre = hasPermission(session?.user?.role, "dossiers.transmettre");
   const data = initialData;
+
+  // Un dossier « pris en charge » (ou tout autre changement d'état) ailleurs pendant que cette
+  // liste est ouverte ne doit pas continuer à apparaître comme disponible avec des données
+  // périmées — on réutilise le même canal temps réel que l'espace candidat et la fiche dossier
+  // (broadcastDossierLive, déjà déclenché par la route workflow) pour redemander les données
+  // serveur (router.refresh) plutôt que de laisser la liste figée jusqu'au prochain rechargement.
+  React.useEffect(() => {
+    let cancelled = false;
+    let supabase: ReturnType<typeof createSupabaseBrowserClient> | null = null;
+    let channel: RealtimeChannel | null = null;
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+
+    void (async () => {
+      try {
+        supabase = createSupabaseBrowserClient();
+        channel = supabase
+          .channel(DOSSIER_LIVE_CHANNEL)
+          .on("broadcast", { event: "dossier_updated" }, () => {
+            if (cancelled) return;
+            if (debounce) clearTimeout(debounce);
+            debounce = setTimeout(() => {
+              if (!cancelled) router.refresh();
+            }, 800);
+          })
+          .subscribe();
+      } catch {
+        // abonnement temps réel optionnel — la liste reste fonctionnelle sans lui
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (debounce) clearTimeout(debounce);
+      if (supabase && channel) void supabase.removeChannel(channel);
+    };
+  }, [router]);
 
   const universiteOptions = React.useMemo(() => {
     return Array.from(new Set(data.map((r) => r.universite).filter((v) => v && v !== "—"))).sort();

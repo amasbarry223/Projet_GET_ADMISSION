@@ -11,7 +11,8 @@ type AuditResource =
   | "parametre"
   | "message"
   | "auth"
-  | "matrice";
+  | "matrice"
+  | "crous";
 
 /**
  * Enregistre une action dans le journal d'audit (BF-26, §4.7).

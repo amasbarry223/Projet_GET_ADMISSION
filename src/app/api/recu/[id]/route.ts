@@ -56,6 +56,7 @@ export async function GET(
   }
 
   const format = new URL(request.url).searchParams.get("format") === "pdf" ? "pdf" : "html";
+  const contactInfo = await db.contactInfo.findUnique({ where: { id: 1 } });
 
   if (format === "pdf") {
     const pdf = await buildReceiptPdfBuffer({
@@ -73,6 +74,8 @@ export async function GET(
       statutLabel: "Payé",
       montantLabel: formatFCFA(paiement.montant),
       generatedAtStr: formatDate(new Date().toISOString()),
+      emailContact: contactInfo?.email,
+      telephoneContact: contactInfo?.telephone,
     });
     return new NextResponse(new Uint8Array(pdf), {
       headers: {
@@ -84,6 +87,7 @@ export async function GET(
 
   const e = escapeHtml;
   const moyenLabel = e(paiement.moyen) + (paiement.tranche ? ` · ${e(paiement.tranche)}` : "");
+  const coordonnees = [contactInfo?.email, contactInfo?.telephone].filter(Boolean).map(e).join("  ·  ");
   const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -91,12 +95,15 @@ export async function GET(
 <title>Reçu ${e(paiement.reference)}</title>
 <style>
   body { font-family: 'General Sans', Inter, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; color: #1A1A1A; }
-  .header { text-align: center; border-bottom: 2px solid #3CA936; padding-bottom: 20px; margin-bottom: 30px; }
+  .header { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 2px solid #3CA936; padding-bottom: 20px; margin-bottom: 30px; }
   .header img { height: 42px; width: auto; }
-  .header h1 { font-size: 22px; margin: 14px 0 0; }
-  .header p { color: #6B7280; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin: 4px 0 0; }
+  .header-info { text-align: right; }
+  .header-info .nom { font-size: 15px; font-weight: 700; margin: 0; }
+  .header-info p { color: #6B7280; font-size: 11px; margin: 3px 0 0; }
   .recu { border: 1px solid #E5E7EB; border-radius: 8px; padding: 24px; }
   .recu h2 { font-size: 18px; margin: 0 0 16px; }
+  .section-label { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: #2E8329; font-weight: 700; margin: 18px 0 8px; }
+  .section-label:first-of-type { margin-top: 0; }
   .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F3F4F6; }
   .row:last-child { border-bottom: none; }
   .label { color: #6B7280; font-size: 14px; }
@@ -111,18 +118,25 @@ export async function GET(
 <body>
   <div class="header">
     <img src="/images/brand/logo-get-admission.png" alt="GET Admission" />
-    <h1>Reçu de paiement</h1>
-    <p>GET Admission</p>
+    <div class="header-info">
+      <p class="nom">GET Admission</p>
+      <p>Agence d'admission universitaire</p>
+      ${coordonnees ? `<p>${coordonnees}</p>` : ""}
+    </div>
   </div>
   <div class="recu">
-    <h2>Référence : <span class="mono">${e(paiement.reference)}</span></h2>
-    <div class="row"><span class="label">Date</span><span class="value">${e(formatDate(paiement.date.toISOString()))}</span></div>
+    <h2>Reçu de paiement — <span class="mono">${e(paiement.reference)}</span></h2>
+
+    <p class="section-label">Candidat &amp; dossier</p>
     <div class="row"><span class="label">Candidat</span><span class="value">${e(paiement.candidat.prenom)} ${e(paiement.candidat.nom)}</span></div>
     <div class="row"><span class="label">E-mail</span><span class="value">${e(paiement.candidat.email)}</span></div>
     <div class="row"><span class="label">Dossier</span><span class="value mono">${e(paiement.dossier.reference)}</span></div>
     <div class="row"><span class="label">Université</span><span class="value">${e(paiement.dossier.universite.nom)}</span></div>
     <div class="row"><span class="label">Type d'établissement</span><span class="value">${paiement.dossier.universite.typeEtablissement === "PUBLIC" ? "Public" : "Privé"}</span></div>
     <div class="row"><span class="label">Formation</span><span class="value">${e(paiement.dossier.formation.intitule)}</span></div>
+
+    <p class="section-label">Paiement</p>
+    <div class="row"><span class="label">Date</span><span class="value">${e(formatDate(paiement.date.toISOString()))}</span></div>
     <div class="row"><span class="label">Frais d'agence (référence)</span><span class="value mono">${e(formatFCFA(paiement.dossier.fraisAgence))}</span></div>
     <div class="row"><span class="label">Moyen de paiement</span><span class="value">${moyenLabel}</span></div>
     <div class="row"><span class="label">Statut</span><span class="value" style="color: #3CA936;">${e(paiement.statut)}</span></div>

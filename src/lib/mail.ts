@@ -7,11 +7,18 @@
 import { db } from "@/lib/db";
 import { escapeHtml } from "@/lib/escape-html";
 
+export type SendMailAttachment = {
+  filename: string;
+  /** Contenu encodé en base64 */
+  content: string;
+};
+
 type SendMailInput = {
   to: string;
   subject: string;
   html: string;
   text?: string;
+  attachments?: SendMailAttachment[];
 };
 
 export type SendMailResult = {
@@ -107,6 +114,9 @@ export async function sendMail(input: SendMailInput): Promise<SendMailResult> {
     console.info(`To: ${input.to}`);
     console.info(`Subject: ${input.subject}`);
     console.info(input.text || input.html);
+    if (input.attachments?.length) {
+      console.info(`Pièces jointes: ${input.attachments.map((a) => a.filename).join(", ")}`);
+    }
     console.info("──────────────────────────────────────────────");
     await updateLog(logId, "logged", "Dev: RESEND_API_KEY absent — e-mail journalisé uniquement");
     return { ok: true, ...(logId !== undefined ? { logId } : {}) };
@@ -125,6 +135,7 @@ export async function sendMail(input: SendMailInput): Promise<SendMailResult> {
         subject: input.subject,
         html: input.html,
         text: input.text,
+        ...(input.attachments?.length ? { attachments: input.attachments } : {}),
       }),
     });
 
@@ -290,6 +301,102 @@ export function attestationEmiseEmailHtml(opts: {
       </table>
 
       <p style="font-size:11px;color:#6B7280;text-align:center;margin-top:28px;border-top:1px solid #F3F4F6;padding-top:14px">GET Admission · Toute l'équipe vous félicite pour cette étape.</p>
+    </div>
+  `;
+}
+
+/** E-mail de partage d'une demande CROUS — message libre de l'expéditeur + liste des pièces jointes. */
+export function crousPartageEmailHtml(opts: {
+  message: string;
+  dossierRef: string;
+  candidat: string;
+  labelsPieces: string[];
+  logoUrl: string;
+}) {
+  return `
+    <div style="font-family:Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;color:#1A1A1A;background:#ffffff">
+      <table role="presentation" width="100%" style="border-bottom:2px solid #3CA936;padding-bottom:18px;margin-bottom:24px">
+        <tr><td align="center">
+          <img src="${escapeHtml(opts.logoUrl)}" alt="GET Admission" height="36" style="height:36px;width:auto;display:inline-block" />
+        </td></tr>
+      </table>
+
+      <p style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#6B7280;margin:0 0 6px">Demande CROUS</p>
+      <h1 style="font-size:21px;font-weight:700;margin:0 0 18px;color:#1A1A1A">Dossier ${escapeHtml(opts.dossierRef)} — ${escapeHtml(opts.candidat)}</h1>
+
+      <div style="font-size:14px;white-space:pre-wrap;margin-bottom:20px">${escapeHtml(opts.message)}</div>
+
+      ${
+        opts.labelsPieces.length
+          ? `<p style="font-size:12px;color:#6B7280;margin:0 0 6px">Pièces jointes :</p>
+             <ul style="font-size:13px;color:#1A1A1A;margin:0 0 20px;padding-left:18px">
+               ${opts.labelsPieces.map((l) => `<li>${escapeHtml(l)}</li>`).join("")}
+             </ul>`
+          : ""
+      }
+
+      <p style="font-size:11px;color:#6B7280;text-align:center;margin-top:28px;border-top:1px solid #F3F4F6;padding-top:14px">GET Admission · Confidentiel — document généré électroniquement.</p>
+    </div>
+  `;
+}
+
+/** E-mail de transmission d'une demande de réservation de logement au partenaire. */
+export function logementReservationEmailHtml(opts: {
+  civiliteLabel: string;
+  nom: string;
+  prenom: string;
+  dateNaissance: string;
+  nationalite: string;
+  telephone: string;
+  email: string;
+  agenceAccompagnante?: string | null;
+  numeroPasseport: string;
+  paysDemandeVisa: string;
+  villeEtablissementFrance: string;
+  dateArriveePrevue: string;
+  lienPasseport: string;
+  lienAttestationInscription: string;
+  logoUrl: string;
+}) {
+  const row = (label: string, value: string) => `
+    <tr>
+      <td style="padding:7px 0;border-bottom:1px solid #F3F4F6;color:#6B7280;font-size:13px">${escapeHtml(label)}</td>
+      <td style="padding:7px 0;border-bottom:1px solid #F3F4F6;color:#1A1A1A;font-size:13px;font-weight:600;text-align:right">${escapeHtml(value)}</td>
+    </tr>`;
+
+  return `
+    <div style="font-family:Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;color:#1A1A1A;background:#ffffff">
+      <table role="presentation" width="100%" style="border-bottom:2px solid #3CA936;padding-bottom:18px;margin-bottom:24px">
+        <tr><td align="center">
+          <img src="${escapeHtml(opts.logoUrl)}" alt="GET Admission" height="36" style="height:36px;width:auto;display:inline-block" />
+        </td></tr>
+      </table>
+
+      <p style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#6B7280;margin:0 0 6px">Réservation de logement</p>
+      <h1 style="font-size:21px;font-weight:700;margin:0 0 18px;color:#1A1A1A">Nouvelle demande — ${escapeHtml(opts.prenom)} ${escapeHtml(opts.nom)}</h1>
+
+      <table role="presentation" width="100%" style="border:1px solid #E5E7EB;border-radius:8px;padding:4px 18px;margin:12px 0">
+        ${row("Civilité", opts.civiliteLabel)}
+        ${row("Nom", opts.nom)}
+        ${row("Prénom", opts.prenom)}
+        ${row("Date de naissance", opts.dateNaissance)}
+        ${row("Nationalité", opts.nationalite)}
+        ${row("Téléphone", opts.telephone)}
+        ${row("E-mail", opts.email)}
+        ${opts.agenceAccompagnante ? row("Agence accompagnante", opts.agenceAccompagnante) : ""}
+        ${row("N° passeport", opts.numeroPasseport)}
+        ${row("Pays de demande de visa", opts.paysDemandeVisa)}
+        ${row("Ville d'établissement (France)", opts.villeEtablissementFrance)}
+        ${row("Date d'arrivée prévue", opts.dateArriveePrevue)}
+      </table>
+
+      <p style="font-size:12px;color:#6B7280;margin:18px 0 6px">Documents (liens valables 7 jours) :</p>
+      <ul style="font-size:13px;margin:0 0 20px;padding-left:18px">
+        <li><a href="${escapeHtml(opts.lienPasseport)}">Passeport</a></li>
+        <li><a href="${escapeHtml(opts.lienAttestationInscription)}">Attestation d'inscription</a></li>
+      </ul>
+
+      <p style="font-size:11px;color:#6B7280;text-align:center;margin-top:28px;border-top:1px solid #F3F4F6;padding-top:14px">GET Admission · Confidentiel — document généré électroniquement.</p>
     </div>
   `;
 }

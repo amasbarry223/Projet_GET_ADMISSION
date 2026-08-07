@@ -186,8 +186,19 @@ function drawDraftWatermark(page: PDFPage, font: PDFFont) {
   });
 }
 
-/** En-tête de marque : logo + filet vert. Retourne le curseur Y sous le filet. */
-async function drawBrandHeader(pdfDoc: PDFDocument, page: PDFPage): Promise<number> {
+/**
+ * En-tête de marque : logo + filet vert, avec en plus (documents destinés au candidat, ex. reçu)
+ * le nom de l'agence et ses coordonnées alignés à droite du logo. Retourne le curseur Y sous le filet.
+ */
+async function drawBrandHeader(
+  pdfDoc: PDFDocument,
+  page: PDFPage,
+  opts?: {
+    regular: PDFFont;
+    bold: PDFFont;
+    contact?: { email?: string | null | undefined; telephone?: string | null | undefined };
+  },
+): Promise<number> {
   const logoBytes = await loadLogoBytes();
   const logoImage = await pdfDoc.embedPng(logoBytes);
   const logoWidth = 138;
@@ -200,6 +211,37 @@ async function drawBrandHeader(pdfDoc: PDFDocument, page: PDFPage): Promise<numb
     width: logoWidth,
     height: logoHeight,
   });
+
+  if (opts) {
+    const rightEdge = PAGE_WIDTH - MARGIN;
+    const nom = "GET Admission";
+    const nomWidth = opts.bold.widthOfTextAtSize(nom, 12);
+    page.drawText(nom, { x: rightEdge - nomWidth, y: top - 12, size: 12, font: opts.bold, color: COLOR.encre });
+
+    const tagline = "Agence d'admission universitaire";
+    const taglineWidth = opts.regular.widthOfTextAtSize(tagline, 8.5);
+    page.drawText(tagline, {
+      x: rightEdge - taglineWidth,
+      y: top - 25,
+      size: 8.5,
+      font: opts.regular,
+      color: COLOR.ardoise,
+    });
+
+    const coordonnees = sanitizeForPdf(
+      [opts.contact?.email, opts.contact?.telephone].filter(Boolean).join("  ·  "),
+    );
+    if (coordonnees) {
+      const coordWidth = opts.regular.widthOfTextAtSize(coordonnees, 8.5);
+      page.drawText(coordonnees, {
+        x: rightEdge - coordWidth,
+        y: top - 37,
+        size: 8.5,
+        font: opts.regular,
+        color: COLOR.ardoise,
+      });
+    }
+  }
 
   const ruleY = top - logoHeight - 16;
   page.drawLine({
@@ -395,7 +437,21 @@ export type ReceiptDocInput = {
   statutLabel: string;
   montantLabel: string;
   generatedAtStr: string;
+  emailContact?: string | null | undefined;
+  telephoneContact?: string | null | undefined;
 };
+
+/** Petit intitulé de section (ex. "CANDIDAT", "PAIEMENT") au-dessus d'un drawInfoBox. */
+function drawSectionLabel(page: PDFPage, opts: { text: string; y: number; bold: PDFFont }): number {
+  page.drawText(opts.text.toUpperCase(), {
+    x: MARGIN,
+    y: opts.y,
+    size: 9,
+    font: opts.bold,
+    color: COLOR.or,
+  });
+  return opts.y - 16;
+}
 
 export async function buildReceiptPdfBuffer(input: ReceiptDocInput): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
@@ -407,7 +463,12 @@ export async function buildReceiptPdfBuffer(input: ReceiptDocInput): Promise<Uin
   const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  let cursorY = (await drawBrandHeader(pdfDoc, page)) - 34;
+  let cursorY =
+    (await drawBrandHeader(pdfDoc, page, {
+      regular,
+      bold,
+      contact: { email: input.emailContact, telephone: input.telephoneContact },
+    })) - 34;
 
   page.drawText("Reçu de paiement", { x: MARGIN, y: cursorY, size: 21, font: bold, color: COLOR.or });
   cursorY -= 18;
@@ -420,18 +481,29 @@ export async function buildReceiptPdfBuffer(input: ReceiptDocInput): Promise<Uin
   });
   cursorY -= 34;
 
+  cursorY = drawSectionLabel(page, { text: "Candidat & dossier", y: cursorY, bold });
   cursorY = drawInfoBox(page, {
     topY: cursorY,
     bold,
     regular,
     rows: [
-      ["Date", input.dateStr],
       ["Candidat", input.candidat],
       ["E-mail", input.email],
       ["Dossier", input.dossierRef],
       ["Université", input.universite],
       ["Type d'établissement", input.typeEtablissementLabel],
       ["Formation", input.formation],
+    ],
+  });
+  cursorY -= 26;
+
+  cursorY = drawSectionLabel(page, { text: "Paiement", y: cursorY, bold });
+  cursorY = drawInfoBox(page, {
+    topY: cursorY,
+    bold,
+    regular,
+    rows: [
+      ["Date", input.dateStr],
       ["Frais d'agence (référence)", input.fraisAgenceLabel],
       ["Moyen de paiement", input.moyenLabel],
       ["Statut", input.statutLabel],
@@ -636,6 +708,77 @@ export async function buildPiecesDossierPdfBuffer(input: PiecesDossierDocInput):
     coverPage,
     regular,
     `GET Admission · Confidentiel — document généré électroniquement le ${input.generatedAtStr}.`,
+  );
+
+  return pdfDoc.save();
+}
+
+/* --------------------------- Fiche candidat (partage CROUS, etc.) --------------------------- */
+
+export type FicheCandidatDocInput = {
+  candidat: string;
+  email: string;
+  telephone?: string | null | undefined;
+  nationalite?: string | null | undefined;
+  dateNaissance?: string | null | undefined;
+  adresse?: string | null | undefined;
+  dossierRef: string;
+  universite: string;
+  formation: string;
+  etatLabel: string;
+  generatedAtStr: string;
+  generatedBy: string;
+};
+
+/** Fiche synthétique d'informations candidat — utilisée notamment en pièce jointe de partage CROUS. */
+export async function buildFicheCandidatPdfBuffer(input: FicheCandidatDocInput): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.create();
+  pdfDoc.setTitle(`Fiche candidat — ${input.candidat}`);
+  pdfDoc.setAuthor("GET Admission");
+  pdfDoc.setSubject("Fiche d'informations candidat");
+
+  const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  let cursorY = (await drawBrandHeader(pdfDoc, page)) - 34;
+
+  page.drawText("Fiche candidat", { x: MARGIN, y: cursorY, size: 21, font: bold, color: COLOR.or });
+  cursorY -= 34;
+
+  cursorY = drawSectionLabel(page, { text: "Identité", y: cursorY, bold });
+  cursorY = drawInfoBox(page, {
+    topY: cursorY,
+    bold,
+    regular,
+    rows: [
+      ["Nom complet", input.candidat],
+      ["E-mail", input.email],
+      ["Téléphone", input.telephone || "—"],
+      ["Nationalité", input.nationalite || "—"],
+      ["Date de naissance", input.dateNaissance || "—"],
+      ["Adresse", input.adresse || "—"],
+    ],
+  });
+  cursorY -= 26;
+
+  cursorY = drawSectionLabel(page, { text: "Dossier", y: cursorY, bold });
+  cursorY = drawInfoBox(page, {
+    topY: cursorY,
+    bold,
+    regular,
+    rows: [
+      ["Dossier", input.dossierRef],
+      ["Université", input.universite],
+      ["Formation", input.formation],
+      ["État", input.etatLabel],
+    ],
+  });
+
+  drawFooter(
+    page,
+    regular,
+    `GET Admission · Confidentiel — document généré électroniquement le ${input.generatedAtStr} par ${input.generatedBy}.`,
   );
 
   return pdfDoc.save();

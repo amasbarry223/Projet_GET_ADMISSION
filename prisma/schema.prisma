@@ -10,7 +10,9 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-/* ------------------------------- RBAC ------------------------------- */
+/**
+ * ------------------------------- RBAC -------------------------------
+ */
 
 enum Role {
   CANDIDAT
@@ -21,53 +23,58 @@ enum Role {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
+  id                String    @id @default(cuid())
+  email             String    @unique
   /// Null pour candidats auth OTP Supabase ; requis pour le staff (NextAuth credentials)
-  passwordHash  String?
+  passwordHash      String?
   /// UUID auth.users (Supabase Auth) — candidats OTP
-  supabaseUserId String? @unique
-  prenom        String
-  nom           String
-  telephone     String?
-  nationalite   String?
-  dateNaissance String?
-  adresse       String?
-  photoUrl      String?
-  kycType       String?  // passeport | cni
-  kycNumero     String?  // numéro de pièce
-  kycRectoPath  String?  // chemin fichier recto
-  kycVersoPath  String?  // chemin fichier verso
-  kycVerifie    Boolean  @default(false)
-  kycVerifieLe  DateTime?
-  isDemo        Boolean  @default(false)
-  emailVerified DateTime? // date de vérification de l'e-mail (BF-06)
-  lastLoginAt   DateTime?
-  verifyToken   String?  // token de vérification e-mail (legacy Resend)
-  resetToken    String?  // token reset MDP (BF-08)
+  supabaseUserId    String?   @unique
+  prenom            String
+  nom               String
+  telephone         String?
+  nationalite       String?
+  dateNaissance     String?
+  adresse           String?
+  photoUrl          String?
+  kycType           String? // passeport | cni
+  kycNumero         String? // numéro de pièce
+  kycRectoPath      String? // chemin fichier recto
+  kycVersoPath      String? // chemin fichier verso
+  kycVerifie        Boolean   @default(false)
+  kycVerifieLe      DateTime?
+  isDemo            Boolean   @default(false)
+  emailVerified     DateTime? // date de vérification de l'e-mail (BF-06)
+  lastLoginAt       DateTime?
+  verifyToken       String? // token de vérification e-mail (legacy Resend)
+  resetToken        String? // token reset MDP (BF-08)
   resetTokenExpires DateTime?
-  role          Role     @default(CANDIDAT)
-  actif         Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  role              Role      @default(CANDIDAT)
+  actif             Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Relations
-  dossiersCandidat     Dossier[]      @relation("CandidatDossiers")
-  dossiersConseiller   Dossier[]      @relation("ConseillerDossiers")
-  messages             Message[]
-  paiements            Paiement[]
-  historiquesAuteur    Historique[]  @relation("HistoriqueAuteur")
-  attestationsEmises   Attestation[]  @relation("AttestationEmetteur")
-  conversationsCandidat   Conversation[] @relation("ConvCandidat")
-  conversationsConseiller Conversation[] @relation("ConvConseiller")
-  notifications        Notification[]
-  profilAcademique     ProfilAcademique?
-  demandesCorrectionEmises DemandeCorrection[] @relation("ConseillerDemandesCorrection")
-  conversationInterne   ConversationInterne? @relation("ConvInterneFinancier")
-  messagesInternes      MessageInterne[]     @relation("MessageInterneAuteur")
+  dossiersCandidat         Dossier[]                @relation("CandidatDossiers")
+  dossiersConseiller       Dossier[]                @relation("ConseillerDossiers")
+  messages                 Message[]
+  paiements                Paiement[]
+  historiquesAuteur        Historique[]             @relation("HistoriqueAuteur")
+  attestationsEmises       Attestation[]            @relation("AttestationEmetteur")
+  conversationsCandidat    Conversation[]           @relation("ConvCandidat")
+  conversationsConseiller  Conversation[]           @relation("ConvConseiller")
+  notifications            Notification[]
+  profilAcademique         ProfilAcademique?
+  demandesCorrectionEmises DemandeCorrection[]      @relation("ConseillerDemandesCorrection")
+  conversationInterne      ConversationInterne?     @relation("ConvInterneFinancier")
+  messagesInternes         MessageInterne[]         @relation("MessageInterneAuteur")
+  demandesCrousCandidat    DemandeCrous[]
+  partagesCrousEmis        HistoriquePartageCrous[] @relation("PartageCrousAuteur")
+  logementReservations     LogementReservation[]
 }
 
-/* --------------------------- Catalogue --------------------------- */
+/**
+ * --------------------------- Catalogue ---------------------------
+ */
 
 enum TypeEtablissement {
   PUBLIC
@@ -75,35 +82,37 @@ enum TypeEtablissement {
 }
 
 model Universite {
-  id          String      @id @default(cuid())
-  slug        String      @unique
-  nom         String
-  pays        String
-  drapeau     String
-  ville       String
-  ecusson     String
-  domaines    String // JSON array as string (SQLite limitation)
-  description String
-  pointsForts String // JSON array as string
-  imageCouleur String
-  siteUrl     String?
-  logoUrl     String?
-  coverUrl    String?
-  galleryUrls String      @default("[]") // JSON array of image paths
+  id                String            @id @default(cuid())
+  slug              String            @unique
+  nom               String
+  pays              String
+  drapeau           String
+  ville             String
+  ecusson           String
+  domaines          String // JSON array as string (SQLite limitation)
+  description       String
+  pointsForts       String // JSON array as string
+  imageCouleur      String
+  siteUrl           String?
+  logoUrl           String?
+  coverUrl          String?
+  galleryUrls       String            @default("[]") // JSON array of image paths
   typeEtablissement TypeEtablissement @default(PRIVE)
-  fraisMin    Int
-  fraisMax    Int
-  partenaire  Boolean     @default(true)
+  fraisMin          Int
+  fraisMax          Int
+  partenaire        Boolean           @default(true)
   /// Établissement technique de réservation pour les dossiers en procédure Université Publique
   /// (le candidat ne le choisit pas — cf. Dossier.procedure) : masqué du catalogue candidat/vitrine.
-  estPlaceholder Boolean  @default(false)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  formations  Formation[]
-  dossiers    Dossier[]
+  estPlaceholder    Boolean           @default(false)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  formations        Formation[]
+  dossiers          Dossier[]
 }
 
-/* --------------------- Profil académique candidat --------------------- */
+/**
+ * --------------------- Profil académique candidat ---------------------
+ */
 
 enum StatutCandidat {
   LYCEEN
@@ -120,52 +129,54 @@ enum NiveauEtudesSuperieures {
 }
 
 model ProfilAcademique {
-  id                            String                   @id @default(cuid())
-  userId                        String                   @unique
-  statutCandidat                StatutCandidat
+  id                             String                  @id @default(cuid())
+  userId                         String                  @unique
+  statutCandidat                 StatutCandidat
   /// Lycéen : TERMINALE (principale)
-  classeActuelle                String?
-  aObtenuBac                    Boolean                  @default(false)
-  trimestresSeconde             Int                      @default(3)
-  trimestresPremiere            Int                      @default(3)
-  trimestresTerminale           Int                      @default(2)
+  classeActuelle                 String?
+  aObtenuBac                     Boolean                 @default(false)
+  trimestresSeconde              Int                     @default(3)
+  trimestresPremiere             Int                     @default(3)
+  trimestresTerminale            Int                     @default(2)
   attestationScolariteDisponible Boolean                 @default(false)
   /// Bachelier / supérieur
-  niveauEtudesSuperieures       NiveauEtudesSuperieures  @default(AUCUN)
-  formationEnCours              Boolean                  @default(false)
+  niveauEtudesSuperieures        NiveauEtudesSuperieures @default(AUCUN)
+  formationEnCours               Boolean                 @default(false)
   /// JSON string array — ex. ["DUT","Licence"]
-  diplomesObtenus               String                   @default("[]")
+  diplomesObtenus                String                  @default("[]")
   /// JSON [{ niveau, anneeScolaire }]
-  redoublements                 String                   @default("[]")
+  redoublements                  String                  @default("[]")
   /// JSON [{ type, anneeDebut, anneeFin, libelle? }]
-  interruptions                 String                   @default("[]")
-  createdAt                     DateTime                 @default(now())
-  updatedAt                     DateTime                 @updatedAt
+  interruptions                  String                  @default("[]")
+  createdAt                      DateTime                @default(now())
+  updatedAt                      DateTime                @updatedAt
 
-  user                          User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([statutCandidat])
 }
 
 model Formation {
-  id                   String      @id @default(cuid())
-  universiteId         String
-  intitule             String
-  niveau               String // Licence | Master | Doctorat
-  domaine              String
-  duree                String
-  fraisAgence          Int
+  id                  String     @id @default(cuid())
+  universiteId        String
+  intitule            String
+  niveau              String // Licence | Master | Doctorat
+  domaine             String
+  duree               String
+  fraisAgence         Int
   /// Scolarité annuelle indicative (€), optionnelle — distincte des frais d'agence (FCFA)
-  fraisFormationEuros  Int?
-  prerequis            String // JSON array
-  piecesRequises       String // JSON array
-  createdAt            DateTime    @default(now())
-  updatedAt            DateTime    @updatedAt
-  universite           Universite  @relation(fields: [universiteId], references: [id], onDelete: Cascade)
-  dossiers             Dossier[]
+  fraisFormationEuros Int?
+  prerequis           String // JSON array
+  piecesRequises      String // JSON array
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  universite          Universite @relation(fields: [universiteId], references: [id], onDelete: Cascade)
+  dossiers            Dossier[]
 }
 
-/* --------------------------- Dossiers --------------------------- */
+/**
+ * --------------------------- Dossiers ---------------------------
+ */
 
 enum EtatDossier {
   BROUILLON
@@ -191,34 +202,35 @@ enum TypeProcedure {
 }
 
 model Dossier {
-  id              String       @id @default(cuid())
-  reference       String       @unique
-  candidatId      String
-  universiteId    String
-  formationId     String
-  procedure       TypeProcedure @default(PRIVEE)
+  id               String        @id @default(cuid())
+  reference        String        @unique
+  candidatId       String
+  universiteId     String
+  formationId      String
+  procedure        TypeProcedure @default(PRIVEE)
   /// Version de matrice documentaire figée à la création du dossier
   matriceVersionId String?
-  etat            EtatDossier  @default(BROUILLON)
-  etapeActuelle   Int          @default(1)
-  conseillerId    String?
-  fraisAgence     Int
-  paiementStatut  String       @default("aucun") // aucun | partiel | complet
-  mrz             String
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  etat             EtatDossier   @default(BROUILLON)
+  etapeActuelle    Int           @default(1)
+  conseillerId     String?
+  fraisAgence      Int
+  paiementStatut   String        @default("aucun") // aucun | partiel | complet
+  mrz              String
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
-  candidat        User         @relation("CandidatDossiers", fields: [candidatId], references: [id], onDelete: Cascade)
-  conseiller      User?        @relation("ConseillerDossiers", fields: [conseillerId], references: [id])
-  universite      Universite   @relation(fields: [universiteId], references: [id])
-  formation       Formation    @relation(fields: [formationId], references: [id])
-  matriceVersion  MatriceVersion? @relation(fields: [matriceVersionId], references: [id], onDelete: SetNull)
-  pieces          Piece[]
-  paiements       Paiement[]
-  historiques     Historique[]
-  attestation     Attestation?
-  conversation    Conversation?
+  candidat           User                @relation("CandidatDossiers", fields: [candidatId], references: [id], onDelete: Cascade)
+  conseiller         User?               @relation("ConseillerDossiers", fields: [conseillerId], references: [id])
+  universite         Universite          @relation(fields: [universiteId], references: [id])
+  formation          Formation           @relation(fields: [formationId], references: [id])
+  matriceVersion     MatriceVersion?     @relation(fields: [matriceVersionId], references: [id], onDelete: SetNull)
+  pieces             Piece[]
+  paiements          Paiement[]
+  historiques        Historique[]
+  attestation        Attestation?
+  conversation       Conversation?
   demandesCorrection DemandeCorrection[]
+  demandesCrous      DemandeCrous[]
 
   @@index([candidatId])
   @@index([conseillerId])
@@ -229,38 +241,38 @@ model Dossier {
 }
 
 model Piece {
-  id           String    @id @default(cuid())
-  dossierId    String
+  id            String    @id @default(cuid())
+  dossierId     String
   /// Clé stable pour sync dynamique (ex. BULLETIN_SECONDE_T1)
-  code         String?
-  libelle      String
+  code          String?
+  libelle       String
   /// academique | identite | justificatif | complementaire
-  categorie    String    @default("academique")
-  obligatoire  Boolean   @default(true)
-  statut       String    @default("manquante") // manquante | televersee | a_corriger | validee
-  type         String    @default("pdf") // pdf | image | autre
-  taille       String?
-  nomFichier   String?
-  cheminFichier String?  // chemin relatif sous /upload
-  televerseeLe DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  dossier      Dossier   @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  categorie     String    @default("academique")
+  obligatoire   Boolean   @default(true)
+  statut        String    @default("manquante") // manquante | televersee | a_corriger | validee
+  type          String    @default("pdf") // pdf | image | autre
+  taille        String?
+  nomFichier    String?
+  cheminFichier String? // chemin relatif sous /upload
+  televerseeLe  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  dossier       Dossier   @relation(fields: [dossierId], references: [id], onDelete: Cascade)
 
   @@unique([dossierId, code])
   @@index([dossierId, code])
 }
 
 model Historique {
-  id        String      @id @default(cuid())
-  dossierId String
-  date      DateTime    @default(now())
-  etat      EtatDossier
-  auteur    String
-  note      String
-  dossier   Dossier     @relation(fields: [dossierId], references: [id], onDelete: Cascade)
-  auteurUser User?      @relation("HistoriqueAuteur", fields: [auteurId], references: [id])
-  auteurId  String?
+  id         String      @id @default(cuid())
+  dossierId  String
+  date       DateTime    @default(now())
+  etat       EtatDossier
+  auteur     String
+  note       String
+  dossier    Dossier     @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  auteurUser User?       @relation("HistoriqueAuteur", fields: [auteurId], references: [id])
+  auteurId   String?
 
   @@index([dossierId])
 }
@@ -288,139 +300,210 @@ model DemandeCorrection {
   soumiseLe    DateTime?
   traiteeLe    DateTime?
 
-  dossier      Dossier                 @relation(fields: [dossierId], references: [id], onDelete: Cascade)
-  conseiller   User                    @relation("ConseillerDemandesCorrection", fields: [conseillerId], references: [id])
+  dossier    Dossier @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  conseiller User    @relation("ConseillerDemandesCorrection", fields: [conseillerId], references: [id])
 
   @@index([dossierId, createdAt])
   @@index([dossierId, statut])
 }
 
-/* --------------------------- Finance --------------------------- */
+/**
+ * --------------------------- Finance ---------------------------
+ */
 
 model Paiement {
-  id         String    @id @default(cuid())
-  reference  String    @unique
+  id         String   @id @default(cuid())
+  reference  String   @unique
   dossierId  String
   candidatId String
-  date       DateTime  @default(now())
+  date       DateTime @default(now())
   montant    Int
   moyen      String // Orange Money | Moov Money | Wave | Carte bancaire | Espèces
-  statut     String    @default("en_attente") // en_attente | reussi | echoue | rembourse
+  statut     String   @default("en_attente") // en_attente | reussi | echoue | rembourse
   tranche    String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  dossier    Dossier   @relation(fields: [dossierId], references: [id], onDelete: Cascade)
-  candidat   User      @relation(fields: [candidatId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  dossier    Dossier  @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  candidat   User     @relation(fields: [candidatId], references: [id])
 }
 
-/* --------------------------- Messagerie --------------------------- */
+/**
+ * --------------------------- Messagerie ---------------------------
+ */
 
 model Conversation {
-  id              String    @id @default(cuid())
-  dossierId       String    @unique
-  candidatId      String
-  conseillerId    String?
-  nonLusCandidat  Int       @default(0)
-  nonLusConseiller Int      @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  dossier         Dossier   @relation(fields: [dossierId], references: [id], onDelete: Cascade)
-  candidat        User      @relation("ConvCandidat", fields: [candidatId], references: [id])
-  conseiller      User?     @relation("ConvConseiller", fields: [conseillerId], references: [id])
-  messages        Message[]
+  id               String    @id @default(cuid())
+  dossierId        String    @unique
+  candidatId       String
+  conseillerId     String?
+  nonLusCandidat   Int       @default(0)
+  nonLusConseiller Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  dossier          Dossier   @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  candidat         User      @relation("ConvCandidat", fields: [candidatId], references: [id])
+  conseiller       User?     @relation("ConvConseiller", fields: [conseillerId], references: [id])
+  messages         Message[]
 }
 
 model Message {
-  id              String    @id @default(cuid())
-  conversationId  String
-  auteurId        String
-  texte           String
-  pieceJointeNom  String?
+  id                String       @id @default(cuid())
+  conversationId    String
+  auteurId          String
+  texte             String
+  pieceJointeNom    String?
   pieceJointeTaille String?
-  createdAt       DateTime  @default(now())
-  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  auteur          User      @relation(fields: [auteurId], references: [id])
+  createdAt         DateTime     @default(now())
+  conversation      Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  auteur            User         @relation(fields: [auteurId], references: [id])
 }
 
 /// Messagerie interne Financier <-> Direction (Admin / Super Admin) — un seul fil par financier,
 /// partagé par tous les Admin/Super Admin (pas de messagerie candidat/dossier ici).
 model ConversationInterne {
-  id              String    @id @default(cuid())
-  financierId     String    @unique
-  nonLusFinancier Int       @default(0)
-  nonLusAdmin     Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  financier       User      @relation("ConvInterneFinancier", fields: [financierId], references: [id])
+  id              String           @id @default(cuid())
+  financierId     String           @unique
+  nonLusFinancier Int              @default(0)
+  nonLusAdmin     Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  financier       User             @relation("ConvInterneFinancier", fields: [financierId], references: [id])
   messages        MessageInterne[]
 }
 
 model MessageInterne {
-  id             String    @id @default(cuid())
+  id             String              @id @default(cuid())
   conversationId String
   auteurId       String
   texte          String
-  createdAt      DateTime  @default(now())
+  createdAt      DateTime            @default(now())
   conversation   ConversationInterne @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  auteur         User      @relation("MessageInterneAuteur", fields: [auteurId], references: [id])
+  auteur         User                @relation("MessageInterneAuteur", fields: [auteurId], references: [id])
 }
 
-/* --------------------------- Attestations --------------------------- */
+/**
+ * --------------------------- Demandes CROUS ---------------------------
+ */
+
+enum StatutDemandeCrous {
+  BROUILLON
+  EN_COURS
+  PARTAGEE
+  CLOTUREE
+}
+
+model DemandeCrous {
+  id         String             @id @default(cuid())
+  dossierId  String
+  candidatId String
+  statut     StatutDemandeCrous @default(BROUILLON)
+  notes      String?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  dossier   Dossier                  @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  candidat  User                     @relation(fields: [candidatId], references: [id])
+  documents DemandeCrousDocument[]
+  partages  HistoriquePartageCrous[]
+
+  @@index([dossierId])
+  @@index([candidatId])
+}
+
+model DemandeCrousDocument {
+  id            String   @id @default(cuid())
+  demandeId     String
+  libelle       String
+  nomFichier    String
+  cheminFichier String
+  taille        String?
+  televerseLe   DateTime @default(now())
+
+  demande DemandeCrous @relation(fields: [demandeId], references: [id], onDelete: Cascade)
+
+  @@index([demandeId])
+}
+
+model HistoriquePartageCrous {
+  id           String   @id @default(cuid())
+  demandeId    String
+  auteurId     String
+  destinataire String
+  methode      String // email | lien | pdf | zip
+  documents    String // liste des documents envoyés, JSON stringifié
+  statut       String   @default("succes") // succes | echec
+  erreur       String?
+  createdAt    DateTime @default(now())
+
+  demande DemandeCrous @relation(fields: [demandeId], references: [id], onDelete: Cascade)
+  auteur  User         @relation("PartageCrousAuteur", fields: [auteurId], references: [id])
+
+  @@index([demandeId])
+  @@index([auteurId])
+}
+
+/**
+ * --------------------------- Attestations ---------------------------
+ */
 
 model Attestation {
-  id            String    @id @default(cuid())
-  reference     String    @unique
-  dossierId     String    @unique
-  codeVerification String @unique
-  dateEmission  DateTime  @default(now())
-  modeRemise    String    @default("telechargement") // telechargement | agence
-  emetteurId    String
+  id               String   @id @default(cuid())
+  reference        String   @unique
+  dossierId        String   @unique
+  codeVerification String   @unique
+  dateEmission     DateTime @default(now())
+  modeRemise       String   @default("telechargement") // telechargement | agence
+  emetteurId       String
   /// Document réel de préinscription envoyé par l'université, téléversé par le conseiller
   /// (chemin objet Supabase Storage, bucket privé). Null pour les attestations émises
   /// avant l'introduction de l'upload (PDF généré par l'agence, cf. /api/attestation-pdf).
-  cheminFichier String?
-  nomFichier    String?
-  dossier       Dossier   @relation(fields: [dossierId], references: [id], onDelete: Cascade)
-  emetteur      User      @relation("AttestationEmetteur", fields: [emetteurId], references: [id])
+  cheminFichier    String?
+  nomFichier       String?
+  dossier          Dossier  @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  emetteur         User     @relation("AttestationEmetteur", fields: [emetteurId], references: [id])
 }
 
-/* --------------------------- Contenu vitrine --------------------------- */
+/**
+ * --------------------------- Contenu vitrine ---------------------------
+ */
 
 model Statistique {
-  id       Int    @id @default(autoincrement())
-  valeur   String
-  libelle  String
-  ordre    Int    @default(0)
-  actif    Boolean @default(true)
+  id      Int     @id @default(autoincrement())
+  valeur  String
+  libelle String
+  ordre   Int     @default(0)
+  actif   Boolean @default(true)
 }
 
 model Temoignage {
-  id        Int    @id @default(autoincrement())
-  nom       String
-  parcours  String
-  pays      String
-  citation  String
-  ordre     Int    @default(0)
-  actif     Boolean @default(true)
+  id       Int     @id @default(autoincrement())
+  nom      String
+  parcours String
+  pays     String
+  citation String
+  ordre    Int     @default(0)
+  actif    Boolean @default(true)
 }
 
 model MembreEquipe {
-  id        Int    @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   initiales String
   nom       String
   role      String
-  ordre     Int    @default(0)
+  ordre     Int     @default(0)
   actif     Boolean @default(true)
 }
 
-/* --------------------------- Contenu gérable --------------------------- */
+/**
+ * --------------------------- Contenu gérable ---------------------------
+ */
 
 model Faq {
-  id        Int    @id @default(autoincrement())
-  question  String
-  reponse   String
-  ordre     Int    @default(0)
-  actif     Boolean @default(true)
+  id       Int     @id @default(autoincrement())
+  question String
+  reponse  String
+  ordre    Int     @default(0)
+  actif    Boolean @default(true)
 }
 
 model ContactInfo {
@@ -432,38 +515,40 @@ model ContactInfo {
 }
 
 model ModeleAttestation {
-  id          Int    @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   nom         String
   description String
-  nbUsages    Int    @default(0)
+  nbUsages    Int     @default(0)
   actif       Boolean @default(true)
-  ordre       Int    @default(0)
+  ordre       Int     @default(0)
 }
 
 model Nationalite {
-  id    Int    @id @default(autoincrement())
-  nom   String @unique
-  ordre Int    @default(0)
+  id    Int     @id @default(autoincrement())
+  nom   String  @unique
+  ordre Int     @default(0)
   actif Boolean @default(true)
 }
 
 model MoyenPaiement {
-  id      Int    @id @default(autoincrement())
+  id      Int     @id @default(autoincrement())
   nom     String
   couleur String
   icone   String
   actif   Boolean @default(true)
-  ordre   Int    @default(0)
+  ordre   Int     @default(0)
 }
 
 model ObjetContact {
-  id    Int    @id @default(autoincrement())
+  id    Int     @id @default(autoincrement())
   nom   String
-  ordre Int    @default(0)
+  ordre Int     @default(0)
   actif Boolean @default(true)
 }
 
-/* --------------------------- Contact & Parametres --------------------------- */
+/**
+ * --------------------------- Contact & Parametres ---------------------------
+ */
 
 model ContactMessage {
   id        Int      @id @default(autoincrement())
@@ -481,23 +566,25 @@ model ContactMessage {
 }
 
 model Parametre {
-  id               Int     @id @default(1)
-  fraisMin         Int     @default(65000)
-  fraisMax         Int     @default(110000)
+  id                       Int     @id @default(1)
+  fraisMin                 Int     @default(65000)
+  fraisMax                 Int     @default(110000)
   /// Frais d'agence établissement public (FCFA)
-  fraisAgencePublic Int    @default(65000)
+  fraisAgencePublic        Int     @default(65000)
   /// Frais d'agence établissement privé (FCFA)
-  fraisAgencePrive  Int    @default(110000)
-  paiementTranches Boolean @default(true)
-  notifEmail       Boolean @default(true)
-  notifInApp       Boolean @default(true)
-  workflowStrict   Boolean @default(true)
-  exigerEmailVerifie Boolean @default(false)
-  mentionsLegales  String  @default("")
-  politiqueConfidentialite String @default("")
+  fraisAgencePrive         Int     @default(110000)
+  paiementTranches         Boolean @default(true)
+  notifEmail               Boolean @default(true)
+  notifInApp               Boolean @default(true)
+  workflowStrict           Boolean @default(true)
+  exigerEmailVerifie       Boolean @default(false)
+  mentionsLegales          String  @default("")
+  politiqueConfidentialite String  @default("")
 }
 
-/* --------------- Matrice documentaire académique (§4.4) --------------- */
+/**
+ * --------------- Matrice documentaire académique (§4.4) ---------------
+ */
 
 enum MatriceStatut {
   BROUILLON
@@ -521,16 +608,16 @@ enum MatriceCondition {
 }
 
 model MatriceVersion {
-  id           String        @id @default(cuid())
-  numero       Int
-  libelle      String
-  statut       MatriceStatut @default(BROUILLON)
-  notes        String        @default("")
-  createdById  String?
-  createdAt    DateTime      @default(now())
-  activatedAt  DateTime?
-  regles       MatriceRegle[]
-  dossiers     Dossier[]
+  id          String         @id @default(cuid())
+  numero      Int
+  libelle     String
+  statut      MatriceStatut  @default(BROUILLON)
+  notes       String         @default("")
+  createdById String?
+  createdAt   DateTime       @default(now())
+  activatedAt DateTime?
+  regles      MatriceRegle[]
+  dossiers    Dossier[]
 
   @@unique([numero])
   @@index([statut])
@@ -556,16 +643,16 @@ model MatriceRegle {
 }
 
 model AuditLog {
-  id        Int      @id @default(autoincrement())
-  date      DateTime @default(now())
-  userId    String?
-  userEmail String
-  role      String
-  action    String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, WORKFLOW
-  resource  String   // dossier, user, universite, paiement, attestation, parametre
+  id         Int      @id @default(autoincrement())
+  date       DateTime @default(now())
+  userId     String?
+  userEmail  String
+  role       String
+  action     String // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, WORKFLOW
+  resource   String // dossier, user, universite, paiement, attestation, parametre
   resourceId String?
-  details   String   // description de l'action
-  ip        String?
+  details    String // description de l'action
+  ip         String?
 
   @@index([date])
   @@index([userId])
@@ -599,10 +686,52 @@ model EmailLog {
 }
 
 model ContenuSection {
-  id        Int     @id @default(autoincrement())
-  cle       String  @unique // etapes | piliers | mentions | etc.
+  id        Int      @id @default(autoincrement())
+  cle       String   @unique // etapes | piliers | mentions | etc.
   titre     String?
-  contenu   String  // JSON
-  actif     Boolean @default(true)
+  contenu   String // JSON
+  actif     Boolean  @default(true)
   updatedAt DateTime @updatedAt
+}
+
+/**
+ * --------------------------- Réservation de logement ---------------------------
+ */
+
+enum CiviliteLogement {
+  M
+  MME
+}
+
+enum StatutLogementReservation {
+  soumis
+  transmis
+  erreur
+}
+
+model LogementReservation {
+  id                               String                    @id @default(cuid())
+  candidatId                       String
+  civilite                         CiviliteLogement
+  nom                              String
+  prenom                           String
+  dateNaissance                    String
+  nationalite                      String
+  telephone                        String
+  email                            String
+  agenceAccompagnante              String?
+  numeroPasseport                  String
+  paysDemandeVisa                  String
+  villeEtablissementFrance         String
+  dateArriveePrevue                String
+  fichierPasseportUrl              String
+  fichierAttestationInscriptionUrl String
+  statut                           StatutLogementReservation @default(soumis)
+  erreurTransmission               String?
+  createdAt                        DateTime                  @default(now())
+  updatedAt                        DateTime                  @updatedAt
+
+  candidat User @relation(fields: [candidatId], references: [id], onDelete: Cascade)
+
+  @@index([candidatId])
 }

@@ -34,6 +34,7 @@ const LIMITS: Record<string, Limit> = {
   "/api/contact": { limit: 5, windowMs: WINDOW_MS }, // 5 messages contact/min
   "/api/profile/password": { limit: 5, windowMs: WINDOW_MS }, // 5 changements mdp/min
   "/api/dossiers": { limit: 10, windowMs: WINDOW_MS }, // 10 créations de dossier/min
+  "/api/logement/reservations": { limit: 5, windowMs: WINDOW_MS }, // 5 demandes de logement/min
   "/api/admin/users": { limit: 10, windowMs: WINDOW_MS }, // 10 invitations/min
   "/api/admin/users/reset-password": { limit: 10, windowMs: WINDOW_MS }, // 10 resets staff/min
   "/api/admin/paiements": { limit: 10, windowMs: WINDOW_MS }, // 10 transactions manuelles/min
