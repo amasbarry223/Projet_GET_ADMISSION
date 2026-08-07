@@ -4,7 +4,7 @@ import { markReadInterneSchema } from "@/lib/validations";
 import { requireApiPermission, parseOrRespond } from "@/lib/api-auth";
 
 // PUT /api/messages-internes/read — marquer un fil de la messagerie interne comme lu.
-// Financier : reset nonLusFinancier de son propre fil.
+// Financier/Conseiller : reset nonLusFinancier de son propre fil.
 // Admin/Super Admin : reset nonLusAdmin du fil { financierId } fourni.
 export async function PUT(request: Request) {
   const auth = await requireApiPermission("messages.internes");
@@ -16,7 +16,7 @@ export async function PUT(request: Request) {
 
   const { role, id: userId } = auth.user;
 
-  if (role === "FINANCIER") {
+  if (role === "FINANCIER" || role === "CONSEILLER") {
     const conversation = await db.conversationInterne.findUnique({ where: { financierId: userId } });
     if (!conversation) return NextResponse.json({ success: true, nonLus: 0 });
     const updated = await db.conversationInterne.update({

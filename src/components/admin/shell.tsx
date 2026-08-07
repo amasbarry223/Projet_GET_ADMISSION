@@ -20,6 +20,7 @@ import {
   FileStack,
   MessagesSquare,
   Share2,
+  BedDouble,
 } from "lucide-react";
 import { GlobalSearch } from "@/components/admin/global-search";
 import { NotificationsBell } from "@/components/admin/notifications-bell";
@@ -62,7 +63,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     title: "Dossiers",
     items: [
       { href: "/admin/dossiers", label: "Tous les dossiers", icon: FolderOpen, permission: "dossiers.read" },
-      { href: "/admin/kyc", label: "Pièces d'identité (KYC)", icon: IdCard, permission: "dossiers.read" },
+      { href: "/admin/kyc", label: "Pièces d'identité (KYC)", icon: IdCard, permission: "kyc.read" },
       { href: "/admin/catalogue", label: "Catalogue", icon: Building2, permission: "catalogue.write" },
       { href: "/admin/matrice", label: "Matrice documentaire", icon: FileStack, permission: "matrice.write" },
     ],
@@ -74,6 +75,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
       { href: "/admin/utilisateurs", label: "Utilisateurs", icon: Users, permission: "users.read" },
       { href: "/admin/attestations", label: "Attestations", icon: Stamp, permission: "attestations.read" },
       { href: "/admin/crous", label: "Demandes CROUS", icon: Share2, permission: "crous.manage" },
+      { href: "/admin/logement", label: "Demandes de logement", icon: BedDouble, permission: "logement.read" },
     ],
   },
   {

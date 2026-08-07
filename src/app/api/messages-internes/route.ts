@@ -10,11 +10,11 @@ const MESSAGES_INCLUDE = {
     include: { auteur: { select: { prenom: true, nom: true, role: true } } },
     orderBy: { createdAt: "asc" as const },
   },
-  financier: { select: { id: true, prenom: true, nom: true } },
+  financier: { select: { id: true, prenom: true, nom: true, role: true } },
 };
 
-// GET /api/messages-internes — Financier : son fil avec la direction.
-// GET /api/messages-internes?financierId=xxx — Admin/Super Admin : le fil d'un financier donné.
+// GET /api/messages-internes — Financier/Conseiller : son fil avec la direction.
+// GET /api/messages-internes?financierId=xxx — Admin/Super Admin : le fil d'un financier ou conseiller donné.
 // GET /api/messages-internes (sans financierId, rôle Admin/Super Admin) — la liste de tous les fils (boîte de réception).
 export async function GET(request: Request) {
   const auth = await requireApiPermission("messages.internes");
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const financierId = searchParams.get("financierId");
 
-  if (role === "FINANCIER") {
+  if (role === "FINANCIER" || role === "CONSEILLER") {
     const conversation = await db.conversationInterne.findUnique({
       where: { financierId: userId },
       include: MESSAGES_INCLUDE,
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
 
   const conversations = await db.conversationInterne.findMany({
     include: {
-      financier: { select: { id: true, prenom: true, nom: true } },
+      financier: { select: { id: true, prenom: true, nom: true, role: true } },
       messages: { orderBy: { createdAt: "desc" }, take: 1 },
     },
     orderBy: { updatedAt: "desc" },
@@ -60,8 +60,8 @@ export async function GET(request: Request) {
 }
 
 // POST /api/messages-internes — envoyer un message
-// Financier : écrit dans son propre fil (créé au premier message).
-// Admin/Super Admin : doit fournir financierId (répond à un fil déjà ouvert par ce financier).
+// Financier/Conseiller : écrit dans son propre fil (créé au premier message).
+// Admin/Super Admin : doit fournir financierId (répond à un fil déjà ouvert par ce financier/conseiller).
 export async function POST(request: Request) {
   const auth = await requireApiPermission("messages.internes");
   if (!auth.ok) return auth.response;
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
 
   const { role, id: userId } = auth.user;
 
-  if (role === "FINANCIER") {
+  if (role === "FINANCIER" || role === "CONSEILLER") {
     const conversation = await db.conversationInterne.upsert({
       where: { financierId: userId },
       update: {},

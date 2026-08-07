@@ -3,30 +3,27 @@ import { db } from "@/lib/db";
 import { requireApiUser, parseOrRespond } from "@/lib/api-auth";
 import { logementReservationSchema } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
-import { saveUpload } from "@/lib/storage";
+import { saveUpload, deleteUpload } from "@/lib/storage";
 
-// GET /api/logement/reservations — mes demandes de réservation de logement (candidat)
-export async function GET() {
+// PUT /api/logement/reservations/[id] — le candidat corrige sa propre demande après une
+// demande de correction du staff (statut = correction_demandee uniquement).
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireApiUser();
   if (!auth.ok) return auth.response;
   if (auth.user.role !== "CANDIDAT") {
     return NextResponse.json({ error: "Réservé aux candidats" }, { status: 403 });
   }
 
-  const reservations = await db.logementReservation.findMany({
-    where: { candidatId: auth.user.id },
-    orderBy: { createdAt: "desc" },
-  });
-
-  return NextResponse.json({ reservations });
-}
-
-// POST /api/logement/reservations — soumet une demande de réservation de logement (candidat)
-export async function POST(request: Request) {
-  const auth = await requireApiUser();
-  if (!auth.ok) return auth.response;
-  if (auth.user.role !== "CANDIDAT") {
-    return NextResponse.json({ error: "Réservé aux candidats" }, { status: 403 });
+  const { id } = await params;
+  const reservation = await db.logementReservation.findUnique({ where: { id } });
+  if (!reservation || reservation.candidatId !== auth.user.id) {
+    return NextResponse.json({ error: "Demande introuvable" }, { status: 404 });
+  }
+  if (reservation.statut !== "correction_demandee") {
+    return NextResponse.json(
+      { error: "Cette demande ne peut être corrigée que si une correction a été demandée." },
+      { status: 400 },
+    );
   }
 
   const rateLimited = await checkRateLimit(getClientId(request), "/api/logement/reservations");
@@ -55,20 +52,22 @@ export async function POST(request: Request) {
   if (!parsed.ok) return parsed.response;
   const input = parsed.data;
 
-  if (!(fichierPasseport instanceof File) || fichierPasseport.size === 0) {
-    return NextResponse.json({ error: "Le passeport est requis" }, { status: 400 });
-  }
-  if (!(fichierAttestationInscription instanceof File) || fichierAttestationInscription.size === 0) {
-    return NextResponse.json({ error: "L'attestation d'inscription est requise" }, { status: 400 });
-  }
+  let fichierPasseportUrl = reservation.fichierPasseportUrl;
+  let fichierAttestationInscriptionUrl = reservation.fichierAttestationInscriptionUrl;
 
-  let passeportUpload;
-  let attestationUpload;
   try {
-    passeportUpload = await saveUpload(fichierPasseport, `logement/${auth.user.id}`, { visibility: "private" });
-    attestationUpload = await saveUpload(fichierAttestationInscription, `logement/${auth.user.id}`, {
-      visibility: "private",
-    });
+    if (fichierPasseport instanceof File && fichierPasseport.size > 0) {
+      const upload = await saveUpload(fichierPasseport, `logement/${auth.user.id}`, { visibility: "private" });
+      await deleteUpload(reservation.fichierPasseportUrl, "private");
+      fichierPasseportUrl = upload.cheminRelatif;
+    }
+    if (fichierAttestationInscription instanceof File && fichierAttestationInscription.size > 0) {
+      const upload = await saveUpload(fichierAttestationInscription, `logement/${auth.user.id}`, {
+        visibility: "private",
+      });
+      await deleteUpload(reservation.fichierAttestationInscriptionUrl, "private");
+      fichierAttestationInscriptionUrl = upload.cheminRelatif;
+    }
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Téléversement des documents échoué" },
@@ -76,9 +75,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const reservation = await db.logementReservation.create({
+  const updated = await db.logementReservation.update({
+    where: { id: reservation.id },
     data: {
-      candidatId: auth.user.id,
       civilite: input.civilite,
       nom: input.nom,
       prenom: input.prenom,
@@ -91,13 +90,12 @@ export async function POST(request: Request) {
       paysDemandeVisa: input.paysDemandeVisa,
       villeEtablissementFrance: input.villeEtablissementFrance,
       dateArriveePrevue: input.dateArriveePrevue,
-      fichierPasseportUrl: passeportUpload.cheminRelatif,
-      fichierAttestationInscriptionUrl: attestationUpload.cheminRelatif,
+      fichierPasseportUrl,
+      fichierAttestationInscriptionUrl,
       statut: "soumis",
+      motifCorrection: null,
     },
   });
 
-  // La transmission au partenaire n'est plus automatique — un membre du staff la déclenche
-  // manuellement depuis /admin/logement une fois la demande vérifiée.
-  return NextResponse.json({ success: true, reservation }, { status: 201 });
+  return NextResponse.json({ success: true, reservation: updated });
 }

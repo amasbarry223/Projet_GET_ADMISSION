@@ -22,21 +22,30 @@ type MessageApi = {
 };
 
 type ConversationApi = {
-  financier: { id: string; prenom: string; nom: string };
+  financier: { id: string; prenom: string; nom: string; role?: string };
   nonLusFinancier: number;
   nonLusAdmin: number;
   messages: MessageApi[];
 } | null;
 
 type InboxRow = {
-  financier: { id: string; prenom: string; nom: string };
+  financier: { id: string; prenom: string; nom: string; role?: string };
   nonLusAdmin: number;
   updatedAt: string;
   dernierMessage: string | null;
 };
 
+const CORRESPONDANT_ROLE_LABEL: Record<string, string> = {
+  FINANCIER: "Financier(ère)",
+  CONSEILLER: "Conseiller(ère)",
+};
+
 function initiales(prenom: string, nom: string) {
   return `${prenom[0] ?? ""}${nom[0] ?? ""}`.toUpperCase();
+}
+
+function isAdminSide(role: string) {
+  return role === "ADMIN" || role === "SUPER_ADMIN";
 }
 
 function ChatThread({
@@ -130,7 +139,7 @@ function Composer({ onSend }: { onSend: (texte: string) => Promise<void> }) {
   );
 }
 
-function FinancierView() {
+function StaffThreadView() {
   const [conversation, setConversation] = React.useState<ConversationApi>(null);
   const [loading, setLoading] = React.useState(true);
 
@@ -195,7 +204,7 @@ function FinancierView() {
         <ChatThread
           messages={conversation?.messages ?? []}
           emptyLabel="Aucun message pour l'instant. Écrivez à l'administration ci-dessous."
-          bubbleIsMine={(m) => m.auteur.role === "FINANCIER"}
+          bubbleIsMine={(m) => !isAdminSide(m.auteur.role)}
         />
         <Composer onSend={send} />
       </div>
@@ -275,7 +284,7 @@ function AdminView() {
         <EmptyState
           icon={<MessagesSquare className="h-5 w-5" strokeWidth={1.5} />}
           title="Aucun message"
-          description="Aucun financier n'a encore écrit à l'administration."
+          description="Aucun financier ou conseiller n'a encore écrit à l'administration."
         />
       </Card>
     );
@@ -289,7 +298,7 @@ function AdminView() {
       <div className="grid h-[600px] md:grid-cols-[280px_1fr]">
         <aside className="hidden md:flex flex-col border-r border-ligne">
           <div className="border-b border-ligne px-4 py-3">
-            <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Financiers</p>
+            <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Correspondants</p>
           </div>
           <div className="flex-1 overflow-y-auto scroll-fine p-2">
             {inbox.map((row) => {
@@ -336,7 +345,9 @@ function AdminView() {
             </Avatar>
             <div>
               <p className="text-sm font-semibold text-encre">{selectedNom || "—"}</p>
-              <p className="text-xs text-ardoise">Financier(ère)</p>
+              <p className="text-xs text-ardoise">
+                {(selectedRow?.financier.role && CORRESPONDANT_ROLE_LABEL[selectedRow.financier.role]) ?? "—"}
+              </p>
             </div>
           </div>
 
@@ -348,7 +359,7 @@ function AdminView() {
             <ChatThread
               messages={conversation?.messages ?? []}
               emptyLabel="Aucun message dans ce fil."
-              bubbleIsMine={(m) => m.auteur.role !== "FINANCIER"}
+              bubbleIsMine={(m) => isAdminSide(m.auteur.role)}
             />
           )}
           <Composer onSend={send} />
@@ -361,14 +372,14 @@ function AdminView() {
 export function MessagesInternesClient() {
   const { data: session } = useSession();
   const role = session?.user?.role;
-  const isFinancier = role === "FINANCIER";
+  const isStaffThread = role === "FINANCIER" || role === "CONSEILLER";
 
   return (
     <div className="space-y-6">
       <div>
         <p className="eyebrow">Messagerie interne</p>
         <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">
-          {isFinancier ? "Écrire à l'administration." : "Messages des financiers."}
+          {isStaffThread ? "Écrire à l'administration." : "Messages internes."}
         </h1>
       </div>
 
@@ -376,8 +387,8 @@ export function MessagesInternesClient() {
         <div className="flex h-[600px] items-center justify-center">
           <Loader2 className="h-5 w-5 animate-spin text-ardoise" strokeWidth={1.5} />
         </div>
-      ) : isFinancier ? (
-        <FinancierView />
+      ) : isStaffThread ? (
+        <StaffThreadView />
       ) : (
         <AdminView />
       )}

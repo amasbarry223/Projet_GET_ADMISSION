@@ -212,6 +212,14 @@ export async function PUT(
         { status: 400 },
       );
     }
+    // Une fois le dossier pris en charge (l'état a quitté SOUMIS — vérification démarrée,
+    // correction demandée, etc.), l'affectation ne peut plus être modifiée par Admin/Super Admin.
+    if (dossier.etat !== "SOUMIS" && dossier.etat !== "BROUILLON") {
+      return NextResponse.json(
+        { error: "Le dossier a déjà été pris en charge, l'affectation ne peut plus être modifiée." },
+        { status: 409 },
+      );
+    }
   }
 
   // Affectation de l'établissement (procédure Université Publique) — Conseiller, Admin, Super Admin.

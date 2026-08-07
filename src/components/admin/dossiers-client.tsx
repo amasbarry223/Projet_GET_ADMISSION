@@ -183,19 +183,18 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
       {
         label: (row) => (row.conseiller === "Non affecté" ? "Affecter un conseiller" : "Réaffecter un conseiller"),
         icon: UserPlus,
-        hidden: () => !canAssign,
-        disabled: (row) => row.etat.toLowerCase() === "brouillon" || row.etat.toUpperCase() === "CLOTURE",
-        disabledReason: (row) =>
-          row.etat.toUpperCase() === "CLOTURE"
-            ? "Le dossier est clôturé."
-            : "Le dossier doit être soumis avant d'être affecté à un conseiller.",
+        // Une fois le dossier pris en charge (état au-delà de SOUMIS), l'option disparaît —
+        // seul "Voir le dossier" reste disponible.
+        hidden: (row) => !canAssign || (row.etat.toUpperCase() !== "SOUMIS" && row.etat.toLowerCase() !== "brouillon"),
+        disabled: (row) => row.etat.toLowerCase() === "brouillon",
+        disabledReason: () => "Le dossier doit être soumis avant d'être affecté à un conseiller.",
         onClick: (row) => openAssign([row]),
       },
       {
         label: "Désaffecter le conseiller",
         icon: UserMinus,
         tone: "danger",
-        hidden: (row) => !canAssign || row.conseiller === "Non affecté" || row.etat.toUpperCase() === "CLOTURE",
+        hidden: (row) => !canAssign || row.conseiller === "Non affecté" || row.etat.toUpperCase() !== "SOUMIS",
         confirm: {
           title: "Désaffecter le conseiller ?",
           description: (row) => `${row.conseiller} ne sera plus responsable du dossier ${row.reference}.`,
@@ -400,9 +399,11 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
         selectionBar={(table: Table<DossierRow>) => {
           const selectedRows = table.getFilteredSelectedRowModel().rows;
           const count = selectedRows.length;
-          const hasBrouillonOuCloture = selectedRows.some(
-            (r) => r.original.etat.toLowerCase() === "brouillon" || r.original.etat.toUpperCase() === "CLOTURE",
+          const hasNonAssignable = selectedRows.some(
+            (r) => r.original.etat.toUpperCase() !== "SOUMIS" && r.original.etat.toLowerCase() !== "brouillon",
           );
+          const hasBrouillon = selectedRows.some((r) => r.original.etat.toLowerCase() === "brouillon");
+          const assignSelectionDisabled = hasNonAssignable || hasBrouillon;
           return (
             <>
               {canAssign && (
@@ -410,8 +411,12 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
                 variant="outline"
                 size="sm"
                 className="h-8 border-ligne bg-card"
-                disabled={hasBrouillonOuCloture}
-                title={hasBrouillonOuCloture ? "Retirez les dossiers en brouillon ou clôturés de la sélection pour affecter un conseiller." : undefined}
+                disabled={assignSelectionDisabled}
+                title={
+                  assignSelectionDisabled
+                    ? "Retirez les dossiers en brouillon ou déjà pris en charge (au-delà de « soumis ») de la sélection pour affecter un conseiller."
+                    : undefined
+                }
                 onClick={() =>
                   openAssign(
                     selectedRows.map((r) => r.original),

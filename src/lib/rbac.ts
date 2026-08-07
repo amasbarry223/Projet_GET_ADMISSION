@@ -26,7 +26,9 @@ export type Permission =
   | "candidats.write"
   | "messages.internes"
   | "etablissement.assign"
-  | "crous.manage";
+  | "crous.manage"
+  | "logement.read"
+  | "logement.write";
 
 const MATRIX: Record<Role, Permission[]> = {
   CANDIDAT: [],
@@ -39,6 +41,9 @@ const MATRIX: Record<Role, Permission[]> = {
     "attestations.emit", // ◐ — émission autorisée
     "kyc.read", // ◐ — consultation uniquement, pas de modification
     "etablissement.assign", // procédure Université Publique — affecte l'établissement réel
+    "messages.internes", // écrit à l'Admin/Super Admin — même fil interne que le Financier
+    "logement.read",
+    "logement.write",
   ],
   FINANCIER: [
     "dashboard",
@@ -68,6 +73,8 @@ const MATRIX: Record<Role, Permission[]> = {
     "candidats.write",
     "messages.internes",
     "etablissement.assign",
+    "logement.read",
+    "logement.write",
   ],
   SUPER_ADMIN: [
     "dashboard",
@@ -95,6 +102,8 @@ const MATRIX: Record<Role, Permission[]> = {
     "candidats.write",
     "etablissement.assign",
     "crous.manage",
+    "logement.read",
+    "logement.write",
   ],
 };
 
@@ -135,6 +144,7 @@ export function permissionForAdminPath(pathname: string): Permission | null {
   if (pathname.startsWith("/admin/audit")) return "audit.read";
   if (pathname.startsWith("/admin/messages-internes")) return "messages.internes";
   if (pathname.startsWith("/admin/crous")) return "crous.manage";
+  if (pathname.startsWith("/admin/logement")) return "logement.read";
   return "dashboard";
 }
 

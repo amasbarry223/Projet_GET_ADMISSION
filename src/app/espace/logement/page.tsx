@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/form";
 import { logementReservationSchema } from "@/lib/validations";
 import { formatDateTime } from "@/lib/format";
-import { BedDouble, Loader2, CheckCircle2, XCircle, Clock, Upload } from "lucide-react";
+import { BedDouble, Loader2, Clock, Upload, Pencil, MessageSquareWarning } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type LogementFormValues = z.infer<typeof logementReservationSchema>;
@@ -37,10 +37,17 @@ type Reservation = {
   civilite: "M" | "MME";
   nom: string;
   prenom: string;
+  dateNaissance: string;
+  nationalite: string;
+  telephone: string;
+  email: string;
+  agenceAccompagnante: string | null;
+  numeroPasseport: string;
+  paysDemandeVisa: string;
   dateArriveePrevue: string;
   villeEtablissementFrance: string;
-  statut: "soumis" | "transmis" | "erreur";
-  erreurTransmission: string | null;
+  statut: "soumis" | "correction_demandee";
+  motifCorrection: string | null;
   createdAt: string;
 };
 
@@ -48,9 +55,8 @@ const STATUT_META: Record<
   Reservation["statut"],
   { label: string; icon: typeof Clock; tone: string }
 > = {
-  soumis: { label: "Soumise — en attente de transmission", icon: Clock, tone: "text-ambre border-ambre bg-ambre/5" },
-  transmis: { label: "Transmise au partenaire", icon: CheckCircle2, tone: "text-vert border-vert bg-vert/5" },
-  erreur: { label: "Échec de la transmission — nouvelle tentative en cours de traitement", icon: XCircle, tone: "text-carmin border-carmin bg-carmin/5" },
+  soumis: { label: "Soumise — en cours de traitement par l'administration", icon: Clock, tone: "text-ambre border-ambre bg-ambre/5" },
+  correction_demandee: { label: "Correction demandée", icon: MessageSquareWarning, tone: "text-lapis border-lapis bg-lapis/5" },
 };
 
 export default function LogementPage() {
@@ -59,6 +65,7 @@ export default function LogementPage() {
   const [passeportFile, setPasseportFile] = React.useState<File | null>(null);
   const [attestationFile, setAttestationFile] = React.useState<File | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
 
   const form = useForm<LogementFormValues>({
     resolver: zodResolver(logementReservationSchema),
@@ -119,13 +126,16 @@ export default function LogementPage() {
   }, [loadReservations, form]);
 
   const onSubmit = async (values: LogementFormValues) => {
-    if (!passeportFile) {
-      toast.error("Le passeport est requis");
-      return;
-    }
-    if (!attestationFile) {
-      toast.error("L'attestation d'inscription est requise");
-      return;
+    const isCorrection = editingId !== null;
+    if (!isCorrection) {
+      if (!passeportFile) {
+        toast.error("Le passeport est requis");
+        return;
+      }
+      if (!attestationFile) {
+        toast.error("L'attestation d'inscription est requise");
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -133,26 +143,86 @@ export default function LogementPage() {
     for (const [key, value] of Object.entries(values)) {
       if (value !== undefined && value !== null) formData.append(key, String(value));
     }
-    formData.append("fichierPasseport", passeportFile);
-    formData.append("fichierAttestationInscription", attestationFile);
+    if (passeportFile) formData.append("fichierPasseport", passeportFile);
+    if (attestationFile) formData.append("fichierAttestationInscription", attestationFile);
 
     try {
-      const res = await fetch("/api/logement/reservations", { method: "POST", body: formData });
+      const url = isCorrection ? `/api/logement/reservations/${editingId}` : "/api/logement/reservations";
+      const res = await fetch(url, { method: isCorrection ? "PUT" : "POST", body: formData });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error("Demande échouée", { description: body?.error ?? "Erreur serveur." });
+        toast.error(isCorrection ? "Correction échouée" : "Demande échouée", {
+          description: body?.error ?? "Erreur serveur.",
+        });
         return;
       }
-      toast.success("Demande de réservation envoyée");
+      toast.success(isCorrection ? "Demande corrigée et renvoyée" : "Demande de réservation envoyée");
       setPasseportFile(null);
       setAttestationFile(null);
-      form.reset(form.getValues());
+      setEditingId(null);
+      form.reset({
+        civilite: "M",
+        nom: "",
+        prenom: "",
+        dateNaissance: "",
+        nationalite: "",
+        telephone: "",
+        email: "",
+        agenceAccompagnante: "",
+        numeroPasseport: "",
+        paysDemandeVisa: "",
+        villeEtablissementFrance: "",
+        dateArriveePrevue: "",
+      });
       await loadReservations();
     } catch {
       toast.error("Erreur réseau", { description: "Réessayez dans quelques instants." });
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const startCorrection = (r: Reservation) => {
+    setEditingId(r.id);
+    setPasseportFile(null);
+    setAttestationFile(null);
+    form.reset({
+      civilite: r.civilite,
+      nom: r.nom,
+      prenom: r.prenom,
+      dateNaissance: r.dateNaissance,
+      nationalite: r.nationalite,
+      telephone: r.telephone,
+      email: r.email,
+      agenceAccompagnante: r.agenceAccompagnante ?? "",
+      numeroPasseport: r.numeroPasseport,
+      paysDemandeVisa: r.paysDemandeVisa,
+      villeEtablissementFrance: r.villeEtablissementFrance,
+      dateArriveePrevue: r.dateArriveePrevue,
+    });
+    if (typeof document !== "undefined") {
+      document.getElementById("logement-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const cancelCorrection = () => {
+    setEditingId(null);
+    setPasseportFile(null);
+    setAttestationFile(null);
+    form.reset({
+      civilite: "M",
+      nom: "",
+      prenom: "",
+      dateNaissance: "",
+      nationalite: "",
+      telephone: "",
+      email: "",
+      agenceAccompagnante: "",
+      numeroPasseport: "",
+      paysDemandeVisa: "",
+      villeEtablissementFrance: "",
+      dateArriveePrevue: "",
+    });
   };
 
   return (
@@ -163,7 +233,7 @@ export default function LogementPage() {
           Réservez votre logement étudiant.
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-ardoise">
-          Remplissez le formulaire ci-dessous pour transmettre votre demande à notre partenaire logement.
+          Remplissez le formulaire ci-dessous pour soumettre votre demande — elle sera traitée par notre équipe.
         </p>
       </div>
 
@@ -174,20 +244,33 @@ export default function LogementPage() {
             {reservations.map((r) => {
               const meta = STATUT_META[r.statut];
               return (
-                <div
-                  key={r.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-ligne px-4 py-3"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-encre">
-                      {r.villeEtablissementFrance} — arrivée le {r.dateArriveePrevue}
-                    </p>
-                    <p className="text-xs text-ardoise">Envoyée le {formatDateTime(r.createdAt)}</p>
+                <div key={r.id} className="rounded-md border border-ligne px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium text-encre">
+                        {r.villeEtablissementFrance} — arrivée le {r.dateArriveePrevue}
+                      </p>
+                      <p className="text-xs text-ardoise">Envoyée le {formatDateTime(r.createdAt)}</p>
+                    </div>
+                    <Badge className={cn("font-mono text-[10px] uppercase", meta.tone)}>
+                      <meta.icon className="mr-1 h-3 w-3" />
+                      {meta.label}
+                    </Badge>
                   </div>
-                  <Badge className={cn("font-mono text-[10px] uppercase", meta.tone)}>
-                    <meta.icon className="mr-1 h-3 w-3" />
-                    {meta.label}
-                  </Badge>
+                  {r.statut === "correction_demandee" && (
+                    <div className="mt-3 rounded-md border border-lapis/30 bg-lapis/5 px-3 py-2.5">
+                      {r.motifCorrection && <p className="text-xs text-encre">{r.motifCorrection}</p>}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="mt-2 h-7 px-2.5 text-xs"
+                        onClick={() => startCorrection(r)}
+                      >
+                        <Pencil className="mr-1.5 h-3 w-3" strokeWidth={1.5} /> Corriger ma demande
+                      </Button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -195,12 +278,17 @@ export default function LogementPage() {
         </Card>
       )}
 
-      <Card className="border-ligne bg-card p-0 overflow-hidden">
-        <div className="flex flex-wrap items-center gap-2 border-b border-ligne bg-porcelaine px-6 py-3">
+      <Card id="logement-form" className="border-ligne bg-card p-0 overflow-hidden scroll-mt-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ligne bg-porcelaine px-6 py-3">
           <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
             <BedDouble className="h-3.5 w-3.5" strokeWidth={1.75} />
-            Formulaire de réservation de logement
+            {editingId ? "Corriger ma demande de réservation" : "Formulaire de réservation de logement"}
           </p>
+          {editingId && (
+            <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={cancelCorrection}>
+              Annuler la correction
+            </Button>
+          )}
         </div>
 
         <Form {...form}>
@@ -404,7 +492,9 @@ export default function LogementPage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="fichierPasseport">Passeport (PDF, JPG, PNG — 10 Mo max)</Label>
+                <Label htmlFor="fichierPasseport">
+                  Passeport (PDF, JPG, PNG — 10 Mo max){editingId ? " — optionnel, conserve le fichier existant" : ""}
+                </Label>
                 <label
                   htmlFor="fichierPasseport"
                   className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-ligne px-3 py-2.5 text-sm text-ardoise hover:border-lapis/50"
@@ -424,6 +514,7 @@ export default function LogementPage() {
               <div className="space-y-1.5">
                 <Label htmlFor="fichierAttestationInscription">
                   Attestation d&apos;inscription (PDF, JPG, PNG — 10 Mo max)
+                  {editingId ? " — optionnel, conserve le fichier existant" : ""}
                 </Label>
                 <label
                   htmlFor="fichierAttestationInscription"
@@ -447,7 +538,7 @@ export default function LogementPage() {
             <div className="flex justify-end border-t border-ligne pt-5">
               <Button type="submit" disabled={submitting} className="bg-lapis text-blanc hover:bg-lapis/90">
                 {submitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
-                Envoyer ma demande
+                {editingId ? "Renvoyer ma demande corrigée" : "Envoyer ma demande"}
               </Button>
             </div>
           </form>

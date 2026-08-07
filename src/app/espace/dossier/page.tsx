@@ -305,6 +305,30 @@ function DossierWizard() {
       setStep(DOSSIER_WIZARD_STEPS.DOCUMENTS);
       return;
     }
+    if (step === DOSSIER_WIZARD_STEPS.DOCUMENTS) {
+      const manquantes = listPiecesManquantes(piecesAcademiques);
+      if (manquantes.length > 0) {
+        toastApiErrorSync(
+          new Error(`${manquantes.length} document(s) obligatoire(s) manquant(s).`),
+          { title: "Documents incomplets" },
+        );
+        return;
+      }
+      setStep(DOSSIER_WIZARD_STEPS.IDENTITE);
+      return;
+    }
+    if (step === DOSSIER_WIZARD_STEPS.IDENTITE) {
+      const manquantes = listPiecesManquantes(piecesIdentite);
+      if (manquantes.length > 0) {
+        toastApiErrorSync(
+          new Error(`${manquantes.length} pièce(s) d'identité obligatoire(s) manquante(s).`),
+          { title: "Pièces d'identité incomplètes" },
+        );
+        return;
+      }
+      setStep(DOSSIER_WIZARD_STEPS.RECAP);
+      return;
+    }
     setStep((current) => Math.min(DOSSIER_WIZARD_STEP_COUNT, current + 1));
   };
 

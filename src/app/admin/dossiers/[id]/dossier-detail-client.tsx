@@ -436,7 +436,9 @@ export default function DossierDetailClient() {
   };
 
   const assignDisabled = etatLower === "brouillon";
-  const showAssignActions = canAssign && etatLower !== "cloture";
+  // Une fois le dossier pris en charge (état au-delà de SOUMIS), affecter/réaffecter/désaffecter
+  // disparaissent — seule la consultation du dossier reste possible.
+  const showAssignActions = canAssign && (etatLower === "soumis" || etatLower === "brouillon");
 
   const canAssignEtablissement = hasPermission(session?.user?.role, "etablissement.assign");
   const etapeActuelleDossier = ETAPE_PAR_ETAT[dossier.etat as keyof typeof ETAPE_PAR_ETAT];
@@ -947,7 +949,7 @@ export default function DossierDetailClient() {
                 <UserPlus className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
                 {dossier.conseiller ? "Réaffecter" : "Affecter un conseiller"}
               </Button>
-              {dossier.conseiller && (
+              {dossier.conseiller && etatLower === "soumis" && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="outline" size="sm" className="border-carmin/40 text-carmin hover:bg-carmin/5">

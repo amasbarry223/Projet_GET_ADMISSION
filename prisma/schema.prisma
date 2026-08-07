@@ -705,8 +705,7 @@ enum CiviliteLogement {
 
 enum StatutLogementReservation {
   soumis
-  transmis
-  erreur
+  correction_demandee
 }
 
 model LogementReservation {
@@ -727,7 +726,7 @@ model LogementReservation {
   fichierPasseportUrl              String
   fichierAttestationInscriptionUrl String
   statut                           StatutLogementReservation @default(soumis)
-  erreurTransmission               String?
+  motifCorrection                  String?
   createdAt                        DateTime                  @default(now())
   updatedAt                        DateTime                  @updatedAt
 
