@@ -32,7 +32,7 @@ export function HomeHero() {
         <div className="glow-primary absolute right-0 top-1/3 h-96 w-96 opacity-50 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto grid max-w-content items-center gap-8 px-4 py-14 sm:gap-10 sm:px-6 sm:py-16 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-6 lg:px-8 lg:py-24 xl:gap-10">
+      <div className="relative mx-auto grid max-w-content items-center gap-8 px-4 py-14 sm:gap-10 sm:px-6 sm:py-16 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-6 lg:px-8 lg:py-24 xl:gap-10">
         {/* Colonne texte */}
         <motion.div
           initial="hidden"
@@ -76,10 +76,10 @@ export function HomeHero() {
           initial="hidden"
           animate="visible"
           variants={portraitVariants}
-          className="relative z-10 mx-auto flex w-full max-w-[340px] items-end justify-center sm:max-w-[400px] lg:max-w-none lg:justify-self-end"
+          className="relative z-10 mx-auto -mb-14 flex w-full max-w-[420px] items-end justify-center self-end sm:-mb-16 sm:max-w-[520px] lg:-mb-24 lg:max-w-none lg:justify-self-end"
         >
           <div
-            className={`relative aspect-[3/4] w-full max-w-[440px] ${reduce ? "" : "animate-float"}`}
+            className={`relative aspect-[2933/3368] w-full max-w-[560px] lg:max-w-[600px] xl:max-w-[640px] ${reduce ? "" : "animate-float"}`}
             style={reduce ? undefined : { willChange: "transform" }}
           >
             {/* Soft ground glow — ancre le cutout sans card */}
@@ -97,7 +97,7 @@ export function HomeHero() {
               fill
               priority
               className="object-contain object-bottom drop-shadow-[0_28px_56px_rgba(0,0,0,0.5)]"
-              sizes="(max-width: 640px) 85vw, (max-width: 1024px) 400px, 440px"
+              sizes="(max-width: 640px) 90vw, (max-width: 1024px) 520px, 640px"
             />
           </div>
         </motion.div>
