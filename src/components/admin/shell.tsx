@@ -19,7 +19,6 @@ import {
   IdCard,
   FileStack,
   MessagesSquare,
-  Share2,
   BedDouble,
 } from "lucide-react";
 import { GlobalSearch } from "@/components/admin/global-search";
@@ -74,7 +73,6 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
       { href: "/admin/finance", label: "Finance", icon: Wallet, permission: "finance.read" },
       { href: "/admin/utilisateurs", label: "Utilisateurs", icon: Users, permission: "users.read" },
       { href: "/admin/attestations", label: "Attestations", icon: Stamp, permission: "attestations.read" },
-      { href: "/admin/crous", label: "Demandes CROUS", icon: Share2, permission: "crous.manage" },
       { href: "/admin/logement", label: "Demandes de logement", icon: BedDouble, permission: "logement.read" },
     ],
   },

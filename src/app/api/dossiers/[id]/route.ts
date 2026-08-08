@@ -324,7 +324,6 @@ export async function PUT(
       if (action === "soumettre") {
         nouvelEtat = await submitDraftDossier(tx, {
           dossierId: id,
-          currentConseillerId: dossier.conseillerId,
           notes,
         });
       } else if (action === "resoumettre") {

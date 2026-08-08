@@ -26,7 +26,6 @@ export type Permission =
   | "candidats.write"
   | "messages.internes"
   | "etablissement.assign"
-  | "crous.manage"
   | "logement.read"
   | "logement.write";
 
@@ -101,7 +100,6 @@ const MATRIX: Record<Role, Permission[]> = {
     "candidats.read",
     "candidats.write",
     "etablissement.assign",
-    "crous.manage",
     "logement.read",
     "logement.write",
   ],
@@ -143,7 +141,6 @@ export function permissionForAdminPath(pathname: string): Permission | null {
   if (pathname.startsWith("/admin/parametres")) return "parametres.read";
   if (pathname.startsWith("/admin/audit")) return "audit.read";
   if (pathname.startsWith("/admin/messages-internes")) return "messages.internes";
-  if (pathname.startsWith("/admin/crous")) return "crous.manage";
   if (pathname.startsWith("/admin/logement")) return "logement.read";
   return "dashboard";
 }

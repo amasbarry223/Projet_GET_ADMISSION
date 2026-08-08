@@ -3,3 +3,4 @@ export * from "./api.constants";
 export * from "./validation.constants";
 export * from "./ui.constants";
 export * from "./dossier.constants";
+export * from "./villes-france.constants";

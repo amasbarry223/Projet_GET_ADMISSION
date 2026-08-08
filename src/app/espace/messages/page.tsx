@@ -6,7 +6,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -18,7 +17,11 @@ import { MessagesSkeleton } from "@/components/ui/skeleton-card";
 import { getApiErrorMessageSync, messageFromBody } from "@/lib/api-error";
 import { usePrimaryDossier } from "@/hooks/use-primary-dossier";
 import { runAsyncEffect } from "@/lib/run-async-effect";
-import { Paperclip, Send, Mail, Phone, ArrowLeft, Loader2, AlertCircle, MessageSquare } from "lucide-react";
+import { Mail, Phone, ArrowLeft, AlertCircle, MessageSquare } from "lucide-react";
+import { MessageComposer } from "@/components/messages/message-composer";
+import { MessageAttachment } from "@/components/messages/message-attachment";
+import { useRealtimeBroadcast } from "@/hooks/use-realtime-broadcast";
+import { MESSAGES_LIVE_CHANNEL } from "@/lib/messages/live-broadcast";
 
 type ConversationMessage = {
   id: string;
@@ -26,6 +29,7 @@ type ConversationMessage = {
   texte: string;
   pieceJointeNom: string | null;
   pieceJointeTaille: string | null;
+  pieceJointeChemin: string | null;
   createdAt: string;
   auteur: { prenom: string; nom: string; role: string };
 };
@@ -59,8 +63,6 @@ function MessagesInner() {
   const [conversation, setConversation] = React.useState<Conversation>(null);
   const [conversationLoading, setConversationLoading] = React.useState(true);
   const [conversationError, setConversationError] = React.useState<string | null>(null);
-  const [input, setInput] = React.useState("");
-  const [sending, setSending] = React.useState(false);
   const [contactInfo, setContactInfo] = React.useState<{ email: string; telephone: string } | null>(null);
   const [contactError, setContactError] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
@@ -125,21 +127,22 @@ function MessagesInner() {
     });
   }, [dossierLoading, dossierError, dossierId, loadConversation]);
 
+  useRealtimeBroadcast(MESSAGES_LIVE_CHANNEL, "message_created", () => {
+    if (dossierId) loadConversation(dossierId);
+  });
+
   React.useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [conversation?.messages.length]);
 
-  const send = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const text = input.trim();
-    if (!text || !dossierId) return;
-    setSending(true);
+  const send = async (texte: string, fichier: File | null) => {
+    if (!dossierId) return;
     try {
-      const res = await fetch("/api/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dossierId, texte: text }),
-      });
+      const form = new FormData();
+      form.set("dossierId", dossierId);
+      form.set("texte", texte);
+      if (fichier) form.set("fichier", fichier);
+      const res = await fetch("/api/messages", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(messageFromBody(data) ?? getApiErrorMessageSync(res.status));
       // Append ou bootstrap conversation locale
@@ -154,12 +157,9 @@ function MessagesInner() {
           messages: [data as ConversationMessage],
         };
       });
-      setInput("");
       toast.success("Message envoyé");
     } catch (err: unknown) {
       toast.error("Échec de l'envoi", { description: getApiErrorMessageSync(err) });
-    } finally {
-      setSending(false);
     }
   };
 
@@ -305,14 +305,15 @@ function MessagesInner() {
                     return (
                       <div key={m.id} className={cn("flex", isCand ? "justify-end" : "justify-start")}>
                         <div className={cn("max-w-[80%] rounded-lg px-3.5 py-2.5", isCand ? "bg-lapis text-blanc" : "border border-ligne bg-blanc text-encre")}>
-                          {m.pieceJointeNom && (
-                            <div className={cn("mb-1.5 flex items-center gap-2 rounded-md border px-2 py-1 text-xs", isCand ? "border-blanc/20" : "border-ligne")}>
-                              <Paperclip className="h-3 w-3" strokeWidth={1.5} />
-                              <span className="font-mono">{m.pieceJointeNom}</span>
-                              {m.pieceJointeTaille && <span className="opacity-70">{m.pieceJointeTaille}</span>}
-                            </div>
+                          {m.pieceJointeNom && m.pieceJointeChemin && (
+                            <MessageAttachment
+                              nom={m.pieceJointeNom}
+                              taille={m.pieceJointeTaille}
+                              downloadUrl={`/api/messages/${m.id}/download`}
+                              mine={isCand}
+                            />
                           )}
-                          <p className="text-sm leading-relaxed">{m.texte}</p>
+                          {m.texte && <p className="text-sm leading-relaxed">{m.texte}</p>}
                           <p className={cn("mt-1 font-mono text-[10px]", isCand ? "text-blanc/60" : "text-ardoise")}>{formatHeure(m.createdAt)}</p>
                         </div>
                       </div>
@@ -323,21 +324,7 @@ function MessagesInner() {
             </div>
 
             {/* Input */}
-            <form onSubmit={send} className="flex items-center gap-2 border-t border-ligne p-3">
-              <Button type="button" variant="ghost" size="icon" aria-label="Pièces jointes bientôt disponibles" className="flex-none" disabled title="Pièces jointes bientôt disponibles">
-                <Paperclip className="h-4 w-4 text-ardoise" strokeWidth={1.5} />
-              </Button>
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Écrivez votre message…"
-                className="flex-1"
-                aria-label="Votre message"
-              />
-              <Button type="submit" size="icon" className="flex-none bg-lapis text-blanc hover:bg-lapis/90" aria-label="Envoyer" disabled={!input.trim() || sending}>
-                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" strokeWidth={1.5} />}
-              </Button>
-            </form>
+            <MessageComposer onSend={send} />
           </section>
         </div>
       </Card>

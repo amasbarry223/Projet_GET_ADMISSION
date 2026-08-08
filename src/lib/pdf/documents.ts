@@ -17,8 +17,11 @@ const COLOR = {
   encre: rgb(0x1a / 255, 0x1a / 255, 0x1a / 255),
   ardoise: rgb(0x6b / 255, 0x72 / 255, 0x80 / 255),
   lapis: rgb(0x3c / 255, 0xa9 / 255, 0x36 / 255),
+  lapisPale: rgb(0xea / 255, 0xf7 / 255, 0xe9 / 255),
   or: rgb(0x2e / 255, 0x83 / 255, 0x29 / 255),
   orPale: rgb(0xe8 / 255, 0xf5 / 255, 0xe7 / 255),
+  ambre: rgb(0xc7 / 255, 0x7a / 255, 0x12 / 255),
+  ambrePale: rgb(0xfc / 255, 0xf1 / 255, 0xe3 / 255),
   porcelaine: rgb(0xf3 / 255, 0xf4 / 255, 0xf6 / 255),
   ligne: rgb(0xe5 / 255, 0xe7 / 255, 0xeb / 255),
   carmin: rgb(0xc0 / 255, 0x39 / 255, 0x2b / 255),
@@ -556,9 +559,30 @@ const PIECE_STATUT_LABEL: Record<string, string> = {
   validee: "Validée",
 };
 
+/** Couleurs alignées sur les badges de statut de l'écran « Pièces du dossier » (dossier-detail-client). */
+const PIECE_STATUT_COLOR: Record<string, { text: ReturnType<typeof rgb>; bg: ReturnType<typeof rgb> }> = {
+  manquante: { text: COLOR.carmin, bg: COLOR.carminPale },
+  televersee: { text: COLOR.lapis, bg: COLOR.lapisPale },
+  a_corriger: { text: COLOR.ambre, bg: COLOR.ambrePale },
+  validee: { text: COLOR.or, bg: COLOR.orPale },
+};
+
+const PIECE_CATEGORIE_LABEL: Record<string, string> = {
+  academique: "Académique",
+  identite: "Identité",
+  justificatif: "Justificatif",
+  complementaire: "Complémentaire",
+};
+
 export type PieceDossierInput = {
   libelle: string;
   statut: string;
+  /** academique | identite | justificatif | complementaire */
+  categorie: string;
+  /** Taille lisible déjà formatée (ex. "5.8 Mo"), null si inconnue */
+  taille: string | null;
+  /** Date de téléversement déjà formatée (ex. "7 août 2026"), null si jamais téléversée */
+  dateTeleversementStr: string | null;
   /** null si aucun fichier téléversé ou fichier illisible */
   buffer: Buffer | null;
   /** "application/pdf" | "image/jpeg" | "image/png" | "image/webp" | null */
@@ -582,39 +606,180 @@ async function embedAnyImage(pdfDoc: PDFDocument, buffer: Buffer, contentType: s
   return pdfDoc.embedPng(pngBuffer);
 }
 
-function drawDividerPage(
+/** Pastille de statut (fond teinté + texte), largeur ajustée au libellé — même esprit que le Badge front-end. */
+function drawStatusChip(
+  page: PDFPage,
+  opts: { label: string; font: PDFFont; rightEdgeX: number; y: number; color: { text: ReturnType<typeof rgb>; bg: ReturnType<typeof rgb> } },
+): void {
+  const paddingX = 9;
+  const height = 18;
+  const textWidth = opts.font.widthOfTextAtSize(opts.label.toUpperCase(), 8);
+  const chipWidth = textWidth + paddingX * 2;
+  const x = opts.rightEdgeX - chipWidth;
+  page.drawRectangle({
+    x,
+    y: opts.y,
+    width: chipWidth,
+    height,
+    color: opts.color.bg,
+    borderColor: opts.color.text,
+    borderWidth: 0.75,
+  });
+  page.drawText(opts.label.toUpperCase(), {
+    x: x + paddingX,
+    y: opts.y + 5.5,
+    size: 8,
+    font: opts.font,
+    color: opts.color.text,
+  });
+}
+
+/**
+ * Petite « carte » statistique (libellé + valeur) utilisée en rangée sous le titre d'une pièce —
+ * reprend le motif carte/porcelaine déjà utilisé sur le reste des documents de marque.
+ */
+function drawStatCard(
+  page: PDFPage,
+  opts: { x: number; y: number; width: number; height: number; label: string; value: string; bold: PDFFont; regular: PDFFont },
+): void {
+  page.drawRectangle({
+    x: opts.x,
+    y: opts.y - opts.height,
+    width: opts.width,
+    height: opts.height,
+    color: COLOR.porcelaine,
+    borderColor: COLOR.ligne,
+    borderWidth: 1,
+  });
+  page.drawText(opts.label.toUpperCase(), {
+    x: opts.x + 12,
+    y: opts.y - 18,
+    size: 7,
+    font: opts.bold,
+    color: COLOR.ardoise,
+  });
+  for (const line of wrapText(opts.value, opts.regular, 10.5, opts.width - 24).slice(0, 2)) {
+    page.drawText(line, { x: opts.x + 12, y: opts.y - 34, size: 10.5, font: opts.regular, color: COLOR.encre });
+    break; // une carte reste sur une ligne : le texte long est déjà tronqué en amont (taille fixe)
+  }
+}
+
+/**
+ * Page de titre dédiée à une pièce, avant le fichier qui la compose (BF « chaque page = titre +
+ * fichier correspondant ») : statut, catégorie, taille et date de téléversement affichés dans le
+ * même esprit que la liste « Pièces du dossier » côté écran, pour qu'un lecteur retrouve les mêmes
+ * repères que dans l'application.
+ */
+async function drawPieceCoverPage(
   pdfDoc: PDFDocument,
   bold: PDFFont,
   regular: PDFFont,
-  opts: { title: string; index: number; total: number },
-) {
+  opts: {
+    dossierRef: string;
+    title: string;
+    index: number;
+    total: number;
+    categorie: string;
+    taille: string | null;
+    dateTeleversementStr: string | null;
+    statut: string;
+    statutLabel: string;
+    note?: string;
+  },
+): Promise<PDFPage> {
   const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-  const centerY = PAGE_HEIGHT / 2;
+  const statutColor = PIECE_STATUT_COLOR[opts.note ? "manquante" : opts.statut] ?? PIECE_STATUT_COLOR.manquante!;
 
+  let cursorY = (await drawBrandHeader(pdfDoc, page)) - 30;
+
+  // Eyebrow : compteur à gauche, pastille de statut à droite, sur la même ligne.
+  page.drawText(`DOCUMENT ${opts.index} SUR ${opts.total}`, {
+    x: MARGIN,
+    y: cursorY,
+    size: 9,
+    font: bold,
+    color: COLOR.ardoise,
+  });
+  drawStatusChip(page, {
+    label: opts.statutLabel,
+    font: bold,
+    rightEdgeX: PAGE_WIDTH - MARGIN,
+    y: cursorY - 4,
+    color: statutColor,
+  });
+  cursorY -= 34;
+
+  for (const line of wrapText(opts.title, bold, 23, CONTENT_WIDTH)) {
+    page.drawText(line, { x: MARGIN, y: cursorY, size: 23, font: bold, color: COLOR.encre });
+    cursorY -= 28;
+  }
+  cursorY -= 6;
   page.drawLine({
-    start: { x: MARGIN, y: centerY + 30 },
-    end: { x: PAGE_WIDTH - MARGIN, y: centerY + 30 },
+    start: { x: MARGIN, y: cursorY },
+    end: { x: PAGE_WIDTH - MARGIN, y: cursorY },
     thickness: 1.4,
     color: COLOR.lapis,
   });
-  page.drawText(`PIÈCE ${opts.index}/${opts.total}`, {
-    x: MARGIN,
-    y: centerY + 42,
-    size: 9,
-    font: regular,
-    color: COLOR.ardoise,
+  cursorY -= 26;
+
+  const cardGap = 14;
+  const cardWidth = (CONTENT_WIDTH - cardGap * 2) / 3;
+  const cardHeight = 44;
+  const cards: [string, string][] = [
+    ["Catégorie", PIECE_CATEGORIE_LABEL[opts.categorie] ?? opts.categorie],
+    ["Taille du fichier", opts.taille ?? "—"],
+    ["Téléversée le", opts.dateTeleversementStr ?? "—"],
+  ];
+  cards.forEach(([label, value], i) => {
+    drawStatCard(page, {
+      x: MARGIN + i * (cardWidth + cardGap),
+      y: cursorY,
+      width: cardWidth,
+      height: cardHeight,
+      label,
+      value: sanitizeForPdf(value),
+      bold,
+      regular,
+    });
   });
-  let y = centerY;
-  for (const line of wrapText(opts.title, bold, 22, CONTENT_WIDTH)) {
-    page.drawText(line, { x: MARGIN, y, size: 22, font: bold, color: COLOR.or });
-    y -= 28;
+  cursorY -= cardHeight + 28;
+
+  if (opts.note) {
+    const boxHeight = 32;
+    page.drawRectangle({
+      x: MARGIN,
+      y: cursorY - boxHeight,
+      width: CONTENT_WIDTH,
+      height: boxHeight,
+      color: COLOR.carminPale,
+      borderColor: COLOR.carmin,
+      borderWidth: 0.75,
+    });
+    page.drawText(opts.note, {
+      x: MARGIN + 12,
+      y: cursorY - boxHeight / 2 - 3,
+      size: 9,
+      font: regular,
+      color: COLOR.carmin,
+    });
+  } else {
+    page.drawText("LE FICHIER TÉLÉVERSÉ SUIT CETTE PAGE", {
+      x: MARGIN,
+      y: cursorY - 4,
+      size: 8,
+      font: bold,
+      color: COLOR.ardoise,
+    });
   }
+
+  drawFooter(page, regular, `GET Admission · Dossier ${opts.dossierRef} · Document ${opts.index}/${opts.total}.`);
   return page;
 }
 
 /**
  * Assemble toutes les pièces d'un dossier (PDF fusionnés, images converties en pages) en un
- * seul PDF imprimable/téléchargeable, précédé d'une page de garde listant chaque pièce et son statut.
+ * seul PDF imprimable/téléchargeable : une page de garde récapitulative, puis pour chaque pièce
+ * une page de titre (statut, catégorie, taille, date) immédiatement suivie du fichier correspondant.
  */
 export async function buildPiecesDossierPdfBuffer(input: PiecesDossierDocInput): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
@@ -636,42 +801,68 @@ export async function buildPiecesDossierPdfBuffer(input: PiecesDossierDocInput):
     index += 1;
     const statutLabel = PIECE_STATUT_LABEL[piece.statut] ?? piece.statut;
 
+    // On tente d'abord d'embarquer le fichier (sans encore rien ajouter au document) pour que la
+    // page de titre puisse afficher un statut fiable, qu'il y ait ou non un contenu à sa suite.
+    let copiedPdfPages: PDFPage[] | null = null;
+    let embeddedImage: Awaited<ReturnType<typeof embedAnyImage>> | null = null;
+    let failureNote: string | undefined;
+
     if (!piece.buffer || !piece.contentType) {
-      summary.push({ libelle: piece.libelle, statutLabel, included: false, note: "aucun fichier" });
-      continue;
+      failureNote = "Aucun fichier n'a été téléversé pour cette pièce.";
+    } else {
+      try {
+        if (piece.contentType === "application/pdf") {
+          const srcDoc = await PDFDocument.load(piece.buffer, { ignoreEncryption: true });
+          const pageIndices = srcDoc.getPageIndices();
+          if (pageIndices.length === 0) throw new Error("PDF vide");
+          copiedPdfPages = await pdfDoc.copyPages(srcDoc, pageIndices);
+        } else {
+          embeddedImage = await embedAnyImage(pdfDoc, piece.buffer, piece.contentType);
+        }
+      } catch {
+        failureNote = "Le fichier n'a pas pu être lu (format non pris en charge ou fichier corrompu).";
+      }
     }
 
-    try {
-      if (piece.contentType === "application/pdf") {
-        const srcDoc = await PDFDocument.load(piece.buffer, { ignoreEncryption: true });
-        const pageIndices = srcDoc.getPageIndices();
-        if (pageIndices.length === 0) throw new Error("PDF vide");
-        drawDividerPage(pdfDoc, bold, regular, { title: piece.libelle, index, total });
-        const copied = await pdfDoc.copyPages(srcDoc, pageIndices);
-        for (const p of copied) pdfDoc.addPage(p);
-      } else {
-        const image = await embedAnyImage(pdfDoc, piece.buffer, piece.contentType);
-        drawDividerPage(pdfDoc, bold, regular, { title: piece.libelle, index, total });
-        const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-        const maxW = CONTENT_WIDTH;
-        const maxH = PAGE_HEIGHT - MARGIN * 2;
-        const scale = Math.min(maxW / image.width, maxH / image.height, 1);
-        const w = image.width * scale;
-        const h = image.height * scale;
-        page.drawImage(image, {
-          x: (PAGE_WIDTH - w) / 2,
-          y: (PAGE_HEIGHT - h) / 2,
-          width: w,
-          height: h,
-        });
-      }
-      summary.push({ libelle: piece.libelle, statutLabel, included: true });
-    } catch {
-      summary.push({ libelle: piece.libelle, statutLabel, included: false, note: "fichier illisible" });
+    await drawPieceCoverPage(pdfDoc, bold, regular, {
+      dossierRef: input.dossierRef,
+      title: piece.libelle,
+      index,
+      total,
+      categorie: piece.categorie,
+      taille: piece.taille,
+      dateTeleversementStr: piece.dateTeleversementStr,
+      statut: piece.statut,
+      statutLabel,
+      ...(failureNote ? { note: failureNote } : {}),
+    });
+
+    if (copiedPdfPages) {
+      for (const p of copiedPdfPages) pdfDoc.addPage(p);
+    } else if (embeddedImage) {
+      const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+      const maxW = CONTENT_WIDTH;
+      const maxH = PAGE_HEIGHT - MARGIN * 2;
+      const scale = Math.min(maxW / embeddedImage.width, maxH / embeddedImage.height, 1);
+      const w = embeddedImage.width * scale;
+      const h = embeddedImage.height * scale;
+      page.drawImage(embeddedImage, {
+        x: (PAGE_WIDTH - w) / 2,
+        y: (PAGE_HEIGHT - h) / 2,
+        width: w,
+        height: h,
+      });
     }
+
+    summary.push({
+      libelle: piece.libelle,
+      statutLabel,
+      included: !failureNote,
+      ...(failureNote ? { note: failureNote } : {}),
+    });
   }
 
-  // --- Page de garde ---
+  // --- Page de garde : sommaire tabulaire (repères identiques à la liste "Pièces du dossier") ---
   let cursorY = (await drawBrandHeader(pdfDoc, coverPage)) - 34;
   coverPage.drawText("Pièces du dossier", { x: MARGIN, y: cursorY, size: 21, font: bold, color: COLOR.or });
   cursorY -= 34;
@@ -688,20 +879,61 @@ export async function buildPiecesDossierPdfBuffer(input: PiecesDossierDocInput):
       ["Pièces incluses", `${summary.filter((s) => s.included).length} / ${summary.length}`],
     ],
   });
-  cursorY -= 24;
+  cursorY -= 26;
 
-  coverPage.drawText("CONTENU", { x: MARGIN, y: cursorY, size: 9, font: bold, color: COLOR.ardoise });
-  cursorY -= 18;
+  coverPage.drawText("SOMMAIRE", { x: MARGIN, y: cursorY, size: 9, font: bold, color: COLOR.ardoise });
+  cursorY -= 6;
+
+  const colNumWidth = 22;
+  const colStatutWidth = 78;
+  const colPieceWidth = CONTENT_WIDTH - colNumWidth - colStatutWidth;
+  const rowHeight = 20;
+
+  cursorY -= 14;
+  let rowIndex = 0;
   for (const item of summary) {
-    if (cursorY < MARGIN + 40) break; // page de garde : liste tronquée au-delà d'une page (cas limite)
-    const label = item.included
-      ? `${item.libelle} — ${item.statutLabel}`
-      : `${item.libelle} — ${item.statutLabel} (non incluse : ${item.note})`;
-    const color = item.included ? COLOR.encre : COLOR.carmin;
-    for (const line of wrapText(`• ${label}`, regular, 10, CONTENT_WIDTH)) {
-      coverPage.drawText(line, { x: MARGIN, y: cursorY, size: 10, font: regular, color });
-      cursorY -= 14;
+    if (cursorY - rowHeight < MARGIN + 40) {
+      coverPage.drawText(
+        `+ ${summary.length - rowIndex} autre(s) pièce(s) — voir la page de titre de chacune ci-après.`,
+        { x: MARGIN, y: cursorY, size: 8.5, font: regular, color: COLOR.ardoise },
+      );
+      break;
     }
+    if (rowIndex % 2 === 1) {
+      coverPage.drawRectangle({
+        x: MARGIN,
+        y: cursorY - rowHeight + 5,
+        width: CONTENT_WIDTH,
+        height: rowHeight,
+        color: COLOR.porcelaine,
+        opacity: 0.6,
+      });
+    }
+    coverPage.drawText(String(rowIndex + 1), {
+      x: MARGIN + 4,
+      y: cursorY - 9,
+      size: 9,
+      font: regular,
+      color: COLOR.ardoise,
+    });
+    const pieceLine = wrapText(item.libelle, regular, 9.5, colPieceWidth - 8)[0] ?? item.libelle;
+    coverPage.drawText(sanitizeForPdf(pieceLine), {
+      x: MARGIN + colNumWidth,
+      y: cursorY - 9,
+      size: 9.5,
+      font: regular,
+      color: item.included ? COLOR.encre : COLOR.carmin,
+    });
+    const statutColor = item.included ? COLOR.or : COLOR.carmin;
+    coverPage.drawText(item.included ? item.statutLabel : `Non incluse`, {
+      x: MARGIN + colNumWidth + colPieceWidth,
+      y: cursorY - 9,
+      size: 8.5,
+      font: bold,
+      color: statutColor,
+    });
+    cursorY -= rowHeight;
+    rowIndex += 1;
   }
 
   drawFooter(

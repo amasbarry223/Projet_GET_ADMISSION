@@ -23,7 +23,7 @@ export function MediaImage({
     const fill = Boolean(props.fill);
 
     return (
-      // eslint-disable-next-line @next/next/no-img-element
+       
       <img
         src={typeof src === "string" ? src : ""}
         alt={alt}

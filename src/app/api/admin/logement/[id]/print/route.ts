@@ -7,6 +7,7 @@ import { escapeHtml } from "@/lib/escape-html";
 const CIVILITE_LABEL: Record<string, string> = { M: "Monsieur", MME: "Madame" };
 const STATUT_LABEL: Record<string, string> = {
   soumis: "Soumise",
+  en_cours_traitement: "En cours de traitement",
   correction_demandee: "Correction demandée au candidat",
 };
 

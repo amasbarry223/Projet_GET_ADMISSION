@@ -77,15 +77,14 @@ export type WorkflowInput = z.infer<typeof workflowSchema>;
 // --- Messages ---
 export const messageSchema = z.object({
   dossierId: z.string().min(1),
-  texte: z.string().min(1, "Le message ne peut pas être vide").max(5000, "Le message est trop long"),
-  pieceJointeNom: z.string().max(255).optional(),
-  pieceJointeTaille: z.string().max(50).optional(),
+  // Optionnel : un message peut ne contenir qu'une pièce jointe, sans texte.
+  texte: z.string().max(5000, "Le message est trop long").optional().default(""),
 });
 export type MessageInput = z.infer<typeof messageSchema>;
 
-// --- Messagerie interne (Financier <-> Direction) ---
+// --- Messagerie interne (Financier/Conseiller <-> Direction) ---
 export const messageInterneSchema = z.object({
-  texte: z.string().min(1, "Le message ne peut pas être vide").max(5000, "Le message est trop long"),
+  texte: z.string().max(5000, "Le message est trop long").optional().default(""),
   // Requis pour Admin/Super Admin répondant à un financier donné ; ignoré pour un Financier (son fil est implicite).
   financierId: z.string().min(1).optional(),
 });
@@ -539,30 +538,64 @@ export const pieceUploadFormSchema = z.object({
 });
 export type PieceUploadFormInput = z.infer<typeof pieceUploadFormSchema>;
 
-// --- Réservation de logement (espace candidat) ---
+// --- Réservation de logement / Demande CROUS (espace candidat) ---
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide (AAAA-MM-JJ)");
+
+const MIN_BIRTH_YEAR = 1920;
+const birthDate = isoDate
+  .refine((v) => new Date(v).getTime() < Date.now(), "La date de naissance doit être dans le passé")
+  .refine((v) => Number(v.slice(0, 4)) >= MIN_BIRTH_YEAR, "Année de naissance invalide");
+
+const phoneField = z
+  .string()
+  .trim()
+  .min(1, "Le téléphone est requis")
+  .max(PHONE_MAX_LENGTH)
+  .regex(/^\+?[0-9][0-9 .-]{6,}$/, "Numéro de téléphone invalide (chiffres, espaces, + et - uniquement)");
+
+const passportNumberField = z
+  .string()
+  .trim()
+  .min(1, "Le numéro de passeport est requis")
+  .max(20, "Le numéro de passeport est trop long")
+  .regex(/^[A-Za-z0-9]{5,20}$/, "Numéro de passeport invalide (5 à 20 caractères alphanumériques)");
+
+const requiredNameField = (message: string) => z.string().trim().min(1, message).max(NAME_MAX_LENGTH);
 
 export const logementReservationSchema = z.object({
   civilite: z.enum(["M", "MME"]),
-  nom: z.string().min(1, "Le nom est requis").max(NAME_MAX_LENGTH),
-  prenom: z.string().min(1, "Le prénom est requis").max(NAME_MAX_LENGTH),
-  dateNaissance: isoDate.refine(
-    (v) => new Date(v).getTime() < Date.now(),
-    "La date de naissance doit être dans le passé",
-  ),
-  nationalite: z.string().min(1, "La nationalité est requise").max(NAME_MAX_LENGTH),
-  telephone: z.string().min(1, "Le téléphone est requis").max(PHONE_MAX_LENGTH),
-  email: z.string().min(1, "L'e-mail est requis").email("L'e-mail saisi n'est pas valide").max(EMAIL_MAX_LENGTH),
-  agenceAccompagnante: z.string().max(200).optional().or(z.literal("")),
-  numeroPasseport: z.string().min(1, "Le numéro de passeport est requis").max(50),
-  paysDemandeVisa: z.string().min(1, "Le pays de demande de visa est requis").max(NAME_MAX_LENGTH),
-  villeEtablissementFrance: z.string().min(1, "La ville de l'établissement est requise").max(NAME_MAX_LENGTH),
+  nom: requiredNameField("Le nom est requis"),
+  prenom: requiredNameField("Le prénom est requis"),
+  dateNaissance: birthDate,
+  nationalite: requiredNameField("La nationalité est requise"),
+  telephone: phoneField,
+  email: z.string().trim().min(1, "L'e-mail est requis").email("L'e-mail saisi n'est pas valide").max(EMAIL_MAX_LENGTH),
+  agenceAccompagnante: z.string().trim().max(200).optional().or(z.literal("")),
+  numeroPasseport: passportNumberField,
+  paysDemandeVisa: requiredNameField("Le pays de demande de visa est requis"),
+  villeEtablissementFrance: requiredNameField("La ville de l'établissement est requise"),
   dateArriveePrevue: isoDate.refine(
     (v) => new Date(v).getTime() > Date.now(),
     "La date d'arrivée prévue doit être dans le futur",
   ),
 });
 export type LogementReservationInput = z.infer<typeof logementReservationSchema>;
+
+// --- Demande de logement CROUS (espace candidat) — service distinct, transmis à l'administration ---
+export const demandeCrousSchema = z.object({
+  nom: requiredNameField("Le nom est requis"),
+  prenom: requiredNameField("Le prénom est requis"),
+  nomUsage: z.string().trim().max(NAME_MAX_LENGTH).optional().or(z.literal("")),
+  dateNaissance: birthDate,
+  lieuNaissance: requiredNameField("Le lieu de naissance est requis"),
+  paysNaissance: requiredNameField("Le pays de naissance est requis"),
+  nationalite: requiredNameField("La nationalité est requise"),
+  sexe: z.enum(["M", "F"]),
+  telephone: phoneField,
+  email: z.string().trim().min(1, "L'e-mail est requis").email("L'e-mail saisi n'est pas valide").max(EMAIL_MAX_LENGTH),
+  villeEtablissementFrance: requiredNameField("La ville de l'établissement est requise"),
+});
+export type DemandeCrousInput = z.infer<typeof demandeCrousSchema>;
 
 // --- Helper : valider et retourner une réponse d'erreur standardisée ---
 export function validate<T>(schema: z.ZodSchema<T>, data: unknown):

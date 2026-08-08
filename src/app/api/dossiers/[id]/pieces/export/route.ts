@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { readUpload } from "@/lib/storage";
 import { buildPiecesDossierPdfBuffer, type PieceDossierInput } from "@/lib/pdf/documents";
 import { assertDossierFileAccess, buildPieceFilename } from "@/lib/dossier/piece-print";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 
 // GET /api/dossiers/[id]/pieces/export — compile toutes les pièces du dossier en un seul PDF
 // Query params : ?disposition=inline (vue navigateur, utilisé par la page d'impression groupée)
@@ -47,14 +47,21 @@ export async function GET(
 
   const pieces: PieceDossierInput[] = await Promise.all(
     dossier.pieces.map(async (p): Promise<PieceDossierInput> => {
+      const base = {
+        libelle: p.libelle,
+        statut: p.statut,
+        categorie: p.categorie,
+        taille: p.taille,
+        dateTeleversementStr: p.televerseeLe ? formatDate(p.televerseeLe.toISOString()) : null,
+      };
       if (!p.cheminFichier) {
-        return { libelle: p.libelle, statut: p.statut, buffer: null, contentType: null };
+        return { ...base, buffer: null, contentType: null };
       }
       try {
         const { buffer, contentType } = await readUpload(p.cheminFichier, "private");
-        return { libelle: p.libelle, statut: p.statut, buffer, contentType };
+        return { ...base, buffer, contentType };
       } catch {
-        return { libelle: p.libelle, statut: p.statut, buffer: null, contentType: null };
+        return { ...base, buffer: null, contentType: null };
       }
     }),
   );

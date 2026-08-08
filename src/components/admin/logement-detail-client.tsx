@@ -43,7 +43,7 @@ import {
   MessageSquareWarning,
 } from "lucide-react";
 
-type Statut = "soumis" | "correction_demandee";
+type Statut = "soumis" | "en_cours_traitement" | "correction_demandee";
 
 export type LogementReservationDetail = {
   id: string;
@@ -67,11 +67,13 @@ export type LogementReservationDetail = {
 
 const STATUT_LABEL: Record<Statut, string> = {
   soumis: "Soumise",
+  en_cours_traitement: "En cours de traitement",
   correction_demandee: "Correction demandée",
 };
 
 const STATUT_TONE: Record<Statut, string> = {
   soumis: "text-ambre border-ambre bg-ambre/5",
+  en_cours_traitement: "text-vert border-vert bg-vert/5",
   correction_demandee: "text-lapis border-lapis bg-lapis/5",
 };
 

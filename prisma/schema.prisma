@@ -70,6 +70,7 @@ model User {
   demandesCrousCandidat    DemandeCrous[]
   partagesCrousEmis        HistoriquePartageCrous[] @relation("PartageCrousAuteur")
   logementReservations     LogementReservation[]
+  demandesLogementCrous    DemandeLogementCrous[]
 }
 
 /**
@@ -353,6 +354,7 @@ model Message {
   texte             String
   pieceJointeNom    String?
   pieceJointeTaille String?
+  pieceJointeChemin String?
   createdAt         DateTime     @default(now())
   conversation      Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   auteur            User         @relation(fields: [auteurId], references: [id])
@@ -372,13 +374,16 @@ model ConversationInterne {
 }
 
 model MessageInterne {
-  id             String              @id @default(cuid())
-  conversationId String
-  auteurId       String
-  texte          String
-  createdAt      DateTime            @default(now())
-  conversation   ConversationInterne @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  auteur         User                @relation("MessageInterneAuteur", fields: [auteurId], references: [id])
+  id                String              @id @default(cuid())
+  conversationId    String
+  auteurId          String
+  texte             String
+  pieceJointeNom    String?
+  pieceJointeTaille String?
+  pieceJointeChemin String?
+  createdAt         DateTime            @default(now())
+  conversation      ConversationInterne @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  auteur            User                @relation("MessageInterneAuteur", fields: [auteurId], references: [id])
 }
 
 /**
@@ -703,32 +708,67 @@ enum CiviliteLogement {
   MME
 }
 
+enum SexeLogement {
+  M
+  F
+}
+
 enum StatutLogementReservation {
   soumis
+  en_cours_traitement
   correction_demandee
 }
 
+/** Réservation de logement classique (partenaire logement, hors CROUS). */
 model LogementReservation {
-  id                               String                    @id @default(cuid())
-  candidatId                       String
-  civilite                         CiviliteLogement
-  nom                              String
-  prenom                           String
-  dateNaissance                    String
-  nationalite                      String
-  telephone                        String
-  email                            String
-  agenceAccompagnante              String?
-  numeroPasseport                  String
-  paysDemandeVisa                  String
-  villeEtablissementFrance         String
-  dateArriveePrevue                String
-  fichierPasseportUrl              String
-  fichierAttestationInscriptionUrl String
-  statut                           StatutLogementReservation @default(soumis)
-  motifCorrection                  String?
-  createdAt                        DateTime                  @default(now())
-  updatedAt                        DateTime                  @updatedAt
+  id                                String                    @id @default(cuid())
+  candidatId                        String
+  civilite                          CiviliteLogement
+  nom                               String
+  prenom                            String
+  dateNaissance                     String
+  nationalite                       String
+  telephone                         String
+  email                             String
+  agenceAccompagnante               String?
+  numeroPasseport                   String
+  paysDemandeVisa                   String
+  villeEtablissementFrance          String
+  dateArriveePrevue                 String
+  fichierPasseportUrl               String
+  fichierAttestationInscriptionUrl  String
+  statut                            StatutLogementReservation @default(soumis)
+  motifCorrection                   String?
+  createdAt                         DateTime                  @default(now())
+  updatedAt                         DateTime                  @updatedAt
+
+  candidat User @relation(fields: [candidatId], references: [id], onDelete: Cascade)
+
+  @@index([candidatId])
+}
+
+/** Demande de logement CROUS — service distinct, transmis à l'administration pour traitement. */
+model DemandeLogementCrous {
+  id                                     String                    @id @default(cuid())
+  candidatId                             String
+  nom                                    String
+  prenom                                 String
+  nomUsage                               String?
+  dateNaissance                          String
+  lieuNaissance                          String
+  paysNaissance                          String
+  nationalite                            String
+  sexe                                   SexeLogement
+  telephone                              String
+  email                                  String
+  villeEtablissementFrance               String
+  fichierPasseportRectoUrl               String
+  fichierPasseportVersoUrl               String
+  fichierAttestationAccordPrealableUrl   String
+  statut                                 StatutLogementReservation @default(soumis)
+  motifCorrection                        String?
+  createdAt                              DateTime                  @default(now())
+  updatedAt                              DateTime                  @updatedAt
 
   candidat User @relation(fields: [candidatId], references: [id], onDelete: Cascade)
 

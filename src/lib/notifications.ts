@@ -197,6 +197,30 @@ export async function notifyStaffCorrectionRequested(opts: {
   );
 }
 
+/** Notifie (in-app) le destinataire d'un nouveau message dans la messagerie candidat <-> conseiller d'un dossier. */
+export async function notifyMessageDossier(opts: {
+  dossierId: string;
+  dossierReference: string;
+  destinataireId: string;
+  auteurNom: string;
+  texte: string;
+  lien: string;
+}) {
+  const apercu = opts.texte.trim()
+    ? opts.texte.length > 140
+      ? `${opts.texte.slice(0, 140)}…`
+      : opts.texte
+    : "📎 Pièce jointe";
+  await createNotification({
+    userId: opts.destinataireId,
+    titre: `Nouveau message de ${opts.auteurNom} — ${opts.dossierReference}`,
+    message: apercu,
+    type: "info",
+    lien: opts.lien,
+    dossierId: opts.dossierId,
+  });
+}
+
 /** Notifie (in-app) les destinataires d'un nouveau message dans la messagerie interne Financier <-> Direction. */
 export async function notifyMessageInterne(opts: {
   destinataireIds: string[];

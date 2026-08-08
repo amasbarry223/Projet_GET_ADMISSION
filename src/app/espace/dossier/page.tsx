@@ -715,6 +715,11 @@ function DossierWizard() {
                 </>
               )}
             </MotionButton>
+          ) : !isEditable ? (
+            // Dossier déjà soumis / verrouillé (validé, en vérification, refusé…) — le statut
+            // est déjà annoncé par la bannière en haut de page ; pas de bouton d'action ici,
+            // et surtout pas "Dossier incomplet" qui laisserait croire à des pièces manquantes.
+            <div />
           ) : (
             <MotionButton
               className="bg-primary text-primary-foreground hover:bg-primary/90"

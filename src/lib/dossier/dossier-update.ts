@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server";
-import type { EtatDossier, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { listPiecesManquantes } from "@/lib/dossier/pieces-requises";
 import { markCorrectionSubmitted } from "@/lib/dossier/correction";
-import {
-  CLOSED_DOSSIER_STATES,
-  ETAPE_PAR_ETAT,
-  PIECE_STATUSES,
-} from "@/shared/constants";
+import { ETAPE_PAR_ETAT, PIECE_STATUSES } from "@/shared/constants";
 
 type Tx = Prisma.TransactionClient;
 
@@ -58,56 +54,21 @@ export async function assertPiecesObligatoiresCompletes(
   return null;
 }
 
-async function assignLeastLoadedConseiller(
-  tx: Tx,
-  currentConseillerId: string | null,
-  notes: string[],
-): Promise<string | null> {
-  if (currentConseillerId) return currentConseillerId;
-
-  const conseillers = await tx.user.findMany({
-    where: { role: "CONSEILLER", actif: true },
-    select: {
-      id: true,
-      dossiersConseiller: {
-        where: {
-          etat: { notIn: [...CLOSED_DOSSIER_STATES] as EtatDossier[] },
-        },
-        select: { id: true },
-      },
-    },
-  });
-
-  if (conseillers.length === 0) return null;
-
-  conseillers.sort(
-    (a, b) => a.dossiersConseiller.length - b.dossiersConseiller.length,
-  );
-  notes.push("Conseiller affecté automatiquement");
-  return conseillers[0]!.id;
-}
-
 export async function submitDraftDossier(
   tx: Tx,
   params: {
     dossierId: string;
-    currentConseillerId: string | null;
     notes: string[];
   },
 ): Promise<"SOUMIS"> {
-  const autoConseillerId = await assignLeastLoadedConseiller(
-    tx,
-    params.currentConseillerId,
-    params.notes,
-  );
-
+  // Aucune affectation automatique de conseiller ici : le dossier soumis reste « Non affecté »
+  // jusqu'à ce qu'un Admin ou Super Admin l'affecte explicitement (permission dossiers.assign).
   // Atomique : ne soumet que si encore BROUILLON (anti double-submit)
   const locked = await tx.dossier.updateMany({
     where: { id: params.dossierId, etat: "BROUILLON" },
     data: {
       etat: "SOUMIS",
       etapeActuelle: ETAPE_PAR_ETAT.SOUMIS,
-      ...(autoConseillerId ? { conseillerId: autoConseillerId } : {}),
     },
   });
   if (locked.count === 0) {

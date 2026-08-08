@@ -2,12 +2,16 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { hasPermission } from "@/lib/rbac";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { DOSSIER_LIVE_CHANNEL, type DossierLiveBroadcastPayload } from "@/lib/dossier/live-broadcast";
+import { MESSAGES_LIVE_CHANNEL } from "@/lib/messages/live-broadcast";
+import { useRealtimeBroadcast } from "@/hooks/use-realtime-broadcast";
+import { MessageComposer } from "@/components/messages/message-composer";
+import { MessageAttachment } from "@/components/messages/message-attachment";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,7 +54,7 @@ import { formatFCFA, formatDate, formatDateTime } from "@/lib/format";
 import { apiFetch, apiJson } from "@/lib/api-client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, CheckCircle2, AlertCircle, FileText, Send, Wallet, Stamp, XCircle, History, MessageSquare, User, ShieldCheck, Eye, AlertTriangle, Info, Loader2, UserPlus, UserMinus, Printer, Download, FileImage, IdCard, Landmark, Share2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, FileText, Send, Wallet, Stamp, XCircle, History, MessageSquare, User, ShieldCheck, Eye, AlertTriangle, Info, Loader2, UserPlus, UserMinus, Printer, Download, FileImage, IdCard, Landmark } from "lucide-react";
 import { ETAPE_PAR_ETAT } from "@/shared/constants";
 
 type Conseiller = { id: string; prenom: string; nom: string; role: string; actif: boolean };
@@ -98,6 +102,9 @@ type MessageApi = {
   texte: string;
   createdAt: string;
   auteurId: string;
+  pieceJointeNom?: string | null;
+  pieceJointeTaille?: string | null;
+  pieceJointeChemin?: string | null;
 };
 
 type DemandeCorrectionApi = {
@@ -181,15 +188,12 @@ type ActionDef = {
 
 export default function DossierDetailClient() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const { data: session } = useSession();
   const canAssign = hasPermission(session?.user?.role, "dossiers.assign");
   const canTransmettre = hasPermission(session?.user?.role, "dossiers.transmettre");
-  const canManageCrous = hasPermission(session?.user?.role, "crous.manage");
   const [dossier, setDossier] = React.useState<DossierDetail | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const [creatingCrous, setCreatingCrous] = React.useState(false);
 
   const [assignOpen, setAssignOpen] = React.useState(false);
   const [conseillers, setConseillers] = React.useState<Conseiller[] | null>(null);
@@ -269,6 +273,10 @@ export default function DossierDetailClient() {
       if (supabase && channel) void supabase.removeChannel(channel);
     };
   }, [params.id, loadDossier]);
+
+  useRealtimeBroadcast(MESSAGES_LIVE_CHANNEL, "message_created", () => {
+    void loadDossier({ silent: true });
+  });
 
   if (loading) {
     return (
@@ -445,19 +453,6 @@ export default function DossierDetailClient() {
   const etablissementAssignable =
     etapeActuelleDossier >= ETAPE_PAR_ETAT.VERIFICATION && etapeActuelleDossier <= ETAPE_PAR_ETAT.PAIEMENT_CONFIRME;
   const etablissementNonAffecte = !!dossier.universite.estPlaceholder;
-
-  const handleCreateCrous = async () => {
-    setCreatingCrous(true);
-    const result = await apiJson<{ demande: { id: string } }>("/api/admin/crous", "POST", {
-      dossierId: dossier.id,
-    });
-    setCreatingCrous(false);
-    if (!result.ok) {
-      toast.error("Création de la demande CROUS échouée", { description: result.error });
-      return;
-    }
-    router.push(`/admin/crous/${result.data.demande.id}`);
-  };
 
   const openAssignDialog = () => {
     setSelectedConseillerId("");
@@ -867,46 +862,49 @@ export default function DossierDetailClient() {
           </TabsContent>
 
           <TabsContent value="messages">
-            <Card className="border-ligne bg-card p-6">
-              <h2 className="font-display text-base font-bold text-encre">Conversation avec {dossier.candidat.prenom}</h2>
+            <Card className="overflow-hidden border-ligne bg-card p-0">
+              <div className="px-6 py-4">
+                <h2 className="font-display text-base font-bold text-encre">Conversation avec {dossier.candidat.prenom}</h2>
+              </div>
               {messages.length === 0 ? (
-                <p className="mt-4 text-sm text-ardoise">Aucun message échangé pour le moment.</p>
+                <p className="px-6 pb-4 text-sm text-ardoise">Aucun message échangé pour le moment.</p>
               ) : (
-                <div className="mt-4 max-h-80 space-y-3 overflow-y-auto">
+                <div className="max-h-80 space-y-3 overflow-y-auto px-6 pb-4">
                   {messages.map((m) => {
                     const isStaffMsg = m.auteurId !== dossier.candidat.id;
                     return (
                       <div key={m.id} className={cn("max-w-[80%] rounded-md px-3.5 py-2.5 text-sm", isStaffMsg ? "ml-auto bg-lapis text-blanc" : "border border-ligne bg-card text-encre")}>
-                        {m.texte}
+                        {m.pieceJointeNom && m.pieceJointeChemin && (
+                          <MessageAttachment
+                            nom={m.pieceJointeNom}
+                            taille={m.pieceJointeTaille}
+                            downloadUrl={`/api/messages/${m.id}/download`}
+                            mine={isStaffMsg}
+                          />
+                        )}
+                        {m.texte && <p>{m.texte}</p>}
                         <p className={cn("mt-1 font-mono text-[10px]", isStaffMsg ? "text-blanc/60" : "text-ardoise")}>{formatDateTime(m.createdAt)}</p>
                       </div>
                     );
                   })}
                 </div>
               )}
-              <form
-                className="mt-4 flex gap-2"
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  const form = e.currentTarget;
-                  const input = form.elements.namedItem("msg") as HTMLInputElement;
-                  const texte = input?.value?.trim();
-                  if (!texte) return;
-                  const result = await apiJson("/api/messages", "POST", { dossierId: dossier.id, texte });
+              <MessageComposer
+                onSend={async (texte, fichier) => {
+                  const form = new FormData();
+                  form.set("dossierId", dossier.id);
+                  form.set("texte", texte);
+                  if (fichier) form.set("fichier", fichier);
+                  const result = await apiFetch("/api/messages", { method: "POST", body: form });
                   if (!result.ok) {
                     toast.error("Envoi échoué", { description: result.error });
                     return;
                   }
-                  input.value = "";
                   toast.success("Message envoyé");
-                  void loadDossier();
+                  void loadDossier({ silent: true });
                 }}
-              >
-                <Input name="msg" placeholder="Écrire au candidat…" className="flex-1" aria-label="Message au candidat" />
-                <Button type="submit" className="bg-lapis text-blanc hover:bg-lapis/90">
-                  <MessageSquare className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Envoyer
-                </Button>
-              </form>
+                placeholder="Écrire au candidat…"
+              />
             </Card>
           </TabsContent>
         </Tabs>
@@ -1013,25 +1011,6 @@ export default function DossierDetailClient() {
                   </Button>
                 </div>
               )}
-            </Card>
-          )}
-
-          {canManageCrous && (
-            <Card className="border-ligne bg-card p-5">
-              <p className="text-xs font-medium text-ardoise">Demande CROUS</p>
-              <p className="mt-2 text-xs text-ardoise">
-                Partagez les informations du candidat et ses documents avec le CROUS (accès réservé Super Admin).
-              </p>
-              <div className="mt-3">
-                <Button variant="outline" size="sm" disabled={creatingCrous} onClick={() => void handleCreateCrous()}>
-                  {creatingCrous ? (
-                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
-                  ) : (
-                    <Share2 className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
-                  )}
-                  Créer / ouvrir la demande CROUS
-                </Button>
-              </div>
             </Card>
           )}
 

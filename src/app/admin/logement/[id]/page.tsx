@@ -11,11 +11,21 @@ export default async function AdminLogementDetailPage({
   await requireAdminPage("logement.read");
   const { id } = await params;
 
-  const reservation = await db.logementReservation.findUnique({
+  let reservation = await db.logementReservation.findUnique({
     where: { id },
     include: { candidat: { select: { prenom: true, nom: true, email: true } } },
   });
   if (!reservation) notFound();
+
+  // Ouvrir la fiche vaut prise en charge implicite : le candidat voit alors que sa
+  // demande est activement suivie, pas juste en attente.
+  if (reservation.statut === "soumis") {
+    reservation = await db.logementReservation.update({
+      where: { id },
+      data: { statut: "en_cours_traitement" },
+      include: { candidat: { select: { prenom: true, nom: true, email: true } } },
+    });
+  }
 
   return (
     <LogementDetailClient

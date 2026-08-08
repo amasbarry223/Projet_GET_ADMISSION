@@ -1,0 +1,62 @@
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { requireApiPermission } from "@/lib/api-auth";
+import { createNotification } from "@/lib/notifications";
+import { sendMail, logementCorrectionEmailHtml } from "@/lib/mail";
+import { logAudit } from "@/lib/audit";
+
+// POST /api/admin/logement/crous/[id]/correction — le staff demande une correction au candidat
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireApiPermission("logement.write");
+  if (!auth.ok) return auth.response;
+
+  const { id } = await params;
+  const body = await request.json().catch(() => ({}));
+  const motif = typeof body?.motif === "string" ? body.motif.trim() : "";
+  if (!motif) {
+    return NextResponse.json({ error: "Le motif de correction est requis" }, { status: 400 });
+  }
+
+  const demande = await db.demandeLogementCrous.findUnique({
+    where: { id },
+    include: { candidat: { select: { id: true, prenom: true, email: true } } },
+  });
+  if (!demande) {
+    return NextResponse.json({ error: "Demande introuvable" }, { status: 404 });
+  }
+
+  const updated = await db.demandeLogementCrous.update({
+    where: { id },
+    data: { statut: "correction_demandee", motifCorrection: motif },
+  });
+
+  await createNotification({
+    userId: demande.candidatId,
+    titre: "Correction demandée — Demande de logement CROUS",
+    message: motif,
+    type: "logement",
+    lien: "/espace/logement",
+  });
+
+  if (demande.candidat.email) {
+    try {
+      await sendMail({
+        to: demande.candidat.email,
+        subject: "GET Admission — Correction demandée sur votre demande de logement CROUS",
+        html: logementCorrectionEmailHtml(demande.candidat.prenom, motif),
+      });
+    } catch (e) {
+      console.error("[admin/logement/crous/correction] email", e);
+    }
+  }
+
+  await logAudit({
+    session: auth.session,
+    action: "UPDATE",
+    resource: "logement",
+    resourceId: id,
+    details: `Correction demandée sur la demande de logement CROUS de ${demande.prenom} ${demande.nom} : ${motif}`,
+  });
+
+  return NextResponse.json(updated);
+}

@@ -22,22 +22,36 @@ export type LogementRow = {
   candidat: string;
   email: string;
   ville: string;
-  arrivee: string;
-  statut: "soumis" | "correction_demandee";
+  nationalite: string;
+  statut: "soumis" | "en_cours_traitement" | "correction_demandee";
   soumiseLe: string;
 };
 
 const STATUT_LABEL: Record<LogementRow["statut"], string> = {
   soumis: "Soumise",
+  en_cours_traitement: "En cours de traitement",
   correction_demandee: "Correction demandée",
 };
 
 const STATUT_TONE: Record<LogementRow["statut"], string> = {
   soumis: "text-ambre border-ambre bg-ambre/5",
+  en_cours_traitement: "text-vert border-vert bg-vert/5",
   correction_demandee: "text-lapis border-lapis bg-lapis/5",
 };
 
-export function LogementClient({ initialData }: { initialData: LogementRow[] }) {
+export function LogementClient({
+  initialData,
+  basePath = "/admin/logement",
+  apiBasePath = "/api/admin/logement",
+  title = "Demandes de logement.",
+  emptyLabel = "Aucune demande de logement pour l'instant.",
+}: {
+  initialData: LogementRow[];
+  basePath?: string;
+  apiBasePath?: string;
+  title?: string;
+  emptyLabel?: string;
+}) {
   const router = useRouter();
   const { data: session } = useSession();
   const canWrite = hasPermission(session?.user?.role, "logement.write");
@@ -45,7 +59,7 @@ export function LogementClient({ initialData }: { initialData: LogementRow[] }) 
 
   const deleteReservation = React.useCallback(
     async (row: LogementRow) => {
-      const result = await apiJson(`/api/admin/logement/${row.id}`, "DELETE");
+      const result = await apiJson(`${apiBasePath}/${row.id}`, "DELETE");
       if (!result.ok) {
         toast.error("Suppression impossible", { description: result.error });
         return;
@@ -53,7 +67,7 @@ export function LogementClient({ initialData }: { initialData: LogementRow[] }) 
       toast.success("Demande supprimée", { description: `La demande de ${row.candidat} a été supprimée.` });
       router.refresh();
     },
-    [router],
+    [router, apiBasePath],
   );
 
   const actions: ActionItem<LogementRow>[] = React.useMemo(
@@ -61,12 +75,12 @@ export function LogementClient({ initialData }: { initialData: LogementRow[] }) 
       {
         label: "Voir le détail",
         icon: Eye,
-        onClick: (row) => router.push(`/admin/logement/${row.id}`),
+        onClick: (row) => router.push(`${basePath}/${row.id}`),
       },
       {
         label: "Imprimer",
         icon: Printer,
-        onClick: (row) => window.open(`/api/admin/logement/${row.id}/print`, "_blank"),
+        onClick: (row) => window.open(`${apiBasePath}/${row.id}/print`, "_blank"),
       },
       {
         label: "Supprimer",
@@ -81,7 +95,7 @@ export function LogementClient({ initialData }: { initialData: LogementRow[] }) 
         },
       },
     ],
-    [router, canWrite, deleteReservation],
+    [router, canWrite, deleteReservation, basePath, apiBasePath],
   );
 
   const columns: ColumnDef<LogementRow>[] = React.useMemo(
@@ -104,10 +118,10 @@ export function LogementClient({ initialData }: { initialData: LogementRow[] }) 
         cell: ({ row }) => <span className="text-sm text-ardoise">{row.original.ville}</span>,
       },
       {
-        id: "arrivee",
-        accessorKey: "arrivee",
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Arrivée prévue" />,
-        cell: ({ row }) => <span className="text-sm text-ardoise">{row.original.arrivee}</span>,
+        id: "nationalite",
+        accessorKey: "nationalite",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Nationalité" />,
+        cell: ({ row }) => <span className="text-sm text-ardoise">{row.original.nationalite}</span>,
       },
       {
         id: "statut",
@@ -133,9 +147,7 @@ export function LogementClient({ initialData }: { initialData: LogementRow[] }) 
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">
-          Demandes de logement.
-        </h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">{title}</h1>
         <p className="text-sm text-ardoise">{data.length} demande(s) au total</p>
       </div>
 
@@ -148,7 +160,7 @@ export function LogementClient({ initialData }: { initialData: LogementRow[] }) 
         emptyState={
           <div className="flex flex-col items-center gap-3">
             <BedDouble className="h-8 w-8 text-ardoise/40" strokeWidth={1.5} />
-            <p className="text-sm text-ardoise">Aucune demande de logement pour l&apos;instant.</p>
+            <p className="text-sm text-ardoise">{emptyLabel}</p>
           </div>
         }
       />

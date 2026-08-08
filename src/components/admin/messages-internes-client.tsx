@@ -2,8 +2,6 @@
 
 import * as React from "react";
 import { useSession } from "next-auth/react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -12,13 +10,20 @@ import { toast } from "sonner";
 import { formatHeure, formatDate } from "@/lib/format";
 import { EmptyState } from "@/components/ui/empty-state";
 import { apiFetch, apiJson } from "@/lib/api-client";
-import { Send, Loader2, MessagesSquare, Landmark } from "lucide-react";
+import { Loader2, MessagesSquare, Landmark } from "lucide-react";
+import { MessageComposer } from "@/components/messages/message-composer";
+import { MessageAttachment } from "@/components/messages/message-attachment";
+import { useRealtimeBroadcast } from "@/hooks/use-realtime-broadcast";
+import { MESSAGES_INTERNES_LIVE_CHANNEL } from "@/lib/messages/live-broadcast";
 
 type MessageApi = {
   id: string;
   texte: string;
   createdAt: string;
   auteur: { prenom: string; nom: string; role: string };
+  pieceJointeNom?: string | null;
+  pieceJointeTaille?: string | null;
+  pieceJointeChemin?: string | null;
 };
 
 type ConversationApi = {
@@ -86,7 +91,15 @@ function ChatThread({
                       {m.auteur.prenom} {m.auteur.nom}
                     </p>
                   )}
-                  <p className="text-sm leading-relaxed">{m.texte}</p>
+                  {m.pieceJointeNom && m.pieceJointeChemin && (
+                    <MessageAttachment
+                      nom={m.pieceJointeNom}
+                      taille={m.pieceJointeTaille}
+                      downloadUrl={`/api/messages-internes/${m.id}/download`}
+                      mine={mine}
+                    />
+                  )}
+                  {m.texte && <p className="text-sm leading-relaxed">{m.texte}</p>}
                   <p className={cn("mt-1 font-mono text-[10px]", mine ? "text-blanc/60" : "text-ardoise")}>
                     {formatHeure(m.createdAt)}
                   </p>
@@ -97,45 +110,6 @@ function ChatThread({
         )}
       </div>
     </div>
-  );
-}
-
-function Composer({ onSend }: { onSend: (texte: string) => Promise<void> }) {
-  const [input, setInput] = React.useState("");
-  const [sending, setSending] = React.useState(false);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const texte = input.trim();
-    if (!texte) return;
-    setSending(true);
-    try {
-      await onSend(texte);
-      setInput("");
-    } finally {
-      setSending(false);
-    }
-  };
-
-  return (
-    <form onSubmit={submit} className="flex items-center gap-2 border-t border-ligne p-3">
-      <Input
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        placeholder="Écrivez votre message…"
-        className="flex-1"
-        aria-label="Votre message"
-      />
-      <Button
-        type="submit"
-        size="icon"
-        className="flex-none bg-lapis text-blanc hover:bg-lapis/90"
-        aria-label="Envoyer"
-        disabled={!input.trim() || sending}
-      >
-        {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" strokeWidth={1.5} />}
-      </Button>
-    </form>
   );
 }
 
@@ -161,8 +135,13 @@ function StaffThreadView() {
     queueMicrotask(() => void load());
   }, [load]);
 
-  const send = async (texte: string) => {
-    const result = await apiJson<MessageApi>("/api/messages-internes", "POST", { texte });
+  useRealtimeBroadcast(MESSAGES_INTERNES_LIVE_CHANNEL, "message_interne_created", load);
+
+  const send = async (texte: string, fichier: File | null) => {
+    const form = new FormData();
+    form.set("texte", texte);
+    if (fichier) form.set("fichier", fichier);
+    const result = await apiFetch<MessageApi>("/api/messages-internes", { method: "POST", body: form });
     if (!result.ok) {
       toast.error("Échec de l'envoi", { description: result.error });
       return;
@@ -206,7 +185,7 @@ function StaffThreadView() {
           emptyLabel="Aucun message pour l'instant. Écrivez à l'administration ci-dessous."
           bubbleIsMine={(m) => !isAdminSide(m.auteur.role)}
         />
-        <Composer onSend={send} />
+        <MessageComposer onSend={send} />
       </div>
     </Card>
   );
@@ -256,12 +235,19 @@ function AdminView() {
     if (selectedId) queueMicrotask(() => void loadThread(selectedId));
   }, [selectedId, loadThread]);
 
-  const send = async (texte: string) => {
+  const onLiveMessage = React.useCallback(() => {
+    void loadInbox();
+    if (selectedId) void loadThread(selectedId);
+  }, [loadInbox, loadThread, selectedId]);
+  useRealtimeBroadcast(MESSAGES_INTERNES_LIVE_CHANNEL, "message_interne_created", onLiveMessage);
+
+  const send = async (texte: string, fichier: File | null) => {
     if (!selectedId) return;
-    const result = await apiJson<MessageApi>("/api/messages-internes", "POST", {
-      texte,
-      financierId: selectedId,
-    });
+    const form = new FormData();
+    form.set("texte", texte);
+    form.set("financierId", selectedId);
+    if (fichier) form.set("fichier", fichier);
+    const result = await apiFetch<MessageApi>("/api/messages-internes", { method: "POST", body: form });
     if (!result.ok) {
       toast.error("Échec de l'envoi", { description: result.error });
       return;
@@ -362,7 +348,7 @@ function AdminView() {
               bubbleIsMine={(m) => isAdminSide(m.auteur.role)}
             />
           )}
-          <Composer onSend={send} />
+          <MessageComposer onSend={send} />
         </section>
       </div>
     </Card>

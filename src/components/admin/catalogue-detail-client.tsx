@@ -78,7 +78,7 @@ function MediaPreview({
     );
   }
   return (
-    // eslint-disable-next-line @next/next/no-img-element
+     
     <img src={trimmed} alt={alt} className={cn("object-cover", className)} />
   );
 }
