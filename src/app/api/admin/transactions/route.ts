@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { paginationQuerySchema } from "@/lib/validations";
@@ -19,7 +18,7 @@ type TransactionRow = Prisma.PaiementGetPayload<{ include: typeof transactionInc
 // - Sans `?page=`      → renvoie un tableau plat (legacy).
 // - Avec `?page=N`      → renvoie { data, total, page, pageSize }.
 export async function GET(request: Request) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }

@@ -29,7 +29,6 @@ const LIMITS: Record<string, Limit> = {
   "/api/verifier": { limit: 20, windowMs: WINDOW_MS }, // anti brute-force codes
   "/api/register": { limit: 3, windowMs: WINDOW_MS }, // 3 inscriptions/min
   "/api/messages": { limit: 30, windowMs: WINDOW_MS }, // 30 messages/min
-  "/api/paiements": { limit: 10, windowMs: WINDOW_MS }, // 10 paiements/min
   "/api/paiements/initiate": { limit: 10, windowMs: WINDOW_MS }, // 10 initiations paiement/min
   "/api/contact": { limit: 5, windowMs: WINDOW_MS }, // 5 messages contact/min
   "/api/profile/password": { limit: 5, windowMs: WINDOW_MS }, // 5 changements mdp/min

@@ -519,15 +519,6 @@ model ContactInfo {
   horaires  String
 }
 
-model ModeleAttestation {
-  id          Int     @id @default(autoincrement())
-  nom         String
-  description String
-  nbUsages    Int     @default(0)
-  actif       Boolean @default(true)
-  ordre       Int     @default(0)
-}
-
 model Nationalite {
   id    Int     @id @default(autoincrement())
   nom   String  @unique

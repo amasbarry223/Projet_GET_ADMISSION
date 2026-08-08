@@ -6,8 +6,7 @@ export { ETAPE_PAR_ETAT };
 export type WorkflowPermission =
   | "dossiers.write"
   | "dossiers.transmettre"
-  | "attestations.emit"
-  | "finance.write";
+  | "attestations.emit";
 
 export type WorkflowTransition = {
   from: EtatDossier[];
@@ -43,11 +42,13 @@ export const WORKFLOW_TRANSITIONS: Record<string, WorkflowTransition> = {
     to: "VERIFICATION",
     permission: "dossiers.write",
   },
-  confirmer_paiement: {
-    from: ["PAIEMENT_ATTENTE"],
-    to: "PAIEMENT_CONFIRME",
-    permission: "finance.write",
-  },
+  // confirmer_paiement (PAIEMENT_ATTENTE → PAIEMENT_CONFIRME) retiré : le staff ne confirme plus
+  // manuellement un paiement en ligne — cette transition se fait désormais automatiquement dès
+  // qu'un paiement passe à "reussi" (webhook PayTech, déclaration candidat vérifiable), via
+  // applyPaiementReussiInTx (src/lib/dossier/paiement-effects.ts), qui va même directement jusqu'à
+  // TRANSMIS sans repasser par cet état intermédiaire. Un encaissement hors ligne enregistré par le
+  // staff (POST /api/admin/paiements) reste, lui, capable d'amener le dossier à PAIEMENT_CONFIRME —
+  // ce n'est pas une "confirmation" mais l'enregistrement d'un encaissement physique constaté.
   transmettre: {
     from: ["PAIEMENT_CONFIRME"],
     to: "TRANSMIS",

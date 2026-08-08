@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { buildListingPdfBuffer } from "@/lib/pdf/documents";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDateCourte, formatDateTime } from "@/lib/format";
 
 // GET /api/admin/export/candidats/pdf — export PDF des candidats
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
@@ -36,13 +35,15 @@ export async function GET() {
     sousTitre: `${candidats.length} candidat(s)`,
     generatedAtStr: formatDateTime(new Date().toISOString()),
     generatedBy: `${session.user.prenom} ${session.user.nom}`,
+    // Largeurs recalculées pour tenir dans CONTENT_WIDTH (~483pt) — l'ancien total (583pt) dépassait
+    // la zone imprimable, faisant déborder les dernières colonnes hors page.
     columns: [
-      { label: "Nom", width: 140 },
-      { label: "E-mail", width: 170 },
-      { label: "Téléphone", width: 90 },
-      { label: "Statut", width: 60 },
-      { label: "Dossiers", width: 45 },
-      { label: "Inscrit le", width: 78 },
+      { label: "Nom", width: 108 },
+      { label: "E-mail", width: 155 },
+      { label: "Téléphone", width: 75 },
+      { label: "Statut", width: 55 },
+      { label: "Dossiers", width: 40 },
+      { label: "Inscrit le", width: 50 },
     ],
     rows: candidats.map((c) => [
       `${c.prenom} ${c.nom}`,
@@ -50,14 +51,16 @@ export async function GET() {
       c.telephone ?? "—",
       c.actif ? "Actif" : "Désactivé",
       String(c._count.dossiersCandidat),
-      formatDate(c.createdAt.toISOString()),
+      formatDateCourte(c.createdAt.toISOString()),
     ]),
   });
 
+  const fileStamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0];
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="candidats-${new Date().toISOString().split("T")[0]}.pdf"`,
+      "Content-Disposition": `attachment; filename="candidats-${fileStamp}.pdf"`,
+      "Cache-Control": "no-store",
     },
   });
 }

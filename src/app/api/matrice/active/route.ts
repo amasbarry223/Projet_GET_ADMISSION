@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { parseOrRespond } from "@/lib/api-auth";
 import { loadActiveMatriceRegles } from "@/lib/dossier/matrice-loader";
 import { buildPiecesFromRegles } from "@/lib/dossier/matrice-engine";
@@ -9,7 +8,7 @@ import { profilAcademiqueSchema } from "@/lib/validations";
 
 /** GET — règles actives (candidat / staff). ?simulate=1 + body via POST for preview. */
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
@@ -19,7 +18,7 @@ export async function GET() {
 
 /** POST — simuler pièces pour un profil (aperçu admin / wizard). */
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }

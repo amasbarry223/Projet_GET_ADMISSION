@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { parseOrRespond } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { kycUploadFieldsSchema, kycVerifySchema, kycDeleteSchema } from "@/lib/validations";
@@ -104,7 +103,7 @@ function kycStatusPage(opts: { title: string; message: string; status: number })
 
 // POST /api/profile/kyc — upload recto/verso KYC (multipart)
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
@@ -193,7 +192,7 @@ export async function POST(request: Request) {
 
 // PUT /api/profile/kyc — staff valide le KYC d'un candidat { userId, verifie: true|false }
 export async function PUT(request: Request) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
@@ -270,7 +269,7 @@ export async function PUT(request: Request) {
 export async function GET(request: Request) {
   const html = wantsHtml(request);
 
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     if (html) {
       return kycStatusPage({
@@ -362,7 +361,7 @@ export async function GET(request: Request) {
 
 // DELETE /api/profile/kyc — supprime le(s) document(s) KYC d'un candidat (staff, kyc.write uniquement)
 export async function DELETE(request: Request) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }

@@ -332,9 +332,6 @@ export default function DossierDetailClient() {
       disabledReason: "En attente de la resoumission du candidat",
     });
   }
-  if (etatLower === "paiement_attente") {
-    actions.push({ label: "Confirmer le paiement", icon: Wallet, tone: "primary", toastLabel: "Paiement confirmé", toastDesc: "Dossier transmis automatiquement à l'université.", workflowAction: "confirmer_paiement", confirm: { title: "Confirmer le paiement ?", desc: `Vérifiez que les ${formatFCFA(dossier.fraisAgence)} ont bien été reçus avant de confirmer. Le dossier sera transmis automatiquement à l'université dès la confirmation.` } });
-  }
   if (etatLower === "paiement_confirme" && canTransmettre) {
     const etablissementNonAffecte = dossier.procedure === "PUBLIQUE" && !!dossier.universite.estPlaceholder;
     actions.push({
@@ -817,19 +814,41 @@ export default function DossierDetailClient() {
                       <TableHead className="font-mono text-[10px] uppercase text-ardoise">Date</TableHead>
                       <TableHead className="font-mono text-[10px] uppercase text-ardoise">Moyen</TableHead>
                       <TableHead className="text-right font-mono text-[10px] uppercase text-ardoise">Montant</TableHead>
-                      <TableHead className="text-right font-mono text-[10px] uppercase text-ardoise">Statut</TableHead>
+                      <TableHead className="font-mono text-[10px] uppercase text-ardoise">Statut</TableHead>
+                      <TableHead className="text-right font-mono text-[10px] uppercase text-ardoise">Reçu</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {dossier.paiements.map((p) => (
+                    {dossier.paiements.map((p) => {
+                      const isReussi = p.statut === "reussi" || p.statut === "réussi";
+                      return (
                       <TableRow key={p.id} className="border-ligne">
                         <TableCell className="font-mono text-xs text-encre">{p.reference}</TableCell>
                         <TableCell className="text-sm text-encre">{formatDate(p.date)}</TableCell>
                         <TableCell className="text-sm text-encre">{p.moyen}</TableCell>
                         <TableCell className="text-right font-mono text-sm font-semibold text-encre">{formatFCFA(p.montant)}</TableCell>
-                        <TableCell className="text-right"><Badge className="bg-vert/10 font-mono text-[10px] uppercase text-vert">{p.statut}</Badge></TableCell>
+                        <TableCell><Badge className="bg-vert/10 font-mono text-[10px] uppercase text-vert">{p.statut}</Badge></TableCell>
+                        <TableCell className="text-right">
+                          {isReussi ? (
+                            <div className="flex items-center justify-end gap-1">
+                              <Button variant="ghost" size="icon" aria-label="Voir le reçu" asChild>
+                                <a href={`/api/recu/${p.id}`} target="_blank" rel="noreferrer">
+                                  <Eye className="h-4 w-4" strokeWidth={1.5} />
+                                </a>
+                              </Button>
+                              <Button variant="ghost" size="icon" aria-label="Télécharger le reçu (PDF)" asChild>
+                                <a href={`/api/recu/${p.id}?format=pdf`} target="_blank" rel="noreferrer">
+                                  <Download className="h-4 w-4" strokeWidth={1.5} />
+                                </a>
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-ardoise">—</span>
+                          )}
+                        </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
@@ -1012,6 +1031,22 @@ export default function DossierDetailClient() {
                 </div>
               )}
             </Card>
+          )}
+
+          {etatLower === "paiement_attente" && (
+            <Alert className="border-ambre/40 bg-ambre/5">
+              <Wallet className="h-4 w-4 text-ambre" strokeWidth={1.5} />
+              <AlertTitle className="font-display text-sm font-bold text-encre">
+                En attente de paiement.
+              </AlertTitle>
+              <AlertDescription className="text-sm text-ardoise">
+                Le dossier passera automatiquement à l&apos;étape suivante dès que{" "}
+                {formatFCFA(dossier.fraisAgence)} auront été encaissés — confirmation en ligne
+                (le système valide seul le paiement du candidat) ou encaissement hors ligne
+                enregistré depuis l&apos;onglet « Paiements ». Aucune confirmation manuelle n&apos;est
+                nécessaire ici.
+              </AlertDescription>
+            </Alert>
           )}
 
           {actions.length > 0 && (

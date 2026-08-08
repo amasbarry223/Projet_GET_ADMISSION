@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptionsCandidat } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profilAcademiqueSchema, validate } from "@/lib/validations";
 import { syncPiecesBrouillonsCandidat } from "@/lib/dossier/sync-pieces";
@@ -41,7 +41,7 @@ function serializeProfil(row: {
 
 // GET /api/profile/academique
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession(authOptionsCandidat);
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
@@ -56,17 +56,9 @@ export async function GET() {
 
 // PUT /api/profile/academique — upsert + sync pièces des brouillons
 export async function PUT(request: Request) {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession(authOptionsCandidat);
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
-  }
-
-  const role = session.user.role;
-  if (role !== "CANDIDAT") {
-    return NextResponse.json(
-      { error: "Réservé aux candidats" },
-      { status: 403 }
-    );
   }
 
   const userId = session.user.id;

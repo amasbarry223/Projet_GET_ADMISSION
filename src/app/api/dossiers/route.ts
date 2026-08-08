@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { dossierCreateSchema, paginationQuerySchema } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
-import { requireApiUser, parseOrRespond } from "@/lib/api-auth";
+import { requireApiUser, requireApiCandidat, parseOrRespond } from "@/lib/api-auth";
 import { requirePermission } from "@/lib/rbac";
 import { resolveFraisAgenceAsync } from "@/lib/dossier/frais-agence-server";
 import { isProfilAcademiqueComplet } from "@/lib/dossier/pieces-requises";
@@ -127,19 +127,13 @@ function generateMrz(opts: { nom: string; prenom: string; reference: string }): 
 // - État initial : BROUILLON, étape 1 (BF-12)
 // - Soumission explicite via PUT action=soumettre (BF-15)
 export async function POST(request: Request) {
-  const auth = await requireApiUser();
+  const auth = await requireApiCandidat();
   if (!auth.ok) return auth.response;
 
   const rateLimited = await checkRateLimit(getClientId(request), "/api/dossiers");
   if (rateLimited) return rateLimited;
 
-  const { id: userId, role } = auth.user;
-  if (role !== "CANDIDAT") {
-    return NextResponse.json(
-      { error: "Seuls les candidats peuvent créer un dossier" },
-      { status: 403 }
-    );
-  }
+  const { id: userId } = auth.user;
 
   let body: unknown;
   try {

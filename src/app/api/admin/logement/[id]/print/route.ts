@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireApiPermission } from "@/lib/api-auth";
 import { formatDateTime } from "@/lib/format";
 import { escapeHtml } from "@/lib/escape-html";
+import { BRAND_COLORS, BRAND_LOGO } from "@/lib/brand";
 
 const CIVILITE_LABEL: Record<string, string> = { M: "Monsieur", MME: "Madame" };
 const STATUT_LABEL: Record<string, string> = {
@@ -34,21 +35,21 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 <meta charset="utf-8">
 <title>Demande de logement — ${e(`${r.prenom} ${r.nom}`)}</title>
 <style>
-  body { font-family: 'General Sans', Inter, sans-serif; margin: 32px; color: #1A1A1A; }
-  .header { text-align: center; border-bottom: 2px solid #3CA936; padding-bottom: 16px; margin-bottom: 20px; }
+  body { font-family: 'General Sans', Inter, sans-serif; margin: 32px; color: ${BRAND_COLORS.encre}; }
+  .header { text-align: center; border-bottom: 2px solid ${BRAND_COLORS.lapis}; padding-bottom: 16px; margin-bottom: 20px; }
   .header img { height: 36px; }
   .header h1 { font-size: 20px; margin: 10px 0 0; }
-  .header p { color: #6B7280; font-size: 11px; }
+  .header p { color: ${BRAND_COLORS.ardoise}; font-size: 11px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
-  th, td { border: 1px solid #E5E7EB; padding: 7px 10px; text-align: left; }
-  th { width: 260px; background: #F3F4F6; font-weight: 600; color: #374151; }
-  .footer { margin-top: 20px; text-align: center; color: #6B7280; font-size: 10px; }
+  th, td { border: 1px solid ${BRAND_COLORS.ligne}; padding: 7px 10px; text-align: left; }
+  th { width: 260px; background: ${BRAND_COLORS.porcelaine}; font-weight: 600; color: ${BRAND_COLORS.ardoise}; }
+  .footer { margin-top: 20px; text-align: center; color: ${BRAND_COLORS.ardoise}; font-size: 10px; }
   @media print { body { margin: 0.5cm; } }
 </style>
 </head>
 <body>
   <div class="header">
-    <img src="/images/brand/logo-get-admission.png" alt="GET Admission" />
+    <img src="${BRAND_LOGO.publicUrl}" alt="GET Admission" />
     <h1>Demande de réservation de logement</h1>
     <p>${e(`${r.prenom} ${r.nom}`)}</p>
   </div>

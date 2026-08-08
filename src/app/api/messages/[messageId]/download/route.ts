@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { readUpload } from "@/lib/storage";
 import { assertDossierFileAccess } from "@/lib/dossier/piece-print";
 
 // GET /api/messages/[messageId]/download — téléchargement de la pièce jointe d'un message
 export async function GET(_request: Request, { params }: { params: Promise<{ messageId: string }> }) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }

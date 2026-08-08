@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { readUpload } from "@/lib/storage";
 import { assertDossierFileAccess } from "@/lib/dossier/piece-print";
@@ -12,7 +11,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string; pieceId: string }> }
 ) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }

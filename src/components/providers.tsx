@@ -6,7 +6,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 /**
  * Root providers:
- * - NextAuth SessionProvider (vraie auth JWT + RBAC)
+ * - NextAuth SessionProvider, scopé par défaut sur le portail candidat (cookie de session
+ *   dédié, voir src/lib/auth.ts) — le site public, /connexion et /espace/* en héritent tel
+ *   quel. /admin/* et /back-office imbriquent leur propre SessionProvider basePath="/api/auth/staff"
+ *   pour porter une session staff totalement indépendante dans le même navigateur.
  * - React Query (cache partagé dossiers espace candidat)
  */
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -23,7 +26,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <SessionProvider>
+    <SessionProvider basePath="/api/auth/candidat">
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </SessionProvider>
   );

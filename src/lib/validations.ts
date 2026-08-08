@@ -59,7 +59,6 @@ export const workflowSchema = z
       "valider_dossier",
       "correction",
       "verifier_corrections",
-      "confirmer_paiement",
       "transmettre",
       "attendre_reponse",
       "accepter",
@@ -438,9 +437,12 @@ export const matriceDraftCreateSchema = z.object({
 export type MatriceDraftCreateInput = z.infer<typeof matriceDraftCreateSchema>;
 
 // --- Paiements ---
+// "reussi" est volontairement exclu : un paiement ne devient "reussi" que via une confirmation
+// système vérifiée (webhook PayTech, déclaration candidat) ou un encaissement hors ligne
+// (POST /api/admin/paiements) — jamais par un simple PATCH manuel du staff sur un paiement existant.
 export const paiementPatchSchema = z.object({
   id: z.string().min(1, "id requis"),
-  statut: z.enum(["rembourse", "echoue", "reussi", "en_attente"]),
+  statut: z.enum(["rembourse", "echoue", "en_attente"]),
 });
 export type PaiementPatchInput = z.infer<typeof paiementPatchSchema>;
 
@@ -525,12 +527,6 @@ export const attestationModeRemiseSchema = z.object({
   modeRemise: z.enum(["telechargement", "agence"]),
 });
 export type AttestationModeRemiseInput = z.infer<typeof attestationModeRemiseSchema>;
-
-export const modeleAttestationCreateSchema = z.object({
-  nom: z.string().min(1, "Le nom est requis").max(200),
-  description: z.string().max(2000).optional(),
-});
-export type ModeleAttestationCreateInput = z.infer<typeof modeleAttestationCreateSchema>;
 
 // --- Pièces upload FormData (champs texte) ---
 export const pieceUploadFormSchema = z.object({

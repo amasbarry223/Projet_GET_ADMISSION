@@ -32,17 +32,13 @@ import { apiFetch, apiJson } from "@/lib/api-client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  CheckCircle2,
   ChevronsUpDown,
   Download,
   Wallet,
   Info,
-  Eye,
   FileText,
-  RefreshCw,
   Plus,
   Loader2,
-  XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -70,6 +66,7 @@ export type FinanceKpis = {
 
 type DossierOption = { id: string; reference: string; candidatNom: string };
 
+
 const STATUT_TONE: Record<string, string> = {
   réussi: "bg-vert/10 text-vert border-vert",
   en_attente: "bg-ambre/10 text-ambre border-ambre",
@@ -85,12 +82,10 @@ export function FinanceClient({
 }) {
   const router = useRouter();
   const [newOpen, setNewOpen] = React.useState(false);
-  // On lit directement la prop `initialTransactions` (pas de useState) afin que
-  // `router.refresh()` (re-render du Server Component) se reflète dans l'UI.
   const rows = initialTransactions;
   const kpis = initialKpis;
 
-  // État du formulaire de transaction manuelle
+  // État du formulaire de transaction manuelle (paiement physique)
   const [dossierOptions, setDossierOptions] = React.useState<DossierOption[] | null>(null);
   const [dossierPickerOpen, setDossierPickerOpen] = React.useState(false);
   const [selectedDossier, setSelectedDossier] = React.useState<DossierOption | null>(null);
@@ -121,84 +116,13 @@ export function FinanceClient({
   const actions: ActionItem<TransactionRow>[] = React.useMemo(
     () => [
       {
-        label: "Confirmer le paiement",
-        icon: CheckCircle2,
-        hidden: (row) => row.statut !== "en_attente",
-        confirm: {
-          title: "Confirmer ce paiement ?",
-          description: (row) =>
-            `Valider l'encaissement de ${formatFCFA(row.montant)} pour ${row.reference}. Le candidat sera notifié et le reçu sera disponible.`,
-          confirmLabel: "Confirmer",
-          onConfirm: async (row) => {
-            const result = await apiJson("/api/paiements", "PATCH", { id: row.id, statut: "reussi" });
-            if (!result.ok) {
-              toast.error("Action impossible", { description: result.error });
-              return;
-            }
-            toast.success("Paiement confirmé", { description: row.reference });
-            router.refresh();
-          },
-        },
-      },
-      {
-        label: "Rejeter le paiement",
-        icon: XCircle,
-        hidden: (row) => row.statut !== "en_attente",
-        tone: "danger",
-        confirm: {
-          title: "Rejeter ce paiement ?",
-          description: (row) =>
-            `${row.reference} sera marqué comme échoué. Le candidat devra réessayer.`,
-          confirmLabel: "Rejeter",
-          onConfirm: async (row) => {
-            const result = await apiJson("/api/paiements", "PATCH", { id: row.id, statut: "echoue" });
-            if (!result.ok) {
-              toast.error("Action impossible", { description: result.error });
-              return;
-            }
-            toast.success("Paiement rejeté", { description: row.reference });
-            router.refresh();
-          },
-        },
-      },
-      {
-        label: "Voir le reçu",
-        icon: Eye,
-        hidden: (row) => row.statut !== "réussi",
-        onClick: (row) => window.open(`/api/recu/${row.id}`, "_blank"),
-      },
-      {
-        label: "Télécharger le reçu",
+        label: "Télécharger le reçu (PDF)",
         icon: FileText,
         hidden: (row) => row.statut !== "réussi",
         onClick: (row) => window.open(`/api/recu/${row.id}?format=pdf`, "_blank"),
       },
-      {
-        label: "Relancer la transaction",
-        icon: RefreshCw,
-        confirm: {
-          title: "Relancer la transaction ?",
-          description: (row) =>
-            `Une nouvelle tentative de prélèvement sera effectuée pour ${row.reference}.`,
-          confirmLabel: "Relancer",
-          onConfirm: async (row) => {
-            const result = await apiJson("/api/admin/paiements", "POST", {
-              dossierId: row.dossierId,
-              montant: row.montant,
-              moyen: row.moyen.split(" · ")[0],
-              tranche: "Relance",
-            });
-            if (!result.ok) {
-              toast.error("Action impossible", { description: result.error });
-              return;
-            }
-            toast.success("Transaction relancée", { description: `${row.reference} — nouvelle tentative enregistrée.` });
-            router.refresh();
-          },
-        },
-      },
     ],
-    [router]
+    []
   );
 
   const columns: ColumnDef<TransactionRow>[] = React.useMemo(
@@ -413,9 +337,9 @@ export function FinanceClient({
           </Dialog>
           <Button
             variant="outline"
-            onClick={() => window.open("/api/admin/export/transactions?format=csv", "_blank")}
+            onClick={() => window.open("/api/admin/export/transactions?format=excel", "_blank")}
           >
-            <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Export CSV
+            <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Export Excel
           </Button>
           <Button
             variant="outline"

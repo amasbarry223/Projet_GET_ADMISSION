@@ -1,40 +1,45 @@
 /**
- * Génération de PDF de marque (attestations, reçus) avec pdf-lib.
- * Palette et sceau alignés sur l'identité visuelle GET Admission (globals.css,
- * boarding-pass.tsx / espace/attestation) : filet vert, sceau circulaire
- * incliné -8°, wordmark en en-tête.
+ * Génération de PDF de marque (reçus, pièces, fiches, listings) avec pdf-lib.
+ * Palette alignée sur l'identité visuelle GET Admission (globals.css) : filet vert,
+ * wordmark en en-tête.
  */
-import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb, degrees } from "pdf-lib";
+import { PDFDocument, PDFFont, PDFPage, StandardFonts, rgb } from "pdf-lib";
 import { readFile } from "fs/promises";
 import path from "path";
+import { BRAND_COLORS, BRAND_LOGO } from "@/lib/brand";
 
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
 const MARGIN = 56;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 
+function hexToRgb(hex: string): ReturnType<typeof rgb> {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  return rgb(r, g, b);
+}
+
 const COLOR = {
-  encre: rgb(0x1a / 255, 0x1a / 255, 0x1a / 255),
-  ardoise: rgb(0x6b / 255, 0x72 / 255, 0x80 / 255),
-  lapis: rgb(0x3c / 255, 0xa9 / 255, 0x36 / 255),
-  lapisPale: rgb(0xea / 255, 0xf7 / 255, 0xe9 / 255),
-  or: rgb(0x2e / 255, 0x83 / 255, 0x29 / 255),
-  orPale: rgb(0xe8 / 255, 0xf5 / 255, 0xe7 / 255),
-  ambre: rgb(0xc7 / 255, 0x7a / 255, 0x12 / 255),
-  ambrePale: rgb(0xfc / 255, 0xf1 / 255, 0xe3 / 255),
-  porcelaine: rgb(0xf3 / 255, 0xf4 / 255, 0xf6 / 255),
-  ligne: rgb(0xe5 / 255, 0xe7 / 255, 0xeb / 255),
-  carmin: rgb(0xc0 / 255, 0x39 / 255, 0x2b / 255),
-  carminPale: rgb(1, 0.95, 0.94),
-  blanc: rgb(1, 1, 1),
+  encre: hexToRgb(BRAND_COLORS.encre),
+  ardoise: hexToRgb(BRAND_COLORS.ardoise),
+  lapis: hexToRgb(BRAND_COLORS.lapis),
+  lapisPale: hexToRgb(BRAND_COLORS.lapisPale),
+  or: hexToRgb(BRAND_COLORS.or),
+  orPale: hexToRgb(BRAND_COLORS.orPale),
+  ambre: hexToRgb(BRAND_COLORS.ambre),
+  ambrePale: hexToRgb(BRAND_COLORS.ambrePale),
+  porcelaine: hexToRgb(BRAND_COLORS.porcelaine),
+  ligne: hexToRgb(BRAND_COLORS.ligne),
+  carmin: hexToRgb(BRAND_COLORS.carmin),
+  carminPale: hexToRgb(BRAND_COLORS.carminPale),
+  blanc: hexToRgb(BRAND_COLORS.blanc),
 };
 
 let logoBytesPromise: Promise<Uint8Array> | null = null;
 function loadLogoBytes(): Promise<Uint8Array> {
   if (!logoBytesPromise) {
-    logoBytesPromise = readFile(
-      path.join(process.cwd(), "public/images/brand/logo-get-admission.png"),
-    );
+    logoBytesPromise = readFile(path.join(process.cwd(), BRAND_LOGO.fsPath));
   }
   return logoBytesPromise;
 }
@@ -85,108 +90,6 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
   }
   if (current) lines.push(current);
   return lines;
-}
-
-function drawCenteredRotatedText(
-  page: PDFPage,
-  opts: {
-    text: string;
-    font: PDFFont;
-    size: number;
-    color: ReturnType<typeof rgb>;
-    x: number;
-    y: number;
-    angleDeg: number;
-    opacity?: number;
-  },
-) {
-  const rad = (opts.angleDeg * Math.PI) / 180;
-  const width = opts.font.widthOfTextAtSize(opts.text, opts.size);
-  const dx = Math.cos(rad);
-  const dy = Math.sin(rad);
-  page.drawText(opts.text, {
-    x: opts.x - (width / 2) * dx,
-    y: opts.y - (width / 2) * dy,
-    size: opts.size,
-    font: opts.font,
-    color: opts.color,
-    rotate: degrees(opts.angleDeg),
-    opacity: opts.opacity ?? 1,
-  });
-}
-
-/** Sceau officiel : double cercle + texte incliné -8°, dans l'esprit du tampon visa du front-end. */
-function drawSeal(
-  page: PDFPage,
-  opts: { centerX: number; centerY: number; bold: PDFFont; regular: PDFFont },
-) {
-  const angle = -8;
-  const rad = (angle * Math.PI) / 180;
-  const dx = Math.cos(rad);
-  const dy = Math.sin(rad);
-  const px = Math.sin(rad);
-  const py = -Math.cos(rad);
-  const { centerX, centerY, bold, regular } = opts;
-
-  page.drawEllipse({
-    x: centerX,
-    y: centerY,
-    xScale: 46,
-    yScale: 46,
-    color: COLOR.orPale,
-    borderColor: COLOR.or,
-    borderWidth: 2.25,
-  });
-  page.drawEllipse({
-    x: centerX,
-    y: centerY,
-    xScale: 35,
-    yScale: 35,
-    borderColor: COLOR.or,
-    borderWidth: 0.75,
-  });
-
-  const halfLen = 25;
-  page.drawLine({
-    start: { x: centerX - dx * halfLen, y: centerY - dy * halfLen },
-    end: { x: centerX + dx * halfLen, y: centerY + dy * halfLen },
-    thickness: 0.6,
-    color: COLOR.or,
-    opacity: 0.6,
-  });
-
-  const gap = 7;
-  drawCenteredRotatedText(page, {
-    text: "GET ADMISSION",
-    font: bold,
-    size: 6.5,
-    color: COLOR.or,
-    x: centerX - px * gap,
-    y: centerY - py * gap,
-    angleDeg: angle,
-  });
-  drawCenteredRotatedText(page, {
-    text: "SCEAU OFFICIEL",
-    font: regular,
-    size: 5.5,
-    color: COLOR.or,
-    x: centerX + px * gap,
-    y: centerY + py * gap,
-    angleDeg: angle,
-  });
-}
-
-function drawDraftWatermark(page: PDFPage, font: PDFFont) {
-  drawCenteredRotatedText(page, {
-    text: "APERÇU — NON OFFICIEL",
-    font,
-    size: 40,
-    color: COLOR.carmin,
-    x: PAGE_WIDTH / 2,
-    y: PAGE_HEIGHT / 2,
-    angleDeg: 28,
-    opacity: 0.14,
-  });
 }
 
 /**
@@ -257,7 +160,7 @@ async function drawBrandHeader(
   return ruleY;
 }
 
-function drawFooter(page: PDFPage, regular: PDFFont, text: string) {
+function drawFooterLine(page: PDFPage, regular: PDFFont, text: string) {
   const footerY = MARGIN + 16;
   page.drawLine({
     start: { x: MARGIN, y: footerY + 14 },
@@ -265,9 +168,26 @@ function drawFooter(page: PDFPage, regular: PDFFont, text: string) {
     thickness: 0.5,
     color: COLOR.ligne,
   });
-  for (const line of wrapText(text, regular, 8, CONTENT_WIDTH)) {
-    page.drawText(line, { x: MARGIN, y: footerY, size: 8, font: regular, color: COLOR.ardoise });
-    return; // une seule ligne suffit pour le pied de page
+  const line = wrapText(text, regular, 8, CONTENT_WIDTH)[0] ?? text;
+  page.drawText(line, { x: MARGIN, y: footerY, size: 8, font: regular, color: COLOR.ardoise });
+}
+
+/**
+ * Numérote et dessine les pieds de page ("… · Page X sur Y") en une seule passe finale, une fois
+ * tout le contenu du document généré — pdfDoc.getPageCount()/getPages() ne sont fiables qu'à ce
+ * moment-là (avant, les pages restant à ajouter ne sont pas encore comptées).
+ */
+function stampFooters(
+  pdfDoc: PDFDocument,
+  regular: PDFFont,
+  entries: { index: number; text: string }[],
+) {
+  const total = pdfDoc.getPageCount();
+  const pages = pdfDoc.getPages();
+  for (const { index, text } of entries) {
+    const page = pages[index];
+    if (!page) continue;
+    drawFooterLine(page, regular, `${text} · Page ${index + 1} sur ${total}`);
   }
 }
 
@@ -310,120 +230,6 @@ function drawInfoBox(
     rowY -= rowHeight;
   }
   return opts.topY - boxHeight;
-}
-
-export type AttestationDocInput = {
-  titreModele: string;
-  descModele: string;
-  reference: string;
-  codeVerification: string;
-  dateStr: string;
-  candidat: string;
-  formation: string;
-  universite: string;
-  dossierRef: string;
-  modeRemiseLabel: string;
-  emetteur: string;
-  draft: boolean;
-};
-
-export async function buildAttestationPdfBuffer(doc: AttestationDocInput): Promise<Uint8Array> {
-  const pdfDoc = await PDFDocument.create();
-  pdfDoc.setTitle(doc.draft ? `Aperçu — ${doc.titreModele}` : doc.titreModele);
-  pdfDoc.setAuthor("GET Admission");
-  pdfDoc.setSubject(
-    doc.draft ? "Aperçu de document — non officiel" : "Attestation de pré-inscription",
-  );
-
-  const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-  const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const italic = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
-
-  if (doc.draft) drawDraftWatermark(page, bold);
-
-  let cursorY = (await drawBrandHeader(pdfDoc, page)) - 34;
-
-  if (doc.draft) {
-    const boxHeight = 28;
-    page.drawRectangle({
-      x: MARGIN,
-      y: cursorY - boxHeight,
-      width: CONTENT_WIDTH,
-      height: boxHeight,
-      color: COLOR.carminPale,
-      borderColor: COLOR.carmin,
-      borderWidth: 0.75,
-    });
-    page.drawText(
-      "Document provisoire — non officiel. Émettez l'attestation pour obtenir le PDF définitif.",
-      { x: MARGIN + 10, y: cursorY - boxHeight + 10, size: 8.5, font: regular, color: COLOR.carmin },
-    );
-    cursorY -= boxHeight + 24;
-  }
-
-  page.drawText(doc.titreModele, { x: MARGIN, y: cursorY, size: 21, font: bold, color: COLOR.or });
-  cursorY -= 18;
-  for (const line of wrapText(doc.descModele, italic, 10.5, CONTENT_WIDTH)) {
-    page.drawText(line, { x: MARGIN, y: cursorY, size: 10.5, font: italic, color: COLOR.ardoise });
-    cursorY -= 14;
-  }
-  cursorY -= 16;
-
-  const intro =
-    `Nous certifions que ${doc.candidat} a obtenu une pré-admission pour la formation ` +
-    `${doc.formation} auprès de ${doc.universite}, dans le cadre de l'accompagnement assuré ` +
-    `par GET Admission.`;
-  for (const line of wrapText(intro, regular, 11, CONTENT_WIDTH)) {
-    page.drawText(line, { x: MARGIN, y: cursorY, size: 11, font: regular, color: COLOR.encre });
-    cursorY -= 16;
-  }
-  cursorY -= 14;
-
-  cursorY = drawInfoBox(page, {
-    topY: cursorY,
-    bold,
-    regular,
-    rows: [
-      ["Référence attestation", doc.reference],
-      ["Dossier", doc.dossierRef],
-      ["Date d'émission", doc.dateStr],
-      ["Code de vérification", doc.codeVerification],
-      ["Mode de remise", doc.modeRemiseLabel],
-      ["Émis par", doc.emetteur],
-    ],
-  });
-  cursorY -= 56;
-
-  page.drawText("SIGNATURE", { x: MARGIN, y: cursorY, size: 7.5, font: bold, color: COLOR.ardoise });
-  page.drawLine({
-    start: { x: MARGIN, y: cursorY - 30 },
-    end: { x: MARGIN + 170, y: cursorY - 30 },
-    thickness: 0.75,
-    color: COLOR.ligne,
-  });
-  page.drawText(doc.emetteur, { x: MARGIN, y: cursorY - 42, size: 10, font: bold, color: COLOR.encre });
-  page.drawText("GET Admission", {
-    x: MARGIN,
-    y: cursorY - 54,
-    size: 8.5,
-    font: regular,
-    color: COLOR.ardoise,
-  });
-
-  if (!doc.draft) {
-    drawSeal(page, { centerX: PAGE_WIDTH - MARGIN - 50, centerY: cursorY - 36, bold, regular });
-  }
-
-  drawFooter(
-    page,
-    regular,
-    doc.draft
-      ? "Aperçu généré automatiquement — sans valeur officielle."
-      : `Vérifiez l'authenticité de ce document sur /verifier avec le code ${doc.codeVerification}.`,
-  );
-
-  return pdfDoc.save();
 }
 
 export type ReceiptDocInput = {
@@ -541,11 +347,12 @@ export async function buildReceiptPdfBuffer(input: ReceiptDocInput): Promise<Uin
     color: COLOR.or,
   });
 
-  drawFooter(
-    page,
-    regular,
-    `GET Admission · Confidentiel — document généré électroniquement le ${input.generatedAtStr}.`,
-  );
+  stampFooters(pdfDoc, regular, [
+    {
+      index: 0,
+      text: `GET Admission · Confidentiel — document généré électroniquement le ${input.generatedAtStr}.`,
+    },
+  ]);
 
   return pdfDoc.save();
 }
@@ -772,7 +579,6 @@ async function drawPieceCoverPage(
     });
   }
 
-  drawFooter(page, regular, `GET Admission · Dossier ${opts.dossierRef} · Document ${opts.index}/${opts.total}.`);
   return page;
 }
 
@@ -794,6 +600,11 @@ export async function buildPiecesDossierPdfBuffer(input: PiecesDossierDocInput):
   const coverPage = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
 
   const summary: { libelle: string; statutLabel: string; included: boolean; note?: string }[] = [];
+  // Pages dont le pied de page ("… · Page X sur Y") sera tamponné en fin de génération : uniquement
+  // celles que ce générateur dessine lui-même (garde, titres de pièce, pages image) — jamais les
+  // pages PDF copiées telles quelles depuis les fichiers du candidat, pour éviter un chevauchement
+  // avec un contenu déjà présent en bas de leur propre page.
+  const footerEntries: { index: number; text: string }[] = [];
 
   let index = 0;
   const total = input.pieces.length;
@@ -836,11 +647,14 @@ export async function buildPiecesDossierPdfBuffer(input: PiecesDossierDocInput):
       statutLabel,
       ...(failureNote ? { note: failureNote } : {}),
     });
+    const pieceFooterText = `GET Admission · Dossier ${input.dossierRef} · Document ${index}/${total}.`;
+    footerEntries.push({ index: pdfDoc.getPageCount() - 1, text: pieceFooterText });
 
     if (copiedPdfPages) {
       for (const p of copiedPdfPages) pdfDoc.addPage(p);
     } else if (embeddedImage) {
       const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+      footerEntries.push({ index: pdfDoc.getPageCount() - 1, text: pieceFooterText });
       const maxW = CONTENT_WIDTH;
       const maxH = PAGE_HEIGHT - MARGIN * 2;
       const scale = Math.min(maxW / embeddedImage.width, maxH / embeddedImage.height, 1);
@@ -936,11 +750,11 @@ export async function buildPiecesDossierPdfBuffer(input: PiecesDossierDocInput):
     rowIndex += 1;
   }
 
-  drawFooter(
-    coverPage,
-    regular,
-    `GET Admission · Confidentiel — document généré électroniquement le ${input.generatedAtStr}.`,
-  );
+  footerEntries.push({
+    index: 0,
+    text: `GET Admission · Confidentiel — document généré électroniquement le ${input.generatedAtStr}.`,
+  });
+  stampFooters(pdfDoc, regular, footerEntries);
 
   return pdfDoc.save();
 }
@@ -1007,11 +821,12 @@ export async function buildFicheCandidatPdfBuffer(input: FicheCandidatDocInput):
     ],
   });
 
-  drawFooter(
-    page,
-    regular,
-    `GET Admission · Confidentiel — document généré électroniquement le ${input.generatedAtStr} par ${input.generatedBy}.`,
-  );
+  stampFooters(pdfDoc, regular, [
+    {
+      index: 0,
+      text: `GET Admission · Confidentiel — document généré électroniquement le ${input.generatedAtStr} par ${input.generatedBy}.`,
+    },
+  ]);
 
   return pdfDoc.save();
 }
@@ -1019,16 +834,19 @@ export async function buildFicheCandidatPdfBuffer(input: FicheCandidatDocInput):
 /* --------------------------- Listing tabulaire (candidats, etc.) --------------------------- */
 
 export type ListingColumn = { label: string; width: number };
+export type ListingSummaryItem = { label: string; value: string };
 export type ListingDocInput = {
   titre: string;
   sousTitre?: string;
+  /** Rangée de cartes-statistiques (ex. KPI), affichée uniquement sur la première page. */
+  summary?: ListingSummaryItem[];
   generatedAtStr: string;
   generatedBy: string;
   columns: ListingColumn[];
   rows: string[][];
 };
 
-/** Compile une liste tabulaire générique (ex. candidats) en PDF paginé, avec en-tête de marque. */
+/** Compile une liste tabulaire générique (ex. candidats, transactions) en PDF paginé, avec en-tête de marque. */
 export async function buildListingPdfBuffer(input: ListingDocInput): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   pdfDoc.setTitle(input.titre);
@@ -1053,6 +871,25 @@ export async function buildListingPdfBuffer(input: ListingDocInput): Promise<Uin
     cursorY -= headerRowHeight;
   };
 
+  const drawSummaryCards = (items: ListingSummaryItem[]) => {
+    const cardGap = 14;
+    const cardHeight = 44;
+    const cardWidth = (CONTENT_WIDTH - cardGap * (items.length - 1)) / items.length;
+    items.forEach((item, i) => {
+      drawStatCard(page, {
+        x: MARGIN + i * (cardWidth + cardGap),
+        y: cursorY,
+        width: cardWidth,
+        height: cardHeight,
+        label: item.label,
+        value: sanitizeForPdf(item.value),
+        bold,
+        regular,
+      });
+    });
+    cursorY -= cardHeight + 20;
+  };
+
   const startPage = async (first: boolean) => {
     page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
     if (first) {
@@ -1064,6 +901,9 @@ export async function buildListingPdfBuffer(input: ListingDocInput): Promise<Uin
         cursorY -= 18;
       }
       cursorY -= 10;
+      if (input.summary && input.summary.length > 0) {
+        drawSummaryCards(input.summary);
+      }
     } else {
       cursorY = PAGE_HEIGHT - MARGIN;
     }
@@ -1092,7 +932,125 @@ export async function buildListingPdfBuffer(input: ListingDocInput): Promise<Uin
     rowIndex += 1;
   }
 
-  drawFooter(page, regular, `${input.rows.length} ligne(s) — Généré par ${input.generatedBy} le ${input.generatedAtStr}.`);
+  const footerText = `${input.rows.length} ligne(s) — Généré par ${input.generatedBy} le ${input.generatedAtStr}.`;
+  stampFooters(
+    pdfDoc,
+    regular,
+    pdfDoc.getPages().map((_, i) => ({ index: i, text: footerText })),
+  );
+
+  return pdfDoc.save();
+}
+
+export type TransactionPdfInput = {
+  titre: string;
+  sousTitre?: string;
+  generatedAtStr: string;
+  generatedBy: string;
+  transactions: {
+    reference: string;
+    candidat: string;
+    dossier: string;
+    type: string;
+    date: string;
+    moyen: string;
+    montant: string;
+    statut: string;
+  }[];
+};
+
+/**
+ * Génère un PDF listant les transactions en utilisant le design pattern des reçus (InfoBoxes),
+ * plutôt qu'un simple tableau, pour un rendu beaucoup plus esthétique et aéré.
+ */
+export async function buildTransactionsPdfBuffer(input: TransactionPdfInput): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.create();
+  pdfDoc.setTitle(input.titre);
+  pdfDoc.setAuthor("GET Admission");
+
+  const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  let page!: PDFPage;
+  let cursorY = 0;
+  let pageIndex = 0;
+  const entries: { index: number; text: string }[] = [];
+
+  const startPage = async () => {
+    page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    cursorY = (await drawBrandHeader(pdfDoc, page)) - 34;
+    
+    if (pageIndex === 0) {
+      page.drawText(input.titre, { x: MARGIN, y: cursorY, size: 19, font: bold, color: COLOR.or });
+      cursorY -= 20;
+      if (input.sousTitre) {
+        page.drawText(input.sousTitre, { x: MARGIN, y: cursorY, size: 10, font: regular, color: COLOR.ardoise });
+        cursorY -= 18;
+      }
+      cursorY -= 10;
+    }
+    
+    const footerText = `${input.transactions.length} transaction(s) — Généré par ${input.generatedBy} le ${input.generatedAtStr}.`;
+    entries.push({ index: pageIndex, text: footerText });
+    pageIndex++;
+  };
+
+  await startPage();
+
+  for (const t of input.transactions) {
+    // Un InfoBox de 4 lignes prend environ 4*22 + 16 = 104pt
+    // + Le bloc vert prend 40pt
+    // + Titre (26pt) + Espacement (30pt) = ~200pt
+    if (cursorY - 220 < MARGIN + 40) {
+      await startPage();
+    }
+
+    cursorY = drawSectionLabel(page, { text: `${t.date}  —  Réf: ${t.reference}`, y: cursorY, bold });
+    cursorY = drawInfoBox(page, {
+      topY: cursorY,
+      bold,
+      regular,
+      rows: [
+        ["Candidat", t.candidat],
+        ["Dossier", `${t.dossier} (${t.type})`],
+        ["Moyen de paiement", t.moyen],
+        ["Statut", t.statut],
+      ],
+    });
+    
+    // Dessiner l'encart vert pour le montant (comme sur le reçu)
+    cursorY -= 10;
+    const totalHeight = 40;
+    page.drawRectangle({
+      x: MARGIN,
+      y: cursorY - totalHeight,
+      width: CONTENT_WIDTH,
+      height: totalHeight,
+      color: COLOR.orPale,
+      borderColor: COLOR.or,
+      borderWidth: 1,
+    });
+    page.drawText("MONTANT", {
+      x: MARGIN + 14,
+      y: cursorY - totalHeight / 2 - 4,
+      size: 9,
+      font: bold,
+      color: COLOR.or,
+    });
+    const montantLabelSafe = sanitizeForPdf(t.montant);
+    const montantWidth = bold.widthOfTextAtSize(montantLabelSafe, 16);
+    page.drawText(montantLabelSafe, {
+      x: PAGE_WIDTH - MARGIN - 14 - montantWidth,
+      y: cursorY - totalHeight / 2 - 6,
+      size: 16,
+      font: bold,
+      color: COLOR.or,
+    });
+    
+    cursorY -= totalHeight + 30; // Espacement entre transactions
+  }
+
+  stampFooters(pdfDoc, regular, entries);
 
   return pdfDoc.save();
 }

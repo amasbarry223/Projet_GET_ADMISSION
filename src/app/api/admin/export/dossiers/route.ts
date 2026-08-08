@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
+import { formatDateTime } from "@/lib/format";
+import { buildExcelListingBuffer } from "@/lib/excel/documents";
 
-// GET /api/admin/export/dossiers — Export CSV des dossiers
+// GET /api/admin/export/dossiers — Export Excel des dossiers
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
@@ -25,7 +26,20 @@ export async function GET() {
     orderBy: { updatedAt: "desc" },
   });
 
-  const headers = ["Référence", "Candidat", "E-mail", "Université", "Formation", "État", "Étape", "Conseiller", "Frais (FCFA)", "Paiement", "Date MAJ"];
+  const columns = [
+    { header: "Référence", key: "reference", width: 20 },
+    { header: "Candidat", key: "candidat", width: 25 },
+    { header: "E-mail", key: "email", width: 30 },
+    { header: "Université", key: "universite", width: 35 },
+    { header: "Formation", key: "formation", width: 35 },
+    { header: "État", key: "etat", width: 15 },
+    { header: "Étape", key: "etape", width: 10 },
+    { header: "Conseiller", key: "conseiller", width: 20 },
+    { header: "Frais (FCFA)", key: "frais", width: 15 },
+    { header: "Paiement", key: "paiement", width: 15 },
+    { header: "Date MAJ", key: "maj", width: 15 },
+  ];
+
   const rows = dossiers.map((d) => [
     d.reference,
     `${d.candidat.prenom} ${d.candidat.nom}`,
@@ -40,14 +54,22 @@ export async function GET() {
     d.updatedAt.toISOString().split("T")[0],
   ]);
 
-  const csv = [headers, ...rows]
-    .map((row) => row.map((cell) => `"${cell}"`).join(","))
-    .join("\n");
+  const excelBuffer = await buildExcelListingBuffer({
+    titre: "Export des dossiers",
+    sousTitre: `${dossiers.length} dossier(s)`,
+    generatedAtStr: formatDateTime(new Date().toISOString()),
+    generatedBy: `${session.user.prenom} ${session.user.nom}`,
+    columns,
+    rows
+  });
 
-  return new NextResponse(csv, {
+  const fileStamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0];
+
+  return new NextResponse(excelBuffer, {
     headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="dossiers-${new Date().toISOString().split("T")[0]}.csv"`,
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="dossiers-${fileStamp}.xlsx"`,
+      "Cache-Control": "no-store",
     },
   });
 }

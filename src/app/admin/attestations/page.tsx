@@ -1,9 +1,5 @@
 import { db } from "@/lib/db";
-import {
-  AttestationsClient,
-  type AttestationDossier,
-  type ModeleAttestation as ModeleAttestationProp,
-} from "@/components/admin/attestations-client";
+import { AttestationsClient, type AttestationDossier } from "@/components/admin/attestations-client";
 import { requireAdminPage } from "@/lib/admin-page-auth";
 
 export default async function AdminAttestationsPage() {
@@ -21,7 +17,7 @@ export default async function AdminAttestationsPage() {
     attestation: { select: { cheminFichier: true, nomFichier: true } },
   } as const;
 
-  const [aEmettreRaw, emisesRaw, modelesRaw] = await Promise.all([
+  const [aEmettreRaw, emisesRaw] = await Promise.all([
     db.dossier.findMany({
       where: { etat: "PRE_ADMISSION" },
       select,
@@ -32,7 +28,6 @@ export default async function AdminAttestationsPage() {
       select,
       orderBy: { updatedAt: "desc" },
     }),
-    db.modeleAttestation.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } }),
   ]);
 
   const mapDossier = (d: typeof aEmettreRaw[number]): AttestationDossier => ({
@@ -49,20 +44,10 @@ export default async function AdminAttestationsPage() {
     nomFichier: d.attestation?.nomFichier ?? null,
   });
 
-  const modeles: ModeleAttestationProp[] = modelesRaw.map((m) => ({
-    id: m.id,
-    nom: m.nom,
-    description: m.description,
-    nbUsages: m.nbUsages,
-    actif: m.actif,
-    ordre: m.ordre,
-  }));
-
   return (
     <AttestationsClient
       initialAEmettre={aEmettreRaw.map(mapDossier)}
       initialEmises={emisesRaw.map(mapDossier)}
-      initialModeles={modeles}
     />
   );
 }

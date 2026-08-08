@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { paiementSchema } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
-import { requireApiUser, parseOrRespond } from "@/lib/api-auth";
+import { requireApiCandidat, parseOrRespond } from "@/lib/api-auth";
 import { logAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notifications";
 import { randomBytes } from "node:crypto";
@@ -15,15 +15,11 @@ import { broadcastDossierLive } from "@/lib/dossier/live-broadcast";
  * Initie un paiement en ligne (PayTech) ou retombe en déclaration si non configuré.
  */
 export async function POST(request: Request) {
-  const auth = await requireApiUser();
+  const auth = await requireApiCandidat();
   if (!auth.ok) return auth.response;
 
   const rateLimited = await checkRateLimit(getClientId(request), "/api/paiements/initiate");
   if (rateLimited) return rateLimited;
-
-  if (auth.user.role !== "CANDIDAT") {
-    return NextResponse.json({ error: "Réservé aux candidats" }, { status: 403 });
-  }
 
   const body = await request.json();
   const parsed = parseOrRespond(paiementSchema, body);

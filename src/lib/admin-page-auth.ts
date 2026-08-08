@@ -1,11 +1,11 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { authOptions } from "@/lib/auth";
+import { authOptionsStaff } from "@/lib/auth";
 import { hasPermission, requirePermission, type Permission } from "@/lib/rbac";
 
 /** Guard serveur pour les pages /admin — defense-in-depth au-delà du middleware */
 export async function requireAdminPage(permission: Permission) {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession(authOptionsStaff);
   if (!session?.user) redirect("/back-office");
 
   const role = session.user.role;

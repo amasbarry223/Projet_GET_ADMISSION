@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { formatDate } from "@/lib/format";
 import { escapeHtml } from "@/lib/escape-html";
+import { BRAND_COLORS, BRAND_LOGO } from "@/lib/brand";
 
 // GET /api/admin/export/candidats/print — vue imprimable de la liste des candidats
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
@@ -36,7 +36,7 @@ export async function GET() {
   const e = escapeHtml;
   const rows = candidats
     .map(
-      (c) => `<tr>
+      (c, i) => `<tr${i % 2 === 1 ? ` style="background: ${BRAND_COLORS.porcelaine};"` : ""}>
         <td>${e(c.prenom)} ${e(c.nom)}</td>
         <td>${e(c.email)}</td>
         <td>${e(c.telephone ?? "—")}</td>
@@ -55,21 +55,21 @@ export async function GET() {
 <meta charset="utf-8">
 <title>Candidats — GET Admission</title>
 <style>
-  body { font-family: 'General Sans', Inter, sans-serif; margin: 32px; color: #1A1A1A; }
-  .header { text-align: center; border-bottom: 2px solid #3CA936; padding-bottom: 16px; margin-bottom: 20px; }
+  body { font-family: 'General Sans', Inter, sans-serif; margin: 32px; color: ${BRAND_COLORS.encre}; }
+  .header { text-align: center; border-bottom: 2px solid ${BRAND_COLORS.lapis}; padding-bottom: 16px; margin-bottom: 20px; }
   .header img { height: 36px; }
   .header h1 { font-size: 20px; margin: 10px 0 0; }
-  .header p { color: #6B7280; font-size: 11px; }
+  .header p { color: ${BRAND_COLORS.ardoise}; font-size: 11px; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  th, td { border: 1px solid #E5E7EB; padding: 6px 8px; text-align: left; }
-  th { background: #F3F4F6; font-size: 10px; text-transform: uppercase; color: #6B7280; }
-  .footer { margin-top: 20px; text-align: center; color: #6B7280; font-size: 10px; }
+  th, td { border: 1px solid ${BRAND_COLORS.ligne}; padding: 6px 8px; text-align: left; }
+  th { background: ${BRAND_COLORS.porcelaine}; font-size: 10px; text-transform: uppercase; color: ${BRAND_COLORS.ardoise}; }
+  .footer { margin-top: 20px; text-align: center; color: ${BRAND_COLORS.ardoise}; font-size: 10px; }
   @media print { body { margin: 0.5cm; } }
 </style>
 </head>
 <body>
   <div class="header">
-    <img src="/images/brand/logo-get-admission.png" alt="GET Admission" />
+    <img src="${BRAND_LOGO.publicUrl}" alt="GET Admission" />
     <h1>Candidats inscrits</h1>
     <p>${candidats.length} candidat(s)</p>
   </div>

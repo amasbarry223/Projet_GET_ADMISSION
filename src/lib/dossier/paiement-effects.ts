@@ -157,7 +157,7 @@ export async function afterPaiementReussiSideEffects(opts: {
 export async function recomputePaiementStatutInTx(
   tx: Tx,
   dossier: { id: string; etat: string; fraisAgence: number },
-  opts: { userId: string; auteurLabel: string; reason: "rembourse" | "echoue" },
+  opts: { userId: string; auteurLabel: string; reason: "rembourse" | "echoue" | "suppression" },
 ): Promise<{ shouldRollback: boolean; paiementStatut: string }> {
   const totalPaye = await tx.paiement.aggregate({
     where: { dossierId: dossier.id, statut: "reussi" },

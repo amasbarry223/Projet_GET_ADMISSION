@@ -131,7 +131,7 @@ function ConnexionInner() {
       });
       return;
     }
-    const sess = await fetch("/api/auth/session").then((r) => r.json());
+    const sess = await fetch("/api/auth/candidat/session").then((r) => r.json());
     const role = sess?.user?.role as string | undefined;
 
     if (role !== "CANDIDAT") {

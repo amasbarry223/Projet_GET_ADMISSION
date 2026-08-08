@@ -12,14 +12,26 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { formatFCFA, formatDate, formatDateTime } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FormPageSkeleton } from "@/components/ui/skeleton-card";
 import { getApiErrorMessageSync } from "@/lib/api-error";
+import { apiJson } from "@/lib/api-client";
 import { usePrimaryDossier, type EspaceDossierSummary } from "@/hooks/use-primary-dossier";
-import { CheckCircle2, Download, Loader2, Lock, CreditCard, Smartphone, ShieldCheck, AlertCircle, Clock, FolderOpen, ArrowRight } from "lucide-react";
+import { CheckCircle2, Download, Loader2, Lock, CreditCard, Smartphone, ShieldCheck, AlertCircle, Clock, FolderOpen, ArrowRight, Trash2 } from "lucide-react";
 
 
 type MoyenPaiement = {
@@ -66,6 +78,7 @@ function PaiementInner() {
   const [receiptRef, setReceiptRef] = React.useState<string>("");
   const [lastPaiementId, setLastPaiementId] = React.useState<string>("");
   const [lastMontant, setLastMontant] = React.useState(0);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
   const loadMoyens = React.useCallback(() => {
     setMethodsLoading(true);
@@ -99,6 +112,18 @@ function PaiementInner() {
   const loadDossier = React.useCallback(() => {
     void refetchDossier();
   }, [refetchDossier]);
+
+  const supprimerPaiement = async (paiementId: string, reference: string) => {
+    setDeletingId(paiementId);
+    const result = await apiJson(`/api/paiements/${paiementId}`, "DELETE");
+    setDeletingId(null);
+    if (!result.ok) {
+      toast.error("Suppression échouée", { description: result.error });
+      return;
+    }
+    toast.success("Transaction supprimée", { description: reference });
+    loadDossier();
+  };
 
   React.useEffect(() => {
     let cancelled = false;
@@ -596,6 +621,40 @@ function PaiementInner() {
                         <Download className="h-3.5 w-3.5" strokeWidth={1.5} />
                       </Button>
                     )}
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="ml-1 h-7 px-2 text-xs text-carmin hover:bg-carmin/10 hover:text-carmin"
+                          disabled={deletingId === p.id}
+                        >
+                          {deletingId === p.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                          )}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Supprimer cette transaction ?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            La transaction {p.reference} ({formatFCFA(p.montant)}) sera définitivement
+                            supprimée. Le statut de paiement de votre dossier sera recalculé.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Annuler</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-carmin text-blanc hover:bg-carmin/90"
+                            onClick={() => void supprimerPaiement(p.id, p.reference)}
+                          >
+                            Supprimer
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </TableCell>
                 </TableRow>
               ))}

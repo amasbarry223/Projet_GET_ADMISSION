@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Card } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -249,6 +250,20 @@ export function ReservationLogementForm() {
         </Card>
       )}
 
+      {reservations && reservations.length > 0 && !isCorrection && (
+        <Alert className="border-ambre/40 bg-ambre/5">
+          <Clock className="h-4 w-4 text-ambre" strokeWidth={1.5} />
+          <AlertTitle className="font-display text-sm font-bold text-encre">
+            Une seule demande de réservation par candidat.
+          </AlertTitle>
+          <AlertDescription className="text-sm text-ardoise">
+            Vous avez déjà soumis une demande de réservation de logement. Si vous devez la modifier, contactez
+            votre conseiller — une correction pourra être demandée et vous permettra de la mettre à jour.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {(reservations === null || reservations.length === 0 || isCorrection) && (
       <Card id="reservation-form" className="border-ligne bg-card p-0 overflow-hidden scroll-mt-6">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ligne bg-porcelaine px-6 py-3">
           <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
@@ -497,6 +512,7 @@ export function ReservationLogementForm() {
           </form>
         </Form>
       </Card>
+      )}
     </div>
   );
 }

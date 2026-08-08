@@ -1,5 +1,5 @@
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptionsCandidat } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
   CANDIDAT_DOSSIER_INCLUDE,
@@ -72,7 +72,7 @@ function serializeLiveDossier(d: {
  * Pousse le dossier principal du candidat dès qu’une empreinte change.
  */
 export async function GET(request: Request) {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession(authOptionsCandidat);
   if (!session?.user) {
     return new Response(JSON.stringify({ error: "Non authentifié" }), {
       status: 401,
@@ -80,14 +80,7 @@ export async function GET(request: Request) {
     });
   }
 
-  const role = session.user.role;
   const userId = session.user.id;
-  if (role !== "CANDIDAT" || !userId) {
-    return new Response(JSON.stringify({ error: "Réservé aux candidats" }), {
-      status: 403,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
 
   const { searchParams } = new URL(request.url);
   const preferredId = searchParams.get("dossierId");

@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatFCFA, formatDate } from "@/lib/format";
 import { requirePermission } from "@/lib/rbac";
 import { escapeHtml } from "@/lib/escape-html";
 import { buildReceiptPdfBuffer } from "@/lib/pdf/documents";
+import { BRAND_COLORS, BRAND_LOGO } from "@/lib/brand";
 
 // GET /api/recu/[id]?format=pdf|html — Reçu de paiement (BF-20)
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
@@ -81,6 +81,7 @@ export async function GET(
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${paiement.reference}.pdf"`,
+        "Cache-Control": "no-store",
       },
     });
   }
@@ -94,30 +95,30 @@ export async function GET(
 <meta charset="utf-8">
 <title>Reçu ${e(paiement.reference)}</title>
 <style>
-  body { font-family: 'General Sans', Inter, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; color: #1A1A1A; }
-  .header { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 2px solid #3CA936; padding-bottom: 20px; margin-bottom: 30px; }
+  body { font-family: 'General Sans', Inter, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; color: ${BRAND_COLORS.encre}; }
+  .header { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 2px solid ${BRAND_COLORS.lapis}; padding-bottom: 20px; margin-bottom: 30px; }
   .header img { height: 42px; width: auto; }
   .header-info { text-align: right; }
   .header-info .nom { font-size: 15px; font-weight: 700; margin: 0; }
-  .header-info p { color: #6B7280; font-size: 11px; margin: 3px 0 0; }
-  .recu { border: 1px solid #E5E7EB; border-radius: 8px; padding: 24px; }
+  .header-info p { color: ${BRAND_COLORS.ardoise}; font-size: 11px; margin: 3px 0 0; }
+  .recu { border: 1px solid ${BRAND_COLORS.ligne}; border-radius: 8px; padding: 24px; }
   .recu h2 { font-size: 18px; margin: 0 0 16px; }
-  .section-label { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: #2E8329; font-weight: 700; margin: 18px 0 8px; }
+  .section-label { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: ${BRAND_COLORS.or}; font-weight: 700; margin: 18px 0 8px; }
   .section-label:first-of-type { margin-top: 0; }
-  .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F3F4F6; }
+  .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid ${BRAND_COLORS.porcelaine}; }
   .row:last-child { border-bottom: none; }
-  .label { color: #6B7280; font-size: 14px; }
+  .label { color: ${BRAND_COLORS.ardoise}; font-size: 14px; }
   .value { font-weight: 600; font-size: 14px; }
   .mono { font-family: 'Geist Mono', monospace; }
-  .total { margin-top: 16px; padding: 12px 16px; background: #E8F5E7; border-radius: 8px; display: flex; justify-content: space-between; }
-  .total .value { font-size: 18px; color: #2E8329; }
-  .footer { margin-top: 30px; text-align: center; color: #6B7280; font-size: 11px; }
+  .total { margin-top: 16px; padding: 12px 16px; background: ${BRAND_COLORS.orPale}; border-radius: 8px; display: flex; justify-content: space-between; }
+  .total .value { font-size: 18px; color: ${BRAND_COLORS.or}; }
+  .footer { margin-top: 30px; text-align: center; color: ${BRAND_COLORS.ardoise}; font-size: 11px; }
   @media print { body { margin: 0; } }
 </style>
 </head>
 <body>
   <div class="header">
-    <img src="/images/brand/logo-get-admission.png" alt="GET Admission" />
+    <img src="${BRAND_LOGO.publicUrl}" alt="GET Admission" />
     <div class="header-info">
       <p class="nom">GET Admission</p>
       <p>Agence d'admission universitaire</p>
@@ -139,7 +140,7 @@ export async function GET(
     <div class="row"><span class="label">Date</span><span class="value">${e(formatDate(paiement.date.toISOString()))}</span></div>
     <div class="row"><span class="label">Frais d'agence (référence)</span><span class="value mono">${e(formatFCFA(paiement.dossier.fraisAgence))}</span></div>
     <div class="row"><span class="label">Moyen de paiement</span><span class="value">${moyenLabel}</span></div>
-    <div class="row"><span class="label">Statut</span><span class="value" style="color: #3CA936;">${e(paiement.statut)}</span></div>
+    <div class="row"><span class="label">Statut</span><span class="value" style="color: ${BRAND_COLORS.lapis};">${e(paiement.statut)}</span></div>
     <div class="total"><span class="label">Montant payé</span><span class="value mono">${e(formatFCFA(paiement.montant))}</span></div>
   </div>
   <div class="footer">

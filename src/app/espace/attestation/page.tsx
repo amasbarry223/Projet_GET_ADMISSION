@@ -23,7 +23,6 @@ import {
   Eye,
   EyeOff,
   MapPin,
-  ShieldCheck,
   CheckCircle2,
   Clock,
   AlertCircle,
@@ -78,7 +77,6 @@ function AttestationInner() {
       }
     : null;
   const [attestation, setAttestation] = React.useState<Attestation | null>(null);
-  const [directrice, setDirectrice] = React.useState<{ nom: string; role: string } | null>(null);
   const [attestationLoading, setAttestationLoading] = React.useState(false);
   const [attestationError, setAttestationError] = React.useState<string | null>(null);
   const [showPreview, setShowPreview] = React.useState(false);
@@ -89,22 +87,7 @@ function AttestationInner() {
     setAttestationLoading(true);
     setAttestationError(null);
     try {
-      const [attRes, equipeRes] = await Promise.all([
-        fetch(`/api/attestations/${dossierId}`),
-        fetch("/api/public/equipe"),
-      ]);
-      const equipe = equipeRes.ok ? await equipeRes.json() : [];
-      const dir = (equipe as { role: string; nom?: string }[]).find(
-        (m) =>
-          m.role.toLowerCase().includes("directrice") ||
-          m.role.toLowerCase().includes("directeur"),
-      );
-      setDirectrice(
-        dir
-          ? { nom: dir.nom ?? "GET Admission", role: dir.role }
-          : { nom: "GET Admission", role: "Direction" },
-      );
-
+      const attRes = await fetch(`/api/attestations/${dossierId}`);
       if (attRes.ok) {
         const att = (await attRes.json()) as Attestation;
         setAttestation(att);
@@ -235,11 +218,8 @@ function AttestationInner() {
     (h: { etat: string; date: string }) => h.etat.toUpperCase() === "PRE_ADMISSION",
   );
   const preAdmissionDate = preAdmissionEntry?.date;
-  const emissionDate = displayAttestation?.dateEmission;
-  const hasUploadedFile = !!displayAttestation?.cheminFichier;
-  const downloadUrl = hasUploadedFile
-    ? `/api/dossiers/${dossier.id}/attestation/download`
-    : `/api/attestation-pdf/${dossier.id}`;
+  const hasFile = !!displayAttestation?.cheminFichier;
+  const downloadUrl = `/api/dossiers/${dossier.id}/attestation/download`;
 
   return (
     <div className="space-y-6">
@@ -265,16 +245,16 @@ function AttestationInner() {
         <Alert className="border-vert/30 bg-vert/5 p-6">
           <CheckCircle2 className="h-5 w-5 text-vert" strokeWidth={1.5} />
           <AlertTitle className="font-display text-xl font-bold text-encre">
-            {hasUploadedFile ? "🎉 Félicitations, votre préinscription est accordée !" : "Attestation disponible."}
+            {hasFile ? "🎉 Félicitations, votre préinscription est accordée !" : "Attestation en préparation."}
           </AlertTitle>
           <AlertDescription className="mt-1 text-sm text-ardoise">
-            {hasUploadedFile ? (
+            {hasFile ? (
               <>
                 <span className="font-semibold text-encre">{d.universite.nom}</span> a accordé votre
                 préinscription. Téléchargez le document ci-dessous ou récupérez-le à l&apos;agence.
               </>
             ) : (
-              "Votre attestation est émise. Téléchargez-la ou récupérez-la à l'agence."
+              "Le document officiel est en cours de finalisation par votre conseiller — il apparaîtra ici très prochainement."
             )}
           </AlertDescription>
         </Alert>
@@ -322,12 +302,12 @@ function AttestationInner() {
             <Stamp className="h-7 w-7 text-vert" strokeWidth={1.5} />
           </div>
           <h2 className="font-display text-xl font-bold text-encre">
-            {hasUploadedFile ? "Toutes nos félicitations !" : "Attestation prête à être récupérée."}
+            {hasFile ? "Toutes nos félicitations !" : "Attestation prête à être récupérée."}
           </h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-ardoise">
-            {hasUploadedFile
+            {hasFile
               ? `Le document officiel envoyé par ${d.universite.nom} est prêt. Téléchargez-le ci-dessous ou activez le retrait à l'agence.`
-              : "Téléchargez votre attestation officielle ci-dessous ou activez le retrait à l'agence."}
+              : "Ce document a été émis avant la mise en place du téléversement direct. Contactez votre conseiller pour l'obtenir."}
           </p>
 
           <div className="mx-auto mt-5 max-w-sm rounded-md border border-vert/30 bg-vert/5 p-4 text-left">
@@ -351,27 +331,46 @@ function AttestationInner() {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
-            <Button onClick={() => window.open(downloadUrl, "_blank")}>
-              <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} />
-              {hasUploadedFile ? "Télécharger le document" : "Télécharger le PDF"}
-            </Button>
-            <Button variant="outline" onClick={() => setShowPreview((s) => !s)}>
-              {showPreview ? (
-                <>
-                  <EyeOff className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Masquer l&apos;aperçu
-                </>
-              ) : (
-                <>
-                  <Eye className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Aperçu de l&apos;attestation
-                </>
-              )}
-            </Button>
-          </div>
+          {hasFile && (
+            <>
+              <div className="mt-6 flex flex-wrap justify-center gap-2">
+                <Button onClick={() => window.open(downloadUrl, "_blank")}>
+                  <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} />
+                  Télécharger le document
+                </Button>
+                <Button variant="outline" onClick={() => setShowPreview((s) => !s)}>
+                  {showPreview ? (
+                    <>
+                      <EyeOff className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Masquer l&apos;aperçu
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Aperçu de l&apos;attestation
+                    </>
+                  )}
+                </Button>
+              </div>
+              <div className="mx-auto mt-4 flex w-fit items-center gap-2 rounded-md border border-ligne bg-porcelaine px-3 py-1.5">
+                <Switch
+                  id="remise"
+                  checked={remiseAgence}
+                  disabled={savingRemise}
+                  onCheckedChange={(v) => void persistModeRemise(v)}
+                />
+                <Label
+                  htmlFor="remise"
+                  className="flex cursor-pointer items-center gap-1.5 text-sm text-encre"
+                >
+                  <MapPin className="h-3.5 w-3.5 text-lapis" strokeWidth={1.5} /> Je viendrai la récupérer à
+                  l&apos;agence
+                </Label>
+              </div>
+            </>
+          )}
         </Card>
       )}
 
-      {isIssued && showPreview && hasUploadedFile && (
+      {isIssued && showPreview && hasFile && (
         <Card className="overflow-hidden border-ligne bg-blanc p-0">
           <div className="border-b border-ligne bg-porcelaine px-6 py-3">
             <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
@@ -384,153 +383,6 @@ function AttestationInner() {
               title="Attestation de préinscription"
               className="h-full w-full border-0"
             />
-          </div>
-        </Card>
-      )}
-
-      {isIssued && showPreview && !hasUploadedFile && displayAttestation && (
-        <Card className="overflow-hidden border-ligne bg-blanc p-0">
-          <div className="border-b border-ligne bg-porcelaine px-6 py-3">
-            <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
-              Aperçu à l&apos;écran — le PDF officiel fait foi
-            </p>
-          </div>
-
-          <div className="relative mx-auto max-w-2xl p-8 sm:p-12">
-            <div
-              className="pointer-events-none absolute inset-8 flex items-center justify-center sm:inset-12"
-              aria-hidden
-            >
-              <p className="rotate-[-18deg] select-none font-display text-4xl font-bold uppercase tracking-widest text-encre/8 sm:text-5xl">
-                Aperçu
-              </p>
-            </div>
-
-            <div className="rule-or mb-6" aria-hidden />
-
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="font-mono text-[11px] uppercase tracking-eyebrow text-lapis">GET Admission</p>
-                <h2 className="mt-1 font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">
-                  Attestation
-                  <br />
-                  de pré-inscription
-                </h2>
-              </div>
-              <div className="text-right">
-                <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Référence</p>
-                <p className="font-mono text-sm font-semibold text-encre">{displayAttestation.reference}</p>
-                <p className="mt-2 font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Année</p>
-                <p className="font-mono text-sm text-encre">2026-2027</p>
-              </div>
-            </div>
-
-            <div className="my-6 h-px bg-ligne" aria-hidden />
-
-            <div className="space-y-4 text-encre">
-              <p className="text-sm leading-relaxed">
-                Je soussignée <span className="font-semibold">{directrice?.nom ?? "GET Admission"}</span>,{" "}
-                {directrice?.role ?? "Direction"} de GET Admission, atteste que
-              </p>
-              <p className="font-display text-xl font-bold text-lapis">
-                {d.candidat.prenom} {d.candidat.nom}
-              </p>
-              <p className="text-sm leading-relaxed">
-                a constitué un dossier complet et conforme, et a été admis(e) en pré-inscription pour le cursus
-              </p>
-              <p className="font-display text-lg font-bold text-encre">{d.formation.intitule}</p>
-              <p className="text-sm leading-relaxed">
-                à l&apos;<span className="font-semibold">{d.universite.nom}</span> ({d.universite.ville},{" "}
-                {d.universite.pays}), pour l&apos;année universitaire 2026-2027.
-              </p>
-
-              <div className="rounded-md border border-ligne bg-porcelaine p-4">
-                <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-                  <div>
-                    <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
-                      Code vérification
-                    </p>
-                    <p className="font-mono text-sm font-semibold text-encre">
-                      {displayAttestation.codeVerification}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
-                      Date d&apos;émission
-                    </p>
-                    <p className="font-mono text-sm text-encre">
-                      {emissionDate ? formatDate(emissionDate) : "—"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-8 flex items-end justify-between">
-              <div>
-                <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Signature</p>
-                <p className="mt-6 font-display text-base font-bold text-encre">
-                  {directrice?.nom ?? "GET Admission"}
-                </p>
-                <p className="text-xs text-ardoise">Directrice · GET Admission</p>
-              </div>
-
-              <div className="relative">
-                <div
-                  className="flex h-28 w-28 flex-col items-center justify-center rounded-full border-[3px] border-or bg-or-pale/60 shadow-stamp"
-                  style={{ transform: "rotate(-8deg)" }}
-                  aria-label="Sceau officiel GET Admission"
-                >
-                  <div className="flex h-20 w-20 flex-col items-center justify-center rounded-full border-2 border-or">
-                    <Stamp className="h-5 w-5 text-or" strokeWidth={1.5} />
-                    <p className="mt-1 font-mono text-[8px] font-bold uppercase tracking-eyebrow text-or">
-                      GET Admission
-                    </p>
-                    <p className="font-mono text-[7px] uppercase tracking-eyebrow text-or/80">Sceau officiel</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="my-6 rule-or" aria-hidden />
-
-            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-ardoise">
-              <span className="font-mono">
-                GETADM · {d.reference} · {(d.mrz ?? "").split("\n")[1] ?? d.reference}
-              </span>
-              <span className="font-mono">
-                Document généré électroniquement — authentifiez-le via getadm.com/verifier
-              </span>
-            </div>
-          </div>
-
-          <div className="border-t border-ligne bg-porcelaine px-6 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <Button onClick={() => window.open(`/api/attestation-pdf/${dossier.id}`, "_blank")}>
-                  <Download className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Télécharger le PDF
-                </Button>
-                <div className="flex items-center gap-2 rounded-md border border-ligne bg-blanc px-3 py-1.5">
-                  <Switch
-                    id="remise"
-                    checked={remiseAgence}
-                    disabled={savingRemise}
-                    onCheckedChange={(v) => void persistModeRemise(v)}
-                  />
-                  <Label
-                    htmlFor="remise"
-                    className="flex cursor-pointer items-center gap-1.5 text-sm text-encre"
-                  >
-                    <MapPin className="h-3.5 w-3.5 text-lapis" strokeWidth={1.5} /> Je viendrai la récupérer à
-                    l&apos;agence
-                  </Label>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-ardoise">
-                <ShieldCheck className="h-3.5 w-3.5 text-vert" strokeWidth={1.5} />
-                <span>Sceau vérifiable en ligne</span>
-              </div>
-            </div>
           </div>
         </Card>
       )}

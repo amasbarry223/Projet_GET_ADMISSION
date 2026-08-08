@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireApiUser, parseOrRespond } from "@/lib/api-auth";
+import { requireApiCandidat, parseOrRespond } from "@/lib/api-auth";
 import { demandeCrousSchema } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { saveUpload, deleteUpload } from "@/lib/storage";
@@ -8,11 +8,8 @@ import { saveUpload, deleteUpload } from "@/lib/storage";
 // PUT /api/logement/crous/[id] — le candidat corrige sa propre demande CROUS après une
 // demande de correction du staff (statut = correction_demandee uniquement).
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireApiUser();
+  const auth = await requireApiCandidat();
   if (!auth.ok) return auth.response;
-  if (auth.user.role !== "CANDIDAT") {
-    return NextResponse.json({ error: "Réservé aux candidats" }, { status: 403 });
-  }
 
   const { id } = await params;
   const demande = await db.demandeLogementCrous.findUnique({ where: { id } });

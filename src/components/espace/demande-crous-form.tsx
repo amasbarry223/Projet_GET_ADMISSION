@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Card } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -253,6 +254,20 @@ export function DemandeCrousForm() {
         </Card>
       )}
 
+      {demandes && demandes.length > 0 && !isCorrection && (
+        <Alert className="border-ambre/40 bg-ambre/5">
+          <Clock className="h-4 w-4 text-ambre" strokeWidth={1.5} />
+          <AlertTitle className="font-display text-sm font-bold text-encre">
+            Une seule demande CROUS par candidat.
+          </AlertTitle>
+          <AlertDescription className="text-sm text-ardoise">
+            Vous avez déjà soumis une demande de logement CROUS. Si vous devez la modifier, contactez votre
+            conseiller — une correction pourra être demandée et vous permettra de la mettre à jour.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {(demandes === null || demandes.length === 0 || isCorrection) && (
       <Card id="crous-form" className="border-ligne bg-card p-0 overflow-hidden scroll-mt-6">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ligne bg-porcelaine px-6 py-3">
           <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
@@ -494,6 +509,7 @@ export function DemandeCrousForm() {
           </form>
         </Form>
       </Card>
+      )}
     </div>
   );
 }

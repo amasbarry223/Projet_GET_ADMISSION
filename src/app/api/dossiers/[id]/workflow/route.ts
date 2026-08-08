@@ -42,12 +42,7 @@ export async function POST(
     return NextResponse.json({ error: "Action inconnue" }, { status: 400 });
   }
 
-  // Financier uniquement pour confirmer le paiement
-  if (action === "confirmer_paiement") {
-    if (!hasPermission(role, "finance.write")) {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
-    }
-  } else if (rule.permission && !hasPermission(role, rule.permission)) {
+  if (rule.permission && !hasPermission(role, rule.permission)) {
     return NextResponse.json({ error: "Accès refusé pour ce rôle" }, { status: 403 });
   }
 
@@ -116,23 +111,6 @@ export async function POST(
     }
   }
 
-  // Règle §6 : confirmer_paiement exige un solde réel encaissé
-  if (action === "confirmer_paiement") {
-    const totalPaye = await db.paiement.aggregate({
-      where: { dossierId: id, statut: "reussi" },
-      _sum: { montant: true },
-    });
-    const paye = totalPaye._sum.montant ?? 0;
-    if (paye < dossier.fraisAgence) {
-      return NextResponse.json(
-        {
-          error: `Solde insuffisant : ${paye} / ${dossier.fraisAgence} FCFA encaissés. Enregistrez les paiements avant de confirmer.`,
-        },
-        { status: 400 },
-      );
-    }
-  }
-
   // Règle §6 : transmettre uniquement après paiement confirmé + encaissements
   if (action === "transmettre") {
     if (dossier.etat !== "PAIEMENT_CONFIRME") {
@@ -171,9 +149,6 @@ export async function POST(
     data: {
       etat: nouvelEtat,
       etapeActuelle: ETAPE_PAR_ETAT[nouvelEtat],
-      ...(nouvelEtat === "PAIEMENT_CONFIRME"
-        ? { paiementStatut: PAYMENT_STATUSES.COMPLET }
-        : {}),
     },
   });
   if (locked.count === 0) {
@@ -265,45 +240,6 @@ export async function POST(
     });
   } catch (e) {
     console.error("[workflow] notif error", e);
-  }
-
-  // Le solde a déjà été validé par le conseiller avant PAIEMENT_ATTENTE : une fois le paiement
-  // confirmé, le dossier est transmis automatiquement à l'université (pas d'étape manuelle en plus).
-  // Procédure Publique : si l'établissement n'est pas encore affecté (toujours sur le placeholder),
-  // le dossier reste à PAIEMENT_CONFIRME — la transmission attend l'affectation par le staff, puis
-  // se fait manuellement via l'action « transmettre » (paiement et affectation sont indépendants).
-  if (action === "confirmer_paiement" && !(dossier.procedure === "PUBLIQUE" && dossier.universite.estPlaceholder)) {
-    try {
-      await db.dossier.update({
-        where: { id },
-        data: { etat: "TRANSMIS", etapeActuelle: ETAPE_PAR_ETAT.TRANSMIS },
-      });
-      await db.historique.create({
-        data: {
-          dossierId: id,
-          etat: "TRANSMIS",
-          auteur: `${auth.user.prenom} ${auth.user.nom}`,
-          auteurId: auth.user.id,
-          note: "Dossier transmis automatiquement à l'université après confirmation du paiement.",
-        },
-      });
-      await logAudit({
-        session: auth.session,
-        action: "WORKFLOW",
-        resource: "dossier",
-        resourceId: id,
-        details: `Transition ${dossier.reference} → TRANSMIS (automatique après confirmation du paiement)`,
-      });
-      await notifyDossierTransition({
-        candidatId: dossier.candidatId,
-        dossierId: id,
-        reference: dossier.reference,
-        nouvelEtat: "TRANSMIS",
-        note: "Frais d'agence réglés — votre dossier a été transmis à l'université.",
-      });
-    } catch (e) {
-      console.error("[workflow] auto-transmit after confirmer_paiement error", e);
-    }
   }
 
   const finalDossier = await db.dossier.findUnique({ where: { id } });

@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { logAudit } from "@/lib/audit";
 
 // GET /api/admin/backup/export — export JSON complet des données (Super Admin uniquement)
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
@@ -41,7 +40,6 @@ export async function GET() {
     membresEquipe,
     faqs,
     contactInfo,
-    modelesAttestation,
     nationalites,
     moyensPaiement,
     objetsContact,
@@ -79,7 +77,6 @@ export async function GET() {
     db.membreEquipe.findMany(),
     db.faq.findMany(),
     db.contactInfo.findMany(),
-    db.modeleAttestation.findMany(),
     db.nationalite.findMany(),
     db.moyenPaiement.findMany(),
     db.objetContact.findMany(),
@@ -118,7 +115,6 @@ export async function GET() {
     membresEquipe,
     faqs,
     contactInfo,
-    modelesAttestation,
     nationalites,
     moyensPaiement,
     objetsContact,

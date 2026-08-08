@@ -40,17 +40,6 @@ async function main() {
   });
   console.log("✓ ContactInfo créée");
 
-  // --- ModeleAttestation ---
-  const modeles = [
-    { nom: "Attestation standard", description: "Attestation de pré-inscription générique, sceau doré.", nbUsages: 4, ordre: 1 },
-    { nom: "Attestation bilingue FR/EN", description: "Pour universités anglophones (LAU, UCT).", nbUsages: 1, ordre: 2 },
-    { nom: "Certificat de transmission", description: "Document officiel de transmission du dossier à l'université.", nbUsages: 8, ordre: 3 },
-  ];
-  for (const m of modeles) {
-    await db.modeleAttestation.upsert({ where: { id: m.ordre }, update: m, create: m });
-  }
-  console.log("✓ Modèles attestation créés");
-
   // --- Nationalites ---
   const nationalites = ["Sénégalaise", "Ivoirienne", "Malienne", "Burkinabè", "Guinéenne", "Béninoise", "Togolaise", "Nigérienne", "Camerounaise", "Marocaine", "Tunisienne", "Gabonaise", "Congolaise", "Autre"];
   for (let i = 0; i < nationalites.length; i++) {

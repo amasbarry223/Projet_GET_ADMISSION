@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getServerSession } from "next-auth";
+import { getSession } from "@/lib/auth";
 
-import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { resolveFraisAgence } from "@/lib/dossier/frais-agence";
 import {
@@ -95,7 +94,7 @@ export default async function UniversiteDetailPage({
     new Set(formations.flatMap((f) => f.piecesRequises)),
   ).sort((a, b) => a.localeCompare(b, "fr"));
 
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
 
   const buildDossierPath = (formationId?: string) => {
     const q = new URLSearchParams({ universite: universite.id });

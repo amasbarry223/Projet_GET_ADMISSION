@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { parseOrRespond } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { notificationsMarkReadSchema } from "@/lib/validations";
 
 // GET /api/notifications — notifications de l'utilisateur connecté
 export async function GET(request: Request) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
@@ -32,7 +31,7 @@ export async function GET(request: Request) {
 
 // PUT /api/notifications — marquer comme lues { ids?: string[], all?: boolean }
 export async function PUT(request: Request) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }

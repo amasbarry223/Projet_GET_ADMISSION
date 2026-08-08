@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireApiPermission } from "@/lib/api-auth";
-import { formatDate } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
+import { buildExcelListingBuffer } from "@/lib/excel/documents";
 
-// GET /api/admin/export/candidats — export CSV des candidats
+// GET /api/admin/export/candidats — export Excel des candidats
 export async function GET() {
   const auth = await requireApiPermission("candidats.read");
   if (!auth.ok) return auth.response;
@@ -24,27 +25,46 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
-  const headers = ["Prénom", "Nom", "E-mail", "Téléphone", "Nationalité", "Statut", "KYC", "Dossiers", "Date d'inscription"];
+  const columns = [
+    { header: "Prénom", key: "prenom", width: 20 },
+    { header: "Nom", key: "nom", width: 20 },
+    { header: "E-mail", key: "email", width: 30 },
+    { header: "Téléphone", key: "telephone", width: 20 },
+    { header: "Nationalité", key: "nationalite", width: 20 },
+    { header: "Statut", key: "statut", width: 15 },
+    { header: "KYC", key: "kyc", width: 15 },
+    { header: "Dossiers", key: "dossiers", width: 10 },
+    { header: "Inscription", key: "createdAt", width: 20 }
+  ];
+
   const rows = candidats.map((c) => [
     c.prenom,
     c.nom,
     c.email,
-    c.telephone ?? "",
-    c.nationalite ?? "",
+    c.telephone ?? "—",
+    c.nationalite ?? "—",
     c.actif ? "Actif" : "Désactivé",
     c.kycVerifie ? "Vérifié" : "En attente",
     String(c._count.dossiersCandidat),
-    formatDate(c.createdAt.toISOString()),
+    formatDateTime(c.createdAt.toISOString()),
   ]);
 
-  const csv = [headers, ...rows]
-    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-    .join("\n");
+  const excelBuffer = await buildExcelListingBuffer({
+    titre: "Candidats inscrits",
+    sousTitre: `${candidats.length} candidat(s)`,
+    generatedAtStr: formatDateTime(new Date().toISOString()),
+    generatedBy: `${auth.user.prenom} ${auth.user.nom}`,
+    columns,
+    rows
+  });
 
-  return new NextResponse(csv, {
+  const fileStamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0];
+
+  return new NextResponse(excelBuffer, {
     headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="candidats-${new Date().toISOString().split("T")[0]}.csv"`,
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="candidats-${fileStamp}.xlsx"`,
+      "Cache-Control": "no-store",
     },
   });
 }

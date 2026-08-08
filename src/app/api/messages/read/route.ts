@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { markReadSchema, validate } from "@/lib/validations";
 import { requirePermission } from "@/lib/rbac";
@@ -13,7 +12,7 @@ import { requirePermission } from "@/lib/rbac";
 //
 // RBAC : candidat propriétaire de la conversation OU staff
 export async function PUT(request: Request) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }

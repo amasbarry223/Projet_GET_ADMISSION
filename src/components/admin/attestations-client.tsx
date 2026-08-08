@@ -8,7 +8,6 @@ import {
   Download,
   Eye,
   Loader2,
-  Plus,
   Search,
   Stamp,
   Upload,
@@ -16,12 +15,10 @@ import {
 import { toast } from "sonner";
 
 import { formatDate } from "@/lib/format";
-import { apiJson } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -46,16 +43,7 @@ export type AttestationDossier = {
   nomFichier: string | null;
 };
 
-export type ModeleAttestation = {
-  id: number;
-  nom: string;
-  description: string;
-  nbUsages: number;
-  actif: boolean;
-  ordre: number;
-};
-
-type TabKey = "a-emettre" | "emises" | "modeles";
+type TabKey = "a-emettre" | "emises";
 
 function attestationViewUrl(dossierId: string) {
   return `/api/dossiers/${dossierId}/attestation/download?disposition=inline`;
@@ -68,18 +56,15 @@ function attestationDownloadUrl(dossierId: string) {
 export function AttestationsClient({
   initialAEmettre,
   initialEmises,
-  initialModeles,
 }: {
   initialAEmettre: AttestationDossier[];
   initialEmises: AttestationDossier[];
-  initialModeles: ModeleAttestation[];
 }) {
   const router = useRouter();
   const reduce = useReducedMotion();
 
   const [aEmettre, setAEmettre] = React.useState(initialAEmettre);
   const [emises, setEmises] = React.useState(initialEmises);
-  const [modeles, setModeles] = React.useState(initialModeles);
   const [tab, setTab] = React.useState<TabKey>("a-emettre");
   const [query, setQuery] = React.useState("");
   const [selectedId, setSelectedId] = React.useState<string | null>(
@@ -88,10 +73,6 @@ export function AttestationsClient({
   const [uploadOpen, setUploadOpen] = React.useState(false);
   const [uploadFile, setUploadFile] = React.useState<File | null>(null);
   const [uploading, setUploading] = React.useState(false);
-  const [modeleOpen, setModeleOpen] = React.useState(false);
-  const [modeleNom, setModeleNom] = React.useState("");
-  const [modeleDesc, setModeleDesc] = React.useState("");
-  const [creatingModele, setCreatingModele] = React.useState(false);
 
   const [prevInitialA, setPrevInitialA] = React.useState(initialAEmettre);
   if (initialAEmettre !== prevInitialA) {
@@ -102,11 +83,6 @@ export function AttestationsClient({
   if (initialEmises !== prevInitialE) {
     setPrevInitialE(initialEmises);
     setEmises(initialEmises);
-  }
-  const [prevInitialM, setPrevInitialM] = React.useState(initialModeles);
-  if (initialModeles !== prevInitialM) {
-    setPrevInitialM(initialModeles);
-    setModeles(initialModeles);
   }
 
   const filterList = React.useCallback(
@@ -190,28 +166,6 @@ export function AttestationsClient({
     router.refresh();
   };
 
-  const createModele = async () => {
-    if (!modeleNom.trim()) {
-      toast.error("Nom requis");
-      return;
-    }
-    setCreatingModele(true);
-    const result = await apiJson("/api/public/modeles-attestation", "POST", {
-      nom: modeleNom.trim(),
-      description: modeleDesc.trim(),
-    });
-    setCreatingModele(false);
-    if (!result.ok) {
-      toast.error("Création du modèle impossible", { description: result.error });
-      return;
-    }
-    toast.success("Modèle créé", { description: modeleNom.trim() });
-    setModeleOpen(false);
-    setModeleNom("");
-    setModeleDesc("");
-    router.refresh();
-  };
-
   const renderDossierRow = (d: AttestationDossier, draft: boolean) => {
     const active = selectedId === d.id;
     const ecusson = d.universiteEcusson ?? "—";
@@ -254,15 +208,10 @@ export function AttestationsClient({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">
-            Atelier d&apos;émission.
-          </h1>
-        </div>
-        <Button className="bg-lapis text-blanc hover:bg-lapis/90" onClick={() => setModeleOpen(true)}>
-          <Plus className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Nouveau modèle
-        </Button>
+      <div>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">
+          Atelier d&apos;émission.
+        </h1>
       </div>
 
       {/* KPIs */}
@@ -281,15 +230,12 @@ export function AttestationsClient({
         {/* Rail gauche */}
         <div className="min-w-0 space-y-4">
           <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="gap-4">
-            <TabsList className="h-auto w-full grid grid-cols-3 bg-porcelaine p-1">
+            <TabsList className="h-auto w-full grid grid-cols-2 bg-porcelaine p-1">
               <TabsTrigger value="a-emettre" className="py-2 data-[state=active]:bg-card">
                 À émettre
               </TabsTrigger>
               <TabsTrigger value="emises" className="py-2 data-[state=active]:bg-card">
                 Émises
-              </TabsTrigger>
-              <TabsTrigger value="modeles" className="py-2 data-[state=active]:bg-card">
-                Modèles
               </TabsTrigger>
             </TabsList>
 
@@ -334,42 +280,6 @@ export function AttestationsClient({
                   <ul className="max-h-[min(60vh,520px)] space-y-0.5 overflow-y-auto scroll-fine p-1">
                     {listEmises.map((d) => renderDossierRow(d, false))}
                   </ul>
-                )}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="modeles" className="mt-0">
-              <div className="space-y-2">
-                {modeles.length === 0 ? (
-                  <div className="rounded-2xl border border-ligne bg-card px-4 py-12 text-center">
-                    <Stamp className="mx-auto h-8 w-8 text-ardoise/40" strokeWidth={1.5} />
-                    <p className="mt-2 text-sm text-ardoise">Aucun modèle actif.</p>
-                  </div>
-                ) : (
-                  modeles.map((m) => (
-                    <div
-                      key={m.id}
-                      className="flex items-start gap-3 rounded-2xl border border-ligne bg-card p-4"
-                    >
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-or-pale text-or">
-                        <Stamp className="h-4 w-4" strokeWidth={1.5} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-display text-sm font-bold text-encre">{m.nom}</h3>
-                          <Badge variant="outline" className="font-mono text-[10px] text-ardoise">
-                            {m.nbUsages} usage(s)
-                          </Badge>
-                        </div>
-                        <p className="mt-1 text-sm text-ardoise">{m.description}</p>
-                        <p className="mt-2 text-xs text-ardoise">
-                          {selected
-                            ? "L'aperçu à droite utilise ce modèle sur le dossier sélectionné."
-                            : "Sélectionnez un dossier (onglet À émettre / Émises) pour prévisualiser."}
-                        </p>
-                      </div>
-                    </div>
-                  ))
                 )}
               </div>
             </TabsContent>
@@ -512,53 +422,6 @@ export function AttestationsClient({
             >
               {uploading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
               {selected?.hasFile ? "Remplacer" : "Envoyer au candidat"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog nouveau modèle */}
-      <Dialog open={modeleOpen} onOpenChange={setModeleOpen}>
-        <DialogContent className="bg-card sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-display">Nouveau modèle</DialogTitle>
-            <DialogDescription>
-              Le modèle actif sert de base à l&apos;aperçu et aux PDF générés.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="modele-nom">Nom</Label>
-              <Input
-                id="modele-nom"
-                value={modeleNom}
-                onChange={(e) => setModeleNom(e.target.value)}
-                placeholder="Attestation de pré-inscription"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="modele-desc">Description</Label>
-              <textarea
-                id="modele-desc"
-                value={modeleDesc}
-                onChange={(e) => setModeleDesc(e.target.value)}
-                rows={3}
-                className="w-full rounded-md border border-ligne bg-card px-3 py-2 text-sm"
-                placeholder="Document officiel GET Admission…"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setModeleOpen(false)}>
-              Annuler
-            </Button>
-            <Button
-              className="bg-lapis text-blanc hover:bg-lapis/90"
-              onClick={createModele}
-              disabled={creatingModele}
-            >
-              {creatingModele && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              Créer
             </Button>
           </DialogFooter>
         </DialogContent>

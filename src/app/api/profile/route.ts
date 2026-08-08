@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { profileSchema, validate } from "@/lib/validations";
 import { isCandidatProfileLocked } from "@/lib/dossier/candidat-lock";
 
 // GET /api/profile — profil complet de l'utilisateur connecté
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
@@ -79,7 +78,7 @@ export async function GET() {
 
 // PUT /api/profile — mise à jour du profil
 export async function PUT(request: Request) {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }

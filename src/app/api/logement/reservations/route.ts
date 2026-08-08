@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireApiUser, parseOrRespond } from "@/lib/api-auth";
+import { requireApiCandidat, parseOrRespond } from "@/lib/api-auth";
 import { logementReservationSchema } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { saveUpload } from "@/lib/storage";
 
 // GET /api/logement/reservations — mes demandes de réservation de logement (candidat)
 export async function GET() {
-  const auth = await requireApiUser();
+  const auth = await requireApiCandidat();
   if (!auth.ok) return auth.response;
-  if (auth.user.role !== "CANDIDAT") {
-    return NextResponse.json({ error: "Réservé aux candidats" }, { status: 403 });
-  }
 
   const reservations = await db.logementReservation.findMany({
     where: { candidatId: auth.user.id },
@@ -23,14 +20,26 @@ export async function GET() {
 
 // POST /api/logement/reservations — soumet une demande de réservation de logement (candidat)
 export async function POST(request: Request) {
-  const auth = await requireApiUser();
+  const auth = await requireApiCandidat();
   if (!auth.ok) return auth.response;
-  if (auth.user.role !== "CANDIDAT") {
-    return NextResponse.json({ error: "Réservé aux candidats" }, { status: 403 });
-  }
 
   const rateLimited = await checkRateLimit(getClientId(request), "/api/logement/reservations");
   if (rateLimited) return rateLimited;
+
+  const existing = await db.logementReservation.findFirst({
+    where: { candidatId: auth.user.id },
+    select: { id: true },
+  });
+  if (existing) {
+    return NextResponse.json(
+      {
+        error:
+          "Vous avez déjà une demande de réservation de logement. Contactez votre conseiller si vous devez la modifier.",
+        code: "LOGEMENT_RESERVATION_DUPLICATE",
+      },
+      { status: 409 },
+    );
+  }
 
   const form = await request.formData();
   const fichierPasseport = form.get("fichierPasseport");
