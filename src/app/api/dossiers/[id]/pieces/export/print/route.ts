@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { assertDossierFileAccess, escapeHtml } from "@/lib/dossier/piece-print";
+import { assertDossierFileAccess } from "@/lib/dossier/piece-print";
+import { escapeHtml } from "@/lib/escape-html";
 
 // GET /api/dossiers/[id]/pieces/export/print — page d'impression du PDF groupé (toutes les pièces)
 export async function GET(

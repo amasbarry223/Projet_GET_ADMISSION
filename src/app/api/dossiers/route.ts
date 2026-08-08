@@ -289,6 +289,18 @@ export async function POST(request: Request) {
       "code" in error &&
       (error as { code?: string }).code === "P2002"
     ) {
+      // L'index unique partiel (migration 20260808180000_dossier_actif_unique) intercepte le même
+      // doublon candidat+formation que le contrôle applicatif ci-dessus, pour la course où deux
+      // requêtes passent toutes les deux le SELECT avant que l'une des deux ne commite son INSERT.
+      // Prisma/Postgres renvoie `meta.target` comme la liste des colonnes de l'index en conflit.
+      const target = (error as { meta?: { target?: unknown } }).meta?.target;
+      const columns = Array.isArray(target) ? target : [];
+      if (columns.includes("candidatId") && columns.includes("formationId")) {
+        return NextResponse.json(
+          { error: "Vous avez déjà un dossier actif pour cette formation" },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
         { error: "Conflit : dossier ou référence déjà existant. Réessayez." },
         { status: 409 }

@@ -237,6 +237,10 @@ model Dossier {
   @@index([conseillerId])
   @@index([etat])
   @@index([updatedAt])
+  // Un candidat ne peut avoir qu'un seul dossier actif (etat NOT IN REFUSE/CLOTURE) par formation :
+  // contrainte appliquée en base par un index unique PARTIEL (migration
+  // 20260808180000_dossier_actif_unique), que Prisma ne peut pas exprimer de façon déclarative ici
+  // — ce simple @@index reste donc nécessaire pour les requêtes mais ne remplace pas la contrainte.
   @@index([candidatId, formationId])
   @@index([matriceVersionId])
 }

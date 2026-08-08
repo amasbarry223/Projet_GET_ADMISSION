@@ -25,5 +25,3 @@ export const BRAND_LOGO = {
   fsPath: "public/images/brand/logo-get-admission.png",
   publicUrl: "/images/brand/logo-get-admission.png",
 } as const;
-
-export const APP_NAME = "GET Admission";

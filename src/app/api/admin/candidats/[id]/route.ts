@@ -94,17 +94,31 @@ export async function DELETE(
       id: true,
       email: true,
       role: true,
-      _count: { select: { dossiersCandidat: true, messages: true, conversationsCandidat: true } },
+      _count: {
+        select: {
+          dossiersCandidat: true,
+          messages: true,
+          conversationsCandidat: true,
+          logementReservations: true,
+          demandesLogementCrous: true,
+        },
+      },
     },
   });
   if (!target || target.role !== "CANDIDAT") {
     return NextResponse.json({ error: "Candidat non trouvé" }, { status: 404 });
   }
 
+  // Réservations logement/CROUS : indépendantes de Dossier (un candidat peut en avoir sans
+  // jamais créer de dossier d'admission) et en cascade dure en base — un candidat n'ayant que
+  // ce type de données déclenchait auparavant une suppression définitive silencieuse au lieu
+  // du soft-delete prévu.
   const hasRelations =
     target._count.dossiersCandidat > 0 ||
     target._count.messages > 0 ||
-    target._count.conversationsCandidat > 0;
+    target._count.conversationsCandidat > 0 ||
+    target._count.logementReservations > 0 ||
+    target._count.demandesLogementCrous > 0;
 
   if (hasRelations) {
     const updated = await db.user.update({

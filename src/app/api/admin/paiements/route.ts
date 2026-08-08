@@ -4,6 +4,8 @@ import { manualTransactionSchema } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { requireApiPermission, parseOrRespond } from "@/lib/api-auth";
 import { logAudit } from "@/lib/audit";
+import { lockDossierRow } from "@/lib/dossier/paiement-effects";
+import { ETAPE_PAR_ETAT } from "@/shared/constants";
 
 // POST /api/admin/paiements — transaction manuelle (staff uniquement)
 //
@@ -30,62 +32,85 @@ export async function POST(request: Request) {
   if (!parsed.ok) return parsed.response;
   const { dossierId, montant, moyen, tranche } = parsed.data;
 
-  const dossier = await db.dossier.findUnique({
-    where: { id: dossierId },
-    select: { id: true, candidatId: true, reference: true, fraisAgence: true, paiementStatut: true, etat: true },
-  });
-  if (!dossier) {
-    return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
-  }
-
   // Générer une référence unique
   const ref = `REC-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9999)).padStart(4, "0")}`;
 
   const userId = auth.user.id;
   const auteurLabel = `${auth.user.prenom} ${auth.user.nom}`;
 
-  // Calculer le nouveau statut de paiement (partiel vs complet)
-  const paiementsExistants = await db.paiement.findMany({
-    where: { dossierId, statut: "reussi" },
-    select: { montant: true },
-  });
-  const totalPaye = paiementsExistants.reduce((sum, p) => sum + p.montant, 0) + montant;
-  const nouveauStatut = totalPaye >= dossier.fraisAgence ? "complet" : "partiel";
-  const advanceEtat = nouveauStatut === "complet" && dossier.etat === "PAIEMENT_ATTENTE";
+  // Verrou de ligne + recalcul du statut de paiement À L'INTÉRIEUR de la transaction : un
+  // encaissement manuel concurrent à un paiement en ligne (webhook PayTech) ne doit jamais
+  // écraser le statut recalculé par l'autre avec une valeur figée avant son propre commit.
+  let paiement;
+  try {
+    paiement = await db.$transaction(async (tx) => {
+      await lockDossierRow(tx, dossierId);
+      const dossier = await tx.dossier.findUnique({
+        where: { id: dossierId },
+        select: { id: true, candidatId: true, fraisAgence: true, etat: true },
+      });
+      if (!dossier) throw new Error("DOSSIER_NOT_FOUND");
+      // Même garde que /api/paiements/initiate : un encaissement (manuel ou en ligne) ne peut
+      // être enregistré qu'une fois le dossier vérifié et passé en phase de paiement.
+      if (!["PAIEMENT_ATTENTE", "PAIEMENT_CONFIRME"].includes(dossier.etat)) {
+        throw new Error("NOT_PAYABLE");
+      }
 
-  const paiement = await db.$transaction(async (tx) => {
-    const created = await tx.paiement.create({
-      data: {
-        reference: ref,
-        dossierId,
-        candidatId: dossier.candidatId,
-        montant,
-        moyen,
-        statut: "reussi",
-        tranche: tranche || "Solde",
-      },
+      const created = await tx.paiement.create({
+        data: {
+          reference: ref,
+          dossierId,
+          candidatId: dossier.candidatId,
+          montant,
+          moyen,
+          statut: "reussi",
+          tranche: tranche || "Solde",
+        },
+      });
+
+      const totalPaye = await tx.paiement.aggregate({
+        where: { dossierId, statut: "reussi" },
+        _sum: { montant: true },
+      });
+      const paye = totalPaye._sum.montant ?? 0;
+      const nouveauStatut = paye >= dossier.fraisAgence ? "complet" : "partiel";
+      const advanceEtat = nouveauStatut === "complet" && dossier.etat === "PAIEMENT_ATTENTE";
+
+      await tx.dossier.update({
+        where: { id: dossierId },
+        data: {
+          paiementStatut: nouveauStatut,
+          ...(advanceEtat
+            ? { etat: "PAIEMENT_CONFIRME" as const, etapeActuelle: ETAPE_PAR_ETAT.PAIEMENT_CONFIRME }
+            : {}),
+        },
+      });
+
+      await tx.historique.create({
+        data: {
+          dossierId,
+          etat: advanceEtat ? "PAIEMENT_CONFIRME" : dossier.etat,
+          auteur: auteurLabel,
+          auteurId: userId,
+          note: `Paiement manuel ${moyen} confirmé : ${montant} FCFA (statut: ${nouveauStatut}).`,
+        },
+      });
+
+      return created;
     });
-
-    await tx.dossier.update({
-      where: { id: dossierId },
-      data: {
-        paiementStatut: nouveauStatut,
-        ...(advanceEtat ? { etat: "PAIEMENT_CONFIRME" as const, etapeActuelle: 6 } : {}),
-      },
-    });
-
-    await tx.historique.create({
-      data: {
-        dossierId,
-        etat: advanceEtat ? "PAIEMENT_CONFIRME" : dossier.etat,
-        auteur: auteurLabel,
-        auteurId: userId,
-        note: `Paiement manuel ${moyen} confirmé : ${montant} FCFA (statut: ${nouveauStatut}).`,
-      },
-    });
-
-    return created;
-  });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg === "DOSSIER_NOT_FOUND") {
+      return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
+    }
+    if (msg === "NOT_PAYABLE") {
+      return NextResponse.json(
+        { error: "Ce dossier n'est pas encore en phase de paiement (vérification staff requise)." },
+        { status: 400 },
+      );
+    }
+    throw e;
+  }
 
   await logAudit({
     session: auth.session,

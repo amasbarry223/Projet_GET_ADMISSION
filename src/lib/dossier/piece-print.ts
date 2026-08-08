@@ -52,12 +52,3 @@ export function buildPieceFilename(
   const d = date.toISOString().slice(0, 10);
   return `${slugPart(candidatNom)}_${slugPart(libelle)}_${d}.${ext}`;
 }
-
-export function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
