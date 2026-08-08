@@ -103,7 +103,7 @@ export function ValueSteps({ steps }: { steps: ValueStep[] }) {
                 À partir de
               </p>
               <p className="mt-1.5 font-display text-3xl font-bold tracking-tight text-foreground">
-                {formatFCFA(280000)}
+                {formatFCFA(100000)}
               </p>
               <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
                 Montant indicatif — selon le type d&apos;établissement. Paiement en ligne ou
