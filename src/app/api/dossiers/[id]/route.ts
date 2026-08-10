@@ -211,11 +211,11 @@ export async function PUT(
         { status: 400 },
       );
     }
-    // Une fois le dossier pris en charge (l'état a quitté SOUMIS — vérification démarrée,
-    // correction demandée, etc.), l'affectation ne peut plus être modifiée par Admin/Super Admin.
+    // Une fois le dossier accepté par un conseiller (l'état a quitté SOUMIS),
+    // l'affectation ne peut plus être modifiée ni désaffectée par Admin/Super Admin.
     if (dossier.etat !== "SOUMIS" && dossier.etat !== "BROUILLON") {
       return NextResponse.json(
-        { error: "Le dossier a déjà été pris en charge, l'affectation ne peut plus être modifiée." },
+        { error: "Le dossier a été accepté par le conseiller affecté, l'affectation ne peut plus être modifiée." },
         { status: 409 },
       );
     }
@@ -254,6 +254,34 @@ export async function PUT(
         { error: "Seuls les brouillons peuvent être soumis" },
         { status: 400 },
       );
+    }
+    if (action === "soumettre") {
+      const candidatUser = await db.user.findUnique({
+        where: { id: dossier.candidatId },
+        select: {
+          kycType: true,
+          kycNumero: true,
+          kycRectoPath: true,
+          kycVersoPath: true,
+        },
+      });
+      const needsVerso = candidatUser?.kycType === "cni" || !candidatUser?.kycType;
+      const isKycComplete =
+        candidatUser?.kycType &&
+        candidatUser?.kycNumero?.trim() &&
+        candidatUser?.kycRectoPath &&
+        (!needsVerso || candidatUser?.kycVersoPath);
+
+      if (!isKycComplete) {
+        return NextResponse.json(
+          {
+            error:
+              "Vous devez obligatoirement renseigner et téléverser votre pièce d'identité (KYC) dans votre profil avant de soumettre votre dossier.",
+            code: "KYC_REQUIRED",
+          },
+          { status: 400 },
+        );
+      }
     }
     if (action === "resoumettre" && dossier.etat !== "CORRECTION") {
       return NextResponse.json(

@@ -122,13 +122,33 @@ export const crousPartageSchema = z.object({
 export type CrousPartageInput = z.infer<typeof crousPartageSchema>;
 
 // --- Profile ---
+export const ADDRESS_MIN_LENGTH = 10;
+
+/** Validation d'adresse avec comparateurs de structure */
+export const addressSchema = z
+  .string()
+  .trim()
+  .max(ADDRESS_MAX_LENGTH, "L'adresse est trop longue")
+  .refine(
+    (val) => {
+      if (!val) return true;
+      if (val.length < ADDRESS_MIN_LENGTH) return false;
+      const alphaCount = (val.match(/[a-zA-Zà-ÿÀ-Ÿ0-9]/g) || []).length;
+      return alphaCount >= 6 && !/^(.)\1+$/.test(val);
+    },
+    {
+      message:
+        "Adresse incomplète : indiquez un format valide (ex: N° 12 Boulevard de la Paix, Quartier Cocody, Abidjan, Côte d'Ivoire)",
+    }
+  );
+
 export const profileSchema = z.object({
   prenom: z.string().min(1).max(NAME_MAX_LENGTH).optional(),
   nom: z.string().min(1).max(NAME_MAX_LENGTH).optional(),
   telephone: z.string().max(PHONE_MAX_LENGTH).optional(),
   nationalite: z.string().max(NAME_MAX_LENGTH).optional(),
   dateNaissance: z.string().max(20).optional(),
-  adresse: z.string().max(ADDRESS_MAX_LENGTH).optional(),
+  adresse: addressSchema.optional().or(z.literal("")),
 });
 export type ProfileInput = z.infer<typeof profileSchema>;
 
@@ -194,7 +214,7 @@ export const wizardPersonalInfoSchema = z.object({
   tel: z.string().min(1, "Le téléphone est requis").max(PHONE_MAX_LENGTH),
   nationalite: z.string().min(1, "La nationalité est requise").max(NAME_MAX_LENGTH),
   naissance: z.string().max(20).optional().or(z.literal("")),
-  adresse: z.string().max(ADDRESS_MAX_LENGTH).optional().or(z.literal("")),
+  adresse: addressSchema.optional().or(z.literal("")),
 });
 export type WizardPersonalInfoInput = z.infer<typeof wizardPersonalInfoSchema>;
 

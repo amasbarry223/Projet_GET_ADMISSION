@@ -16,6 +16,7 @@ import { FormPageSkeleton } from "@/components/ui/skeleton-card";
 import { getApiErrorMessageSync, messageFromBody } from "@/lib/api-error";
 import { toast } from "sonner";
 import { Upload, ShieldCheck, Camera, CheckCircle2, Save, Loader2, AlertCircle } from "lucide-react";
+import { addressSchema } from "@/lib/validations";
 import {
   ProfilAcademiqueForm,
   emptyProfilAcademique,
@@ -44,7 +45,7 @@ type Profile = {
   profilAcademique?: ProfilAcademiqueFormState | null;
 };
 
-type ProfileErrors = Partial<Record<"prenom" | "nom", string>>;
+type ProfileErrors = Partial<Record<"prenom" | "nom" | "adresse", string>>;
 type PasswordErrors = Partial<Record<"current" | "next" | "confirm", string>>;
 
 export default function ProfilPage() {
@@ -55,6 +56,7 @@ export default function ProfilPage() {
   const [saving, setSaving] = React.useState(false);
   const [uploadingPhoto, setUploadingPhoto] = React.useState(false);
   const [password, setPassword] = React.useState({ current: "", next: "", confirm: "" });
+  const [showPasswords, setShowPasswords] = React.useState({ current: false, next: false, confirm: false });
   const [savingPassword, setSavingPassword] = React.useState(false);
   const [profileErrors, setProfileErrors] = React.useState<ProfileErrors>({});
   const [passwordErrors, setPasswordErrors] = React.useState<PasswordErrors>({});
@@ -96,7 +98,7 @@ export default function ProfilPage() {
 
   const setField = <K extends keyof Profile>(key: K, value: Profile[K]) => {
     setProfile((p) => (p ? { ...p, [key]: value } : p));
-    if (key === "prenom" || key === "nom") {
+    if (key === "prenom" || key === "nom" || key === "adresse") {
       setProfileErrors((prev) => ({ ...prev, [key]: undefined }));
     }
   };
@@ -106,9 +108,15 @@ export default function ProfilPage() {
     const errs: ProfileErrors = {};
     if (!profile.prenom.trim()) errs.prenom = "Le prénom est requis.";
     if (!profile.nom.trim()) errs.nom = "Le nom est requis.";
+    if (profile.adresse?.trim()) {
+      const parsedAddr = addressSchema.safeParse(profile.adresse);
+      if (!parsedAddr.success) {
+        errs.adresse = parsedAddr.error.issues[0]?.message ?? "Adresse invalide.";
+      }
+    }
     setProfileErrors(errs);
     if (Object.keys(errs).length) {
-      toast.error("Champs incomplets", { description: "Corrigez les champs indiqués." });
+      toast.error("Champs incomplets ou invalides", { description: "Corrigez les champs indiqués." });
       return;
     }
     setSaving(true);
@@ -338,7 +346,15 @@ export default function ProfilPage() {
               </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="profil-adresse">Adresse</Label>
-                <Input id="profil-adresse" value={profile.adresse ?? ""} onChange={(e) => setField("adresse", e.target.value)} />
+                <Input
+                  id="profil-adresse"
+                  value={profile.adresse ?? ""}
+                  placeholder="Ex: N° 12 Boulevard de la Paix, Quartier Cocody, Abidjan, Côte d'Ivoire"
+                  onChange={(e) => setField("adresse", e.target.value)}
+                  aria-invalid={!!profileErrors.adresse}
+                  aria-describedby={profileErrors.adresse ? "err-adresse" : undefined}
+                />
+                <FieldError id="err-adresse" message={profileErrors.adresse} />
               </div>
             </div>
             <div className="mt-5 flex justify-end">
@@ -503,59 +519,92 @@ export default function ProfilPage() {
             <div className="grid gap-4 sm:max-w-md">
               <div className="space-y-1.5">
                 <Label htmlFor="pwd-current">Mot de passe actuel</Label>
-                <Input
-                  id="pwd-current"
-                  type="password"
-                  value={password.current}
-                  onChange={(e) => {
-                    setPassword((p) => ({ ...p, current: e.target.value }));
-                    setPasswordErrors((prev) => {
-                      const { current: _, ...rest } = prev;
-                      return rest;
-                    });
-                  }}
-                  autoComplete="current-password"
-                  aria-invalid={!!passwordErrors.current}
-                  aria-describedby={passwordErrors.current ? "err-pwd-current" : undefined}
-                />
+                <div className="relative">
+                  <Input
+                    id="pwd-current"
+                    type={showPasswords.current ? "text" : "password"}
+                    value={password.current}
+                    onChange={(e) => {
+                      setPassword((p) => ({ ...p, current: e.target.value }));
+                      setPasswordErrors((prev) => {
+                        const { current: _, ...rest } = prev;
+                        return rest;
+                      });
+                    }}
+                    className="pr-10"
+                    autoComplete="current-password"
+                    aria-invalid={!!passwordErrors.current}
+                    aria-describedby={passwordErrors.current ? "err-pwd-current" : undefined}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords((s) => ({ ...s, current: !s.current }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ardoise hover:text-encre focus:outline-none"
+                    aria-label={showPasswords.current ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                  >
+                    {showPasswords.current ? <EyeOff className="h-4 w-4" strokeWidth={1.5} /> : <Eye className="h-4 w-4" strokeWidth={1.5} />}
+                  </button>
+                </div>
                 <FieldError id="err-pwd-current" message={passwordErrors.current} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="pwd-next">Nouveau mot de passe</Label>
-                <Input
-                  id="pwd-next"
-                  type="password"
-                  value={password.next}
-                  onChange={(e) => {
-                    setPassword((p) => ({ ...p, next: e.target.value }));
-                    setPasswordErrors((prev) => {
-                      const { next: _, ...rest } = prev;
-                      return rest;
-                    });
-                  }}
-                  autoComplete="new-password"
-                  aria-invalid={!!passwordErrors.next}
-                  aria-describedby={passwordErrors.next ? "err-pwd-next" : undefined}
-                />
+                <div className="relative">
+                  <Input
+                    id="pwd-next"
+                    type={showPasswords.next ? "text" : "password"}
+                    value={password.next}
+                    onChange={(e) => {
+                      setPassword((p) => ({ ...p, next: e.target.value }));
+                      setPasswordErrors((prev) => {
+                        const { next: _, ...rest } = prev;
+                        return rest;
+                      });
+                    }}
+                    className="pr-10"
+                    autoComplete="new-password"
+                    aria-invalid={!!passwordErrors.next}
+                    aria-describedby={passwordErrors.next ? "err-pwd-next" : undefined}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords((s) => ({ ...s, next: !s.next }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ardoise hover:text-encre focus:outline-none"
+                    aria-label={showPasswords.next ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                  >
+                    {showPasswords.next ? <EyeOff className="h-4 w-4" strokeWidth={1.5} /> : <Eye className="h-4 w-4" strokeWidth={1.5} />}
+                  </button>
+                </div>
                 <FieldError id="err-pwd-next" message={passwordErrors.next} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="pwd-confirm">Confirmer</Label>
-                <Input
-                  id="pwd-confirm"
-                  type="password"
-                  value={password.confirm}
-                  onChange={(e) => {
-                    setPassword((p) => ({ ...p, confirm: e.target.value }));
-                    setPasswordErrors((prev) => {
-                      const { confirm: _, ...rest } = prev;
-                      return rest;
-                    });
-                  }}
-                  autoComplete="new-password"
-                  aria-invalid={!!passwordErrors.confirm}
-                  aria-describedby={passwordErrors.confirm ? "err-pwd-confirm" : undefined}
-                />
+                <div className="relative">
+                  <Input
+                    id="pwd-confirm"
+                    type={showPasswords.confirm ? "text" : "password"}
+                    value={password.confirm}
+                    onChange={(e) => {
+                      setPassword((p) => ({ ...p, confirm: e.target.value }));
+                      setPasswordErrors((prev) => {
+                        const { confirm: _, ...rest } = prev;
+                        return rest;
+                      });
+                    }}
+                    className="pr-10"
+                    autoComplete="new-password"
+                    aria-invalid={!!passwordErrors.confirm}
+                    aria-describedby={passwordErrors.confirm ? "err-pwd-confirm" : undefined}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords((s) => ({ ...s, confirm: !s.confirm }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ardoise hover:text-encre focus:outline-none"
+                    aria-label={showPasswords.confirm ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                  >
+                    {showPasswords.confirm ? <EyeOff className="h-4 w-4" strokeWidth={1.5} /> : <Eye className="h-4 w-4" strokeWidth={1.5} />}
+                  </button>
+                </div>
                 <FieldError id="err-pwd-confirm" message={passwordErrors.confirm} />
               </div>
             </div>

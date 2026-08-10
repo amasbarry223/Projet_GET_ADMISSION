@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { BoardingPass } from "@/components/getadm/boarding-pass";
 import { RecapLine } from "@/components/dossier/wizard/upload-zone";
 import type { Formation, PersonalInfo, PieceRow, Universite } from "@/components/dossier/wizard/types";
 import { formatFCFA } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function DossierStepRecap({
@@ -16,6 +17,7 @@ export function DossierStepRecap({
   fraisAgenceAffiche,
   pieceRows,
   missingObligatoires,
+  isKycComplete = true,
   boardingReference,
   boardingEtat,
   boardingEtape,
@@ -30,6 +32,7 @@ export function DossierStepRecap({
   fraisAgenceAffiche: number;
   pieceRows: PieceRow[];
   missingObligatoires: PieceRow[];
+  isKycComplete?: boolean;
   boardingReference: string;
   boardingEtat: string;
   boardingEtape: number;
@@ -120,6 +123,23 @@ export function DossierStepRecap({
           })}
         </ul>
       </div>
+
+      {!isKycComplete && (
+        <div className="flex items-start gap-3 rounded-md border border-ambre/40 bg-jaune-pale/80 p-4 text-encre">
+          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-ambre" strokeWidth={1.5} />
+          <div className="space-y-1 text-sm">
+            <p className="font-semibold text-encre">Pièce d&apos;identité (KYC) requise</p>
+            <p className="text-xs text-ardoise">
+              Vous devez obligatoirement renseigner et téléverser votre pièce d&apos;identité (KYC) dans votre profil avant de pouvoir soumettre votre dossier.
+            </p>
+            <div className="pt-1">
+              <Button size="sm" variant="outline" className="border-ambre/40 text-encre hover:bg-ambre/10" asChild>
+                <Link href="/espace/profil?tab=kyc">Renseigner mon KYC dans mon profil &rarr;</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {missingObligatoires.length > 0 && (
         <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3">

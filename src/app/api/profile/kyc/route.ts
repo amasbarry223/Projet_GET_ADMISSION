@@ -163,6 +163,7 @@ export async function POST(request: Request) {
       ...(side === "recto" ? { kycRectoPath: uploaded.cheminRelatif } : { kycVersoPath: uploaded.cheminRelatif }),
       ...(kycType ? { kycType } : {}),
       ...(kycNumero ? { kycNumero } : {}),
+      ...(kycType === "passeport" ? { kycVersoPath: null } : {}),
       kycVerifie: false,
       kycVerifieLe: null,
     },
@@ -219,6 +220,7 @@ export async function PUT(request: Request) {
       prenom: true,
       nom: true,
       role: true,
+      kycType: true,
       kycRectoPath: true,
       kycVersoPath: true,
     },
@@ -232,9 +234,14 @@ export async function PUT(request: Request) {
       { status: 400 }
     );
   }
-  if (verifie && (!target.kycRectoPath || !target.kycVersoPath)) {
+  const needsVerso = target.kycType === "cni" || !target.kycType;
+  if (verifie && (!target.kycRectoPath || (needsVerso && !target.kycVersoPath))) {
     return NextResponse.json(
-      { error: "Impossible de valider le KYC sans recto et verso téléversés" },
+      {
+        error: needsVerso
+          ? "Impossible de valider le KYC sans les 2 fichiers distincts du recto et du verso téléversés."
+          : "Impossible de valider le KYC sans le scan du passeport (recto).",
+      },
       { status: 400 }
     );
   }

@@ -310,16 +310,25 @@ export default function DossierDetailClient() {
 
   const latestDemandeCorrection = dossier.demandesCorrection[0] ?? null;
 
+  const userRole = session?.user?.role;
+  const isConseiller = userRole === "CONSEILLER";
+  const isAssignedConseiller = isConseiller && dossier.conseiller?.id === session?.user?.id;
+  const dossierAccepteParConseiller = !!dossier.conseiller && etatLower !== "soumis" && etatLower !== "brouillon";
+  // Après acceptation par le conseiller (état au-delà de SOUMIS), l'Admin/SuperAdmin ne peut plus valider ni demander de corrections. Seul le conseiller affecté le peut.
+  const canValidateOrCorrect = isConseiller ? isAssignedConseiller : !dossierAccepteParConseiller;
+
   const actions: ActionDef[] = [];
   if (etatLower === "soumis") {
-    actions.push({ label: "Prendre en charge", icon: ShieldCheck, tone: "primary", toastLabel: "Vérification démarrée", toastDesc: "Dossier passé en « En vérification ».", workflowAction: "demarrer_verification" });
-    actions.push({ label: "Demander correction", icon: AlertCircle, tone: "outline", toastLabel: "Correction demandée", toastDesc: "Le candidat, l'admin et le super admin ont été notifiés.", workflowAction: "correction", motifDialog: true });
+    if (!isConseiller || isAssignedConseiller) {
+      actions.push({ label: "Prendre en charge", icon: ShieldCheck, tone: "primary", toastLabel: "Vérification démarrée", toastDesc: "Dossier passé en « En vérification ».", workflowAction: "demarrer_verification" });
+      actions.push({ label: "Demander correction", icon: AlertCircle, tone: "outline", toastLabel: "Correction demandée", toastDesc: "Le candidat, l'admin et le super admin ont été notifiés.", workflowAction: "correction", motifDialog: true });
+    }
   }
-  if (etatLower === "verification") {
+  if (etatLower === "verification" && canValidateOrCorrect) {
     actions.push({ label: "Valider le dossier", icon: ShieldCheck, tone: "primary", toastLabel: "Dossier validé", toastDesc: "Transition vers « Paiement en attente ».", workflowAction: "valider_dossier" });
     actions.push({ label: "Demander correction", icon: AlertCircle, tone: "outline", toastLabel: "Correction demandée", toastDesc: "Le candidat, l'admin et le super admin ont été notifiés.", workflowAction: "correction", motifDialog: true });
   }
-  if (etatLower === "correction") {
+  if (etatLower === "correction" && canValidateOrCorrect) {
     const dejaResoumis = latestDemandeCorrection?.statut === "SOUMISE";
     actions.push({
       label: "Vérifier les corrections",

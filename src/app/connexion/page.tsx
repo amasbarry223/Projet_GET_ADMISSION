@@ -208,7 +208,7 @@ function ConnexionInner() {
             />
             <Input
               id="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
@@ -217,12 +217,24 @@ function ConnexionInner() {
                   return rest;
                 });
               }}
-              className="pl-9"
+              className="pl-9 pr-10"
               placeholder="••••••••"
               autoComplete="current-password"
               aria-invalid={!!fieldErrors.password}
               aria-describedby={fieldErrors.password ? "err-login-password" : undefined}
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-ardoise hover:text-encre focus:outline-none"
+              aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+            >
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" strokeWidth={1.5} />
+              ) : (
+                <Eye className="h-4 w-4" strokeWidth={1.5} />
+              )}
+            </button>
           </div>
           <FieldError id="err-login-password" message={fieldErrors.password} />
         </div>

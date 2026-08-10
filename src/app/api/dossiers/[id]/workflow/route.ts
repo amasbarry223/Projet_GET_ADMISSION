@@ -62,6 +62,28 @@ export async function POST(
     return NextResponse.json({ error: "Accès refusé — ce dossier ne vous est pas affecté" }, { status: 403 });
   }
 
+  // Une fois le dossier affecté à un conseiller et accepté par celui-ci (état !== SOUMIS && état !== BROUILLON),
+  // l'Admin et le Super Admin ne peuvent plus valider le dossier ni demander des corrections.
+  const isValidationOrCorrection =
+    action === "valider_dossier" ||
+    action === "verifier_corrections" ||
+    (action === "correction" && dossier.etat !== "SOUMIS") ||
+    (action === "verifier" && dossier.etat === "VERIFICATION");
+
+  const isAcceptedByConseiller =
+    dossier.conseillerId !== null && dossier.etat !== "SOUMIS" && dossier.etat !== "BROUILLON";
+
+  if ((role === "ADMIN" || role === "SUPER_ADMIN") && isAcceptedByConseiller && isValidationOrCorrection) {
+    return NextResponse.json(
+      {
+        error:
+          "Accès refusé — ce dossier a été accepté par le conseiller affecté. L'administration ne peut plus le valider ni demander de corrections.",
+      },
+      { status: 403 }
+    );
+  }
+
+
   // États sources attendus pour updateMany conditionnel
   const fromStates =
     action === "verifier"

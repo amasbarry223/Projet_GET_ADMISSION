@@ -26,6 +26,7 @@ export function DossierStepInfos({
     label: string;
     type?: string;
     colSpan?: boolean;
+    placeholder?: string;
   }[] = [
     { key: "prenom", label: "Prénom" },
     { key: "nom", label: "Nom" },
@@ -33,7 +34,12 @@ export function DossierStepInfos({
     { key: "nationalite", label: "Nationalité" },
     { key: "email", label: "E-mail", type: "email" },
     { key: "tel", label: "Téléphone", type: "tel" },
-    { key: "adresse", label: "Adresse", colSpan: true },
+    {
+      key: "adresse",
+      label: "Adresse",
+      colSpan: true,
+      placeholder: "Ex: N° 12 Boulevard de la Paix, Quartier Cocody, Abidjan, Côte d'Ivoire",
+    },
   ];
 
   return (
@@ -45,7 +51,7 @@ export function DossierStepInfos({
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        {fields.map(({ key, label, type, colSpan }) => {
+        {fields.map(({ key, label, type, colSpan, placeholder }) => {
           const id = `infos-${key}`;
           const errorId = `${id}-error`;
           const message = err[key];
@@ -55,6 +61,7 @@ export function DossierStepInfos({
               <Input
                 id={id}
                 type={type}
+                placeholder={placeholder}
                 value={personalInfo[key]}
                 onChange={(event) => patch({ [key]: event.target.value })}
                 disabled={!isEditable}

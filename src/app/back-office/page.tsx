@@ -9,7 +9,7 @@ import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Mail, Lock, ArrowRight, Loader2, Shield } from "lucide-react";
+import { Mail, Lock, ArrowRight, Loader2, Shield, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
 import { FieldError } from "@/components/ui/field-error";
@@ -60,6 +60,7 @@ function BackOfficeLoginInner() {
   const callbackUrl = safeCallback(searchParams.get("callbackUrl"));
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [showPassword, setShowPassword] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [suggestCandidat, setSuggestCandidat] = React.useState(false);
   const [fieldErrors, setFieldErrors] = React.useState<{ email?: string; password?: string }>({});
@@ -234,7 +235,7 @@ function BackOfficeLoginInner() {
               />
               <Input
                 id="bo-password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
@@ -243,12 +244,24 @@ function BackOfficeLoginInner() {
                     return rest;
                   });
                 }}
-                className="h-11 rounded-lg border-ligne bg-porcelaine/40 pl-9 focus-visible:bg-blanc"
+                className="h-11 rounded-lg border-ligne bg-porcelaine/40 pl-9 pr-10 focus-visible:bg-blanc"
                 placeholder="••••••••"
                 autoComplete="current-password"
                 aria-invalid={!!fieldErrors.password}
                 aria-describedby={fieldErrors.password ? "err-bo-password" : undefined}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-ardoise hover:text-encre focus:outline-none"
+                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" strokeWidth={1.5} />
+                ) : (
+                  <Eye className="h-4 w-4" strokeWidth={1.5} />
+                )}
+              </button>
             </div>
             <FieldError id="err-bo-password" message={fieldErrors.password} />
           </div>

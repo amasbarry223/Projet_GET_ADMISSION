@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FieldError } from "@/components/ui/field-error";
-import { Lock, ArrowRight, Loader2, CheckCircle2 } from "lucide-react";
+import { Lock, ArrowRight, Loader2, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { toastApiErrorSync, toastApiSuccess } from "@/lib/toast-api";
 import { Suspense } from "react";
 import { BrandLogo } from "@/components/brand-logo";
@@ -18,6 +18,8 @@ function ResetForm() {
   const token = params.get("token") || "";
   const [password, setPassword] = React.useState("");
   const [confirm, setConfirm] = React.useState("");
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [showConfirm, setShowConfirm] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [done, setDone] = React.useState(false);
   const [fieldErrors, setFieldErrors] = React.useState<{
@@ -104,8 +106,8 @@ function ResetForm() {
           <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ardoise" />
           <Input
             id="password"
-            type="password"
-            className="pl-9"
+            type={showPassword ? "text" : "password"}
+            className="pl-9 pr-10"
             value={password}
             onChange={(e) => {
               setPassword(e.target.value);
@@ -118,26 +120,53 @@ function ResetForm() {
             aria-invalid={!!fieldErrors.password}
             aria-describedby={fieldErrors.password ? "err-reset-password" : undefined}
           />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-ardoise hover:text-encre focus:outline-none"
+            aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4" strokeWidth={1.5} />
+            ) : (
+              <Eye className="h-4 w-4" strokeWidth={1.5} />
+            )}
+          </button>
         </div>
         <FieldError id="err-reset-password" message={fieldErrors.password} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="confirm">Confirmer</Label>
-        <Input
-          id="confirm"
-          type="password"
-          value={confirm}
-          onChange={(e) => {
-            setConfirm(e.target.value);
-            setFieldErrors((prev) => {
-              const { confirm: _, ...rest } = prev;
-              return rest;
-            });
-          }}
-          autoComplete="new-password"
-          aria-invalid={!!fieldErrors.confirm}
-          aria-describedby={fieldErrors.confirm ? "err-reset-confirm" : undefined}
-        />
+        <div className="relative">
+          <Input
+            id="confirm"
+            type={showConfirm ? "text" : "password"}
+            className="pr-10"
+            value={confirm}
+            onChange={(e) => {
+              setConfirm(e.target.value);
+              setFieldErrors((prev) => {
+                const { confirm: _, ...rest } = prev;
+                return rest;
+              });
+            }}
+            autoComplete="new-password"
+            aria-invalid={!!fieldErrors.confirm}
+            aria-describedby={fieldErrors.confirm ? "err-reset-confirm" : undefined}
+          />
+          <button
+            type="button"
+            onClick={() => setShowConfirm(!showConfirm)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-ardoise hover:text-encre focus:outline-none"
+            aria-label={showConfirm ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+          >
+            {showConfirm ? (
+              <EyeOff className="h-4 w-4" strokeWidth={1.5} />
+            ) : (
+              <Eye className="h-4 w-4" strokeWidth={1.5} />
+            )}
+          </button>
+        </div>
         <FieldError id="err-reset-confirm" message={fieldErrors.confirm} />
       </div>
       <Button

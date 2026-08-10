@@ -14,7 +14,7 @@ import { FieldError } from "@/components/ui/field-error";
 import { FormPageSkeleton } from "@/components/ui/skeleton-card";
 import { getApiErrorMessageSync, messageFromBody } from "@/lib/api-error";
 import { toast } from "sonner";
-import { Camera, Save, Loader2, AlertCircle } from "lucide-react";
+import { Camera, Save, Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 type StaffProfile = {
   id: string;
@@ -37,6 +37,7 @@ export default function AdminProfilClient() {
   const [saving, setSaving] = React.useState(false);
   const [uploadingPhoto, setUploadingPhoto] = React.useState(false);
   const [password, setPassword] = React.useState({ current: "", next: "", confirm: "" });
+  const [showPasswords, setShowPasswords] = React.useState({ current: false, next: false, confirm: false });
   const [savingPassword, setSavingPassword] = React.useState(false);
   const [profileErrors, setProfileErrors] = React.useState<ProfileErrors>({});
   const [passwordErrors, setPasswordErrors] = React.useState<PasswordErrors>({});
@@ -304,59 +305,92 @@ export default function AdminProfilClient() {
             <div className="grid gap-4 sm:max-w-md">
               <div className="space-y-1.5">
                 <Label htmlFor="pwd-current">Mot de passe actuel</Label>
-                <Input
-                  id="pwd-current"
-                  type="password"
-                  value={password.current}
-                  onChange={(e) => {
-                    setPassword((p) => ({ ...p, current: e.target.value }));
-                    setPasswordErrors((prev) => {
-                      const { current: _, ...rest } = prev;
-                      return rest;
-                    });
-                  }}
-                  autoComplete="current-password"
-                  aria-invalid={!!passwordErrors.current}
-                  aria-describedby={passwordErrors.current ? "err-pwd-current" : undefined}
-                />
+                <div className="relative">
+                  <Input
+                    id="pwd-current"
+                    type={showPasswords.current ? "text" : "password"}
+                    value={password.current}
+                    onChange={(e) => {
+                      setPassword((p) => ({ ...p, current: e.target.value }));
+                      setPasswordErrors((prev) => {
+                        const { current: _, ...rest } = prev;
+                        return rest;
+                      });
+                    }}
+                    className="pr-10"
+                    autoComplete="current-password"
+                    aria-invalid={!!passwordErrors.current}
+                    aria-describedby={passwordErrors.current ? "err-pwd-current" : undefined}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords((s) => ({ ...s, current: !s.current }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ardoise hover:text-encre focus:outline-none"
+                    aria-label={showPasswords.current ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                  >
+                    {showPasswords.current ? <EyeOff className="h-4 w-4" strokeWidth={1.5} /> : <Eye className="h-4 w-4" strokeWidth={1.5} />}
+                  </button>
+                </div>
                 <FieldError id="err-pwd-current" message={passwordErrors.current} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="pwd-next">Nouveau mot de passe</Label>
-                <Input
-                  id="pwd-next"
-                  type="password"
-                  value={password.next}
-                  onChange={(e) => {
-                    setPassword((p) => ({ ...p, next: e.target.value }));
-                    setPasswordErrors((prev) => {
-                      const { next: _, ...rest } = prev;
-                      return rest;
-                    });
-                  }}
-                  autoComplete="new-password"
-                  aria-invalid={!!passwordErrors.next}
-                  aria-describedby={passwordErrors.next ? "err-pwd-next" : undefined}
-                />
+                <div className="relative">
+                  <Input
+                    id="pwd-next"
+                    type={showPasswords.next ? "text" : "password"}
+                    value={password.next}
+                    onChange={(e) => {
+                      setPassword((p) => ({ ...p, next: e.target.value }));
+                      setPasswordErrors((prev) => {
+                        const { next: _, ...rest } = prev;
+                        return rest;
+                      });
+                    }}
+                    className="pr-10"
+                    autoComplete="new-password"
+                    aria-invalid={!!passwordErrors.next}
+                    aria-describedby={passwordErrors.next ? "err-pwd-next" : undefined}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords((s) => ({ ...s, next: !s.next }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ardoise hover:text-encre focus:outline-none"
+                    aria-label={showPasswords.next ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                  >
+                    {showPasswords.next ? <EyeOff className="h-4 w-4" strokeWidth={1.5} /> : <Eye className="h-4 w-4" strokeWidth={1.5} />}
+                  </button>
+                </div>
                 <FieldError id="err-pwd-next" message={passwordErrors.next} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="pwd-confirm">Confirmer</Label>
-                <Input
-                  id="pwd-confirm"
-                  type="password"
-                  value={password.confirm}
-                  onChange={(e) => {
-                    setPassword((p) => ({ ...p, confirm: e.target.value }));
-                    setPasswordErrors((prev) => {
-                      const { confirm: _, ...rest } = prev;
-                      return rest;
-                    });
-                  }}
-                  autoComplete="new-password"
-                  aria-invalid={!!passwordErrors.confirm}
-                  aria-describedby={passwordErrors.confirm ? "err-pwd-confirm" : undefined}
-                />
+                <div className="relative">
+                  <Input
+                    id="pwd-confirm"
+                    type={showPasswords.confirm ? "text" : "password"}
+                    value={password.confirm}
+                    onChange={(e) => {
+                      setPassword((p) => ({ ...p, confirm: e.target.value }));
+                      setPasswordErrors((prev) => {
+                        const { confirm: _, ...rest } = prev;
+                        return rest;
+                      });
+                    }}
+                    className="pr-10"
+                    autoComplete="new-password"
+                    aria-invalid={!!passwordErrors.confirm}
+                    aria-describedby={passwordErrors.confirm ? "err-pwd-confirm" : undefined}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords((s) => ({ ...s, confirm: !s.confirm }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ardoise hover:text-encre focus:outline-none"
+                    aria-label={showPasswords.confirm ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                  >
+                    {showPasswords.confirm ? <EyeOff className="h-4 w-4" strokeWidth={1.5} /> : <Eye className="h-4 w-4" strokeWidth={1.5} />}
+                  </button>
+                </div>
                 <FieldError id="err-pwd-confirm" message={passwordErrors.confirm} />
               </div>
             </div>

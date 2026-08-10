@@ -155,12 +155,35 @@ function DossierWizard() {
 
   const piecesAcademiques = pieceRows.filter((piece) => piece.categorie !== "identite");
   const piecesIdentite = pieceRows.filter((piece) => piece.categorie === "identite");
-  const missingObligatoires = listPiecesManquantes(pieceRows);
+  const [userProfile, setUserProfile] = React.useState<{
+    kycType?: string | null;
+    kycNumero?: string | null;
+    kycRectoPath?: string | null;
+    kycVersoPath?: string | null;
+    kycVerifie?: boolean;
+  } | null>(null);
+
+  React.useEffect(() => {
+    fetch(API_ROUTES.PROFILE)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) setUserProfile(d);
+      })
+      .catch(() => null);
+  }, []);
+
+  const needsVerso = userProfile?.kycType === "cni" || !userProfile?.kycType;
+  const isKycComplete = Boolean(
+    userProfile?.kycType &&
+      userProfile?.kycNumero?.trim() &&
+      userProfile?.kycRectoPath &&
+      (!needsVerso || userProfile?.kycVersoPath),
+  );
 
   const etatUpper = (existingDossier?.etat || "BROUILLON").toUpperCase();
   const isEditable = isDossierEditableByCandidate(etatUpper);
   const canSubmit =
-    missingObligatoires.length === 0 && step === DOSSIER_WIZARD_STEPS.RECAP && isEditable;
+    missingObligatoires.length === 0 && isKycComplete && step === DOSSIER_WIZARD_STEPS.RECAP && isEditable;
   const isResubmit = etatUpper === "CORRECTION";
   const etatBadge = etatParCode(etatUpper);
 
@@ -333,6 +356,13 @@ function DossierWizard() {
   };
 
   const submit = async () => {
+    if (!isKycComplete) {
+      toastApiErrorSync(
+        new Error("Vous devez obligatoirement renseigner et téléverser votre pièce d'identité (KYC) dans votre profil avant de soumettre votre dossier."),
+        { title: "KYC obligatoire" },
+      );
+      return;
+    }
     if (!canSubmit) {
       toastApiErrorSync(
         new Error(`${missingObligatoires.length} pièce(s) obligatoire(s) manquante(s).`),
@@ -671,6 +701,7 @@ function DossierWizard() {
             fraisAgenceAffiche={fraisAgenceAffiche}
             pieceRows={pieceRows}
             missingObligatoires={missingObligatoires}
+            isKycComplete={isKycComplete}
             boardingReference={boardingReference}
             boardingEtat={boardingEtat}
             boardingEtape={boardingEtape}

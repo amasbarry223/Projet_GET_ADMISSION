@@ -570,7 +570,19 @@ export function KycClient({ initialData }: { initialData: KycRow[] }) {
         return;
       }
       toast.success(`${side === "recto" ? "Recto" : "Verso"} téléversé`);
-      setSheetOpen(false);
+      setSelected((prev) => {
+        if (!prev || prev.id !== userId) return prev;
+        const hasRecto = side === "recto" ? true : prev.hasRecto;
+        const hasVerso = side === "verso" ? true : prev.hasVerso;
+        const needsVerso = prev.kycType === "cni" || !prev.kycType;
+        const isComplete = hasRecto && (!needsVerso || hasVerso);
+        return {
+          ...prev,
+          hasRecto,
+          hasVerso,
+          statut: prev.kycVerifie ? "verifie" : isComplete ? "en_attente" : "incomplet",
+        };
+      });
       router.refresh();
     },
     [router],
@@ -586,7 +598,19 @@ export function KycClient({ initialData }: { initialData: KycRow[] }) {
         return;
       }
       toast.success(`${side === "recto" ? "Recto" : "Verso"} supprimé`);
-      setSheetOpen(false);
+      setSelected((prev) => {
+        if (!prev || prev.id !== userId) return prev;
+        const hasRecto = side === "recto" ? false : prev.hasRecto;
+        const hasVerso = side === "verso" ? false : prev.hasVerso;
+        const needsVerso = prev.kycType === "cni" || !prev.kycType;
+        const isComplete = hasRecto && (!needsVerso || hasVerso);
+        return {
+          ...prev,
+          hasRecto,
+          hasVerso,
+          statut: prev.kycVerifie ? "verifie" : isComplete ? "en_attente" : "incomplet",
+        };
+      });
       router.refresh();
     },
     [router],
