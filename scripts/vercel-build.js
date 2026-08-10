@@ -42,7 +42,5 @@ const dbHost = (() => {
     return "(invalid DATABASE_URL)";
   }
 })();
-console.log("[vercel-build] DATABASE_URL host=", dbHost);
-
-execSync("npx prisma generate", { stdio: "inherit", env: process.env });
+execSync("npx prisma@6 generate", { stdio: "inherit", env: process.env });
 execSync("npx next build", { stdio: "inherit", env: process.env });

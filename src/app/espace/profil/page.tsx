@@ -15,7 +15,7 @@ import { FieldError } from "@/components/ui/field-error";
 import { FormPageSkeleton } from "@/components/ui/skeleton-card";
 import { getApiErrorMessageSync, messageFromBody } from "@/lib/api-error";
 import { toast } from "sonner";
-import { Upload, ShieldCheck, Camera, CheckCircle2, Save, Loader2, AlertCircle } from "lucide-react";
+import { Upload, ShieldCheck, Camera, CheckCircle2, Save, Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { addressSchema } from "@/lib/validations";
 import {
   ProfilAcademiqueForm,

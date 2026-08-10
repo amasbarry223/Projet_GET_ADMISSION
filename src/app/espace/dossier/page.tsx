@@ -180,6 +180,7 @@ function DossierWizard() {
       (!needsVerso || userProfile?.kycVersoPath),
   );
 
+  const missingObligatoires = listPiecesManquantes(pieceRows);
   const etatUpper = (existingDossier?.etat || "BROUILLON").toUpperCase();
   const isEditable = isDossierEditableByCandidate(etatUpper);
   const canSubmit =
