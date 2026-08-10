@@ -43,6 +43,8 @@ export default async function AdminLogementDetailPage({
         paysDemandeVisa: reservation.paysDemandeVisa,
         villeEtablissementFrance: reservation.villeEtablissementFrance,
         dateArriveePrevue: reservation.dateArriveePrevue,
+        fichierPasseportUrl: reservation.fichierPasseportUrl,
+        fichierAttestationInscriptionUrl: reservation.fichierAttestationInscriptionUrl,
         statut: reservation.statut,
         motifCorrection: reservation.motifCorrection,
         createdAt: reservation.createdAt.toISOString(),

@@ -34,6 +34,9 @@ import { apiJson } from "@/lib/api-client";
 import { toast } from "sonner";
 import { formatDateTime } from "@/lib/format";
 import {
+  Download,
+  Eye,
+  FileText,
   ArrowLeft,
   Loader2,
   Pencil,
@@ -59,6 +62,8 @@ export type LogementReservationDetail = {
   paysDemandeVisa: string;
   villeEtablissementFrance: string;
   dateArriveePrevue: string;
+  fichierPasseportUrl?: string | null;
+  fichierAttestationInscriptionUrl?: string | null;
   statut: Statut;
   motifCorrection: string | null;
   createdAt: string;
@@ -360,6 +365,93 @@ export function LogementDetailClient({ reservation: initial }: { reservation: Lo
               </AlertDialogContent>
             </AlertDialog>
           )}
+        </div>
+      </Card>
+
+      {/* Section Documents uploadés */}
+      <Card className="border-ligne bg-card p-5 space-y-4">
+        <div>
+          <h2 className="font-display text-lg font-semibold text-encre flex items-center gap-2">
+            <FileText className="h-5 w-5 text-vert" strokeWidth={1.5} />
+            Documents uploadés ({[reservation.fichierPasseportUrl, reservation.fichierAttestationInscriptionUrl].filter(Boolean).length})
+          </h2>
+          <p className="text-xs text-ardoise mt-0.5">
+            Fichiers joints transmis par le candidat pour sa demande de logement.
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          {/* Fichier Passeport / CNI */}
+          <div className="flex items-center justify-between p-3.5 rounded-lg border border-ligne bg-porcelaine/50">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="p-2 rounded-md bg-vert/10 text-vert">
+                <FileText className="h-5 w-5" strokeWidth={1.5} />
+              </div>
+              <div className="truncate">
+                <p className="text-sm font-medium text-encre truncate">Passeport / CNI</p>
+                <p className="text-xs text-ardoise">Pièce d&apos;identité du candidat</p>
+              </div>
+            </div>
+            {reservation.fichierPasseportUrl ? (
+              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() => window.open(`/api/admin/logement/${reservation.id}/files/passeport?disposition=inline`, "_blank")}
+                >
+                  <Eye className="h-3.5 w-3.5" /> Voir
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-ardoise hover:text-encre"
+                  title="Télécharger"
+                  onClick={() => window.open(`/api/admin/logement/${reservation.id}/files/passeport?disposition=attachment`, "_blank")}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <Badge variant="outline" className="text-ardoise text-[11px]">Non téléversé</Badge>
+            )}
+          </div>
+
+          {/* Fichier Attestation Inscription */}
+          <div className="flex items-center justify-between p-3.5 rounded-lg border border-ligne bg-porcelaine/50">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="p-2 rounded-md bg-lapis/10 text-lapis">
+                <FileText className="h-5 w-5" strokeWidth={1.5} />
+              </div>
+              <div className="truncate">
+                <p className="text-sm font-medium text-encre truncate">Attestation d&apos;inscription</p>
+                <p className="text-xs text-ardoise">Justificatif d&apos;admission / Inscription</p>
+              </div>
+            </div>
+            {reservation.fichierAttestationInscriptionUrl ? (
+              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() => window.open(`/api/admin/logement/${reservation.id}/files/attestation?disposition=inline`, "_blank")}
+                >
+                  <Eye className="h-3.5 w-3.5" /> Voir
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-ardoise hover:text-encre"
+                  title="Télécharger"
+                  onClick={() => window.open(`/api/admin/logement/${reservation.id}/files/attestation?disposition=attachment`, "_blank")}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <Badge variant="outline" className="text-ardoise text-[11px]">Non téléversé</Badge>
+            )}
+          </div>
         </div>
       </Card>
 

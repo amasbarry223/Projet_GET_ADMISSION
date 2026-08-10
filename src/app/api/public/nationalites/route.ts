@@ -5,6 +5,10 @@ export const revalidate = 3600; // Cache 1 heure
 
 // GET /api/public/nationalites — liste des nationalités actives (noms seulement)
 export async function GET() {
-  const nationalites = await db.nationalite.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } });
-  return NextResponse.json(nationalites.map((n) => n.nom));
+  try {
+    const nationalites = await db.nationalite.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } });
+    return NextResponse.json(nationalites.map((n) => n.nom));
+  } catch {
+    return NextResponse.json([]);
+  }
 }

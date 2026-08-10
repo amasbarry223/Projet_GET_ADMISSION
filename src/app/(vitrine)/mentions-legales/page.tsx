@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 export default async function MentionsLegalesPage() {
-  const params = await db.parametre.findUnique({ where: { id: 1 } });
+  const params = await db.parametre.findUnique({ where: { id: 1 } }).catch(() => null);
   const contenu =
     params?.mentionsLegales?.trim() ||
     `## Mentions légales — GET Admission

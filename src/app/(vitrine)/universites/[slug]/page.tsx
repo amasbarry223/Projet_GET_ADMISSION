@@ -21,7 +21,7 @@ export async function generateMetadata({
   const univ = await db.universite.findUnique({
     where: { slug },
     select: { nom: true, pays: true, ville: true, description: true, estPlaceholder: true },
-  });
+  }).catch(() => null);
   if (!univ || univ.estPlaceholder) return { title: "Université non trouvée" };
   return {
     title: `${univ.nom} — ${univ.ville}, ${univ.pays} | GET Admission`,
@@ -52,7 +52,7 @@ export default async function UniversiteDetailPage({
   const row = await db.universite.findUnique({
     where: { slug },
     include: { formations: true },
-  });
+  }).catch(() => null);
   if (!row || row.estPlaceholder) notFound();
 
   const frais = resolveFraisAgence(row.typeEtablissement);

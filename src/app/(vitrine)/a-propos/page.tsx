@@ -66,9 +66,9 @@ function photoForMember(nom: string, index: number): string {
 
 export default async function AProposPage() {
   const [STATISTIQUES, EQUIPE, piliersRow] = await Promise.all([
-    db.statistique.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } }),
-    db.membreEquipe.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } }),
-    db.contenuSection.findUnique({ where: { cle: "piliers" } }),
+    db.statistique.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } }).catch(() => []),
+    db.membreEquipe.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } }).catch(() => []),
+    db.contenuSection.findUnique({ where: { cle: "piliers" } }).catch(() => null),
   ]);
 
   let piliersData = PILIERS_DEFAUT;

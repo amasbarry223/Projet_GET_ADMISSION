@@ -53,7 +53,7 @@ export default async function AccueilPage() {
     where: { partenaire: true },
     take: 12,
     orderBy: { nom: "asc" },
-  });
+  }).catch(() => []);
   const mapUniv = (u: (typeof univRows)[0]) => ({
     ...u,
     domaines: parseJsonArray(u.domaines),
@@ -68,12 +68,12 @@ export default async function AccueilPage() {
       formation: true,
       conseiller: { select: { prenom: true, nom: true } },
     },
-  });
+  }).catch(() => null);
 
   const [statistiquesRows, temoignagesRows, etapesRow] = await Promise.all([
-    db.statistique.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } }),
-    db.temoignage.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } }),
-    db.contenuSection.findUnique({ where: { cle: "etapes" } }),
+    db.statistique.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } }).catch(() => []),
+    db.temoignage.findMany({ where: { actif: true }, orderBy: { ordre: "asc" } }).catch(() => []),
+    db.contenuSection.findUnique({ where: { cle: "etapes" } }).catch(() => null),
   ]);
 
   let steps = ETAPES_DEFAUT;

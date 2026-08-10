@@ -65,6 +65,39 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   return NextResponse.json(updated);
 }
 
+// PATCH /api/admin/logement/crous/[id] — modification rapide du statut CROUS
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireApiPermission("logement.write");
+  if (!auth.ok) return auth.response;
+
+  const { id } = await params;
+  const existing = await db.demandeLogementCrous.findUnique({ where: { id } });
+  if (!existing) {
+    return NextResponse.json({ error: "Demande introuvable" }, { status: 404 });
+  }
+
+  const body = await request.json().catch(() => ({}));
+  const { statut } = body;
+  if (!["soumis", "en_cours_traitement", "correction_demandee"].includes(statut)) {
+    return NextResponse.json({ error: "Statut invalide" }, { status: 400 });
+  }
+
+  const updated = await db.demandeLogementCrous.update({
+    where: { id },
+    data: { statut },
+  });
+
+  await logAudit({
+    session: auth.session,
+    action: "UPDATE",
+    resource: "logement",
+    resourceId: id,
+    details: `Statut de la demande CROUS changé en : ${statut} (${updated.prenom} ${updated.nom})`,
+  });
+
+  return NextResponse.json(updated);
+}
+
 // DELETE /api/admin/logement/crous/[id] — suppression définitive d'une demande CROUS
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireApiPermission("logement.write");

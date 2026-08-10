@@ -35,6 +35,9 @@ import { apiJson } from "@/lib/api-client";
 import { toast } from "sonner";
 import { formatDateTime } from "@/lib/format";
 import {
+  Download,
+  Eye,
+  FileText,
   ArrowLeft,
   Loader2,
   Pencil,
@@ -59,6 +62,9 @@ export type DemandeCrousDetail = {
   telephone: string;
   email: string;
   villeEtablissementFrance: string;
+  fichierPasseportRectoUrl?: string | null;
+  fichierPasseportVersoUrl?: string | null;
+  fichierAttestationAccordPrealableUrl?: string | null;
   statut: Statut;
   motifCorrection: string | null;
   createdAt: string;
@@ -354,6 +360,129 @@ export function DemandeCrousDetailClient({ demande: initial }: { demande: Demand
               </AlertDialogContent>
             </AlertDialog>
           )}
+        </div>
+      </Card>
+
+      {/* Section Documents uploadés */}
+      <Card className="border-ligne bg-card p-5 space-y-4">
+        <div>
+          <h2 className="font-display text-lg font-semibold text-encre flex items-center gap-2">
+            <FileText className="h-5 w-5 text-vert" strokeWidth={1.5} />
+            Documents uploadés ({[demande.fichierPasseportRectoUrl, demande.fichierPasseportVersoUrl, demande.fichierAttestationAccordPrealableUrl].filter(Boolean).length})
+          </h2>
+          <p className="text-xs text-ardoise mt-0.5">
+            Fichiers joints transmis par le candidat pour sa demande de logement CROUS.
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          {/* Fichier Passeport Recto */}
+          <div className="flex items-center justify-between p-3.5 rounded-lg border border-ligne bg-porcelaine/50">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="p-2 rounded-md bg-vert/10 text-vert">
+                <FileText className="h-5 w-5" strokeWidth={1.5} />
+              </div>
+              <div className="truncate">
+                <p className="text-sm font-medium text-encre truncate">Passeport (Recto)</p>
+                <p className="text-xs text-ardoise">Pièce d&apos;identité recto</p>
+              </div>
+            </div>
+            {demande.fichierPasseportRectoUrl ? (
+              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() => window.open(`/api/admin/logement/crous/${demande.id}/files/passeport_recto?disposition=inline`, "_blank")}
+                >
+                  <Eye className="h-3.5 w-3.5" /> Voir
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-ardoise hover:text-encre"
+                  title="Télécharger"
+                  onClick={() => window.open(`/api/admin/logement/crous/${demande.id}/files/passeport_recto?disposition=attachment`, "_blank")}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <Badge variant="outline" className="text-ardoise text-[11px]">Non téléversé</Badge>
+            )}
+          </div>
+
+          {/* Fichier Passeport Verso */}
+          <div className="flex items-center justify-between p-3.5 rounded-lg border border-ligne bg-porcelaine/50">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="p-2 rounded-md bg-vert/10 text-vert">
+                <FileText className="h-5 w-5" strokeWidth={1.5} />
+              </div>
+              <div className="truncate">
+                <p className="text-sm font-medium text-encre truncate">Passeport (Verso)</p>
+                <p className="text-xs text-ardoise">Pièce d&apos;identité verso</p>
+              </div>
+            </div>
+            {demande.fichierPasseportVersoUrl ? (
+              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() => window.open(`/api/admin/logement/crous/${demande.id}/files/passeport_verso?disposition=inline`, "_blank")}
+                >
+                  <Eye className="h-3.5 w-3.5" /> Voir
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-ardoise hover:text-encre"
+                  title="Télécharger"
+                  onClick={() => window.open(`/api/admin/logement/crous/${demande.id}/files/passeport_verso?disposition=attachment`, "_blank")}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <Badge variant="outline" className="text-ardoise text-[11px]">Non téléversé</Badge>
+            )}
+          </div>
+
+          {/* Fichier Attestation Accord Prealable */}
+          <div className="flex items-center justify-between p-3.5 rounded-lg border border-ligne bg-porcelaine/50">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="p-2 rounded-md bg-lapis/10 text-lapis">
+                <FileText className="h-5 w-5" strokeWidth={1.5} />
+              </div>
+              <div className="truncate">
+                <p className="text-sm font-medium text-encre truncate">Attestation préalable</p>
+                <p className="text-xs text-ardoise">Accord préalable / Inscription</p>
+              </div>
+            </div>
+            {demande.fichierAttestationAccordPrealableUrl ? (
+              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() => window.open(`/api/admin/logement/crous/${demande.id}/files/attestation?disposition=inline`, "_blank")}
+                >
+                  <Eye className="h-3.5 w-3.5" /> Voir
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-ardoise hover:text-encre"
+                  title="Télécharger"
+                  onClick={() => window.open(`/api/admin/logement/crous/${demande.id}/files/attestation?disposition=attachment`, "_blank")}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <Badge variant="outline" className="text-ardoise text-[11px]">Non téléversé</Badge>
+            )}
+          </div>
         </div>
       </Card>
 

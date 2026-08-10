@@ -5,10 +5,14 @@ export const revalidate = 3600; // Cache 1 heure
 
 // GET /api/public/stats — statistiques vitrine (public)
 export async function GET() {
-  const stats = await db.statistique.findMany({
-    where: { actif: true },
-    orderBy: { ordre: "asc" },
-    select: { valeur: true, libelle: true },
-  });
-  return NextResponse.json(stats);
+  try {
+    const stats = await db.statistique.findMany({
+      where: { actif: true },
+      orderBy: { ordre: "asc" },
+      select: { valeur: true, libelle: true },
+    });
+    return NextResponse.json(stats);
+  } catch {
+    return NextResponse.json([]);
+  }
 }

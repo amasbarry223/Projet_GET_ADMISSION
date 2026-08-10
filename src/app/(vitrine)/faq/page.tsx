@@ -15,7 +15,7 @@ export default async function FaqPage() {
   const faqItems = await db.faq.findMany({
     where: { actif: true },
     orderBy: { ordre: "asc" },
-  });
+  }).catch(() => []);
 
   return (
     <>

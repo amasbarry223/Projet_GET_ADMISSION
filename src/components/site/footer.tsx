@@ -34,7 +34,7 @@ const COLONNES = [
 ];
 
 export async function SiteFooter() {
-  const info = await db.contactInfo.findUnique({ where: { id: 1 } });
+  const info = await db.contactInfo.findUnique({ where: { id: 1 } }).catch(() => null);
   const email = info?.email ?? "";
   const telephone = info?.telephone ?? "";
   const adresses = info?.adresses ?? "";

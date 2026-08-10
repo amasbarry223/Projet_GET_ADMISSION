@@ -11,11 +11,12 @@ import {
   createActionsColumn,
   type ActionItem,
 } from "@/components/data-table/data-table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/format";
 import { apiJson } from "@/lib/api-client";
 import { toast } from "sonner";
-import { BedDouble, Eye, Printer, Trash2 } from "lucide-react";
+import { BedDouble, Eye, Loader2, Printer, Trash2 } from "lucide-react";
 
 export type LogementRow = {
   id: string;
@@ -55,7 +56,35 @@ export function LogementClient({
   const router = useRouter();
   const { data: session } = useSession();
   const canWrite = hasPermission(session?.user?.role, "logement.write");
-  const data = initialData;
+  const [data, setData] = React.useState<LogementRow[]>(initialData);
+  const [prevInitialData, setPrevInitialData] = React.useState<LogementRow[]>(initialData);
+  const [updatingId, setUpdatingId] = React.useState<string | null>(null);
+
+  if (prevInitialData !== initialData) {
+    setPrevInitialData(initialData);
+    setData(initialData);
+  }
+
+  const updateStatut = React.useCallback(
+    async (row: LogementRow, newStatut: LogementRow["statut"]) => {
+      if (row.statut === newStatut) return;
+      setUpdatingId(row.id);
+      const result = await apiJson(`${apiBasePath}/${row.id}`, "PATCH", { statut: newStatut });
+      setUpdatingId(null);
+      if (!result.ok) {
+        toast.error("Modification du statut impossible", { description: result.error });
+        return;
+      }
+      setData((prev) =>
+        prev.map((item) => (item.id === row.id ? { ...item, statut: newStatut } : item))
+      );
+      toast.success("Statut mis à jour", {
+        description: `Demande de ${row.candidat} : ${STATUT_LABEL[newStatut]}.`,
+      });
+      router.refresh();
+    },
+    [apiBasePath, router]
+  );
 
   const deleteReservation = React.useCallback(
     async (row: LogementRow) => {
@@ -127,11 +156,46 @@ export function LogementClient({
         id: "statut",
         accessorKey: "statut",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Statut" />,
-        cell: ({ row }) => (
-          <Badge className={`font-mono text-[10px] uppercase ${STATUT_TONE[row.original.statut]}`}>
-            {STATUT_LABEL[row.original.statut]}
-          </Badge>
-        ),
+        cell: ({ row }) => {
+          const currentStatut = row.original.statut;
+          const isUpdating = updatingId === row.original.id;
+
+          if (!canWrite) {
+            return (
+              <Badge className={`font-mono text-[10px] uppercase ${STATUT_TONE[currentStatut]}`}>
+                {STATUT_LABEL[currentStatut]}
+              </Badge>
+            );
+          }
+
+          return (
+            <div className="flex items-center gap-1.5">
+              <Select
+                value={currentStatut}
+                disabled={isUpdating}
+                onValueChange={(val) => void updateStatut(row.original, val as LogementRow["statut"])}
+              >
+                <SelectTrigger
+                  className={`h-7 w-[190px] text-[11px] font-mono uppercase font-semibold border ${STATUT_TONE[currentStatut]}`}
+                >
+                  <SelectValue>{STATUT_LABEL[currentStatut]}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="soumis" className="text-xs font-mono uppercase">
+                    Soumise
+                  </SelectItem>
+                  <SelectItem value="en_cours_traitement" className="text-xs font-mono uppercase">
+                    En cours de traitement
+                  </SelectItem>
+                  <SelectItem value="correction_demandee" className="text-xs font-mono uppercase">
+                    Correction demandée
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {isUpdating && <Loader2 className="h-3.5 w-3.5 animate-spin text-ardoise" />}
+            </div>
+          );
+        },
       },
       {
         id: "soumiseLe",
@@ -141,8 +205,9 @@ export function LogementClient({
       },
       createActionsColumn<LogementRow>(actions, { ariaLabel: (row) => `Actions sur la demande de ${row.candidat}` }),
     ],
-    [actions],
+    [actions, canWrite, updateStatut, updatingId],
   );
+
 
   return (
     <div className="space-y-5">

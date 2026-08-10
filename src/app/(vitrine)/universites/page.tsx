@@ -15,8 +15,8 @@ export default async function CatalogueUniversitesPage() {
       where: { estPlaceholder: false },
       include: { formations: true },
       orderBy: { nom: "asc" },
-    }),
-    getFraisAgenceConfig(),
+    }).catch(() => []),
+    getFraisAgenceConfig().catch(() => ({ public: 300000, prive: 200000 })),
   ]);
 
   const universites: CatalogueUniversite[] = rows.map((u) => {
