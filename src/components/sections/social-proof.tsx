@@ -113,7 +113,7 @@ export function SocialProof({
 
   return (
     <section
-      className="relative overflow-hidden bg-[#0a0e17] py-24 text-white"
+      className="relative overflow-hidden bg-background py-24 text-foreground"
       aria-labelledby="temoignages-title"
     >
       <div className="pointer-events-none absolute inset-0" aria-hidden>
@@ -134,11 +134,11 @@ export function SocialProof({
           </p>
           <h2
             id="temoignages-title"
-            className="mt-4 font-display text-3xl font-bold text-white md:text-4xl"
+            className="mt-4 font-display text-3xl font-bold text-foreground md:text-4xl"
           >
             Ils sont passés par GET Admission.
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-white/80">
+          <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
             Des étudiants maliens racontent leur parcours avec GET Admission, de Bamako
             jusqu&apos;à la pré-admission.
           </p>
@@ -149,7 +149,7 @@ export function SocialProof({
                 {withPhotos.slice(0, 5).map((t) => (
                   <span
                     key={t.nom}
-                    className="relative flex h-9 w-9 overflow-hidden rounded-full border-2 border-[#0a0e17] bg-primary/20"
+                    className="relative flex h-9 w-9 overflow-hidden rounded-full border-2 border-background bg-primary/20"
                     title={t.nom}
                   >
                     {t.photoUrl ? (
@@ -169,7 +169,7 @@ export function SocialProof({
                 ))}
               </div>
               {candidateCountLabel ? (
-                <p className="text-sm text-white/70">{candidateCountLabel}</p>
+                <p className="text-sm text-muted-foreground">{candidateCountLabel}</p>
               ) : null}
             </div>
           )}
