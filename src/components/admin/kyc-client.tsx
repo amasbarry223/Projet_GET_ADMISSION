@@ -178,7 +178,7 @@ function PieceSlot({
           className="absolute inset-0 outline-none focus-visible:ring-2 focus-visible:ring-lapis/40 focus-visible:ring-offset-2"
           aria-label={`Ouvrir la pièce ${label}`}
         />
-        <span className="pointer-events-none absolute right-2.5 top-2.5 rounded-md bg-card/95 p-1 text-ardoise opacity-0 shadow-sm transition-opacity duration-200 group-hover:opacity-100">
+        <span className="pointer-events-none absolute right-2.5 top-2.5 rounded-md bg-card/95 p-1 text-ardoise opacity-100 shadow-sm transition-opacity duration-200 sm:opacity-0 sm:group-hover:opacity-100">
           <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
         </span>
         <FileImage className="h-8 w-8 text-lapis" strokeWidth={1.25} aria-hidden />
