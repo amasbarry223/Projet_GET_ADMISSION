@@ -51,7 +51,7 @@ export async function GET() {
     d.conseiller ? `${d.conseiller.prenom} ${d.conseiller.nom}` : "Non affecté",
     String(d.fraisAgence),
     d.paiementStatut,
-    d.updatedAt.toISOString().split("T")[0],
+    d.updatedAt.toISOString().slice(0, 10),
   ]);
 
   const excelBuffer = await buildExcelListingBuffer({

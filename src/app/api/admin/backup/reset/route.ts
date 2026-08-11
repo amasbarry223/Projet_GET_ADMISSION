@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/rbac";
 import { logAudit } from "@/lib/audit";
+import { validate } from "@/lib/validations";
 
 const CONFIRM_PHRASE = "REINITIALISER";
+const backupResetSchema = z.object({ confirm: z.string() });
 
 // POST /api/admin/backup/reset — réinitialise les données d'activité (Super Admin uniquement)
 //
@@ -28,8 +31,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
 
-  const confirm = (body as { confirm?: string })?.confirm;
-  if (confirm !== CONFIRM_PHRASE) {
+  const parsed = validate(backupResetSchema, body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
+  if (parsed.data.confirm !== CONFIRM_PHRASE) {
     return NextResponse.json(
       { error: `Confirmation invalide. Saisissez exactement « ${CONFIRM_PHRASE} » pour continuer.` },
       { status: 400 },

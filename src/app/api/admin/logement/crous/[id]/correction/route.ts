@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireApiPermission } from "@/lib/api-auth";
+import { requireApiPermission, parseOrRespond } from "@/lib/api-auth";
 import { createNotification } from "@/lib/notifications";
 import { sendMail, logementCorrectionEmailHtml } from "@/lib/mail";
 import { logAudit } from "@/lib/audit";
+import { correctionMotifSchema } from "@/lib/validations";
 
 // POST /api/admin/logement/crous/[id]/correction — le staff demande une correction au candidat
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -11,11 +12,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!auth.ok) return auth.response;
 
   const { id } = await params;
-  const body = await request.json().catch(() => ({}));
-  const motif = typeof body?.motif === "string" ? body.motif.trim() : "";
-  if (!motif) {
-    return NextResponse.json({ error: "Le motif de correction est requis" }, { status: 400 });
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
+  const parsed = parseOrRespond(correctionMotifSchema, body);
+  if (!parsed.ok) return parsed.response;
+  const { motif } = parsed.data;
 
   const demande = await db.demandeLogementCrous.findUnique({
     where: { id },

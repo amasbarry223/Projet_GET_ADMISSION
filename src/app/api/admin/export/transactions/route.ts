@@ -84,7 +84,7 @@ export async function GET(request: Request) {
     t.dossier.reference,
     t.dossier.universite.nom,
     typeLabel(t),
-    t.date.toISOString().split("T")[0],
+    t.date.toISOString().slice(0, 10),
     t.moyen,
     t.tranche ?? "",
     String(t.montant),
@@ -100,7 +100,7 @@ export async function GET(request: Request) {
     rows
   });
 
-  return new NextResponse(excelBuffer as any, {
+  return new NextResponse(excelBuffer, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="transactions-${fileStamp}.xlsx"`,
