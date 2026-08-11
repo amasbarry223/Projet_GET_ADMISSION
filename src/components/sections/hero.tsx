@@ -5,6 +5,7 @@ import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { MotionButton } from "@/components/site/motion-button";
+import { TypingHeadline } from "@/components/site/typing-headline";
 import { fadeInUp, motionSafeVariants, scaleIn } from "@/lib/animations";
 
 /**
@@ -50,8 +51,13 @@ export function HomeHero() {
           </span>
 
           <h1 className="mt-6 max-w-[18ch] text-balance font-display text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-[3.35rem] lg:leading-[1.08] xl:text-6xl">
-            Votre admission à{" "}
-            <span className="text-primary">l&apos;étranger</span>, accompagnée de bout en bout.
+            <TypingHeadline
+              segments={[
+                { text: "Votre admission à " },
+                { text: "l'étranger", className: "text-primary" },
+                { text: ", accompagnée de bout en bout." },
+              ]}
+            />
           </h1>
           <p className="mt-5 max-w-md text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">
             GET Admission guide les étudiants d&apos;Afrique de l&apos;Ouest : université partenaire,

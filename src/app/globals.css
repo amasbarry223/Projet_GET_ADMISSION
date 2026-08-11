@@ -89,7 +89,12 @@
   --animate-fade-up: fade-up 0.6s cubic-bezier(0.22,1,0.36,1) both;
   --animate-marquee: marquee 40s linear infinite;
   --animate-float: float-y 6s ease-in-out infinite;
+  --animate-caret-blink: caret-blink 1s step-end infinite;
 
+  @keyframes caret-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
   @keyframes stamp-drop {
     0% { opacity: 0; transform: scale(1.6) rotate(-12deg); }
     60% { opacity: 1; transform: scale(0.94) rotate(-7deg); }
