@@ -8,6 +8,7 @@ import { MotionButton } from "@/components/site/motion-button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { formatDateFR } from "@/lib/format";
 import { profilFromApi } from "@/components/dossier/profil-academique-form";
 import {
   parseStringList,
@@ -525,7 +526,7 @@ function DossierWizard() {
                 <ul className="mt-1.5 space-y-1">
                   {historiqueMotifs.map((m) => (
                     <li key={m.id} className="text-muted-foreground">
-                      <span className="font-mono text-xs">{new Date(m.createdAt).toLocaleDateString("fr-FR")}</span> — {m.motif}
+                      <span className="font-mono text-xs">{formatDateFR(m.createdAt)}</span> — {m.motif}
                     </li>
                   ))}
                 </ul>

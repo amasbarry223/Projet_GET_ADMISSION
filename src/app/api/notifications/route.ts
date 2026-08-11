@@ -15,16 +15,17 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const unreadOnly = searchParams.get("unread") === "1";
 
-  const notifications = await db.notification.findMany({
-    where: {
-      userId,
-      ...(unreadOnly ? { lu: false } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    take: 50,
-  });
-
-  const unreadCount = await db.notification.count({ where: { userId, lu: false } });
+  const [notifications, unreadCount] = await Promise.all([
+    db.notification.findMany({
+      where: {
+        userId,
+        ...(unreadOnly ? { lu: false } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
+    db.notification.count({ where: { userId, lu: false } }),
+  ]);
 
   return NextResponse.json({ notifications, unreadCount });
 }

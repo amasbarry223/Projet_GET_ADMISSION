@@ -98,67 +98,76 @@ export async function GET() {
   // Super Admin et Financier gardent la vue globale déjà en place.
   const isConseiller = session.user.role === "CONSEILLER";
 
-  // 1. Dossiers en attente d'action
-  const dossiersAction = await db.dossier.findMany({
-    where: {
-      etat: { in: ["SOUMIS", "CORRECTION", "PAIEMENT_ATTENTE", "VERIFICATION"] },
-      ...(isConseiller ? { conseillerId: userId } : {}),
-    },
-    include: { candidat: { select: { prenom: true, nom: true } } },
-    take: 5,
-    orderBy: { updatedAt: "desc" },
-  });
-  for (const d of dossiersAction) {
-    const buildMessage = DOSSIER_ACTION_MESSAGE[d.etat];
-    if (!buildMessage) continue;
-    await ensureNotif(userId, {
-      type: "dossier",
-      titre: d.reference,
-      message: buildMessage(`${d.candidat.prenom} ${d.candidat.nom}`, d.reference),
-      lien: `/admin/dossiers/${d.id}`,
-      dossierId: d.id,
-    });
-  }
+  // Les 3 listes sont indépendantes l'une de l'autre — récupérées en parallèle.
+  const [dossiersAction, paiementsEchoues, conversationsNonLues] = await Promise.all([
+    // 1. Dossiers en attente d'action
+    db.dossier.findMany({
+      where: {
+        etat: { in: ["SOUMIS", "CORRECTION", "PAIEMENT_ATTENTE", "VERIFICATION"] },
+        ...(isConseiller ? { conseillerId: userId } : {}),
+      },
+      include: { candidat: { select: { prenom: true, nom: true } } },
+      take: 5,
+      orderBy: { updatedAt: "desc" },
+    }),
+    // 2. Paiements échoués
+    db.paiement.findMany({
+      where: {
+        statut: "echoue",
+        ...(isConseiller ? { dossier: { conseillerId: userId } } : {}),
+      },
+      include: { candidat: { select: { prenom: true, nom: true } }, dossier: { select: { reference: true } } },
+      take: 3,
+      orderBy: { date: "desc" },
+    }),
+    // 3. Messages non lus (côté conseiller)
+    db.conversation.findMany({
+      where: {
+        nonLusConseiller: { gt: 0 },
+        ...(isConseiller ? { conseillerId: userId } : {}),
+      },
+      include: { candidat: { select: { prenom: true, nom: true } }, dossier: { select: { reference: true, id: true } } },
+      take: 3,
+      orderBy: { updatedAt: "desc" },
+    }),
+  ]);
 
-  // 2. Paiements échoués
-  const paiementsEchoues = await db.paiement.findMany({
-    where: {
-      statut: "echoue",
-      ...(isConseiller ? { dossier: { conseillerId: userId } } : {}),
-    },
-    include: { candidat: { select: { prenom: true, nom: true } }, dossier: { select: { reference: true } } },
-    take: 3,
-    orderBy: { date: "desc" },
-  });
-  for (const p of paiementsEchoues) {
-    await ensureNotif(userId, {
-      type: "paiement",
-      titre: p.reference,
-      message: `Paiement échoué — ${p.candidat.prenom} ${p.candidat.nom} (${p.dossier.reference})`,
-      lien: "/admin/finance",
-      dossierId: p.dossierId,
-    });
-  }
-
-  // 3. Messages non lus (côté conseiller)
-  const conversationsNonLues = await db.conversation.findMany({
-    where: {
-      nonLusConseiller: { gt: 0 },
-      ...(isConseiller ? { conseillerId: userId } : {}),
-    },
-    include: { candidat: { select: { prenom: true, nom: true } }, dossier: { select: { reference: true, id: true } } },
-    take: 3,
-    orderBy: { updatedAt: "desc" },
-  });
-  for (const c of conversationsNonLues) {
-    await ensureMessageNotif(userId, {
-      titre: c.dossier.reference,
-      message: `${c.nonLusConseiller} message(s) non lu(s) de ${c.candidat.prenom} ${c.candidat.nom}`,
-      lien: `/admin/dossiers/${c.dossier.id}`,
-      dossierId: c.dossier.id,
-      sourceUpdatedAt: c.updatedAt,
-    });
-  }
+  // Dédoublonnage par (userId, type, titre[, dossierId]) : clés indépendantes entre catégories
+  // (type différent) et au sein d'une même catégorie (référence/dossier distincts) — parallélisable
+  // sans risque de doublon (cf. commentaire ensureNotif).
+  await Promise.all([
+    ...dossiersAction.flatMap((d) => {
+      const buildMessage = DOSSIER_ACTION_MESSAGE[d.etat];
+      if (!buildMessage) return [];
+      return [
+        ensureNotif(userId, {
+          type: "dossier",
+          titre: d.reference,
+          message: buildMessage(`${d.candidat.prenom} ${d.candidat.nom}`, d.reference),
+          lien: `/admin/dossiers/${d.id}`,
+          dossierId: d.id,
+        }),
+      ];
+    }),
+    ...paiementsEchoues.map((p) =>
+      ensureNotif(userId, {
+        type: "paiement",
+        titre: p.reference,
+        message: `Paiement échoué — ${p.candidat.prenom} ${p.candidat.nom} (${p.dossier.reference})`,
+        lien: "/admin/finance",
+        dossierId: p.dossierId,
+      }),
+    ),
+    ...conversationsNonLues.map((c) =>
+      ensureMessageNotif(userId, {
+        titre: c.dossier.reference,
+        message: `${c.nonLusConseiller} message(s) non lu(s) de ${c.candidat.prenom} ${c.candidat.nom}`,
+        lien: `/admin/dossiers/${c.dossier.id}`,
+        dossierId: c.dossier.id,
+        sourceUpdatedAt: c.updatedAt,
+      }),
+    ),
+  ]);
 
   const notifs = await db.notification.findMany({
     where: { userId, lu: false },

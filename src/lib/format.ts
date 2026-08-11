@@ -28,6 +28,11 @@ export function formatDate(iso: string): string {
   return `${d.getDate()} ${MOIS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+/** Date au format court localisé (ex. 11/08/2026) — équivalent à Date.toLocaleDateString("fr-FR"). */
+export function formatDateFR(iso: string): string {
+  return new Date(iso).toLocaleDateString("fr-FR");
+}
+
 export function formatDateCourte(iso: string): string {
   const d = new Date(iso);
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;

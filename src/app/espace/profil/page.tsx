@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { FieldError } from "@/components/ui/field-error";
 import { FormPageSkeleton } from "@/components/ui/skeleton-card";
 import { getApiErrorMessageSync, messageFromBody } from "@/lib/api-error";
+import { formatDateFR } from "@/lib/format";
 import { toast } from "sonner";
 import { Upload, ShieldCheck, Camera, CheckCircle2, Save, Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { addressSchema } from "@/lib/validations";
@@ -440,7 +441,7 @@ export default function ProfilPage() {
                     <p className="text-xs text-ardoise">
                       {profile.kycType === "cni" ? "CNI" : "Passeport"}
                       {profile.kycVerifie && profile.kycVerifieLe
-                        ? ` · Vérifié le ${new Date(profile.kycVerifieLe).toLocaleDateString("fr-FR")}`
+                        ? ` · Vérifié le ${formatDateFR(profile.kycVerifieLe)}`
                         : ""}
                     </p>
                   </div>

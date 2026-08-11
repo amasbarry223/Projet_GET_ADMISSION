@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { formatDateFR } from "@/lib/format";
 import { toast } from "sonner";
 import {
   CheckCircle2,
@@ -209,7 +210,7 @@ export function AdminVisaClient({ initialData }: { initialData: AdminVisaItem[] 
 
                   <div className="mt-5 pt-3 border-t border-ligne/60 flex items-center justify-between gap-2">
                     <span className="text-[11px] text-ardoise">
-                      {new Date(item.updatedAt).toLocaleDateString("fr-FR")}
+                      {formatDateFR(item.updatedAt)}
                     </span>
                     {item.fichierVisaUrl && (
                       <Button
@@ -267,7 +268,7 @@ export function AdminVisaClient({ initialData }: { initialData: AdminVisaItem[] 
                     </div>
 
                     <div className="text-right text-xs text-ardoise shrink-0">
-                      Déclaré le {new Date(item.updatedAt).toLocaleDateString("fr-FR")}
+                      Déclaré le {formatDateFR(item.updatedAt)}
                     </div>
                   </div>
 

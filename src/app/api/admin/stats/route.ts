@@ -206,9 +206,11 @@ export async function GET() {
   }));
 
   // --- Finance KPIs ---
-  const totalEncaisse = await db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "reussi", ...dossierRelWhere } });
-  const enAttente = await db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "en_attente", ...dossierRelWhere } });
-  const impayes = await db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "echoue", ...dossierRelWhere } });
+  const [totalEncaisse, enAttente, impayes] = await Promise.all([
+    db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "reussi", ...dossierRelWhere } }),
+    db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "en_attente", ...dossierRelWhere } }),
+    db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "echoue", ...dossierRelWhere } }),
+  ]);
 
   // --- Ventilation CDC : type établissement + profil candidat ---
   // repartitionProfilCandidat reste global (agrégat anonyme via ProfilAcademique, non lié à
