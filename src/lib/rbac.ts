@@ -152,8 +152,6 @@ export function defaultAdminRoute(role: Role | string): string {
       return "/admin/finance";
     case "CONSEILLER":
       return "/admin/dossiers";
-    case "SUPER_ADMIN":
-      return "/admin/parametres";
     default:
       return "/admin";
   }
