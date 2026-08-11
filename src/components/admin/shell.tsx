@@ -21,6 +21,7 @@ import {
   MessagesSquare,
   BedDouble,
 } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { GlobalSearch } from "@/components/admin/global-search";
 import { NotificationsBell } from "@/components/admin/notifications-bell";
 import { AdminThemeToggle } from "@/components/admin/admin-theme-toggle";
@@ -149,13 +150,13 @@ function AdminBrand() {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <SidebarMenuButton size="lg" asChild tooltip="Back-office">
+        <SidebarMenuButton size="lg" asChild tooltip="Back-office" className="h-auto py-2 group-data-[collapsible=icon]:h-8! group-data-[collapsible=icon]:py-0">
           <Link href="/admin" aria-label="Tableau de bord admin">
-            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-lapis font-display text-[11px] font-bold tracking-tight text-blanc shadow-sm">
+            <div className="hidden aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-lapis font-display text-[11px] font-bold tracking-tight text-blanc shadow-sm group-data-[collapsible=icon]:flex">
               GA
             </div>
-            <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-display font-semibold text-encre">GET Admission</span>
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
+              <BrandLogo height={24} />
               <span className="truncate font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
                 Back-office
               </span>
