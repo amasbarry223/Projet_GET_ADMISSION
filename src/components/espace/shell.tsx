@@ -17,15 +17,17 @@ import {
   User,
   LogOut,
   Bell,
+  BellOff,
+  CheckCheck,
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Sidebar,
   SidebarContent,
@@ -285,59 +287,93 @@ export function EspaceShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="ml-auto flex items-center gap-1.5">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+            {/* Cloche de notifications candidat */}
+            <Popover>
+              <PopoverTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="relative text-ardoise hover:text-encre"
                   aria-label={notifs > 0 ? `Notifications (${notifs} non lues)` : "Notifications"}
+                  onClick={() => void refresh()}
                 >
                   <Bell className="h-4 w-4" strokeWidth={1.5} />
                   {notifs > 0 && (
-                    <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-lapis" />
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-ambre px-1 font-mono text-[9px] font-bold text-blanc animate-in zoom-in-75 duration-200">
+                      {notifs > 9 ? "9+" : notifs}
+                    </span>
                   )}
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80">
-                {items.length === 0 ? (
-                  <DropdownMenuItem disabled>Aucune notification</DropdownMenuItem>
-                ) : (
-                  items.slice(0, 8).map((n) => (
-                    <DropdownMenuItem
-                      key={n.id}
-                      onClick={async () => {
-                        await fetch("/api/notifications", {
-                          method: "PUT",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ ids: [n.id] }),
-                        });
-                        refresh();
-                        if (n.lien) router.push(n.lien);
-                      }}
-                      className="flex flex-col items-start gap-0.5 py-2"
-                    >
-                      <span className="text-sm font-medium">{n.titre}</span>
-                      <span className="line-clamp-2 text-xs text-muted-foreground">{n.message}</span>
-                    </DropdownMenuItem>
-                  ))
-                )}
-                {notifs > 0 && (
-                  <DropdownMenuItem
-                    onClick={async () => {
-                      await fetch("/api/notifications", {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ all: true }),
-                      });
-                      refresh();
-                    }}
-                  >
-                    Tout marquer comme lu
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80 p-0">
+                <div className="border-b border-ligne px-4 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-display text-sm font-bold text-encre">Notifications</p>
+                    <div className="flex items-center gap-2">
+                      {notifs > 0 && (
+                        <Badge className="bg-ambre/15 font-mono text-[10px] text-ambre">
+                          {notifs} non lue{notifs > 1 ? "s" : ""}
+                        </Badge>
+                      )}
+                      {notifs > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 gap-1 px-2 text-[11px] text-ardoise hover:text-lapis"
+                          onClick={async () => {
+                            await fetch("/api/notifications", {
+                              method: "PUT",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ all: true }),
+                            });
+                            refresh();
+                          }}
+                        >
+                          <CheckCheck className="h-3 w-3" />
+                          Tout lire
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="max-h-72 overflow-y-auto scroll-fine">
+                  {items.length === 0 ? (
+                    <div className="flex flex-col items-center gap-2 py-8 px-4 text-center">
+                      <BellOff className="h-6 w-6 text-ardoise/40" strokeWidth={1.5} />
+                      <p className="text-sm text-ardoise">Aucune notification. Tout est à jour.</p>
+                    </div>
+                  ) : (
+                    <ul className="divide-y divide-ligne">
+                      {items.slice(0, 8).map((n) => (
+                        <li key={n.id}>
+                          <button
+                            className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-porcelaine group"
+                            onClick={async () => {
+                              await fetch("/api/notifications", {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ ids: [n.id] }),
+                              });
+                              refresh();
+                              if (n.lien) router.push(n.lien);
+                            }}
+                          >
+                            <div className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-lapis/10 group-hover:bg-lapis/20 transition-colors">
+                              <Bell className="h-4 w-4 text-lapis" strokeWidth={1.5} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-encre line-clamp-1">{n.titre}</p>
+                              <p className="mt-0.5 text-xs text-ardoise line-clamp-2">{n.message}</p>
+                            </div>
+                            <span className="mt-1.5 h-2 w-2 flex-none rounded-full bg-ambre" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </header>
 
