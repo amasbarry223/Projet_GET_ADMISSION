@@ -239,30 +239,62 @@ export const authOptionsCandidat = buildAuthOptions("candidat");
 export const authOptionsStaff = buildAuthOptions("staff");
 
 /**
- * Résout la session, quel que soit le portail — utilisé par le code serveur partagé
- * (routes API touchées par les deux portails, ou routes qui n'ont pas besoin de distinguer).
- * Le RBAC de chaque appelant continue de trier par rôle après coup, donc interroger les deux
- * cookies ici est sans risque même sur une route strictement staff ou strictement candidat.
+ * Résout la session de façon étanche selon le portail (candidat vs staff).
+ * Empêche qu'une session staff active ne soit renvoyée à la place de la session candidat.
  */
-export async function getSession(): Promise<Session | null> {
-  let preferPortal: Portal | null = null;
+export async function getSession(portalHint?: Portal): Promise<Session | null> {
+  let preferPortal: Portal | null = portalHint ?? null;
+  let hasCandidatCookie = false;
+  let hasStaffCookie = false;
+
   try {
     const { headers } = await import("next/headers");
     const reqHeaders = await headers();
     const referer = reqHeaders.get("referer") || "";
-    if (referer.includes("/espace")) preferPortal = "candidat";
-    else if (referer.includes("/admin") || referer.includes("/back-office")) preferPortal = "staff";
+    const cookieStr = reqHeaders.get("cookie") || "";
+
+    const candCookieName = buildCookieNames("candidat").sessionToken;
+    const staffCookieName = buildCookieNames("staff").sessionToken;
+
+    hasCandidatCookie = cookieStr.includes(candCookieName);
+    hasStaffCookie = cookieStr.includes(staffCookieName);
+
+    if (!preferPortal) {
+      if (referer.includes("/espace") || referer.includes("/api/profile") || referer.includes("/api/dossiers") || referer.includes("/api/visa")) {
+        preferPortal = "candidat";
+      } else if (referer.includes("/admin") || referer.includes("/back-office") || referer.includes("/api/admin")) {
+        preferPortal = "staff";
+      }
+    }
   } catch {
-    // Ignorer si appelé hors contexte de requête
+    // Ignorer hors contexte HTTP
   }
 
-  if (preferPortal === "candidat") {
+  // 1. Si portail candidat explicite ou détecté
+  if (preferPortal === "candidat" || (hasCandidatCookie && !hasStaffCookie)) {
     const candidatSession = await getServerSession(authOptionsCandidat);
-    if (candidatSession?.user) return candidatSession;
-    return getServerSession(authOptionsStaff);
+    if (candidatSession?.user && candidatSession.user.role === "CANDIDAT") {
+      return candidatSession;
+    }
+    // Si portail candidat mais pas de session candidat valide, ne pas renvoyer le compte staff
+    if (preferPortal === "candidat") return null;
   }
 
+  // 2. Si portail staff
+  if (preferPortal === "staff" || hasStaffCookie) {
+    const staffSession = await getServerSession(authOptionsStaff);
+    if (staffSession?.user && isStaff(staffSession.user.role)) {
+      return staffSession;
+    }
+    if (preferPortal === "staff") return null;
+  }
+
+  // 3. Fallback neutre
   const staffSession = await getServerSession(authOptionsStaff);
-  if (staffSession?.user) return staffSession;
-  return getServerSession(authOptionsCandidat);
+  if (staffSession?.user && isStaff(staffSession.user.role)) return staffSession;
+
+  const candidatSession = await getServerSession(authOptionsCandidat);
+  if (candidatSession?.user && candidatSession.user.role === "CANDIDAT") return candidatSession;
+
+  return null;
 }

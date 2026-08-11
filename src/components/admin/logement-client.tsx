@@ -24,7 +24,7 @@ export type LogementRow = {
   email: string;
   ville: string;
   nationalite: string;
-  statut: "soumis" | "en_cours_traitement" | "correction_demandee";
+  statut: "soumis" | "en_cours_traitement" | "correction_demandee" | "traite";
   soumiseLe: string;
 };
 
@@ -32,12 +32,14 @@ const STATUT_LABEL: Record<LogementRow["statut"], string> = {
   soumis: "Soumise",
   en_cours_traitement: "En cours de traitement",
   correction_demandee: "Correction demandée",
+  traite: "Traité",
 };
 
 const STATUT_TONE: Record<LogementRow["statut"], string> = {
   soumis: "text-ambre border-ambre bg-ambre/5",
   en_cours_traitement: "text-vert border-vert bg-vert/5",
   correction_demandee: "text-lapis border-lapis bg-lapis/5",
+  traite: "text-vert border-vert bg-vert/10 font-bold",
 };
 
 export function LogementClient({
@@ -189,6 +191,9 @@ export function LogementClient({
                   </SelectItem>
                   <SelectItem value="correction_demandee" className="text-xs font-mono uppercase">
                     Correction demandée
+                  </SelectItem>
+                  <SelectItem value="traite" className="text-xs font-mono uppercase font-bold text-vert">
+                    Traité
                   </SelectItem>
                 </SelectContent>
               </Select>

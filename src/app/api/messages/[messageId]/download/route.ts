@@ -5,13 +5,16 @@ import { readUpload } from "@/lib/storage";
 import { assertDossierFileAccess } from "@/lib/dossier/piece-print";
 
 // GET /api/messages/[messageId]/download — téléchargement de la pièce jointe d'un message
-export async function GET(_request: Request, { params }: { params: Promise<{ messageId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ messageId: string }> }) {
   const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
   const { messageId } = await params;
+  const url = new URL(request.url);
+  const disposition = url.searchParams.get("disposition") === "inline" ? "inline" : "attachment";
+
   const message = await db.message.findUnique({
     where: { id: messageId },
     include: { conversation: { select: { candidatId: true, conseillerId: true } } },
@@ -38,7 +41,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ mes
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": contentType,
-        "Content-Disposition": `attachment; filename="${encodeURIComponent(fileName)}"`,
+        "Content-Disposition": `${disposition}; filename="${encodeURIComponent(fileName)}"`,
         "Content-Length": String(buffer.length),
       },
     });

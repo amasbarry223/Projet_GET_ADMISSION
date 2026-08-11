@@ -47,7 +47,7 @@ import {
   MessageSquareWarning,
 } from "lucide-react";
 
-type Statut = "soumis" | "en_cours_traitement" | "correction_demandee";
+type Statut = "soumis" | "en_cours_traitement" | "correction_demandee" | "traite";
 
 export type DemandeCrousDetail = {
   id: string;
@@ -75,12 +75,14 @@ const STATUT_LABEL: Record<Statut, string> = {
   soumis: "Soumise",
   en_cours_traitement: "En cours de traitement",
   correction_demandee: "Correction demandée",
+  traite: "Traité",
 };
 
 const STATUT_TONE: Record<Statut, string> = {
   soumis: "text-ambre border-ambre bg-ambre/5",
   en_cours_traitement: "text-vert border-vert bg-vert/5",
   correction_demandee: "text-lapis border-lapis bg-lapis/5",
+  traite: "text-vert border-vert bg-vert/10 font-bold",
 };
 
 type FormValues = Omit<

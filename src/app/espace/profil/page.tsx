@@ -454,46 +454,69 @@ export default function ProfilPage() {
                 {(["recto", "verso"] as const).map((side) => {
                   const hasFile = side === "recto" ? !!profile.kycRectoPath : !!profile.kycVersoPath;
                   return (
-                    <label
+                    <div
                       key={side}
-                      className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-ligne bg-blanc p-6 text-center hover:border-lapis/40"
+                      className="flex flex-col items-center justify-between rounded-lg border border-dashed border-ligne bg-blanc p-5 text-center transition-colors hover:border-lapis/40"
                     >
-                      <Upload className="h-5 w-5 text-ardoise" strokeWidth={1.5} />
-                      <p className="mt-2 text-xs text-ardoise">
-                        {side === "recto" ? "Recto" : "Verso"}
-                        {hasFile
-                          ? " · fichier présent"
-                          : side === "verso" && (profile.kycType ?? "passeport") === "passeport"
-                            ? " · optionnel"
-                            : " · requis"}
-                      </p>
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png,.webp"
-                        className="sr-only"
-                        aria-label={`Téléverser le ${side} de la pièce d'identité`}
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          const fd = new FormData();
-                          fd.append("file", file);
-                          fd.append("side", side);
-                          if (profile.kycType) fd.append("kycType", profile.kycType);
-                          if (profile.kycNumero) fd.append("kycNumero", profile.kycNumero);
-                          const res = await fetch("/api/profile/kyc", { method: "POST", body: fd });
-                          const data = await res.json().catch(() => ({}));
-                          if (!res.ok) {
-                            toast.error("Upload KYC échoué", {
-                              description: messageFromBody(data) ?? getApiErrorMessageSync(res.status),
-                            });
-                            return;
-                          }
-                          setProfile((p) => (p ? { ...p, ...data.user } : p));
-                          toast.success(`${side === "recto" ? "Recto" : "Verso"} téléversé`);
-                          e.target.value = "";
-                        }}
-                      />
-                    </label>
+                      <div className="flex flex-col items-center">
+                        <Upload className="h-5 w-5 text-ardoise" strokeWidth={1.5} />
+                        <p className="mt-2 text-xs font-medium text-encre">
+                          {side === "recto" ? "Recto de la pièce" : "Verso de la pièce"}
+                        </p>
+                        <p className="text-[11px] text-ardoise">
+                          {hasFile
+                            ? "Document téléversé"
+                            : side === "verso" && (profile.kycType ?? "passeport") === "passeport"
+                              ? "Optionnel pour passeport"
+                              : "Requis"}
+                        </p>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap items-center justify-center gap-2 w-full">
+                        {hasFile && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs gap-1.5 bg-porcelaine/60"
+                            onClick={() => window.open(`/api/profile/kyc?side=${side}`, "_blank")}
+                          >
+                            <Eye className="h-3.5 w-3.5 text-lapis" /> Voir le document
+                          </Button>
+                        )}
+                        <label className="cursor-pointer">
+                          <span className="inline-flex h-8 items-center justify-center rounded-md border border-ligne bg-blanc px-3 text-xs font-medium text-encre shadow-xs hover:bg-porcelaine">
+                            {hasFile ? "Remplacer" : "Téléverser"}
+                          </span>
+                          <input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png,.webp"
+                            className="sr-only"
+                            aria-label={`Téléverser le ${side} de la pièce d'identité`}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const fd = new FormData();
+                              fd.append("file", file);
+                              fd.append("side", side);
+                              if (profile.kycType) fd.append("kycType", profile.kycType);
+                              if (profile.kycNumero) fd.append("kycNumero", profile.kycNumero);
+                              const res = await fetch("/api/profile/kyc", { method: "POST", body: fd });
+                              const data = await res.json().catch(() => ({}));
+                              if (!res.ok) {
+                                toast.error("Upload KYC échoué", {
+                                  description: messageFromBody(data) ?? getApiErrorMessageSync(res.status),
+                                });
+                                return;
+                              }
+                              setProfile((p) => (p ? { ...p, ...data.user } : p));
+                              toast.success(`${side === "recto" ? "Recto" : "Verso"} téléversé`);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
                   );
                 })}
               </div>

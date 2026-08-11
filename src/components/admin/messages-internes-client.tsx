@@ -133,6 +133,10 @@ function StaffThreadView() {
 
   React.useEffect(() => {
     queueMicrotask(() => void load());
+    const interval = setInterval(() => {
+      void load();
+    }, 3000);
+    return () => clearInterval(interval);
   }, [load]);
 
   useRealtimeBroadcast(MESSAGES_INTERNES_LIVE_CHANNEL, "message_interne_created", load);
@@ -232,7 +236,12 @@ function AdminView() {
   }, []);
 
   React.useEffect(() => {
-    if (selectedId) queueMicrotask(() => void loadThread(selectedId));
+    if (!selectedId) return;
+    queueMicrotask(() => void loadThread(selectedId));
+    const interval = setInterval(() => {
+      void loadThread(selectedId);
+    }, 3000);
+    return () => clearInterval(interval);
   }, [selectedId, loadThread]);
 
   const onLiveMessage = React.useCallback(() => {

@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   IdCard,
   FileStack,
+  FileCheck,
   MessagesSquare,
   BedDouble,
 } from "lucide-react";
@@ -64,6 +65,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     items: [
       { href: "/admin/dossiers", label: "Tous les dossiers", icon: FolderOpen, permission: "dossiers.read" },
       { href: "/admin/kyc", label: "Pièces d'identité (KYC)", icon: IdCard, permission: "kyc.read" },
+      { href: "/admin/visa", label: "Visas", icon: FileCheck, permission: "dossiers.read" },
       { href: "/admin/catalogue", label: "Catalogue", icon: Building2, permission: "catalogue.write" },
       { href: "/admin/matrice", label: "Matrice documentaire", icon: FileStack, permission: "matrice.write" },
     ],

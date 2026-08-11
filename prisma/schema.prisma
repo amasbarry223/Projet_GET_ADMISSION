@@ -71,6 +71,7 @@ model User {
   partagesCrousEmis        HistoriquePartageCrous[] @relation("PartageCrousAuteur")
   logementReservations     LogementReservation[]
   demandesLogementCrous    DemandeLogementCrous[]
+  demandeVisa              DemandeVisa?
 }
 
 /**
@@ -712,6 +713,7 @@ enum StatutLogementReservation {
   soumis
   en_cours_traitement
   correction_demandee
+  traite
 }
 
 /** Réservation de logement classique (partenaire logement, hors CROUS). */
@@ -769,3 +771,26 @@ model DemandeLogementCrous {
 
   @@index([candidatId])
 }
+
+/**
+ * --------------------------- Visa ---------------------------
+ */
+
+enum StatutVisa {
+  ACCORDE
+  REFUSE
+}
+
+model DemandeVisa {
+  id              String     @id @default(cuid())
+  candidatId      String     @unique
+  statut          StatutVisa
+  fichierVisaUrl  String?
+  motifRefus      String?
+  remarqueAdmin   String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  candidat User @relation(fields: [candidatId], references: [id], onDelete: Cascade)
+}
+

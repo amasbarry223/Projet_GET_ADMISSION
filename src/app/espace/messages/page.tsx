@@ -122,9 +122,11 @@ function MessagesInner() {
 
   React.useEffect(() => {
     if (dossierLoading || dossierError || !dossierId) return;
-    return runAsyncEffect(() => {
+    queueMicrotask(() => loadConversation(dossierId));
+    const interval = setInterval(() => {
       loadConversation(dossierId);
-    });
+    }, 3000);
+    return () => clearInterval(interval);
   }, [dossierLoading, dossierError, dossierId, loadConversation]);
 
   useRealtimeBroadcast(MESSAGES_LIVE_CHANNEL, "message_created", () => {

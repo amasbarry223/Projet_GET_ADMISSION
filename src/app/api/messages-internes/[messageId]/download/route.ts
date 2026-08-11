@@ -4,11 +4,14 @@ import { readUpload } from "@/lib/storage";
 import { requireApiPermission } from "@/lib/api-auth";
 
 // GET /api/messages-internes/[messageId]/download — pièce jointe d'un message interne
-export async function GET(_request: Request, { params }: { params: Promise<{ messageId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ messageId: string }> }) {
   const auth = await requireApiPermission("messages.internes");
   if (!auth.ok) return auth.response;
 
   const { messageId } = await params;
+  const url = new URL(request.url);
+  const disposition = url.searchParams.get("disposition") === "inline" ? "inline" : "attachment";
+
   const message = await db.messageInterne.findUnique({
     where: { id: messageId },
     include: { conversation: { select: { financierId: true } } },
@@ -31,7 +34,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ mes
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": contentType,
-        "Content-Disposition": `attachment; filename="${encodeURIComponent(fileName)}"`,
+        "Content-Disposition": `${disposition}; filename="${encodeURIComponent(fileName)}"`,
         "Content-Length": String(buffer.length),
       },
     });

@@ -79,7 +79,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const body = await request.json().catch(() => ({}));
   const { statut } = body;
-  if (!["soumis", "en_cours_traitement", "correction_demandee"].includes(statut)) {
+  if (!["soumis", "en_cours_traitement", "correction_demandee", "traite"].includes(statut)) {
     return NextResponse.json({ error: "Statut invalide" }, { status: 400 });
   }
 
