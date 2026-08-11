@@ -46,7 +46,7 @@ export function HomeHero() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
             </span>
-            Admissions UEMOA · Ouvert
+            Admissions · Ouvert
             <Sparkles className="h-3 w-3" strokeWidth={1.5} />
           </span>
 
