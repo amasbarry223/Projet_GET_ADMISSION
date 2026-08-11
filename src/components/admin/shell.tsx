@@ -238,8 +238,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <SidebarRail />
       </Sidebar>
 
-      <SidebarInset className="min-h-svh overflow-hidden bg-card md:max-h-[calc(100svh-1rem)]">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-ligne bg-card/90 px-4 backdrop-blur-md sm:px-6">
+      <SidebarInset className="min-h-svh overflow-hidden bg-sidebar md:max-h-[calc(100svh-1rem)]">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-ligne bg-sidebar/90 px-4 backdrop-blur-md sm:px-6">
           <SidebarTrigger className="-ml-1 text-ardoise hover:text-encre" />
           <div className="h-4 w-px bg-ligne" aria-hidden />
           <GlobalSearch />
@@ -249,7 +249,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <div className="flex h-10 shrink-0 items-center border-b border-ligne bg-card px-4 sm:px-6">
+        <div className="flex h-10 shrink-0 items-center border-b border-ligne bg-sidebar px-4 sm:px-6">
           <nav className="flex items-center gap-1.5 text-sm" aria-label="Fil d'Ariane">
             <Link href="/admin" className="text-ardoise hover:text-lapis">
               Admin
