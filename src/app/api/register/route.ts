@@ -4,10 +4,12 @@ import { db } from "@/lib/db";
 import { registerSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { isStaff } from "@/lib/rbac";
+import { createVerifyToken } from "@/lib/verify-token";
+import { sendMail, verificationEmailHtml } from "@/lib/mail";
 
 /**
  * POST /api/register — crée le compte candidat (passwordHash).
- * Si Parametre.exigerEmailVerifie : emailVerified reste null (BF-06).
+ * Si Parametre.exigerEmailVerifie : emailVerified reste null (BF-06) et mail de vérification envoyé.
  */
 export async function POST(request: Request) {
   const rateLimited = await checkRateLimit(getClientId(request), "/api/register");
@@ -43,6 +45,7 @@ export async function POST(request: Request) {
 
     const parametres = await db.parametre.findUnique({ where: { id: 1 } });
     const requireEmail = !!parametres?.exigerEmailVerifie;
+    const verifyToken = requireEmail ? createVerifyToken() : null;
 
     const user = await db.user.create({
       data: {
@@ -54,10 +57,25 @@ export async function POST(request: Request) {
         role: "CANDIDAT",
         actif: true,
         emailVerified: requireEmail ? null : new Date(),
-        verifyToken: null,
+        verifyToken,
       },
       select: { id: true, email: true, prenom: true, nom: true, role: true },
     });
+
+    if (requireEmail && verifyToken) {
+      const base = process.env.NEXTAUTH_URL || new URL(request.url).origin;
+      const verifyUrl = `${base}/api/auth/verify-email?token=${encodeURIComponent(verifyToken)}`;
+      try {
+        await sendMail({
+          to: user.email,
+          subject: "Vérifiez votre e-mail — GET Admission",
+          html: verificationEmailHtml(user.prenom, verifyUrl),
+          text: `Bonjour ${user.prenom}, confirmez votre e-mail : ${verifyUrl}`,
+        });
+      } catch (e) {
+        console.error("[register] Échec de l'envoi de l'e-mail de vérification:", e);
+      }
+    }
 
     return NextResponse.json(
       {
