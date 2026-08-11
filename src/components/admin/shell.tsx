@@ -150,17 +150,12 @@ function AdminBrand() {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <SidebarMenuButton size="lg" asChild tooltip="Back-office" className="h-auto py-2 group-data-[collapsible=icon]:h-8! group-data-[collapsible=icon]:py-0">
+        <SidebarMenuButton size="lg" asChild tooltip="Back-office" className="h-auto justify-center py-3 group-data-[collapsible=icon]:h-8! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:py-0">
           <Link href="/admin" aria-label="Tableau de bord admin">
             <div className="hidden aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-lapis font-display text-[11px] font-bold tracking-tight text-blanc shadow-sm group-data-[collapsible=icon]:flex">
               GA
             </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
-              <BrandLogo height={24} />
-              <span className="truncate font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
-                Back-office
-              </span>
-            </div>
+            <BrandLogo height={40} className="group-data-[collapsible=icon]:hidden" />
           </Link>
         </SidebarMenuButton>
       </SidebarMenuItem>
