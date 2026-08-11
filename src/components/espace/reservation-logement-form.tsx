@@ -63,18 +63,19 @@ type Reservation = {
   paysDemandeVisa: string;
   dateArriveePrevue: string;
   villeEtablissementFrance: string;
-  statut: "soumis" | "en_cours_traitement" | "correction_demandee";
+  statut: "soumis" | "en_cours_traitement" | "correction_demandee" | "traite" | string;
   motifCorrection: string | null;
   createdAt: string;
 };
 
 const STATUT_META: Record<
-  Reservation["statut"],
+  string,
   { label: string; icon: typeof Clock; tone: string }
 > = {
   soumis: { label: "Soumise — en attente de prise en charge", icon: Clock, tone: "text-ambre border-ambre bg-ambre/5" },
   en_cours_traitement: { label: "En cours de traitement", icon: CheckCircle2, tone: "text-vert border-vert bg-vert/5" },
   correction_demandee: { label: "Correction demandée", icon: XCircle, tone: "text-lapis border-lapis bg-lapis/5" },
+  traite: { label: "Traité", icon: CheckCircle2, tone: "text-vert border-vert bg-vert/10 font-bold" },
 };
 
 export function ReservationLogementForm() {
@@ -214,7 +215,11 @@ export function ReservationLogementForm() {
           <p className="text-xs font-medium text-ardoise">Mes demandes</p>
           <div className="mt-3 space-y-3">
             {reservations.map((r) => {
-              const meta = STATUT_META[r.statut];
+              const meta = STATUT_META[r.statut] ?? {
+                label: r.statut,
+                icon: CheckCircle2,
+                tone: "text-vert border-vert bg-vert/5",
+              };
               return (
                 <div key={r.id} className="rounded-md border border-ligne px-4 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">

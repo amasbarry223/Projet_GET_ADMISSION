@@ -30,7 +30,7 @@ import { LogementFileDropzone } from "@/components/logement/logement-file-dropzo
 import { LogementFormSection } from "@/components/logement/form-section";
 import { demandeCrousSchema } from "@/lib/validations";
 import { formatDateTime } from "@/lib/format";
-import { BedDouble, Loader2, Clock, Pencil, MessageSquareWarning, Send } from "lucide-react";
+import { BedDouble, Loader2, Clock, Pencil, MessageSquareWarning, Send, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type DemandeCrousFormValues = z.infer<typeof demandeCrousSchema>;
@@ -62,18 +62,19 @@ type Demande = {
   telephone: string;
   email: string;
   villeEtablissementFrance: string;
-  statut: "soumis" | "en_cours_traitement" | "correction_demandee";
+  statut: "soumis" | "en_cours_traitement" | "correction_demandee" | "traite" | string;
   motifCorrection: string | null;
   createdAt: string;
 };
 
 const STATUT_META: Record<
-  Demande["statut"],
+  string,
   { label: string; icon: typeof Clock; tone: string }
 > = {
   soumis: { label: "Soumise — en attente de prise en charge", icon: Clock, tone: "text-ambre border-ambre bg-ambre/5" },
   en_cours_traitement: { label: "En cours de traitement", icon: Loader2, tone: "text-vert border-vert bg-vert/5" },
   correction_demandee: { label: "Correction demandée", icon: MessageSquareWarning, tone: "text-lapis border-lapis bg-lapis/5" },
+  traite: { label: "Traité", icon: CheckCircle2, tone: "text-vert border-vert bg-vert/10 font-bold" },
 };
 
 export function DemandeCrousForm() {
@@ -220,7 +221,11 @@ export function DemandeCrousForm() {
           <p className="text-xs font-medium text-ardoise">Mes demandes CROUS</p>
           <div className="mt-3 space-y-3">
             {demandes.map((r) => {
-              const meta = STATUT_META[r.statut];
+              const meta = STATUT_META[r.statut] ?? {
+                label: r.statut,
+                icon: CheckCircle2,
+                tone: "text-vert border-vert bg-vert/5",
+              };
               return (
                 <div key={r.id} className="rounded-md border border-ligne px-4 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
