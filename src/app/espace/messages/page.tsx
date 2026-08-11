@@ -67,6 +67,7 @@ function MessagesInner() {
   const [contactError, setContactError] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
+  // Chargement initial (affiche le spinner)
   const loadConversation = React.useCallback((id: string) => {
     setConversationLoading(true);
     setConversationError(null);
@@ -105,6 +106,37 @@ function MessagesInner() {
       });
   }, [refetchDossier]);
 
+  // Rafraîchissement silencieux : ne déclenche JAMAIS le spinner,
+  // ne met à jour l'état que si de nouveaux messages sont arrivés.
+  const silentRefresh = React.useCallback((id: string) => {
+    fetch(`/api/messages?dossierId=${encodeURIComponent(id)}`)
+      .then(async (r) => {
+        if (!r.ok) return;
+        return r.json();
+      })
+      .then((data: Conversation) => {
+        if (!data) return;
+        setConversation((prev) => {
+          // Ne re-render que si de nouveaux messages existent
+          if (!prev || prev.messages.length !== data.messages.length) return data;
+          return prev;
+        });
+        if (data.nonLusCandidat > 0) {
+          fetch("/api/messages/read", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ dossierId: id }),
+          })
+            .then(() => {
+              setConversation((prev) => (prev ? { ...prev, nonLusCandidat: 0 } : prev));
+              void refetchDossier();
+            })
+            .catch(() => {/* silencieux */});
+        }
+      })
+      .catch(() => {/* silencieux */});
+  }, [refetchDossier]);
+
   // Fetch contact info depuis la DB
   React.useEffect(() => {
     return runAsyncEffect(() => {
@@ -122,15 +154,17 @@ function MessagesInner() {
 
   React.useEffect(() => {
     if (dossierLoading || dossierError || !dossierId) return;
+    // Chargement initial avec spinner
     queueMicrotask(() => loadConversation(dossierId));
+    // Polling silencieux toutes les 5s — ne clignote jamais
     const interval = setInterval(() => {
-      loadConversation(dossierId);
-    }, 3000);
+      silentRefresh(dossierId);
+    }, 5000);
     return () => clearInterval(interval);
-  }, [dossierLoading, dossierError, dossierId, loadConversation]);
+  }, [dossierLoading, dossierError, dossierId, loadConversation, silentRefresh]);
 
   useRealtimeBroadcast(MESSAGES_LIVE_CHANNEL, "message_created", () => {
-    if (dossierId) loadConversation(dossierId);
+    if (dossierId) silentRefresh(dossierId);
   });
 
   React.useEffect(() => {

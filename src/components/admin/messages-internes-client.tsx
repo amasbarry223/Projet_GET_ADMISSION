@@ -131,15 +131,30 @@ function StaffThreadView() {
     }
   }, []);
 
-  React.useEffect(() => {
-    queueMicrotask(() => void load());
-    const interval = setInterval(() => {
-      void load();
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [load]);
+  // Rafraîchissement silencieux — ne réactive jamais le spinner
+  const silentLoad = React.useCallback(async () => {
+    const result = await apiFetch<ConversationApi>("/api/messages-internes");
+    if (!result.ok) return;
+    setConversation((prev) => {
+      if (!prev || prev.messages.length !== result.data?.messages.length) return result.data;
+      return prev;
+    });
+    if (result.data && result.data.nonLusFinancier > 0) {
+      void apiJson("/api/messages-internes/read", "PUT", {});
+    }
+  }, []);
 
-  useRealtimeBroadcast(MESSAGES_INTERNES_LIVE_CHANNEL, "message_interne_created", load);
+  React.useEffect(() => {
+    // Chargement initial (affiche le spinner une seule fois)
+    queueMicrotask(() => void load());
+    // Polling silencieux toutes les 5s
+    const interval = setInterval(() => {
+      void silentLoad();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [load, silentLoad]);
+
+  useRealtimeBroadcast(MESSAGES_INTERNES_LIVE_CHANNEL, "message_interne_created", silentLoad);
 
   const send = async (texte: string, fichier: File | null) => {
     const form = new FormData();
@@ -215,6 +230,7 @@ function AdminView() {
     queueMicrotask(() => void loadInbox());
   }, [loadInbox]);
 
+  // Chargement initial du thread avec spinner
   const loadThread = React.useCallback(async (financierId: string) => {
     setThreadLoading(true);
     const result = await apiFetch<ConversationApi>(
@@ -235,19 +251,39 @@ function AdminView() {
     }
   }, []);
 
+  // Rafraîchissement silencieux du thread (pas de spinner)
+  const silentRefreshThread = React.useCallback(async (financierId: string) => {
+    const result = await apiFetch<ConversationApi>(
+      `/api/messages-internes?financierId=${encodeURIComponent(financierId)}`,
+    );
+    if (!result.ok) return;
+    setConversation((prev) => {
+      if (!prev || prev.messages.length !== result.data?.messages.length) return result.data;
+      return prev;
+    });
+    if (result.data && result.data.nonLusAdmin > 0) {
+      void apiJson("/api/messages-internes/read", "PUT", { financierId }).then(() => {
+        setInbox((prev) =>
+          prev?.map((r) => (r.financier.id === financierId ? { ...r, nonLusAdmin: 0 } : r)) ?? prev,
+        );
+      });
+    }
+  }, []);
+
   React.useEffect(() => {
     if (!selectedId) return;
     queueMicrotask(() => void loadThread(selectedId));
+    // Polling silencieux toutes les 5s — ne clignote jamais
     const interval = setInterval(() => {
-      void loadThread(selectedId);
-    }, 3000);
+      void silentRefreshThread(selectedId);
+    }, 5000);
     return () => clearInterval(interval);
-  }, [selectedId, loadThread]);
+  }, [selectedId, loadThread, silentRefreshThread]);
 
   const onLiveMessage = React.useCallback(() => {
     void loadInbox();
-    if (selectedId) void loadThread(selectedId);
-  }, [loadInbox, loadThread, selectedId]);
+    if (selectedId) void silentRefreshThread(selectedId);
+  }, [loadInbox, silentRefreshThread, selectedId]);
   useRealtimeBroadcast(MESSAGES_INTERNES_LIVE_CHANNEL, "message_interne_created", onLiveMessage);
 
   const send = async (texte: string, fichier: File | null) => {
