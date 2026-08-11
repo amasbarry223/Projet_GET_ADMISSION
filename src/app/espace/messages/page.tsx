@@ -156,10 +156,10 @@ function MessagesInner() {
     if (dossierLoading || dossierError || !dossierId) return;
     // Chargement initial avec spinner
     queueMicrotask(() => loadConversation(dossierId));
-    // Polling silencieux toutes les 5s — ne clignote jamais
+    // Polling silencieux rapide (2s) — fluide et instantané
     const interval = setInterval(() => {
       silentRefresh(dossierId);
-    }, 5000);
+    }, 2000);
     return () => clearInterval(interval);
   }, [dossierLoading, dossierError, dossierId, loadConversation, silentRefresh]);
 

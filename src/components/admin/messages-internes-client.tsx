@@ -147,10 +147,10 @@ function StaffThreadView() {
   React.useEffect(() => {
     // Chargement initial (affiche le spinner une seule fois)
     queueMicrotask(() => void load());
-    // Polling silencieux toutes les 5s
+    // Polling silencieux rapide (2s) — instantané
     const interval = setInterval(() => {
       void silentLoad();
-    }, 5000);
+    }, 2000);
     return () => clearInterval(interval);
   }, [load, silentLoad]);
 
@@ -273,10 +273,10 @@ function AdminView() {
   React.useEffect(() => {
     if (!selectedId) return;
     queueMicrotask(() => void loadThread(selectedId));
-    // Polling silencieux toutes les 5s — ne clignote jamais
+    // Polling silencieux rapide (2s) — ne clignote jamais
     const interval = setInterval(() => {
       void silentRefreshThread(selectedId);
-    }, 5000);
+    }, 2000);
     return () => clearInterval(interval);
   }, [selectedId, loadThread, silentRefreshThread]);
 

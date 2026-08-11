@@ -4,6 +4,7 @@ import { requireApiPermission, parseOrRespond } from "@/lib/api-auth";
 import { demandeCrousSchema } from "@/lib/validations";
 import { deleteUpload } from "@/lib/storage";
 import { logAudit } from "@/lib/audit";
+import { broadcastLogementLive } from "@/lib/logement/live-broadcast";
 
 // GET /api/admin/logement/crous/[id] — détail d'une demande de logement CROUS (staff)
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -93,6 +94,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     resource: "logement",
     resourceId: id,
     details: `Statut de la demande CROUS changé en : ${statut} (${updated.prenom} ${updated.nom})`,
+  });
+
+  // Réveil instantané côté candidat
+  void broadcastLogementLive({
+    demandeId: id,
+    candidatId: existing.candidatId,
+    statut,
   });
 
   return NextResponse.json(updated);

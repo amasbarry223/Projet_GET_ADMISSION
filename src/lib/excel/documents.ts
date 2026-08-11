@@ -60,7 +60,7 @@ export async function buildExcelListingBuffer(input: ExcelListingInput): Promise
   try {
     const logoBuffer = await readFile(path.join(process.cwd(), BRAND_LOGO.fsPath));
     logoId = workbook.addImage({
-      buffer: logoBuffer,
+      buffer: logoBuffer as any,
       extension: "png",
     });
   } catch (e) {
@@ -160,5 +160,6 @@ export async function buildExcelListingBuffer(input: ExcelListingInput): Promise
   });
 
   const buffer = await workbook.xlsx.writeBuffer();
-  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+  const uint8 = new Uint8Array(buffer as any);
+  return uint8.buffer.slice(uint8.byteOffset, uint8.byteOffset + uint8.byteLength) as ArrayBuffer;
 }

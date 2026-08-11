@@ -59,7 +59,7 @@ const NAV_BASE = [
 ];
 
 function useUnreadCounts() {
-  const dossiersQuery = useDossiersQuery({ refetchInterval: 30_000 });
+  const dossiersQuery = useDossiersQuery({ refetchInterval: 10_000 });
   const [notifs, setNotifs] = React.useState(0);
   const [items, setItems] = React.useState<
     { id: string; titre: string; message: string; lien?: string | null }[]
@@ -87,7 +87,8 @@ function useUnreadCounts() {
     queueMicrotask(() => {
       if (!cancelled) void refreshNotifs();
     });
-    const t = setInterval(() => void refreshNotifs(), 30000);
+    // Polling rapide toutes les 10s pour tenir le badge à jour
+    const t = setInterval(() => void refreshNotifs(), 10_000);
     return () => {
       cancelled = true;
       clearInterval(t);

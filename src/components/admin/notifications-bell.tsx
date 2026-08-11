@@ -11,6 +11,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useRealtimeBroadcast } from "@/hooks/use-realtime-broadcast";
+import { MESSAGES_LIVE_CHANNEL, MESSAGES_INTERNES_LIVE_CHANNEL } from "@/lib/messages/live-broadcast";
+import { DOSSIER_LIVE_CHANNEL } from "@/lib/dossier/live-broadcast";
 
 type Notification = {
   id: string;
@@ -53,10 +56,15 @@ export function NotificationsBell() {
 
   React.useEffect(() => {
     loadNotifications();
-    // Polling silencieux toutes les 30 secondes
-    const interval = setInterval(loadNotifications, 30_000);
+    // Polling de secours toutes les 10s
+    const interval = setInterval(loadNotifications, 10_000);
     return () => clearInterval(interval);
   }, [loadNotifications]);
+
+  // Réveil instantané via Realtime : nouveau message ou changement de dossier
+  useRealtimeBroadcast(MESSAGES_LIVE_CHANNEL, "message_created", loadNotifications);
+  useRealtimeBroadcast(MESSAGES_INTERNES_LIVE_CHANNEL, "message_interne_created", loadNotifications);
+  useRealtimeBroadcast(DOSSIER_LIVE_CHANNEL, "dossier_updated", loadNotifications);
 
   // Marquer une notification individuelle comme lue
   const markOneAsRead = React.useCallback((n: Notification) => {

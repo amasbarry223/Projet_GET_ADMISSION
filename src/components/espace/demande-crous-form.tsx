@@ -32,6 +32,8 @@ import { demandeCrousSchema } from "@/lib/validations";
 import { formatDateTime } from "@/lib/format";
 import { BedDouble, Loader2, Clock, Pencil, MessageSquareWarning, Send, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useRealtimeBroadcast } from "@/hooks/use-realtime-broadcast";
+import { LOGEMENT_LIVE_CHANNEL } from "@/lib/logement/live-broadcast";
 
 type DemandeCrousFormValues = z.infer<typeof demandeCrousSchema>;
 
@@ -131,6 +133,11 @@ export function DemandeCrousForm() {
     });
     // form volontairement omis des deps : reset une seule fois au montage
   }, [loadDemandes]);
+
+  // Réveil instantané quand l'admin change le statut
+  useRealtimeBroadcast(LOGEMENT_LIVE_CHANNEL, "logement_updated", () => {
+    void loadDemandes();
+  });
 
   const isCorrection = editingId !== null;
 

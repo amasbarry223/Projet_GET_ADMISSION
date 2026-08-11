@@ -31,6 +31,8 @@ import { logementReservationSchema } from "@/lib/validations";
 import { formatDateTime } from "@/lib/format";
 import { CheckCircle2, XCircle, Clock, Pencil, Loader2, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useRealtimeBroadcast } from "@/hooks/use-realtime-broadcast";
+import { LOGEMENT_LIVE_CHANNEL } from "@/lib/logement/live-broadcast";
 
 type LogementFormValues = z.infer<typeof logementReservationSchema>;
 
@@ -132,6 +134,11 @@ export function ReservationLogementForm() {
     });
     // form volontairement omis des deps : reset une seule fois au montage
   }, [loadReservations]);
+
+  // Réveil instantané quand l'admin change le statut
+  useRealtimeBroadcast(LOGEMENT_LIVE_CHANNEL, "logement_updated", () => {
+    void loadReservations();
+  });
 
   const isCorrection = editingId !== null;
 

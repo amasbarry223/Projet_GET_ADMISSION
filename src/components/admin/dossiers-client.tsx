@@ -83,7 +83,7 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
             if (debounce) clearTimeout(debounce);
             debounce = setTimeout(() => {
               if (!cancelled) router.refresh();
-            }, 800);
+            }, 200);
           })
           .subscribe();
       } catch {

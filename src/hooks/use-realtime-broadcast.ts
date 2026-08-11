@@ -13,7 +13,7 @@ export function useRealtimeBroadcast(
   channel: string,
   event: string,
   onMessage: () => void,
-  debounceMs = 500,
+  debounceMs = 100,
 ) {
   const onMessageRef = React.useRef(onMessage);
   React.useEffect(() => {
