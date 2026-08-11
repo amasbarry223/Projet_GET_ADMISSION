@@ -613,6 +613,17 @@ export const demandeCrousSchema = z.object({
 });
 export type DemandeCrousInput = z.infer<typeof demandeCrousSchema>;
 
+// --- Import de sauvegarde JSON (Super Admin) ---
+export const backupImportRequestSchema = z.object({
+  confirm: z.string(),
+  backup: z
+    .object({
+      meta: z.object({ app: z.string() }).passthrough(),
+    })
+    .passthrough(),
+});
+export type BackupImportRequestInput = z.infer<typeof backupImportRequestSchema>;
+
 // --- Demande de correction (logement / logement CROUS) ---
 export const correctionMotifSchema = z.object({
   motif: z.string().trim().min(1, "Le motif de correction est requis").max(2000, "Le motif est trop long"),

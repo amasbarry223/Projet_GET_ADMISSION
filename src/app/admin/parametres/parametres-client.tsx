@@ -20,9 +20,18 @@ import {
 import { useSession } from "next-auth/react";
 import { apiFetch, apiJson } from "@/lib/api-client";
 import { toast } from "sonner";
-import { Lock, Save, ShieldCheck, CreditCard, Bell, GitBranch, Loader2, FileText, Database, Download, AlertTriangle } from "lucide-react";
+import { Lock, Save, ShieldCheck, CreditCard, Bell, GitBranch, Loader2, FileText, Database, Download, Upload, AlertTriangle } from "lucide-react";
 
 const RESET_CONFIRM_PHRASE = "REINITIALISER";
+const IMPORT_CONFIRM_PHRASE = "IMPORTER";
+const BACKUP_APP_NAME = "GET Admission";
+
+type PendingBackup = {
+  backup: Record<string, unknown>;
+  totalRows: number;
+  generatedAt: string | undefined;
+  generatedBy: string | undefined;
+};
 
 type ParamsState = {
   fraisMin: string;
@@ -62,6 +71,12 @@ export default function AdminParametresClient() {
   const [resetOpen, setResetOpen] = React.useState(false);
   const [resetConfirmText, setResetConfirmText] = React.useState("");
   const [resetting, setResetting] = React.useState(false);
+
+  const importFileInputRef = React.useRef<HTMLInputElement>(null);
+  const [pendingImport, setPendingImport] = React.useState<PendingBackup | null>(null);
+  const [importOpen, setImportOpen] = React.useState(false);
+  const [importConfirmText, setImportConfirmText] = React.useState("");
+  const [importing, setImporting] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -164,6 +179,59 @@ export default function AdminParametresClient() {
     const { dossiers, notifications, auditLogs } = result.data.deleted;
     toast.success("Données d'activité réinitialisées", {
       description: `${dossiers} dossier(s), ${notifications} notification(s), ${auditLogs} entrée(s) d'audit supprimées.`,
+    });
+  };
+
+  const handleImportFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // permet de re-sélectionner le même fichier ensuite
+    if (!file) return;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await file.text());
+    } catch {
+      toast.error("Fichier invalide", { description: "Le fichier sélectionné n'est pas un JSON valide." });
+      return;
+    }
+
+    if (typeof parsed !== "object" || parsed === null) {
+      toast.error("Fichier invalide", { description: "Le contenu du fichier est invalide." });
+      return;
+    }
+    const backup = parsed as Record<string, unknown>;
+    const meta = backup.meta as { app?: string; generatedAt?: string; generatedBy?: string } | undefined;
+    if (meta?.app !== BACKUP_APP_NAME) {
+      toast.error("Fichier invalide", { description: "Ce fichier ne semble pas être une sauvegarde GET Admission." });
+      return;
+    }
+
+    const totalRows = Object.entries(backup)
+      .filter(([key, value]) => key !== "meta" && Array.isArray(value))
+      .reduce((sum, [, value]) => sum + (value as unknown[]).length, 0);
+
+    setPendingImport({ backup, totalRows, generatedAt: meta.generatedAt, generatedBy: meta.generatedBy });
+    setImportConfirmText("");
+    setImportOpen(true);
+  };
+
+  const handleImportConfirm = async () => {
+    if (!pendingImport) return;
+    setImporting(true);
+    const result = await apiJson<{ totalRestored: number }>("/api/admin/backup/import", "POST", {
+      confirm: importConfirmText,
+      backup: pendingImport.backup,
+    });
+    setImporting(false);
+    if (!result.ok) {
+      toast.error("Import échoué", { description: result.error });
+      return;
+    }
+    setImportOpen(false);
+    setPendingImport(null);
+    setImportConfirmText("");
+    toast.success("Sauvegarde importée", {
+      description: `${result.data.totalRestored} enregistrement(s) créé(s) ou mis à jour.`,
     });
   };
 
@@ -340,6 +408,31 @@ export default function AdminParametresClient() {
             </Button>
           </Card>
 
+          <Card className={cardLocked(isSuperAdmin)}>
+            <SectionHeader icon={Upload} title="Restauration" />
+            <p className="mb-4 text-xs text-ardoise">
+              Importe un fichier de sauvegarde JSON généré par cette même fonction d&apos;export. Fusion
+              non destructive : les enregistrements dont l&apos;identifiant correspond à un enregistrement
+              existant sont mis à jour, les autres sont créés. Les données déjà présentes en base mais
+              absentes du fichier sont conservées.
+            </p>
+            <input
+              ref={importFileInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => void handleImportFileSelected(e)}
+            />
+            <Button
+              variant="outline"
+              disabled={!isSuperAdmin || importing}
+              onClick={() => importFileInputRef.current?.click()}
+            >
+              <Upload className="mr-1.5 h-4 w-4" strokeWidth={1.5} />
+              Importer une sauvegarde (JSON)
+            </Button>
+          </Card>
+
           <Card className={`border-carmin/30 bg-carmin/5 p-5 ${!isSuperAdmin ? "opacity-70" : ""}`}>
             <div className="mb-4 flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
@@ -416,6 +509,53 @@ export default function AdminParametresClient() {
             >
               {resetting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
               Réinitialiser définitivement
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importOpen} onOpenChange={(open) => { setImportOpen(open); if (!open) setPendingImport(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lapis">
+              <Upload className="h-5 w-5" strokeWidth={1.5} /> Importer cette sauvegarde ?
+            </DialogTitle>
+            <DialogDescription>
+              {pendingImport?.totalRows ?? 0} enregistrement(s) seront créés ou mis à jour.
+              {pendingImport?.generatedAt && (
+                <>
+                  {" "}Fichier généré le {new Date(pendingImport.generatedAt).toLocaleString("fr-FR")}
+                  {pendingImport.generatedBy ? ` par ${pendingImport.generatedBy}` : ""}.
+                </>
+              )}
+              {" "}Les données existantes non incluses dans le fichier sont conservées.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="import-confirm">
+              Saisissez <span className="font-mono font-semibold">{IMPORT_CONFIRM_PHRASE}</span> pour confirmer
+            </Label>
+            <Input
+              id="import-confirm"
+              value={importConfirmText}
+              onChange={(e) => setImportConfirmText(e.target.value)}
+              className="font-mono"
+              autoComplete="off"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setImportOpen(false); setPendingImport(null); }}>
+              Annuler
+            </Button>
+            <Button
+              className="bg-lapis text-blanc hover:bg-lapis/90"
+              disabled={importConfirmText !== IMPORT_CONFIRM_PHRASE || importing}
+              onClick={() => void handleImportConfirm()}
+            >
+              {importing && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
+              Importer
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -44,6 +44,13 @@ export async function GET() {
     moyensPaiement,
     objetsContact,
     contactMessages,
+    demandesCrous,
+    demandeCrousDocuments,
+    historiquesPartageCrous,
+    conversationsInternes,
+    messagesInternes,
+    logementReservations,
+    demandesLogementCrous,
   ] = await Promise.all([
     db.user.findMany({
       select: {
@@ -81,6 +88,13 @@ export async function GET() {
     db.moyenPaiement.findMany(),
     db.objetContact.findMany(),
     db.contactMessage.findMany(),
+    db.demandeCrous.findMany(),
+    db.demandeCrousDocument.findMany(),
+    db.historiquePartageCrous.findMany(),
+    db.conversationInterne.findMany(),
+    db.messageInterne.findMany(),
+    db.logementReservation.findMany(),
+    db.demandeLogementCrous.findMany(),
   ]);
 
   const backup = {
@@ -88,7 +102,7 @@ export async function GET() {
       app: "GET Admission",
       generatedAt: new Date().toISOString(),
       generatedBy: `${session.user.prenom} ${session.user.nom} (${session.user.email})`,
-      version: 1,
+      version: 2,
       note: "Les champs sensibles (mot de passe, tokens) sont exclus de cet export.",
     },
     users,
@@ -119,6 +133,13 @@ export async function GET() {
     moyensPaiement,
     objetsContact,
     contactMessages,
+    demandesCrous,
+    demandeCrousDocuments,
+    historiquesPartageCrous,
+    conversationsInternes,
+    messagesInternes,
+    logementReservations,
+    demandesLogementCrous,
   };
 
   await logAudit({
