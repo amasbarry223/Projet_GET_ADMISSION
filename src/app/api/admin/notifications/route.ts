@@ -178,3 +178,35 @@ export async function GET() {
 
   return NextResponse.json({ notifications, count: notifications.length });
 }
+
+// PUT /api/admin/notifications — marquer comme lues { ids?: string[], all?: boolean }
+export async function PUT(request: Request) {
+  const session = await getSession();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  }
+  const gate = requirePermission(session.user.role, "dashboard");
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
+  }
+
+  const userId = session.user.id;
+  let body: { ids?: string[]; all?: boolean } = {};
+  try {
+    body = await request.json();
+  } catch {
+    // body optionnel
+  }
+
+  if (body.all) {
+    await db.notification.updateMany({ where: { userId, lu: false }, data: { lu: true } });
+  } else if (body.ids?.length) {
+    await db.notification.updateMany({
+      where: { userId, id: { in: body.ids } },
+      data: { lu: true },
+    });
+  }
+
+  const unreadCount = await db.notification.count({ where: { userId, lu: false } });
+  return NextResponse.json({ success: true, unreadCount });
+}
