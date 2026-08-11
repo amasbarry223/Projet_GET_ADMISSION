@@ -4,7 +4,6 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Plane } from "lucide-react";
 import { MotionButton } from "@/components/site/motion-button";
-import { formatFCFA } from "@/lib/format";
 import { fadeInUp, motionSafeVariants, revealViewport } from "@/lib/animations";
 
 export function FinalCta() {
@@ -47,9 +46,6 @@ export function FinalCta() {
               <Link href="/contact">Parler à un conseiller</Link>
             </MotionButton>
           </div>
-          <p className="mt-6 font-mono text-[11px] uppercase tracking-eyebrow text-muted-foreground">
-            Frais d&apos;agence à partir de {formatFCFA(280000)}
-          </p>
         </motion.div>
       </div>
     </section>
