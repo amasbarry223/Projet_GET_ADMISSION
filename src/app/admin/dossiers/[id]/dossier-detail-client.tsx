@@ -581,12 +581,21 @@ export default function DossierDetailClient() {
   return (
     <div className="space-y-5">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-1.5 text-sm">
-        <Link href="/admin/dossiers" className="flex items-center gap-1 text-ardoise hover:text-or">
-          <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.5} /> Dossiers
-        </Link>
-        <span className="text-ardoise/50">/</span>
-        <span className="font-mono text-encre">{dossier.reference}</span>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-sm">
+          <Link href="/admin/dossiers" className="flex items-center gap-1 text-ardoise hover:text-or">
+            <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.5} /> Dossiers
+          </Link>
+          <span className="text-ardoise/50">/</span>
+          <span className="font-mono text-encre">{dossier.reference}</span>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => window.open(`/api/dossiers/${dossier.id}/print`, "_blank")}
+        >
+          <Printer className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Imprimer la fiche
+        </Button>
       </div>
 
       {/* Boarding pass */}
