@@ -10,44 +10,63 @@ type BeforeInstallPromptEvent = Event & {
 };
 
 /**
+ * État capturé au niveau module (pas dans le composant) : beforeinstallprompt peut se
+ * déclencher très tôt, avant que React n'ait fini de monter/hydrater — un écouteur posé
+ * seulement dans un useEffect risquerait de rater l'évènement. Ici l'écoute démarre dès
+ * l'évaluation du script, comme les providers de thème du projet (même pattern).
+ */
+let deferredPrompt: BeforeInstallPromptEvent | null = null;
+let installed = false;
+const listeners = new Set<() => void>();
+const notify = () => listeners.forEach((l) => l());
+
+if (typeof window !== "undefined") {
+  const nav = window.navigator as Navigator & { standalone?: boolean };
+  installed = window.matchMedia("(display-mode: standalone)").matches || nav.standalone === true;
+
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPrompt = e as BeforeInstallPromptEvent;
+    notify();
+  });
+  window.addEventListener("appinstalled", () => {
+    installed = true;
+    deferredPrompt = null;
+    notify();
+  });
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function getSnapshot(): "installed" | "installable" | "none" {
+  if (installed) return "installed";
+  return deferredPrompt ? "installable" : "none";
+}
+
+/**
  * Bouton "Installer l'application" pour le back-office (PWA scopée /admin).
- * Ne s'affiche que si le navigateur signale l'app comme installable
- * (Chrome/Edge/Android — beforeinstallprompt) et qu'elle n'est pas déjà installée.
- * Safari/iOS ne déclenchent jamais cet évènement : l'installation s'y fait via
- * le menu de partage natif ("Ajouter à l'écran d'accueil"), ce bouton reste masqué.
+ * Ne s'affiche que si le navigateur signale l'app comme réellement installable
+ * (Chrome/Edge/Android — API beforeinstallprompt) et qu'elle n'est pas déjà installée.
+ * Safari/iOS et Firefox ne prennent pas en charge cette API : sur ces navigateurs le
+ * bouton reste masqué en permanence — l'installation s'y fait via le menu natif du
+ * navigateur ("Ajouter à l'écran d'accueil" / partage), pas de bouton possible.
  */
 export function AdminInstallButton() {
-  const [deferredPrompt, setDeferredPrompt] = React.useState<BeforeInstallPromptEvent | null>(null);
-  const [installed, setInstalled] = React.useState(() => {
-    if (typeof window === "undefined") return false;
-    const nav = window.navigator as Navigator & { standalone?: boolean };
-    return window.matchMedia("(display-mode: standalone)").matches || nav.standalone === true;
-  });
+  const status = React.useSyncExternalStore(subscribe, getSnapshot, () => "none" as const);
 
-  React.useEffect(() => {
-    const onBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-    };
-    const onAppInstalled = () => {
-      setInstalled(true);
-      setDeferredPrompt(null);
-    };
-
-    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
-    window.addEventListener("appinstalled", onAppInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
-      window.removeEventListener("appinstalled", onAppInstalled);
-    };
-  }, []);
-
-  if (installed || !deferredPrompt) return null;
+  if (status !== "installable") return null;
 
   const handleInstall = async () => {
+    if (!deferredPrompt) return;
     await deferredPrompt.prompt();
     await deferredPrompt.userChoice;
-    setDeferredPrompt(null);
+    deferredPrompt = null;
+    notify();
   };
 
   return (
