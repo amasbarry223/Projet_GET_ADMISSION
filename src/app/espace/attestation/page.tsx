@@ -89,9 +89,13 @@ function AttestationInner() {
     try {
       const attRes = await fetch(`/api/attestations/${dossierId}`);
       if (attRes.ok) {
-        const att = (await attRes.json()) as Attestation;
-        setAttestation(att);
-        setRemiseAgence(att.modeRemise === "agence");
+        const body = await attRes.json();
+        if (body && body.id) {
+          setAttestation(body as Attestation);
+          setRemiseAgence(body.modeRemise === "agence");
+        } else {
+          setAttestation(null);
+        }
         setAttestationError(null);
       } else if (attRes.status === 404) {
         setAttestation(null);

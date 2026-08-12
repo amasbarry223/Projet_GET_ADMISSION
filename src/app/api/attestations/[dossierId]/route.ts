@@ -53,10 +53,7 @@ export async function GET(
   });
 
   if (!attestation) {
-    return NextResponse.json(
-      { error: "Aucune attestation émise pour ce dossier" },
-      { status: 404 }
-    );
+    return NextResponse.json({ attestation: null, message: "Aucune attestation émise pour ce dossier" });
   }
 
   return NextResponse.json(attestation);
