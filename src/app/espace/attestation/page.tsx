@@ -301,7 +301,7 @@ function AttestationInner() {
       )}
 
       {isIssued && !attestationError && (
-        <Card className="border-ligne bg-blanc p-8 text-center">
+        <Card className="border-ligne bg-card p-8 text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-vert/10">
             <Stamp className="h-7 w-7 text-vert" strokeWidth={1.5} />
           </div>
@@ -375,7 +375,7 @@ function AttestationInner() {
       )}
 
       {isIssued && showPreview && hasFile && (
-        <Card className="overflow-hidden border-ligne bg-blanc p-0">
+        <Card className="overflow-hidden border-ligne bg-card p-0">
           <div className="border-b border-ligne bg-porcelaine px-6 py-3">
             <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
               Document officiel envoyé par {d.universite.nom}

@@ -142,7 +142,7 @@ export default function CandidateVisaPage() {
       {/* Affichage si déjà soumis et pas en cours d'édition */}
       {!showForm && visa && (
         <div className="space-y-6">
-          <Card className="p-6 border-ligne bg-blanc shadow-sm">
+          <Card className="p-6 border-ligne bg-card shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-ligne pb-5">
               <div className="flex items-center gap-3">
                 <div
@@ -229,7 +229,7 @@ export default function CandidateVisaPage() {
                     <AlertTriangle className="h-5 w-5 text-carmin shrink-0 mt-0.5" />
                     <div>
                       <p className="text-sm font-semibold text-encre">Motif du refus consulaire :</p>
-                      <p className="mt-2 text-sm text-carmin/90 font-mono bg-blanc/80 p-3 rounded-lg border border-carmin/20 whitespace-pre-wrap">
+                      <p className="mt-2 text-sm text-carmin/90 font-mono bg-card/80 p-3 rounded-lg border border-carmin/20 whitespace-pre-wrap">
                         {visa.motifRefus || "Aucun motif précisé"}
                       </p>
                     </div>
@@ -244,7 +244,7 @@ export default function CandidateVisaPage() {
       {/* Formulaire de soumission ou modification */}
       {showForm && (
         <form onSubmit={handleSubmit} className="space-y-6">
-          <Card className="p-6 border-ligne bg-blanc shadow-sm">
+          <Card className="p-6 border-ligne bg-card shadow-sm">
             <h2 className="text-lg font-bold text-encre">Sélectionnez le statut de votre Visa</h2>
             <p className="text-xs text-ardoise mt-1">
               Indiquez la décision consulaire rendue suite à votre rendez-vous de visa.
@@ -257,7 +257,7 @@ export default function CandidateVisaPage() {
                 className={`flex flex-col items-start p-5 rounded-xl border-2 transition-all text-left ${
                   mode === "ACCORDE"
                     ? "border-vert bg-vert/5 shadow-xs"
-                    : "border-ligne bg-blanc hover:border-vert/40"
+                    : "border-ligne bg-card hover:border-vert/40"
                 }`}
                 onClick={() => setMode("ACCORDE")}
               >
@@ -283,7 +283,7 @@ export default function CandidateVisaPage() {
                 className={`flex flex-col items-start p-5 rounded-xl border-2 transition-all text-left ${
                   mode === "REFUSE"
                     ? "border-carmin bg-carmin/5 shadow-xs"
-                    : "border-ligne bg-blanc hover:border-carmin/40"
+                    : "border-ligne bg-card hover:border-carmin/40"
                 }`}
                 onClick={() => setMode("REFUSE")}
               >
@@ -326,7 +326,7 @@ export default function CandidateVisaPage() {
                     </p>
                   )}
                   <label className="mt-4 cursor-pointer">
-                    <span className="inline-flex h-9 items-center justify-center rounded-lg bg-blanc px-4 text-xs font-semibold text-encre border border-ligne shadow-xs hover:bg-porcelaine">
+                    <span className="inline-flex h-9 items-center justify-center rounded-lg bg-card px-4 text-xs font-semibold text-encre border border-ligne shadow-xs hover:bg-porcelaine">
                       {file ? "Changer de fichier" : "Sélectionner le document"}
                     </span>
                     <input

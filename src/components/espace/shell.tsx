@@ -22,6 +22,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { EspaceThemeToggle } from "@/components/espace/espace-theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -271,8 +272,8 @@ export function EspaceShell({ children }: { children: React.ReactNode }) {
         <SidebarRail />
       </Sidebar>
 
-      <SidebarInset className="min-h-svh overflow-hidden bg-blanc md:max-h-[calc(100svh-1rem)]">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-ligne bg-blanc/90 px-4 backdrop-blur-md sm:px-6">
+      <SidebarInset className="min-h-svh overflow-hidden bg-sidebar md:max-h-[calc(100svh-1rem)]">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-ligne bg-sidebar/90 px-4 backdrop-blur-md sm:px-6">
           <SidebarTrigger className="-ml-1 text-ardoise hover:text-encre" />
           <div className="h-4 w-px bg-ligne" aria-hidden />
           <nav className="flex items-center gap-1.5 text-sm" aria-label="Fil d'Ariane">
@@ -284,6 +285,7 @@ export function EspaceShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="ml-auto flex items-center gap-1.5">
+            <EspaceThemeToggle />
             {/* Cloche de notifications candidat */}
             <Popover>
               <PopoverTrigger asChild>

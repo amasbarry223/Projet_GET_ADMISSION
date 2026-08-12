@@ -253,7 +253,7 @@ function MessagesInner() {
         <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Vos messages.</h1>
       </div>
 
-      <Card className="border-ligne bg-blanc p-0 overflow-hidden">
+      <Card className="border-ligne bg-card p-0 overflow-hidden">
         <div className="grid h-[600px] md:grid-cols-[280px_1fr]">
           {/* Conversation list */}
           <aside className="hidden md:flex flex-col border-r border-ligne">
@@ -340,7 +340,7 @@ function MessagesInner() {
                     const isCand = m.auteur.role === "CANDIDAT";
                     return (
                       <div key={m.id} className={cn("flex", isCand ? "justify-end" : "justify-start")}>
-                        <div className={cn("max-w-[80%] rounded-lg px-3.5 py-2.5", isCand ? "bg-lapis text-blanc" : "border border-ligne bg-blanc text-encre")}>
+                        <div className={cn("max-w-[80%] rounded-lg px-3.5 py-2.5", isCand ? "bg-lapis text-blanc" : "border border-ligne bg-card text-encre")}>
                           {m.pieceJointeNom && m.pieceJointeChemin && (
                             <MessageAttachment
                               nom={m.pieceJointeNom}

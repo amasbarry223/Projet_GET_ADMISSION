@@ -244,7 +244,7 @@ export default function ProfilPage() {
         </Alert>
       )}
 
-      <Card className="border-ligne bg-blanc p-6">
+      <Card className="border-ligne bg-card p-6">
         <div className="flex flex-wrap items-center gap-4">
           <div className="relative">
             <div className="relative h-16 w-16 overflow-hidden rounded-full border-2 border-ligne bg-porcelaine">
@@ -304,7 +304,7 @@ export default function ProfilPage() {
         </TabsList>
 
         <TabsContent value="perso">
-          <Card className="border-ligne bg-blanc p-6">
+          <Card className="border-ligne bg-card p-6">
             <fieldset disabled={locked} className="contents">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -369,7 +369,7 @@ export default function ProfilPage() {
         </TabsContent>
 
         <TabsContent value="academique">
-          <Card className="border-ligne bg-blanc p-6">
+          <Card className="border-ligne bg-card p-6">
             <p className="mb-4 text-sm text-ardoise">
               Ce parcours détermine automatiquement les documents demandés pour vos dossiers de candidature.
             </p>
@@ -404,7 +404,7 @@ export default function ProfilPage() {
         </TabsContent>
 
         <TabsContent value="kyc">
-          <Card className="border-ligne bg-blanc p-6">
+          <Card className="border-ligne bg-card p-6">
             <fieldset disabled={locked} className="contents">
             <div className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -457,7 +457,7 @@ export default function ProfilPage() {
                   return (
                     <div
                       key={side}
-                      className="flex flex-col items-center justify-between rounded-lg border border-dashed border-ligne bg-blanc p-5 text-center transition-colors hover:border-lapis/40"
+                      className="flex flex-col items-center justify-between rounded-lg border border-dashed border-ligne bg-card p-5 text-center transition-colors hover:border-lapis/40"
                     >
                       <div className="flex flex-col items-center">
                         <Upload className="h-5 w-5 text-ardoise" strokeWidth={1.5} />
@@ -486,7 +486,7 @@ export default function ProfilPage() {
                           </Button>
                         )}
                         <label className="cursor-pointer">
-                          <span className="inline-flex h-8 items-center justify-center rounded-md border border-ligne bg-blanc px-3 text-xs font-medium text-encre shadow-xs hover:bg-porcelaine">
+                          <span className="inline-flex h-8 items-center justify-center rounded-md border border-ligne bg-card px-3 text-xs font-medium text-encre shadow-xs hover:bg-porcelaine">
                             {hasFile ? "Remplacer" : "Téléverser"}
                           </span>
                           <input
@@ -522,7 +522,7 @@ export default function ProfilPage() {
                 })}
               </div>
 
-              <div className="flex items-center gap-2 rounded-md border border-ligne bg-blanc p-3 text-xs text-ardoise">
+              <div className="flex items-center gap-2 rounded-md border border-ligne bg-card p-3 text-xs text-ardoise">
                 <ShieldCheck className="h-4 w-4 text-vert" strokeWidth={1.5} />
                 Vos données sont utilisées uniquement pour la constitution du dossier.
               </div>
@@ -539,7 +539,7 @@ export default function ProfilPage() {
         </TabsContent>
 
         <TabsContent value="securite">
-          <Card className="border-ligne bg-blanc p-6">
+          <Card className="border-ligne bg-card p-6">
             <div className="grid gap-4 sm:max-w-md">
               <div className="space-y-1.5">
                 <Label htmlFor="pwd-current">Mot de passe actuel</Label>

@@ -317,7 +317,7 @@ function PaiementInner() {
           <p className="mt-1 text-sm text-ardoise">
             Votre déclaration a été enregistrée. L&apos;agence confirmera l&apos;encaissement sous peu. Le reçu sera disponible une fois le paiement validé.
           </p>
-          <div className="mx-auto mt-6 max-w-md rounded-md border border-ligne bg-blanc p-5 text-left">
+          <div className="mx-auto mt-6 max-w-md rounded-md border border-ligne bg-card p-5 text-left">
             <div className="flex items-center justify-between border-b border-ligne pb-3">
               <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Référence</span>
               <span className="font-mono text-xs font-semibold text-encre">{receiptRef}</span>
@@ -352,7 +352,7 @@ function PaiementInner() {
           <h2 className="font-display text-2xl font-bold text-encre">Paiement confirmé.</h2>
           <p className="mt-1 text-sm text-ardoise">Votre paiement a bien été reçu. Le reçu est disponible ci-dessous.</p>
 
-          <div className="mx-auto mt-6 max-w-md rounded-md border border-ligne bg-blanc p-5 text-left">
+          <div className="mx-auto mt-6 max-w-md rounded-md border border-ligne bg-card p-5 text-left">
             <div className="flex items-center justify-between border-b border-ligne pb-3">
               <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Reçu</span>
               <span className="font-mono text-xs font-semibold text-encre">{receiptRef}</span>
@@ -448,7 +448,7 @@ function PaiementInner() {
         <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
           {/* Left: form */}
           <div className="space-y-4">
-            <Card className="border-ligne bg-blanc p-6">
+            <Card className="border-ligne bg-card p-6">
               <p className="eyebrow">Moyen de paiement</p>
               {methodsLoading ? (
                 <div className="mt-4 flex items-center gap-2 text-sm text-ardoise">
@@ -485,7 +485,7 @@ function PaiementInner() {
                       onClick={() => setMethod(m.nom)}
                       className={cn(
                         "flex min-h-11 items-center gap-3 rounded-md border-2 p-3 text-left transition-all",
-                        method === m.nom ? "border-lapis bg-lapis/5" : "border-ligne bg-blanc hover:border-lapis/30"
+                        method === m.nom ? "border-lapis bg-lapis/5" : "border-ligne bg-card hover:border-lapis/30"
                       )}
                       aria-pressed={method === m.nom}
                     >
@@ -535,7 +535,7 @@ function PaiementInner() {
               )}
             </Card>
 
-            <Card className="border-ligne bg-blanc p-6">
+            <Card className="border-ligne bg-card p-6">
               <div className="flex items-center gap-2 text-sm text-ardoise">
                 <ShieldCheck className="h-4 w-4 text-vert" strokeWidth={1.5} />
                 Paiement sécurisé · Vos données sont chiffrées.
@@ -547,7 +547,7 @@ function PaiementInner() {
           </div>
 
           {/* Right: summary */}
-          <Card className="border-ligne bg-blanc p-6 lg:sticky lg:top-24 lg:self-start">
+          <Card className="border-ligne bg-card p-6 lg:sticky lg:top-24 lg:self-start">
             <p className="eyebrow">Récapitulatif</p>
             <h2 className="mt-1 font-display text-lg font-bold text-encre">{d.universite.nom}</h2>
             <p className="text-sm text-ardoise">{d.formation.intitule} · {d.formation.niveau}</p>
@@ -571,7 +571,7 @@ function PaiementInner() {
       )}
 
       {/* Historique */}
-      <Card className="border-ligne bg-blanc p-0 overflow-hidden">
+      <Card className="border-ligne bg-card p-0 overflow-hidden">
         <div className="border-b border-ligne px-6 py-4">
           <p className="eyebrow">Historique des paiements</p>
           <h2 className="font-display text-lg font-bold text-encre">Vos transactions</h2>

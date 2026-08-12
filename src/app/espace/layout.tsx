@@ -1,11 +1,12 @@
 import { EspaceShell } from "@/components/espace/shell";
-import { ForceLightDocument } from "@/components/site/force-light-document";
+import { EspaceThemeProvider } from "@/components/espace/espace-theme-provider";
 
 export default function EspaceLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-porcelaine text-encre antialiased selection:bg-lapis/20">
-      <ForceLightDocument />
-      <EspaceShell>{children}</EspaceShell>
-    </div>
+    <EspaceThemeProvider>
+      <div className="min-h-screen bg-porcelaine text-encre antialiased selection:bg-lapis/20">
+        <EspaceShell>{children}</EspaceShell>
+      </div>
+    </EspaceThemeProvider>
   );
 }
