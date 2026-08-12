@@ -21,6 +21,7 @@ import {
   CheckCheck,
   Loader2,
 } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -178,17 +179,12 @@ function Brand() {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <SidebarMenuButton size="lg" asChild tooltip="Espace candidat">
+        <SidebarMenuButton size="lg" asChild tooltip="Espace candidat" className="h-auto justify-center py-3 group-data-[collapsible=icon]:h-8! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:py-0">
           <Link href="/espace" aria-label="Espace candidat GET Admission">
-            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-lapis font-display text-[11px] font-bold tracking-tight text-blanc shadow-sm">
+            <div className="hidden aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-lapis font-display text-[11px] font-bold tracking-tight text-blanc shadow-sm group-data-[collapsible=icon]:flex">
               GA
             </div>
-            <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-display font-semibold text-encre">GET Admission</span>
-              <span className="truncate font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">
-                Espace candidat
-              </span>
-            </div>
+            <BrandLogo height={40} className="group-data-[collapsible=icon]:hidden" />
           </Link>
         </SidebarMenuButton>
       </SidebarMenuItem>
