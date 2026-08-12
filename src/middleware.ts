@@ -17,6 +17,13 @@ function requireNextAuthSecret(): string {
 export default async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
 
+  // Manifeste PWA du back-office : aucune donnée sensible (nom, icônes, couleurs), doit rester
+  // accessible sans session pour que le navigateur puisse l'évaluer (critères d'installabilité) —
+  // sinon la requête est redirigée vers /back-office (HTML) et casse le parsing JSON du manifeste.
+  if (path === "/admin/manifest.webmanifest") {
+    return NextResponse.next();
+  }
+
   if (path.startsWith("/admin")) {
     const token = await getToken({
       req,
