@@ -222,11 +222,12 @@ export function ReservationLogementForm() {
           <p className="text-xs font-medium text-ardoise">Mes demandes</p>
           <div className="mt-3 space-y-3">
             {reservations.map((r) => {
-              const meta = STATUT_META[r.statut] ?? {
-                label: r.statut,
-                icon: CheckCircle2,
-                tone: "text-vert border-vert bg-vert/5",
-              };
+              const statusKey = r.statut?.toLowerCase() ?? "";
+              const meta = STATUT_META[statusKey] ?? STATUT_META[r.statut] ?? STATUT_META.soumis;
+              const toneClass = meta?.tone ?? "text-vert border-vert bg-vert/5";
+              const IconComp = meta?.icon ?? CheckCircle2;
+              const labelText = meta?.label ?? r.statut ?? "Soumise";
+
               return (
                 <div key={r.id} className="rounded-md border border-ligne px-4 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -236,9 +237,9 @@ export function ReservationLogementForm() {
                       </p>
                       <p className="text-xs text-ardoise">Envoyée le {formatDateTime(r.createdAt)}</p>
                     </div>
-                    <Badge className={cn("font-mono text-[10px] uppercase", meta.tone)}>
-                      <meta.icon className="mr-1 h-3 w-3" />
-                      {meta.label}
+                    <Badge className={cn("font-mono text-[10px] uppercase", toneClass)}>
+                      <IconComp className="mr-1 h-3 w-3" />
+                      {labelText}
                     </Badge>
                   </div>
                   {r.statut === "correction_demandee" && (

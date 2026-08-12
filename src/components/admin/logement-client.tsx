@@ -162,10 +162,13 @@ export function LogementClient({
           const currentStatut = row.original.statut;
           const isUpdating = updatingId === row.original.id;
 
+          const toneClass = STATUT_TONE[currentStatut?.toLowerCase()] ?? STATUT_TONE[currentStatut] ?? "text-vert border-vert bg-vert/5";
+          const labelText = STATUT_LABEL[currentStatut?.toLowerCase()] ?? STATUT_LABEL[currentStatut] ?? currentStatut;
+
           if (!canWrite) {
             return (
-              <Badge className={`font-mono text-[10px] uppercase ${STATUT_TONE[currentStatut]}`}>
-                {STATUT_LABEL[currentStatut]}
+              <Badge className={`font-mono text-[10px] uppercase ${toneClass}`}>
+                {labelText}
               </Badge>
             );
           }
@@ -178,9 +181,9 @@ export function LogementClient({
                 onValueChange={(val) => void updateStatut(row.original, val as LogementRow["statut"])}
               >
                 <SelectTrigger
-                  className={`h-7 w-[190px] text-[11px] font-mono uppercase font-semibold border ${STATUT_TONE[currentStatut]}`}
+                  className={`h-7 w-[190px] text-[11px] font-mono uppercase font-semibold border ${toneClass}`}
                 >
-                  <SelectValue>{STATUT_LABEL[currentStatut]}</SelectValue>
+                  <SelectValue>{labelText}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="soumis" className="text-xs font-mono uppercase">

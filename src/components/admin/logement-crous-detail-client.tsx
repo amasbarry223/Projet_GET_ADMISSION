@@ -198,8 +198,8 @@ export function DemandeCrousDetailClient({ demande: initial }: { demande: Demand
           </h1>
           <p className="text-sm text-ardoise">Candidat : {demande.candidatNomComplet}</p>
         </div>
-        <Badge className={`font-mono text-[10px] uppercase ${STATUT_TONE[demande.statut]}`}>
-          {STATUT_LABEL[demande.statut]}
+        <Badge className={`font-mono text-[10px] uppercase ${STATUT_TONE[demande.statut?.toLowerCase()] ?? STATUT_TONE[demande.statut] ?? "text-vert border-vert bg-vert/5"}`}>
+          {STATUT_LABEL[demande.statut?.toLowerCase()] ?? STATUT_LABEL[demande.statut] ?? demande.statut}
         </Badge>
       </div>
 

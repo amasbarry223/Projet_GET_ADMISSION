@@ -193,8 +193,8 @@ export function LogementDetailClient({ reservation: initial }: { reservation: Lo
           </h1>
           <p className="text-sm text-ardoise">Candidat : {reservation.candidatNomComplet}</p>
         </div>
-        <Badge className={`font-mono text-[10px] uppercase ${STATUT_TONE[reservation.statut]}`}>
-          {STATUT_LABEL[reservation.statut]}
+        <Badge className={`font-mono text-[10px] uppercase ${STATUT_TONE[reservation.statut?.toLowerCase()] ?? STATUT_TONE[reservation.statut] ?? "text-vert border-vert bg-vert/5"}`}>
+          {STATUT_LABEL[reservation.statut?.toLowerCase()] ?? STATUT_LABEL[reservation.statut] ?? reservation.statut}
         </Badge>
       </div>
 
