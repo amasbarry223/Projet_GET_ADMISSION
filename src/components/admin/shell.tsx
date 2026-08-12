@@ -26,6 +26,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { GlobalSearch } from "@/components/admin/global-search";
 import { NotificationsBell } from "@/components/admin/notifications-bell";
 import { AdminThemeToggle } from "@/components/admin/admin-theme-toggle";
+import { AdminInstallButton } from "@/components/admin/admin-install-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { hasPermission, type Permission } from "@/lib/rbac";
 import type { Role } from "@prisma/client";
@@ -244,6 +245,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <div className="h-4 w-px bg-ligne" aria-hidden />
           <GlobalSearch />
           <div className="ml-auto flex items-center gap-1.5">
+            <AdminInstallButton />
             <AdminThemeToggle />
             <NotificationsBell />
           </div>
