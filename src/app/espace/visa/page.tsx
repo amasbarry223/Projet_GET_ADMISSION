@@ -112,11 +112,9 @@ export default function CandidateVisaPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
-        <div className="flex flex-col items-center justify-center p-12 text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-lapis" />
-          <p className="mt-4 text-sm text-ardoise">Chargement de votre espace Visa...</p>
-        </div>
+      <div className="flex flex-col items-center justify-center p-12 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-lapis" />
+        <p className="mt-4 text-sm text-ardoise">Chargement de votre espace Visa...</p>
       </div>
     );
   }
@@ -124,9 +122,9 @@ export default function CandidateVisaPage() {
   const showForm = !visa || editing;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+    <div className="space-y-6">
       {/* En-tête de la page */}
-      <div className="mb-8">
+      <div>
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-lapis">
           <FileCheck className="h-4 w-4" /> Espace Candidat · Suivi Consulaire
         </div>
