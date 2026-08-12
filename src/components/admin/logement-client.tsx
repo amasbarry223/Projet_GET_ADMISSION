@@ -28,14 +28,14 @@ export type LogementRow = {
   soumiseLe: string;
 };
 
-const STATUT_LABEL: Record<LogementRow["statut"], string> = {
+const STATUT_LABEL: Record<string, string> = {
   soumis: "Soumise",
   en_cours_traitement: "En cours de traitement",
   correction_demandee: "Correction demandée",
   traite: "Traité",
 };
 
-const STATUT_TONE: Record<LogementRow["statut"], string> = {
+const STATUT_TONE: Record<string, string> = {
   soumis: "text-ambre border-ambre bg-ambre/5",
   en_cours_traitement: "text-vert border-vert bg-vert/5",
   correction_demandee: "text-lapis border-lapis bg-lapis/5",
