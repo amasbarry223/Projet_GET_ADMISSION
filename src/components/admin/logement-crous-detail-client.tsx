@@ -302,7 +302,7 @@ export function DemandeCrousDetailClient({ demande: initial }: { demande: Demand
         )}
 
         <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-ligne pt-4">
-          {canWrite && !editing && (
+          {canWrite && !editing && demande.statut !== "traite" && (
             <Button variant="outline" size="sm" onClick={startEdit}>
               <Pencil className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Modifier
             </Button>
@@ -318,7 +318,7 @@ export function DemandeCrousDetailClient({ demande: initial }: { demande: Demand
               </Button>
             </>
           )}
-          {canWrite && !editing && (
+          {canWrite && !editing && demande.statut !== "traite" && (
             <Button variant="outline" size="sm" onClick={openCorrectionDialog}>
               <MessageSquareWarning className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Demander une correction
             </Button>

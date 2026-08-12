@@ -165,7 +165,7 @@ export function LogementClient({
           const toneClass = STATUT_TONE[currentStatut?.toLowerCase()] ?? STATUT_TONE[currentStatut] ?? "text-vert border-vert bg-vert/5";
           const labelText = STATUT_LABEL[currentStatut?.toLowerCase()] ?? STATUT_LABEL[currentStatut] ?? currentStatut;
 
-          if (!canWrite) {
+          if (!canWrite || currentStatut === "traite") {
             return (
               <Badge className={`font-mono text-[10px] uppercase ${toneClass}`}>
                 {labelText}

@@ -33,6 +33,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "Demande introuvable" }, { status: 404 });
   }
 
+  if (existing.statut === "traite") {
+    return NextResponse.json({ error: "Cette demande de logement CROUS a déjà été traitée et ne peut plus être modifiée." }, { status: 400 });
+  }
+
   const body = await request.json().catch(() => ({}));
   const parsed = parseOrRespond(demandeCrousSchema, body);
   if (!parsed.ok) return parsed.response;
@@ -75,6 +79,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const existing = await db.demandeLogementCrous.findUnique({ where: { id } });
   if (!existing) {
     return NextResponse.json({ error: "Demande introuvable" }, { status: 404 });
+  }
+
+  if (existing.statut === "traite") {
+    return NextResponse.json({ error: "Cette demande de logement CROUS a déjà été traitée et ne peut plus être modifiée." }, { status: 400 });
   }
 
   const body = await request.json().catch(() => ({}));

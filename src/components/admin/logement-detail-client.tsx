@@ -307,7 +307,7 @@ export function LogementDetailClient({ reservation: initial }: { reservation: Lo
         )}
 
         <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-ligne pt-4">
-          {canWrite && !editing && (
+          {canWrite && !editing && reservation.statut !== "traite" && (
             <Button variant="outline" size="sm" onClick={startEdit}>
               <Pencil className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Modifier
             </Button>
@@ -323,7 +323,7 @@ export function LogementDetailClient({ reservation: initial }: { reservation: Lo
               </Button>
             </>
           )}
-          {canWrite && !editing && (
+          {canWrite && !editing && reservation.statut !== "traite" && (
             <Button variant="outline" size="sm" onClick={openCorrectionDialog}>
               <MessageSquareWarning className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Demander une correction
             </Button>

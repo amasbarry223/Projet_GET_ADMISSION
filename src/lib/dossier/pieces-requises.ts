@@ -369,11 +369,15 @@ export function mergePiecesFormation(
     const trimmed = String(label || "").trim();
     if (!trimmed) continue;
     const slug = slugifyCode(trimmed);
+    const isLettreMotivation =
+      trimmed.toLowerCase().includes("motivation") ||
+      trimmed.toLowerCase().includes("lettre") ||
+      slug.includes("MOTIVATION");
     pushUnique(list, {
       code: `FORM_${slug || "AUTRE"}`,
       libelle: trimmed,
       categorie: "complementaire",
-      obligatoire: true,
+      obligatoire: !isLettreMotivation,
     });
   }
 
@@ -462,6 +466,15 @@ export type PieceManquanteLike = {
 export function listPiecesManquantes<T extends PieceManquanteLike>(pieces: T[]): T[] {
   return pieces.filter((piece) => {
     if (piece.obligatoire === false) return false;
+    const lib = (piece.libelle || "").toLowerCase();
+    const code = (piece.code || "").toLowerCase();
+    if (
+      lib.includes("motivation") ||
+      code.includes("motivation") ||
+      code.includes("lettre_motivation")
+    ) {
+      return false;
+    }
     const statut = piece.statut || "manquante";
     if (statut === "manquante" || statut === "a_corriger") return true;
     if (!piece.cheminFichier) return true;
