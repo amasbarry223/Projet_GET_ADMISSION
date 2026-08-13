@@ -3,7 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { staffSignOut } from "@/lib/auth-staff-client";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -205,7 +206,7 @@ function AdminUser() {
           <SidebarMenuButton
             tooltip="Déconnexion"
             className="text-ardoise hover:bg-carmin/5 hover:text-carmin"
-            onClick={() => signOut({ callbackUrl: "/back-office" })}
+            onClick={() => void staffSignOut({ callbackUrl: "/back-office" })}
           >
             <LogOut strokeWidth={1.5} />
             <span>Déconnexion</span>

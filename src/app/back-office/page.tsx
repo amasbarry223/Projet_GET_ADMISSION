@@ -4,7 +4,6 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signIn, signOut } from "next-auth/react";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +13,7 @@ import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
 import { FieldError } from "@/components/ui/field-error";
 import { defaultAdminRoute, isStaff } from "@/lib/rbac";
+import { staffSignIn, staffSignOut } from "@/lib/auth-staff-client";
 
 function safeCallback(raw: string | null): string | null {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return null;
@@ -90,12 +90,7 @@ function BackOfficeLoginInner() {
     setLoading(true);
     setSuggestCandidat(false);
 
-    const res = await signIn("credentials", {
-      email,
-      password,
-      portal: "staff",
-      redirect: false,
-    });
+    const res = await staffSignIn({ email, password, portal: "staff" });
 
     setLoading(false);
     if (res?.error) {
@@ -135,7 +130,7 @@ function BackOfficeLoginInner() {
     const role = sess?.user?.role as string | undefined;
 
     if (!isStaff(role)) {
-      await signOut({ redirect: false });
+      await staffSignOut({ redirect: false });
       setSuggestCandidat(true);
       toast.error("Connexion échouée", {
         description: "E-mail ou mot de passe incorrect.",
