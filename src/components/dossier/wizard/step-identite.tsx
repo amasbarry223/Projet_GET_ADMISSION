@@ -22,7 +22,9 @@ export function DossierStepIdentite({
     <div className="space-y-5">
       <div>
         <h2 className="font-display text-lg font-bold text-foreground">Pièces d&apos;identité</h2>
-        <p className="text-sm text-muted-foreground">Passeport ou CNI, et photo d&apos;identité.</p>
+        <p className="text-sm text-muted-foreground">
+          Votre pièce d&apos;identité (Passeport / CNI) est automatiquement vérifiée via votre profil KYC.
+        </p>
       </div>
 
       {piecesIdentite.length === 0 ? (

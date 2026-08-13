@@ -333,13 +333,7 @@ export function buildPiecesRequises(profil: ProfilAcademiqueInput): PieceRequise
     });
   });
 
-  // Identité (toujours)
-  pushUnique(list, {
-    code: "IDENTITE_PASSEPORT_CNI",
-    libelle: "Passeport ou CNI (page photo)",
-    categorie: "identite",
-    obligatoire: true,
-  });
+  // Identité (photo uniquement — le passeport/CNI est géré via le module KYC du profil)
   pushUnique(list, {
     code: "IDENTITE_PHOTO",
     libelle: "Photo d'identité récente",

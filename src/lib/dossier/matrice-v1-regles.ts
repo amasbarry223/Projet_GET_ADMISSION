@@ -173,14 +173,6 @@ export const MATRICE_V1_REGLES: SeedRegle[] = [
     ordre: 90,
   },
   {
-    code: "IDENTITE_PASSEPORT_CNI",
-    libelle: "Passeport ou CNI (page photo)",
-    categorie: "identite",
-    obligatoire: true,
-    condition: "IDENTITE",
-    ordre: 100,
-  },
-  {
     code: "IDENTITE_PHOTO",
     libelle: "Photo d'identité récente",
     categorie: "identite",

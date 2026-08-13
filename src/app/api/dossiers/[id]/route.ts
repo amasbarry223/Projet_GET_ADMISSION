@@ -265,12 +265,14 @@ export async function PUT(
           kycVersoPath: true,
         },
       });
-      const needsVerso = candidatUser?.kycType === "cni" || !candidatUser?.kycType;
-      const isKycComplete =
+      const kycTypeLower = candidatUser?.kycType?.toLowerCase()?.trim();
+      const needsVerso = kycTypeLower === "cni" || !kycTypeLower;
+      const isKycComplete = Boolean(
         candidatUser?.kycType &&
         candidatUser?.kycNumero?.trim() &&
         candidatUser?.kycRectoPath &&
-        (!needsVerso || candidatUser?.kycVersoPath);
+        (!needsVerso || candidatUser?.kycVersoPath)
+      );
 
       if (!isKycComplete) {
         return NextResponse.json(
@@ -290,7 +292,7 @@ export async function PUT(
       );
     }
 
-    // Re-sync pièces (profil + formation) avant validation
+    // Re-sync pièces (profil + formation) avant validation pour purger les pièces d'identité doublons
     const candidatProfil = await db.profilAcademique.findUnique({
       where: { userId: dossier.candidatId },
     });
@@ -298,29 +300,33 @@ export async function PUT(
       where: { id },
       select: { formation: { select: { piecesRequises: true } } },
     });
-    if (candidatProfil) {
-      await syncPiecesDossier(
-        db,
-        id,
-        {
-          statutCandidat: candidatProfil.statutCandidat,
-          classeActuelle: candidatProfil.classeActuelle,
-          aObtenuBac: candidatProfil.aObtenuBac,
-          trimestresSeconde: candidatProfil.trimestresSeconde,
-          trimestresPremiere: candidatProfil.trimestresPremiere,
-          trimestresTerminale: candidatProfil.trimestresTerminale,
-          attestationScolariteDisponible: candidatProfil.attestationScolariteDisponible,
-          niveauEtudesSuperieures: candidatProfil.niveauEtudesSuperieures,
-          formationEnCours: candidatProfil.formationEnCours,
-          diplomesObtenus: candidatProfil.diplomesObtenus,
-          redoublements: candidatProfil.redoublements,
-          interruptions: candidatProfil.interruptions,
-        },
-        { ...(dossierFormation?.formation.piecesRequises != null
-            ? { formationPiecesRequises: dossierFormation.formation.piecesRequises }
-            : {}) },
-      );
-    }
+    
+    await syncPiecesDossier(
+      db,
+      id,
+      candidatProfil
+        ? {
+            statutCandidat: candidatProfil.statutCandidat,
+            classeActuelle: candidatProfil.classeActuelle,
+            aObtenuBac: candidatProfil.aObtenuBac,
+            trimestresSeconde: candidatProfil.trimestresSeconde,
+            trimestresPremiere: candidatProfil.trimestresPremiere,
+            trimestresTerminale: candidatProfil.trimestresTerminale,
+            attestationScolariteDisponible: candidatProfil.attestationScolariteDisponible,
+            niveauEtudesSuperieures: candidatProfil.niveauEtudesSuperieures,
+            formationEnCours: candidatProfil.formationEnCours,
+            diplomesObtenus: candidatProfil.diplomesObtenus,
+            redoublements: candidatProfil.redoublements,
+            interruptions: candidatProfil.interruptions,
+          }
+        : {
+            statutCandidat: "BACHELIER",
+            niveauEtudesSuperieures: "AUCUN",
+          },
+      { ...(dossierFormation?.formation.piecesRequises != null
+          ? { formationPiecesRequises: dossierFormation.formation.piecesRequises }
+          : {}) },
+    );
 
     const piecesError = await assertPiecesObligatoiresCompletes(id);
     if (piecesError) return piecesError;

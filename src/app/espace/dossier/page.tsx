@@ -173,7 +173,8 @@ function DossierWizard() {
       .catch(() => null);
   }, []);
 
-  const needsVerso = userProfile?.kycType === "cni" || !userProfile?.kycType;
+  const kycTypeLower = userProfile?.kycType?.toLowerCase()?.trim();
+  const needsVerso = kycTypeLower === "cni" || !kycTypeLower;
   const isKycComplete = Boolean(
     userProfile?.kycType &&
       userProfile?.kycNumero?.trim() &&
