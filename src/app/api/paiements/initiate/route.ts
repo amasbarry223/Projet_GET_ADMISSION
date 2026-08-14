@@ -8,11 +8,12 @@ import { createNotification } from "@/lib/notifications";
 import { randomBytes } from "node:crypto";
 import { afterPaiementReussiSideEffects, applyPaiementReussiInTx, lockDossierRow } from "@/lib/dossier/paiement-effects";
 import { initiatePaytechPayment, isPaytechConfigured } from "@/lib/paiement/paytech";
+import { initiateGeniusPayPayment, isGeniusPayConfigured } from "@/lib/paiement/geniuspay";
 import { broadcastDossierLive } from "@/lib/dossier/live-broadcast";
 
 /**
  * POST /api/paiements/initiate
- * Initie un paiement en ligne (PayTech) ou retombe en déclaration si non configuré.
+ * Initie un paiement en ligne (GeniusPay ou PayTech) ou retombe en déclaration si non configuré.
  */
 export async function POST(request: Request) {
   const auth = await requireApiCandidat();
@@ -30,7 +31,10 @@ export async function POST(request: Request) {
 
   const baseUrl = (process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/$/, "");
   const ref = `REC-${new Date().getFullYear()}-${randomBytes(3).toString("hex").toUpperCase()}`;
+  
+  const geniusPayConfigured = isGeniusPayConfigured();
   const paytechConfigured = isPaytechConfigured();
+  const hasGatewayConfigured = geniusPayConfigured || paytechConfigured;
 
   try {
     const created = await db.$transaction(async (tx) => {
@@ -68,12 +72,7 @@ export async function POST(request: Request) {
           candidatId: locked.candidatId,
           montant,
           moyen,
-          // Sans passerelle de paiement branchée, aucune vérification externe supplémentaire n'est
-          // possible : le candidat ne doit pas rester bloqué en attente de validation manuelle, donc
-          // on confirme immédiatement. Dès qu'une vraie passerelle (PayTech) sera configurée, ce
-          // chemin repasse en "en_attente" et c'est le webhook qui confirme réellement le paiement
-          // (cf. plus bas et /api/paiements/webhook/paytech).
-          statut: paytechConfigured ? "en_attente" : "reussi",
+          statut: hasGatewayConfigured ? "en_attente" : "reussi",
           tranche: tranche || "Solde",
         },
       });
@@ -84,13 +83,13 @@ export async function POST(request: Request) {
           etat: locked.etat,
           auteur: auteurLabel,
           auteurId: userId,
-          note: paytechConfigured
+          note: hasGatewayConfigured
             ? `Paiement en ligne initié (${moyen}) : ${montant} FCFA — réf. ${ref}`
             : `Paiement ${moyen} reçu et confirmé : ${montant} FCFA — réf. ${ref}.`,
         },
       });
 
-      const applied = paytechConfigured
+      const applied = hasGatewayConfigured
         ? null
         : await applyPaiementReussiInTx(tx, {
             paiement: { id: paiement.id, reference: paiement.reference, montant: paiement.montant, moyen: paiement.moyen, dossierId },
@@ -102,8 +101,8 @@ export async function POST(request: Request) {
       return { paiement, locked, applied };
     });
 
-    // Pas de passerelle configurée : le paiement est déjà confirmé ci-dessus, rien à initier.
-    if (!paytechConfigured) {
+    // Pas de passerelle configurée : le paiement est déjà confirmé ci-dessus (déclaration directe).
+    if (!hasGatewayConfigured) {
       const etatFinal = created.applied?.etat ?? created.locked.etat;
 
       await afterPaiementReussiSideEffects({
@@ -135,11 +134,68 @@ export async function POST(request: Request) {
         paiement: { ...created.paiement, statut: "reussi" },
         receiptUrl: `/api/recu/${created.paiement.id}?format=pdf`,
         redirectUrl: null,
-        paytechConfigured: false,
+        gatewayConfigured: false,
       });
     }
 
-    const init = await initiatePaytechPayment({
+    // Si GeniusPay est configuré, on l'utilise en priorité
+    if (geniusPayConfigured) {
+      const initGenius = await initiateGeniusPayPayment({
+        reference: ref,
+        montant,
+        libelle: `Frais agence GET Admission — ${ref}`,
+        successUrl: `${baseUrl}/espace/paiement?status=success&ref=${encodeURIComponent(ref)}`,
+        cancelUrl: `${baseUrl}/espace/paiement?status=cancel&ref=${encodeURIComponent(ref)}`,
+        ipnUrl: `${baseUrl}/api/paiements/webhook/geniuspay`,
+        customerName: `${auth.user.prenom} ${auth.user.nom}`,
+        customerEmail: created.locked.candidat.email,
+        customerPhone: created.locked.candidat.telephone,
+        customField: created.paiement.id,
+      });
+
+      if (!initGenius.ok) {
+        await db.paiement.update({
+          where: { id: created.paiement.id },
+          data: { statut: "echoue" },
+        });
+        return NextResponse.json({ error: initGenius.error }, { status: 502 });
+      }
+
+      await logAudit({
+        session: auth.session,
+        action: "CREATE",
+        resource: "paiement",
+        resourceId: created.paiement.id,
+        details: `Init paiement GeniusPay ${ref} : ${montant} via ${moyen}`,
+      });
+
+      await createNotification({
+        userId,
+        titre: "Paiement en ligne GeniusPay initié",
+        message: `Finalisez le paiement de ${montant} FCFA (réf. ${ref}).`,
+        type: "paiement",
+        lien: "/espace/paiement",
+        dossierId,
+      });
+
+      void broadcastDossierLive({
+        dossierId,
+        candidatId: userId,
+        etat: created.locked.etat,
+      });
+
+      return NextResponse.json({
+        success: true,
+        mode: "geniuspay",
+        pending: true,
+        paiement: created.paiement,
+        redirectUrl: initGenius.redirectUrl,
+        provider: "geniuspay",
+      });
+    }
+
+    // Repli sur PayTech si PayTech est configuré
+    const initPaytech = await initiatePaytechPayment({
       reference: ref,
       montant,
       libelle: `Frais agence GET Admission — ${ref}`,
@@ -151,12 +207,12 @@ export async function POST(request: Request) {
       customField: created.paiement.id,
     });
 
-    if (!init.ok) {
+    if (!initPaytech.ok) {
       await db.paiement.update({
         where: { id: created.paiement.id },
         data: { statut: "echoue" },
       });
-      return NextResponse.json({ error: init.error }, { status: 502 });
+      return NextResponse.json({ error: initPaytech.error }, { status: 502 });
     }
 
     await logAudit({
@@ -164,7 +220,7 @@ export async function POST(request: Request) {
       action: "CREATE",
       resource: "paiement",
       resourceId: created.paiement.id,
-      details: `Init paiement ${ref} : ${montant} via ${moyen} (${init.mode})`,
+      details: `Init paiement PayTech ${ref} : ${montant} via ${moyen}`,
     });
 
     await createNotification({
@@ -184,11 +240,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      mode: init.mode,
+      mode: "paytech",
       pending: true,
       paiement: created.paiement,
-      redirectUrl: init.mode === "paytech" ? init.redirectUrl : null,
-      paytechConfigured: true,
+      redirectUrl: initPaytech.redirectUrl,
+      provider: "paytech",
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
@@ -221,8 +277,12 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
+  const geniusPayConfigured = isGeniusPayConfigured();
+  const paytechConfigured = isPaytechConfigured();
+
   return NextResponse.json({
-    paytechConfigured: isPaytechConfigured(),
-    provider: "paytech",
+    geniusPayConfigured,
+    paytechConfigured,
+    provider: geniusPayConfigured ? "geniuspay" : paytechConfigured ? "paytech" : "none",
   });
 }
