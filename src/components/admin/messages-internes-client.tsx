@@ -186,9 +186,9 @@ function StaffThreadView() {
   }
 
   return (
-    <Card className="overflow-hidden border-ligne bg-card p-0">
-      <div className="flex h-[600px] flex-col">
-        <div className="flex items-center gap-3 border-b border-ligne px-4 py-3">
+    <Card className="overflow-hidden border-ligne bg-card p-0 shadow-xs">
+      <div className="flex h-[640px] max-h-[calc(100vh-210px)] min-h-[500px] flex-col min-h-0 overflow-hidden">
+        <div className="flex flex-none items-center gap-3 border-b border-ligne px-4 py-3 bg-card">
           <Avatar className="h-9 w-9">
             <AvatarFallback className="bg-lapis/10 font-mono text-[11px] font-semibold text-lapis">
               <Landmark className="h-4 w-4" strokeWidth={1.5} />
@@ -204,7 +204,9 @@ function StaffThreadView() {
           emptyLabel="Aucun message pour l'instant. Écrivez à l'administration ci-dessous."
           bubbleIsMine={(m) => !isAdminSide(m.auteur.role)}
         />
-        <MessageComposer onSend={send} />
+        <div className="flex-none bg-card">
+          <MessageComposer onSend={send} />
+        </div>
       </div>
     </Card>
   );
@@ -325,8 +327,8 @@ function AdminView() {
   const selectedNom = selectedRow ? `${selectedRow.financier.prenom} ${selectedRow.financier.nom}` : "";
 
   return (
-    <Card className="overflow-hidden border-ligne bg-card p-0">
-      <div className="grid h-[600px] md:grid-cols-[280px_1fr]">
+    <Card className="overflow-hidden border-ligne bg-card p-0 shadow-xs">
+      <div className="grid h-[640px] max-h-[calc(100vh-210px)] min-h-[500px] md:grid-cols-[280px_1fr]">
         <aside className="hidden md:flex flex-col min-h-0 border-r border-ligne bg-card">
           <div className="border-b border-ligne px-4 py-3">
             <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Correspondants</p>
@@ -367,8 +369,8 @@ function AdminView() {
           </div>
         </aside>
 
-        <section className="flex flex-col">
-          <div className="flex items-center gap-3 border-b border-ligne px-4 py-3">
+        <section className="flex flex-col min-h-0 overflow-hidden bg-card">
+          <div className="flex flex-none items-center gap-3 border-b border-ligne px-4 py-3 bg-card">
             <Avatar className="h-9 w-9">
               <AvatarFallback className="bg-lapis/10 font-mono text-[11px] font-semibold text-lapis">
                 {selectedRow ? initiales(selectedRow.financier.prenom, selectedRow.financier.nom) : "—"}
@@ -393,7 +395,9 @@ function AdminView() {
               bubbleIsMine={(m) => isAdminSide(m.auteur.role)}
             />
           )}
-          <MessageComposer onSend={send} />
+          <div className="flex-none bg-card">
+            <MessageComposer onSend={send} />
+          </div>
         </section>
       </div>
     </Card>
