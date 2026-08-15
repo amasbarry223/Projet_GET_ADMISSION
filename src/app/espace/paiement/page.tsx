@@ -74,6 +74,8 @@ function PaiementInner() {
   const [method, setMethod] = React.useState("");
   const [tranches, setTranches] = React.useState(false);
   const [tranchesAutorisees, setTranchesAutorisees] = React.useState(true);
+  const [gatewayConfigured, setGatewayConfigured] = React.useState(false);
+  const [gatewayProvider, setGatewayProvider] = React.useState<string>("none");
   const [status, setStatus] = React.useState<"idle" | "loading" | "pending" | "success">("idle");
   const [receiptRef, setReceiptRef] = React.useState<string>("");
   const [lastPaiementId, setLastPaiementId] = React.useState<string>("");
@@ -130,6 +132,17 @@ function PaiementInner() {
     queueMicrotask(() => {
       if (cancelled) return;
       loadMoyens();
+
+      fetch("/api/paiements/initiate")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { geniusPayConfigured?: boolean; paytechConfigured?: boolean; provider?: string } | null) => {
+          if (cancelled || !data) return;
+          if (data.geniusPayConfigured || data.paytechConfigured) {
+            setGatewayConfigured(true);
+            setGatewayProvider(data.provider || "geniuspay");
+          }
+        })
+        .catch(() => {});
 
       fetch("/api/public/parametres")
         .then((r) => (r.ok ? r.json() : null))
@@ -247,7 +260,8 @@ function PaiementInner() {
       : "Solde";
 
   const confirm = async () => {
-    if (!selectedMethod || montantAPayer <= 0) return;
+    if (montantAPayer <= 0) return;
+    if (!gatewayConfigured && !selectedMethod) return;
     setStatus("loading");
     try {
       const res = await fetch("/api/paiements/initiate", {
@@ -256,7 +270,11 @@ function PaiementInner() {
         body: JSON.stringify({
           dossierId: d.id,
           montant: montantAPayer,
-          moyen: selectedMethod.nom,
+          moyen: gatewayConfigured
+            ? gatewayProvider === "geniuspay"
+              ? "GeniusPay"
+              : "PayTech"
+            : selectedMethod?.nom || "En ligne",
           tranche: libelleTranche,
         }),
       });
@@ -298,13 +316,13 @@ function PaiementInner() {
     <div className="space-y-6">
       <div>
         <p className="eyebrow">Paiement & reçus</p>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Réglez les frais d'agence.</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">
+          {gatewayConfigured ? "Réglez vos frais d'agence en ligne." : "Réglez les frais d'agence."}
+        </h1>
         <p className="text-ardoise">
-          Déclarez un paiement déjà effectué (Mobile Money, Wave, virement ou espèces) : votre reçu
-          est généré automatiquement dès l&apos;enregistrement, sans attente.
-          {process.env.NEXT_PUBLIC_PAYMENT_GATEWAY_ENABLED === "true"
-            ? " Le paiement en ligne sécurisé est aussi disponible ci-dessous."
-            : ""}
+          {gatewayConfigured
+            ? "Vous allez être redirigé vers le guichet de paiement sécurisé GeniusPay pour effectuer votre versement (Orange Money, Wave, Moov, MTN, Carte bancaire)."
+            : "Déclarez un paiement déjà effectué (Mobile Money, Wave, virement ou espèces) : votre reçu est généré automatiquement dès l'enregistrement."}
         </p>
       </div>
 
@@ -323,7 +341,7 @@ function PaiementInner() {
               <span className="font-mono text-xs font-semibold text-encre">{receiptRef}</span>
             </div>
             <dl className="mt-3 space-y-1.5 text-sm">
-              <div className="flex justify-between"><dt className="text-ardoise">Moyen</dt><dd className="text-encre">{selectedMethod?.nom ?? "—"}</dd></div>
+              <div className="flex justify-between"><dt className="text-ardoise">Moyen</dt><dd className="text-encre">{gatewayConfigured ? "GeniusPay" : (selectedMethod?.nom ?? "—")}</dd></div>
               <div className="flex justify-between"><dt className="text-ardoise">Montant</dt><dd className="font-mono font-semibold text-lapis">{formatFCFA(lastMontant)}</dd></div>
               <div className="flex justify-between"><dt className="text-ardoise">Statut</dt><dd className="capitalize text-ambre">en attente</dd></div>
             </dl>
@@ -362,7 +380,7 @@ function PaiementInner() {
               <div className="flex justify-between"><dt className="text-ardoise">Candidat</dt><dd className="text-encre">{d.candidat.prenom} {d.candidat.nom}</dd></div>
               <div className="flex justify-between"><dt className="text-ardoise">Référence dossier</dt><dd className="font-mono text-encre">{d.reference}</dd></div>
               <div className="flex justify-between"><dt className="text-ardoise">Université</dt><dd className="text-encre">{d.universite.nom}</dd></div>
-              <div className="flex justify-between"><dt className="text-ardoise">Moyen</dt><dd className="text-encre">{selectedMethod?.nom ?? "—"}</dd></div>
+              <div className="flex justify-between"><dt className="text-ardoise">Moyen</dt><dd className="text-encre">{gatewayConfigured ? "GeniusPay" : (selectedMethod?.nom ?? "—")}</dd></div>
               <div className="flex justify-between border-t border-ligne pt-2 mt-2"><dt className="font-semibold text-encre">Montant</dt><dd className="font-mono text-lg font-bold text-lapis">{formatFCFA(lastMontant)}</dd></div>
             </dl>
           </div>
@@ -448,100 +466,177 @@ function PaiementInner() {
         <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
           {/* Left: form */}
           <div className="space-y-4">
-            <Card className="border-ligne bg-card p-6">
-              <p className="eyebrow">Moyen de paiement</p>
-              {methodsLoading ? (
-                <div className="mt-4 flex items-center gap-2 text-sm text-ardoise">
-                  <Loader2 className="h-4 w-4 animate-spin text-lapis" strokeWidth={1.5} />
-                  Chargement des moyens de paiement…
-                </div>
-              ) : methodsError ? (
-                <Alert className="mt-4 border-carmin/40 bg-carmin/5">
-                  <AlertCircle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
-                  <AlertTitle className="text-sm font-bold">Moyens de paiement indisponibles</AlertTitle>
-                  <AlertDescription className="text-sm text-ardoise">
-                    {methodsError}{" "}
-                    <button
-                      type="button"
-                      className="font-medium text-lapis underline"
-                      onClick={loadMoyens}
-                    >
-                      Réessayer
-                    </button>
-                  </AlertDescription>
-                </Alert>
-              ) : methods.length === 0 ? (
-                <EmptyState
-                  className="mt-4 py-8"
-                  title="Aucun moyen configuré"
-                  description="Contactez l'agence — aucun moyen de paiement n'est disponible pour le moment."
-                />
-              ) : (
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  {methods.map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setMethod(m.nom)}
-                      className={cn(
-                        "flex min-h-11 items-center gap-3 rounded-md border-2 p-3 text-left transition-all",
-                        method === m.nom ? "border-lapis bg-lapis/5" : "border-ligne bg-card hover:border-lapis/30"
-                      )}
-                      aria-pressed={method === m.nom}
-                    >
-                      <span className={cn("flex h-9 w-9 flex-none items-center justify-center rounded-md text-blanc", m.couleur)}>
-                        {iconForMoyen(m.icone)}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-sm font-medium text-encre">{m.nom}</span>
-                        <span className="block text-[10px] text-ardoise">Confirmation immédiate</span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {tranchesAutorisees && !needsTranche2 && (
-                <div className="mt-5 flex items-center justify-between rounded-md border border-ligne bg-porcelaine p-3">
-                  <div>
-                    <Label htmlFor="tranches" className="text-sm font-medium text-encre">Payer en plusieurs tranches</Label>
-                    <p className="text-xs text-ardoise">Deux versements égaux (paramétrable par l&apos;agence).</p>
+            {gatewayConfigured ? (
+              <Card className="border-lapis/20 bg-card p-6 space-y-4">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 flex-none items-center justify-center rounded-xl bg-lapis/10 text-lapis">
+                    <CreditCard className="h-6 w-6" strokeWidth={1.5} />
                   </div>
-                  <Switch id="tranches" checked={tranches} onCheckedChange={setTranches} />
-                </div>
-              )}
-
-              {needsTranche2 && (
-                <Alert className="mt-4 border-ambre/40 bg-ambre/5">
-                  <AlertCircle className="h-4 w-4 text-ambre" />
-                  <AlertTitle className="text-sm font-bold">Tranche 2 due</AlertTitle>
-                  <AlertDescription className="text-xs text-ardoise">
-                    Reste à payer : {formatFCFA(reste)} (déjà versé {formatFCFA(dejaPaye)}).
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {tranches && tranchesAutorisees && !needsTranche2 && (
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <div className="rounded-md border border-ligne p-3">
-                    <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Tranche 1 — aujourd&apos;hui</p>
-                    <p className="mt-1 font-mono text-lg font-bold text-lapis">{formatFCFA(tranche1)}</p>
-                  </div>
-                  <div className="rounded-md border border-ligne p-3">
-                    <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Tranche 2 — ensuite</p>
-                    <p className="mt-1 font-mono text-lg font-bold text-ardoise">{formatFCFA(tranche2)}</p>
+                  <div className="space-y-1">
+                    <p className="eyebrow text-lapis">Guichet en ligne sécurisé</p>
+                    <h3 className="font-display text-lg font-bold text-encre">Payer via GeniusPay</h3>
+                    <p className="text-sm text-ardoise leading-relaxed">
+                      Vous allez être redirigé vers le guichet de paiement sécurisé de GeniusPay pour effectuer votre versement.
+                      GeniusPay prend en charge l'ensemble des moyens de paiement ci-dessous.
+                    </p>
                   </div>
                 </div>
-              )}
-            </Card>
+
+                <div className="rounded-lg border border-ligne bg-porcelaine/60 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-ardoise mb-2.5">
+                    Modes de paiement disponibles sur GeniusPay :
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="bg-card text-encre border-ligne px-3 py-1 text-xs font-medium">Orange Money</Badge>
+                    <Badge variant="outline" className="bg-card text-encre border-ligne px-3 py-1 text-xs font-medium">Moov Money</Badge>
+                    <Badge variant="outline" className="bg-card text-encre border-ligne px-3 py-1 text-xs font-medium">Wave</Badge>
+                    <Badge variant="outline" className="bg-card text-encre border-ligne px-3 py-1 text-xs font-medium">MTN Money</Badge>
+                    <Badge variant="outline" className="bg-card text-encre border-ligne px-3 py-1 text-xs font-medium">Carte Bancaire (Visa / Mastercard)</Badge>
+                  </div>
+                </div>
+
+                {tranchesAutorisees && !needsTranche2 && (
+                  <div className="flex items-center justify-between rounded-md border border-ligne bg-porcelaine p-3">
+                    <div>
+                      <Label htmlFor="tranches" className="text-sm font-medium text-encre">Payer en 2 tranches</Label>
+                      <p className="text-xs text-ardoise">Réglez la moitié aujourd&apos;hui ({formatFCFA(tranche1)}) et le solde ultérieurement.</p>
+                    </div>
+                    <Switch id="tranches" checked={tranches} onCheckedChange={setTranches} />
+                  </div>
+                )}
+
+                {needsTranche2 && (
+                  <Alert className="border-ambre/40 bg-ambre/5">
+                    <AlertCircle className="h-4 w-4 text-ambre" />
+                    <AlertTitle className="text-sm font-bold">Tranche 2 due</AlertTitle>
+                    <AlertDescription className="text-xs text-ardoise">
+                      Reste à payer : {formatFCFA(reste)} (déjà versé {formatFCFA(dejaPaye)}).
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {tranches && tranchesAutorisees && !needsTranche2 && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-md border border-ligne p-3">
+                      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Tranche 1 — aujourd&apos;hui</p>
+                      <p className="mt-1 font-mono text-lg font-bold text-lapis">{formatFCFA(tranche1)}</p>
+                    </div>
+                    <div className="rounded-md border border-ligne p-3">
+                      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Tranche 2 — ensuite</p>
+                      <p className="mt-1 font-mono text-lg font-bold text-ardoise">{formatFCFA(tranche2)}</p>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            ) : (
+              <Card className="border-ligne bg-card p-6">
+                <p className="eyebrow">Déclaration de paiement</p>
+                {methodsLoading ? (
+                  <div className="mt-4 flex items-center gap-2 text-sm text-ardoise">
+                    <Loader2 className="h-4 w-4 animate-spin text-lapis" strokeWidth={1.5} />
+                    Chargement des moyens de paiement…
+                  </div>
+                ) : methodsError ? (
+                  <Alert className="mt-4 border-carmin/40 bg-carmin/5">
+                    <AlertCircle className="h-4 w-4 text-carmin" strokeWidth={1.5} />
+                    <AlertTitle className="text-sm font-bold">Moyens de paiement indisponibles</AlertTitle>
+                    <AlertDescription className="text-sm text-ardoise">
+                      {methodsError}{" "}
+                      <button
+                        type="button"
+                        className="font-medium text-lapis underline"
+                        onClick={loadMoyens}
+                      >
+                        Réessayer
+                      </button>
+                    </AlertDescription>
+                  </Alert>
+                ) : methods.length === 0 ? (
+                  <EmptyState
+                    className="mt-4 py-8"
+                    title="Aucun moyen configuré"
+                    description="Contactez l'agence — aucun moyen de paiement n'est disponible pour le moment."
+                  />
+                ) : (
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    {methods.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setMethod(m.nom)}
+                        className={cn(
+                          "flex min-h-11 items-center gap-3 rounded-md border-2 p-3 text-left transition-all",
+                          method === m.nom ? "border-lapis bg-lapis/5" : "border-ligne bg-card hover:border-lapis/30"
+                        )}
+                        aria-pressed={method === m.nom}
+                      >
+                        <span className={cn("flex h-9 w-9 flex-none items-center justify-center rounded-md text-blanc", m.couleur)}>
+                          {iconForMoyen(m.icone)}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium text-encre">{m.nom}</span>
+                          <span className="block text-[10px] text-ardoise">Confirmation immédiate</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {tranchesAutorisees && !needsTranche2 && (
+                  <div className="mt-5 flex items-center justify-between rounded-md border border-ligne bg-porcelaine p-3">
+                    <div>
+                      <Label htmlFor="tranches" className="text-sm font-medium text-encre">Payer en plusieurs tranches</Label>
+                      <p className="text-xs text-ardoise">Deux versements égaux (paramétrable par l&apos;agence).</p>
+                    </div>
+                    <Switch id="tranches" checked={tranches} onCheckedChange={setTranches} />
+                  </div>
+                )}
+
+                {needsTranche2 && (
+                  <Alert className="mt-4 border-ambre/40 bg-ambre/5">
+                    <AlertCircle className="h-4 w-4 text-ambre" />
+                    <AlertTitle className="text-sm font-bold">Tranche 2 due</AlertTitle>
+                    <AlertDescription className="text-xs text-ardoise">
+                      Reste à payer : {formatFCFA(reste)} (déjà versé {formatFCFA(dejaPaye)}).
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {tranches && tranchesAutorisees && !needsTranche2 && (
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div className="rounded-md border border-ligne p-3">
+                      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Tranche 1 — aujourd&apos;hui</p>
+                      <p className="mt-1 font-mono text-lg font-bold text-lapis">{formatFCFA(tranche1)}</p>
+                    </div>
+                    <div className="rounded-md border border-ligne p-3">
+                      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Tranche 2 — ensuite</p>
+                      <p className="mt-1 font-mono text-lg font-bold text-ardoise">{formatFCFA(tranche2)}</p>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            )}
 
             <Card className="border-ligne bg-card p-6">
               <div className="flex items-center gap-2 text-sm text-ardoise">
                 <ShieldCheck className="h-4 w-4 text-vert" strokeWidth={1.5} />
-                Paiement sécurisé · Vos données sont chiffrées.
+                {gatewayConfigured
+                  ? "Redirection sécurisée · Vos données bancaires sont chiffrées par GeniusPay."
+                  : "Paiement sécurisé · Vos données sont chiffrées."}
               </div>
-              <Button className="mt-4 w-full bg-lapis text-blanc hover:bg-lapis/90" size="lg" onClick={confirm} disabled={status === "loading" || methodsLoading || !selectedMethod}>
-                {status === "loading" ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Traitement…</> : <><Lock className="mr-2 h-4 w-4" strokeWidth={1.5} /> Confirmer le paiement</>}
+              <Button
+                className="mt-4 w-full bg-lapis text-blanc hover:bg-lapis/90 h-12 text-base font-semibold shadow-sm"
+                size="lg"
+                onClick={confirm}
+                disabled={status === "loading" || (!gatewayConfigured && (methodsLoading || !selectedMethod))}
+              >
+                {status === "loading" ? (
+                  <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Traitement en cours…</>
+                ) : gatewayConfigured ? (
+                  <><Lock className="mr-2 h-5 w-5" strokeWidth={1.5} /> Payer via GeniusPay ({formatFCFA(montantAPayer)}) <ArrowRight className="ml-2 h-4 w-4" strokeWidth={1.5} /></>
+                ) : (
+                  <><Lock className="mr-2 h-5 w-5" strokeWidth={1.5} /> Confirmer le paiement ({formatFCFA(montantAPayer)})</>
+                )}
               </Button>
             </Card>
           </div>

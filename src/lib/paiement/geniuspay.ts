@@ -20,7 +20,7 @@ export type GeniusPayInitiateInput = {
 };
 
 export type GeniusPayInitiateResult =
-  | { ok: true; mode: "geniuspay"; redirectUrl: string; reference: string; id?: string | number }
+  | { ok: true; mode: "geniuspay"; redirectUrl: string; reference: string; id?: string | number | undefined }
   | { ok: true; mode: "declaration" }
   | { ok: false; error: string };
 
@@ -44,9 +44,13 @@ export async function initiateGeniusPayPayment(
     return { ok: true, mode: "declaration" };
   }
 
-  const baseUrl = (
-    process.env.GENIUSPAY_API_URL?.trim() || "http://geniuspay.ci/api/v1/merchant"
+  let baseUrl = (
+    process.env.GENIUSPAY_API_URL?.trim() || "https://geniuspay.ci/api/v1/merchant"
   ).replace(/\/$/, "");
+
+  if (baseUrl.startsWith("http://")) {
+    baseUrl = baseUrl.replace(/^http:\/\//, "https://");
+  }
 
   try {
     const payload: Record<string, unknown> = {
@@ -80,7 +84,8 @@ export async function initiateGeniusPayPayment(
       body: JSON.stringify(payload),
     });
 
-    const body = (await res.json().catch(() => ({}))) as {
+    const text = await res.text();
+    let body: {
       success?: boolean;
       message?: string;
       error?: string;
@@ -91,7 +96,18 @@ export async function initiateGeniusPayPayment(
         payment_url?: string;
         status?: string;
       };
-    };
+    } = {};
+
+    try {
+      body = JSON.parse(text);
+    } catch {
+      if (res.status >= 500) {
+        return {
+          ok: false,
+          error: "Le serveur GeniusPay rencontre un problème technique temporaire (Erreur 500). Veuillez réessayer dans quelques instants.",
+        };
+      }
+    }
 
     const redirectUrl = body?.data?.checkout_url || body?.data?.payment_url;
 
@@ -101,7 +117,9 @@ export async function initiateGeniusPayPayment(
         error:
           body.message ||
           body.error ||
-          "Impossible d'initier le paiement GeniusPay. Vérifiez vos clés API.",
+          (res.status >= 500
+            ? "Le serveur GeniusPay est temporairement indisponible."
+            : "Impossible d'initier le paiement GeniusPay. Vérifiez vos clés API et la configuration."),
       };
     }
 

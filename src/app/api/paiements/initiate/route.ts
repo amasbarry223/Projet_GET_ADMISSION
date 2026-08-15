@@ -167,7 +167,7 @@ export async function POST(request: Request) {
           data: { statut: "echoue" },
         });
         return NextResponse.json(
-          { error: "GeniusPay indisponible (clés API manquantes)." },
+          { error: "Mode d'initialisation GeniusPay invalide." },
           { status: 502 }
         );
       }
@@ -232,7 +232,7 @@ export async function POST(request: Request) {
         data: { statut: "echoue" },
       });
       return NextResponse.json(
-        { error: "PayTech indisponible (clés API manquantes)." },
+        { error: "Mode d'initialisation PayTech invalide." },
         { status: 502 }
       );
     }
