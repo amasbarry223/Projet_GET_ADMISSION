@@ -35,7 +35,17 @@ export async function POST(request: Request) {
     request.headers.get("X-GeniusPay-Signature");
 
   const secret = process.env.GENIUSPAY_WEBHOOK_SECRET || process.env.GENIUSPAY_API_SECRET;
-  if (secret && signatureHeader) {
+
+  // Sécurité renforcée : si un secret est configuré, la signature est OBLIGATOIRE.
+  // Un webhook sans en-tête de signature est systématiquement rejeté pour éviter
+  // qu'un attaquant connaissant l'URL forge un paiement réussi.
+  if (secret) {
+    if (!signatureHeader) {
+      return NextResponse.json(
+        { error: "En-tête de signature GeniusPay manquant" },
+        { status: 401 },
+      );
+    }
     const isValid = verifyGeniusPaySignature(rawBody, signatureHeader, secret);
     if (!isValid) {
       return NextResponse.json({ error: "Signature webhook GeniusPay invalide" }, { status: 401 });

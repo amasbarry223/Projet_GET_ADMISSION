@@ -14,6 +14,28 @@ import {
   SESSION_MAX_AGE_SECONDS,
 } from "@/shared/constants";
 
+// ─── Garde-fou NEXTAUTH_SECRET ────────────────────────────────────────────────
+// Détecte les valeurs par défaut dangereuses en production et logue une alerte critique.
+const _DANGEROUS_SECRETS = [
+  "change-me-to-a-long-random-string",
+  "build-placeholder-change-me-in-vercel",
+  "secret",
+  "changeme",
+];
+if (
+  process.env.NODE_ENV === "production" &&
+  _DANGEROUS_SECRETS.includes(process.env.NEXTAUTH_SECRET ?? "")
+) {
+  console.error(
+    "⛔ [SÉCURITÉ CRITIQUE] NEXTAUTH_SECRET est la valeur par défaut en production !\n" +
+    "Tous les JWT de l'application sont forgables — accès SUPER_ADMIN immédiat pour n'importe qui.\n" +
+    "Génère un secret fort : openssl rand -base64 64\n" +
+    "Puis injecte-le dans Vercel → Project Settings → Environment Variables → NEXTAUTH_SECRET",
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+
 type AuthUser = {
   id: string;
   email: string;

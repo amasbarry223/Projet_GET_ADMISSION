@@ -244,6 +244,9 @@ export async function POST(request: Request) {
   }
 
   // Resynchronise les séquences Postgres après upsert avec id explicite.
+  // SÉCURITÉ : `table` est toujours une valeur de la constante statique AUTOINCREMENT_TABLES
+  // définie en haut de ce fichier — aucune valeur utilisateur n'est interpolée ici.
+  // Ne jamais remplacer `table` par une variable dont la valeur viendrait d'une requête HTTP.
   for (const table of AUTOINCREMENT_TABLES) {
     await db.$executeRawUnsafe(
       `SELECT setval(pg_get_serial_sequence('"${table}"', 'id'), COALESCE((SELECT MAX(id) FROM "${table}"), 1))`,
