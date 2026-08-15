@@ -185,7 +185,7 @@ function Brand() {
             <div className="hidden aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-lapis font-display text-[11px] font-bold tracking-tight text-blanc shadow-sm group-data-[collapsible=icon]:flex">
               GA
             </div>
-            <BrandLogo height={40} className="group-data-[collapsible=icon]:hidden" />
+            <BrandLogo height={48} className="group-data-[collapsible=icon]:hidden" />
           </Link>
         </SidebarMenuButton>
       </SidebarMenuItem>

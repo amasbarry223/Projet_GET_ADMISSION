@@ -110,7 +110,7 @@ export async function initiateGeniusPayPayment(
       mode: "geniuspay",
       redirectUrl,
       reference: body.data?.reference || input.reference,
-      id: body.data?.id,
+      ...(body.data?.id != null ? { id: body.data.id } : {}),
     };
   } catch (e) {
     return {

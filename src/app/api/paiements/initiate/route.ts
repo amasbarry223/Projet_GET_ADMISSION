@@ -161,6 +161,17 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: initGenius.error }, { status: 502 });
       }
 
+      if (initGenius.mode !== "geniuspay") {
+        await db.paiement.update({
+          where: { id: created.paiement.id },
+          data: { statut: "echoue" },
+        });
+        return NextResponse.json(
+          { error: "GeniusPay indisponible (clés API manquantes)." },
+          { status: 502 }
+        );
+      }
+
       await logAudit({
         session: auth.session,
         action: "CREATE",
@@ -213,6 +224,17 @@ export async function POST(request: Request) {
         data: { statut: "echoue" },
       });
       return NextResponse.json({ error: initPaytech.error }, { status: 502 });
+    }
+
+    if (initPaytech.mode !== "paytech") {
+      await db.paiement.update({
+        where: { id: created.paiement.id },
+        data: { statut: "echoue" },
+      });
+      return NextResponse.json(
+        { error: "PayTech indisponible (clés API manquantes)." },
+        { status: 502 }
+      );
     }
 
     await logAudit({

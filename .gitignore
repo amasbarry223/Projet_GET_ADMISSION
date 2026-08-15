@@ -30,14 +30,16 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files
+# env secrets ( .env.example reste versionné comme modèle )
 .env
-.env.example
-.env*
+.env.local
+.env.production
+.env.development
+.env.test
+.env*.local
 
 # vercel
 .vercel
-
 
 # typescript
 *.tsbuildinfo
@@ -51,12 +53,6 @@ test
 prompt
 
 server.log
+
 # Skills directory
 /skills/
-# env files
-.env
-.env*
-.env.example
-.env.local
-.env.production
-
