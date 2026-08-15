@@ -664,47 +664,82 @@ export default function DossierDetailClient() {
                 </div>
               )}
               <div className="mt-4 flex flex-wrap items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!kycComplete || dossier.candidat.kycVerifie}
-                  title={
-                    dossier.candidat.kycVerifie
-                      ? "Le KYC de ce candidat est déjà vérifié."
-                      : !kycComplete
-                        ? `En attente du recto${kycNeedsVerso ? " et du verso" : ""}.`
-                        : undefined
-                  }
-                  onClick={async () => {
-                    const result = await apiJson("/api/profile/kyc", "PUT", {
-                      userId: dossier.candidat.id,
-                      verifie: true,
-                    });
-                    if (!result.ok) {
-                      toast.error("Validation KYC échouée", { description: result.error });
-                      return;
-                    }
-                    toast.success("KYC vérifié");
-                    void loadDossier();
-                  }}
-                >
-                  <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
-                  {dossier.candidat.kycVerifie ? "KYC vérifié" : "Valider le KYC"}
-                </Button>
-                {kycHasRecto && (
-                  <Button variant="outline" size="sm" asChild>
-                    <a href={`/api/profile/kyc?side=recto&userId=${dossier.candidat.id}`} target="_blank" rel="noreferrer">
-                      <FileImage className="mr-1.5 h-3.5 w-3.5" /> Voir recto
-                    </a>
-                  </Button>
-                )}
-                {kycHasVerso && (
-                  <Button variant="outline" size="sm" asChild>
-                    <a href={`/api/profile/kyc?side=verso&userId=${dossier.candidat.id}`} target="_blank" rel="noreferrer">
-                      <FileImage className="mr-1.5 h-3.5 w-3.5" /> Voir verso
-                    </a>
-                  </Button>
-                )}
+                {(() => {
+                  const isAssigned = Boolean(dossier.conseiller);
+                  const isCurrentConseiller = isAssigned && session?.user?.id === dossier.conseiller?.id;
+                  const isRestrictedForKyc = isAssigned && !isCurrentConseiller;
+
+                  return (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isRestrictedForKyc || !kycComplete || dossier.candidat.kycVerifie}
+                        title={
+                          isRestrictedForKyc
+                            ? `Ce dossier est affecté au conseiller ${conseillerNomComplet}. Seul ce conseiller a la main pour valider la pièce KYC.`
+                            : dossier.candidat.kycVerifie
+                              ? "Le KYC de ce candidat est déjà vérifié."
+                              : !kycComplete
+                                ? `En attente du recto${kycNeedsVerso ? " et du verso" : ""}.`
+                                : undefined
+                        }
+                        onClick={async () => {
+                          if (isRestrictedForKyc) return;
+                          const result = await apiJson("/api/profile/kyc", "PUT", {
+                            userId: dossier.candidat.id,
+                            verifie: true,
+                          });
+                          if (!result.ok) {
+                            toast.error("Validation KYC échouée", { description: result.error });
+                            return;
+                          }
+                          toast.success("KYC vérifié");
+                          void loadDossier();
+                        }}
+                      >
+                        <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+                        {dossier.candidat.kycVerifie ? "KYC vérifié" : "Valider le KYC"}
+                      </Button>
+                      {kycHasRecto && (
+                        isRestrictedForKyc ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled
+                            title={`Consultation de la pièce d'identité réservée au conseiller affecté (${conseillerNomComplet}).`}
+                          >
+                            <FileImage className="mr-1.5 h-3.5 w-3.5" /> Voir recto
+                          </Button>
+                        ) : (
+                          <Button variant="outline" size="sm" asChild>
+                            <a href={`/api/profile/kyc?side=recto&userId=${dossier.candidat.id}`} target="_blank" rel="noreferrer">
+                              <FileImage className="mr-1.5 h-3.5 w-3.5" /> Voir recto
+                            </a>
+                          </Button>
+                        )
+                      )}
+                      {kycHasVerso && (
+                        isRestrictedForKyc ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled
+                            title={`Consultation de la pièce d'identité réservée au conseiller affecté (${conseillerNomComplet}).`}
+                          >
+                            <FileImage className="mr-1.5 h-3.5 w-3.5" /> Voir verso
+                          </Button>
+                        ) : (
+                          <Button variant="outline" size="sm" asChild>
+                            <a href={`/api/profile/kyc?side=verso&userId=${dossier.candidat.id}`} target="_blank" rel="noreferrer">
+                              <FileImage className="mr-1.5 h-3.5 w-3.5" /> Voir verso
+                            </a>
+                          </Button>
+                        )
+                      )}
+                    </>
+                  );
+                })()}
                 {!kycHasRecto && !kycHasVerso && (
                   <span className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-ligne px-2.5 py-1.5 text-xs text-ardoise">
                     <IdCard className="h-3.5 w-3.5" strokeWidth={1.5} /> Aucune pièce d&apos;identité téléversée

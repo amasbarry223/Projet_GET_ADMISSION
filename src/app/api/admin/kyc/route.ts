@@ -36,27 +36,43 @@ export async function GET() {
       kycVerifieLe: true,
       updatedAt: true,
       createdAt: true,
+      dossiersCandidat: {
+        where: { conseillerId: { not: null } },
+        select: {
+          conseillerId: true,
+          conseiller: { select: { prenom: true, nom: true } },
+        },
+      },
     },
     orderBy: [{ kycVerifie: "asc" }, { updatedAt: "desc" }],
   });
 
-  const data = users.map((u) => ({
-    id: u.id,
-    email: u.email,
-    prenom: u.prenom,
-    nom: u.nom,
-    telephone: u.telephone,
-    nationalite: u.nationalite,
-    kycType: u.kycType,
-    kycNumero: u.kycNumero,
-    hasRecto: !!u.kycRectoPath,
-    hasVerso: !!u.kycVersoPath,
-    kycVerifie: u.kycVerifie,
-    kycVerifieLe: u.kycVerifieLe?.toISOString() ?? null,
-    updatedAt: u.updatedAt.toISOString(),
-    createdAt: u.createdAt.toISOString(),
-    statut: kycStatus(u),
-  }));
+  const data = users.map((u) => {
+    const assigned = u.dossiersCandidat[0];
+    const conseillerNom = assigned?.conseiller
+      ? `${assigned.conseiller.prenom} ${assigned.conseiller.nom}`
+      : null;
+    return {
+      id: u.id,
+      email: u.email,
+      prenom: u.prenom,
+      nom: u.nom,
+      telephone: u.telephone,
+      nationalite: u.nationalite,
+      kycType: u.kycType,
+      kycNumero: u.kycNumero,
+      hasRecto: !!u.kycRectoPath,
+      hasVerso: !!u.kycVersoPath,
+      kycVerifie: u.kycVerifie,
+      kycVerifieLe: u.kycVerifieLe?.toISOString() ?? null,
+      updatedAt: u.updatedAt.toISOString(),
+      createdAt: u.createdAt.toISOString(),
+      statut: kycStatus(u),
+      conseillerId: assigned?.conseillerId ?? null,
+      conseillerNom,
+      isAssignedToConseiller: Boolean(assigned?.conseillerId),
+    };
+  });
 
   return NextResponse.json({ data });
 }

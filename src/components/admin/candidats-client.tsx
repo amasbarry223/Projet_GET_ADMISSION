@@ -41,6 +41,9 @@ export type CandidatRow = {
   dossiers: number;
   date: string;
   lastLoginAt: string | null;
+  conseillerId?: string | null;
+  conseillerNom?: string | null;
+  isAssignedToConseiller?: boolean;
 };
 
 export function CandidatsClient({
@@ -80,14 +83,18 @@ export function CandidatsClient({
     setFormPrenom(row.prenom);
     setFormNom(row.nom);
     setFormEmail(row.email);
-    setFormTelephone(row.telephone ?? "");
-    setFormNationalite(row.nationalite ?? "");
+    setFormTelephone(row.telephone || "");
+    setFormNationalite(row.nationalite || "");
     setFormActif(row.actif);
     setEditOpen(true);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formPrenom.trim() || !formNom.trim() || !formEmail.trim()) {
+      toast.error("Champs obligatoires manquants");
+      return;
+    }
     setSaving(true);
     const result = await apiJson<{ tempPassword: string }>("/api/admin/candidats", "POST", {
       prenom: formPrenom,
@@ -101,12 +108,9 @@ export function CandidatsClient({
       toast.error("Création échouée", { description: result.error });
       return;
     }
+    toast.success("Candidat créé", { description: `Mot de passe temporaire : ${result.data.tempPassword}` });
     setCreateOpen(false);
     resetForm();
-    toast.success("Candidat créé", {
-      description: `Mot de passe temporaire : ${result.data.tempPassword} — communiquez-le au candidat.`,
-      duration: 15000,
-    });
     router.refresh();
   };
 
@@ -118,8 +122,8 @@ export function CandidatsClient({
       prenom: formPrenom,
       nom: formNom,
       email: formEmail,
-      telephone: formTelephone || null,
-      nationalite: formNationalite || null,
+      telephone: formTelephone || undefined,
+      nationalite: formNationalite || undefined,
       actif: formActif,
     });
     setSaving(false);
@@ -127,32 +131,39 @@ export function CandidatsClient({
       toast.error("Modification échouée", { description: result.error });
       return;
     }
+    toast.success("Candidat mis à jour");
     setEditOpen(false);
-    toast.success("Candidat modifié");
+    setEditing(null);
+    resetForm();
     router.refresh();
   };
 
   const toggleActif = async (row: CandidatRow) => {
     setUpdatingId(row.id);
-    const result = await apiJson(`/api/admin/candidats/${row.id}`, "PUT", { actif: !row.actif });
+    const result = await apiJson(`/api/admin/candidats/${row.id}`, "PUT", {
+      actif: !row.actif,
+    });
     setUpdatingId(null);
     if (!result.ok) {
-      toast.error("Modification échouée", { description: result.error });
+      toast.error("Action échouée", { description: result.error });
       return;
     }
-    toast.success(row.actif ? "Candidat désactivé" : "Candidat réactivé");
+    toast.success(row.actif ? "Compte désactivé" : "Compte réactivé");
     router.refresh();
   };
 
   const handleDelete = async (row: CandidatRow) => {
     setUpdatingId(row.id);
-    const result = await apiJson<{ softDeleted: boolean }>(`/api/admin/candidats/${row.id}`, "DELETE");
+    const result = await apiJson<{ success?: boolean; softDeleted?: boolean }>(
+      `/api/admin/candidats/${row.id}`,
+      "DELETE",
+    );
     setUpdatingId(null);
     if (!result.ok) {
       toast.error("Suppression échouée", { description: result.error });
       return;
     }
-    toast.success(result.data.softDeleted ? "Candidat désactivé (dossiers liés)" : "Candidat supprimé");
+    toast.success("Candidat supprimé");
     router.refresh();
   };
 
@@ -167,21 +178,18 @@ export function CandidatsClient({
       {
         label: (row) => (row.actif ? "Désactiver" : "Réactiver"),
         icon: Pencil,
-        hidden: () => !canWrite,
+        hidden: (row) => !canWrite || Boolean(row.isAssignedToConseiller),
         onClick: (row) => void toggleActif(row),
       },
       {
         label: "Supprimer",
         icon: Trash2,
         tone: "danger",
-        hidden: () => !canWrite,
+        hidden: (row) => !canWrite || Boolean(row.isAssignedToConseiller),
         confirm: {
           title: "Supprimer ce candidat ?",
-          description: (row) =>
-            row.dossiers > 0
-              ? `${row.prenom} ${row.nom} a ${row.dossiers} dossier(s) lié(s) — le compte sera désactivé plutôt que supprimé.`
-              : `${row.prenom} ${row.nom} sera définitivement supprimé.`,
-          confirmLabel: "Confirmer",
+          description: (row) => `${row.prenom} ${row.nom} sera définitivement supprimé.`,
+          confirmLabel: "Confirmer la suppression",
           onConfirm: handleDelete,
         },
       },

@@ -247,6 +247,22 @@ export async function PUT(request: Request) {
     );
   }
 
+  const assignedDossier = await db.dossier.findFirst({
+    where: { candidatId: userId, conseillerId: { not: null } },
+    include: { conseiller: { select: { id: true, prenom: true, nom: true } } },
+  });
+  if (assignedDossier?.conseillerId && session.user.id !== assignedDossier.conseillerId) {
+    const nom = assignedDossier.conseiller
+      ? `${assignedDossier.conseiller.prenom} ${assignedDossier.conseiller.nom}`
+      : "un conseiller";
+    return NextResponse.json(
+      {
+        error: `Validation KYC restreinte : ce candidat est affecté au conseiller ${nom}. Seul ce conseiller a l'autorisation de valider sa pièce KYC.`,
+      },
+      { status: 403 },
+    );
+  }
+
   const updated = await db.user.update({
     where: { id: userId },
     data: {
@@ -306,23 +322,26 @@ export async function GET(request: Request) {
       }
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }
-    // Un conseiller ne peut consulter que les pièces des candidats dont un dossier lui est affecté
-    // (défense en profondeur — l'UI ne propose déjà que ces candidats-là).
-    if (role === "CONSEILLER") {
-      const affecte = await db.dossier.findFirst({
-        where: { candidatId: targetId, conseillerId: selfId },
-        select: { id: true },
-      });
-      if (!affecte) {
-        if (html) {
-          return kycStatusPage({
-            status: 403,
-            title: "Accès refusé",
-            message: "Ce candidat ne vous est pas affecté.",
-          });
-        }
-        return NextResponse.json({ error: "Accès refusé — ce candidat ne vous est pas affecté" }, { status: 403 });
+
+    const assignedDossier = await db.dossier.findFirst({
+      where: { candidatId: targetId, conseillerId: { not: null } },
+      include: { conseiller: { select: { id: true, prenom: true, nom: true } } },
+    });
+    if (assignedDossier?.conseillerId && selfId !== assignedDossier.conseillerId) {
+      const nom = assignedDossier.conseiller
+        ? `${assignedDossier.conseiller.prenom} ${assignedDossier.conseiller.nom}`
+        : "un conseiller";
+      if (html) {
+        return kycStatusPage({
+          status: 403,
+          title: "Consultation KYC restreinte",
+          message: `Ce candidat est affecté au conseiller ${nom}. Seul le conseiller affecté a la capacité de consulter sa pièce KYC.`,
+        });
       }
+      return NextResponse.json(
+        { error: `Accès refusé — Ce candidat est affecté au conseiller ${nom}. Seul ce conseiller peut consulter sa pièce KYC.` },
+        { status: 403 },
+      );
     }
   }
 

@@ -42,6 +42,21 @@ export async function PUT(
     }
   }
 
+  if (actif === false) {
+    const assigned = await db.dossier.findFirst({
+      where: { candidatId: id, conseillerId: { not: null } },
+      include: { conseiller: { select: { prenom: true, nom: true } } },
+    });
+    if (assigned?.conseiller) {
+      return NextResponse.json(
+        {
+          error: `Désactivation impossible : ce candidat est affecté au conseiller ${assigned.conseiller.prenom} ${assigned.conseiller.nom}. L'admin ou super admin n'a plus la main pour le désactiver.`,
+        },
+        { status: 403 },
+      );
+    }
+  }
+
   const data: Record<string, unknown> = {};
   if (prenom !== undefined) data.prenom = prenom.trim();
   if (nom !== undefined) data.nom = nom.trim();
@@ -79,7 +94,7 @@ export async function PUT(
   return NextResponse.json(updated);
 }
 
-// DELETE /api/admin/candidats/[id] — supprimer (ou désactiver si dossiers liés) un candidat
+// DELETE /api/admin/candidats/[id] — supprimer un candidat (bloqué si dossier affecté à un conseiller)
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -94,56 +109,37 @@ export async function DELETE(
       id: true,
       email: true,
       role: true,
-      _count: {
-        select: {
-          dossiersCandidat: true,
-          messages: true,
-          conversationsCandidat: true,
-          logementReservations: true,
-          demandesLogementCrous: true,
-        },
-      },
     },
   });
   if (!target || target.role !== "CANDIDAT") {
     return NextResponse.json({ error: "Candidat non trouvé" }, { status: 404 });
   }
 
-  // Réservations logement/CROUS : indépendantes de Dossier (un candidat peut en avoir sans
-  // jamais créer de dossier d'admission) et en cascade dure en base — un candidat n'ayant que
-  // ce type de données déclenchait auparavant une suppression définitive silencieuse au lieu
-  // du soft-delete prévu.
-  const hasRelations =
-    target._count.dossiersCandidat > 0 ||
-    target._count.messages > 0 ||
-    target._count.conversationsCandidat > 0 ||
-    target._count.logementReservations > 0 ||
-    target._count.demandesLogementCrous > 0;
+  const assignedDossier = await db.dossier.findFirst({
+    where: { candidatId: id, conseillerId: { not: null } },
+    include: { conseiller: { select: { prenom: true, nom: true } } },
+  });
 
-  if (hasRelations) {
-    const updated = await db.user.update({
-      where: { id },
-      data: { actif: false },
-      select: { id: true, actif: true },
-    });
-
-    await logAudit({
-      session: auth.session,
-      action: "DELETE",
-      resource: "user",
-      resourceId: id,
-      details: `Candidat désactivé (soft-delete, dossiers liés) : ${target.email}`,
-    });
-
-    return NextResponse.json({
-      success: true,
-      softDeleted: true,
-      message: "Compte désactivé (des dossiers/messages sont liés à ce candidat)",
-      user: updated,
-    });
+  if (assignedDossier?.conseiller) {
+    return NextResponse.json(
+      {
+        error: `Suppression impossible : le dossier du candidat est affecté au conseiller ${assignedDossier.conseiller.prenom} ${assignedDossier.conseiller.nom}. L'admin ou super admin n'a plus la possibilité de le supprimer.`,
+      },
+      { status: 403 },
+    );
   }
 
-  await db.user.delete({ where: { id } });
+  await db.$transaction(async (tx) => {
+    await tx.paiement.deleteMany({ where: { candidatId: id } });
+    await tx.piece.deleteMany({ where: { dossier: { candidatId: id } } });
+    await tx.historique.deleteMany({ where: { dossier: { candidatId: id } } });
+    await tx.dossier.deleteMany({ where: { candidatId: id } });
+    await tx.message.deleteMany({ where: { auteurId: id } });
+    await tx.demandeLogementCrous.deleteMany({ where: { candidatId: id } });
+    await tx.logementReservation.deleteMany({ where: { candidatId: id } });
+    await tx.profilAcademique.deleteMany({ where: { userId: id } });
+    await tx.user.delete({ where: { id } });
+  });
 
   await logAudit({
     session: auth.session,

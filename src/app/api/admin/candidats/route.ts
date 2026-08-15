@@ -25,24 +25,40 @@ export async function GET() {
       createdAt: true,
       lastLoginAt: true,
       _count: { select: { dossiersCandidat: true } },
+      dossiersCandidat: {
+        where: { conseillerId: { not: null } },
+        select: {
+          conseillerId: true,
+          conseiller: { select: { prenom: true, nom: true } },
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
   });
 
   return NextResponse.json(
-    candidats.map((c) => ({
-      id: c.id,
-      email: c.email,
-      prenom: c.prenom,
-      nom: c.nom,
-      telephone: c.telephone,
-      nationalite: c.nationalite,
-      actif: c.actif,
-      kycVerifie: c.kycVerifie,
-      dossiers: c._count.dossiersCandidat,
-      date: c.createdAt.toISOString(),
-      lastLoginAt: c.lastLoginAt?.toISOString() ?? null,
-    })),
+    candidats.map((c) => {
+      const assigned = c.dossiersCandidat[0];
+      const conseillerNom = assigned?.conseiller
+        ? `${assigned.conseiller.prenom} ${assigned.conseiller.nom}`
+        : null;
+      return {
+        id: c.id,
+        email: c.email,
+        prenom: c.prenom,
+        nom: c.nom,
+        telephone: c.telephone,
+        nationalite: c.nationalite,
+        actif: c.actif,
+        kycVerifie: c.kycVerifie,
+        dossiers: c._count.dossiersCandidat,
+        date: c.createdAt.toISOString(),
+        lastLoginAt: c.lastLoginAt?.toISOString() ?? null,
+        conseillerId: assigned?.conseillerId ?? null,
+        conseillerNom,
+        isAssignedToConseiller: Boolean(assigned?.conseillerId),
+      };
+    }),
   );
 }
 
