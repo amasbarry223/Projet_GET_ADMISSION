@@ -157,6 +157,11 @@ export async function POST(request: Request) {
         conseillerId: role === "CONSEILLER" ? userId : dossier.conseillerId,
       },
     });
+  } else if (!conversation.conseillerId && dossier.conseillerId) {
+    conversation = await db.conversation.update({
+      where: { id: conversation.id },
+      data: { conseillerId: dossier.conseillerId },
+    });
   }
 
   const message = await db.message.create({

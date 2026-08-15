@@ -360,7 +360,7 @@ function MessagesInner() {
             </div>
 
             {/* Input */}
-            <div className="border-t border-ligne bg-card">
+            <div className="flex-none bg-card">
               <MessageComposer onSend={send} />
             </div>
           </section>
