@@ -48,8 +48,7 @@ export function NotificationsBell() {
         }
         setLoading(false);
       })
-      .catch((e) => {
-        console.error("fetch error:", e);
+      .catch(() => {
         setLoading(false);
       });
   }, []);

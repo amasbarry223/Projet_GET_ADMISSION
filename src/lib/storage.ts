@@ -242,14 +242,3 @@ export async function createSignedUrl(
   return data.signedUrl;
 }
 
-/** @deprecated Utiliser readUpload — conservé pour compat imports éventuels */
-export function resolveUploadPath(_cheminRelatif: string): string {
-  throw new Error(
-    "resolveUploadPath n'est plus supporté : les fichiers sont sur Supabase Storage. Utilisez readUpload().",
-  );
-}
-
-/** @deprecated Plus de FS local */
-export function getUploadRoot() {
-  return "";
-}

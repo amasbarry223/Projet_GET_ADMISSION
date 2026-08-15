@@ -100,7 +100,6 @@ function MessagesInner() {
         }
       })
       .catch((e) => {
-        console.error("fetch error:", e);
         setConversationError(getApiErrorMessageSync(e, undefined, "Impossible de charger la conversation."));
         setConversationLoading(false);
       });

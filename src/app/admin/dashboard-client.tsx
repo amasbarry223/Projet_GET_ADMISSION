@@ -61,8 +61,7 @@ export default function AdminDashboardClient() {
         setStats(d as Stats);
         setLoading(false);
       })
-      .catch((e) => {
-        console.error("fetch error:", e);
+      .catch(() => {
         setError("Erreur réseau lors du chargement des statistiques.");
         setLoading(false);
       });
