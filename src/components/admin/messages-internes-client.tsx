@@ -69,7 +69,7 @@ function ChatThread({
   }, [messages.length]);
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto scroll-fine bg-porcelaine/50 p-4">
+    <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto chat-scroll bg-porcelaine/40 p-4 sm:p-6">
       <div className="mx-auto max-w-2xl space-y-3">
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center py-16 text-center">
@@ -82,7 +82,7 @@ function ChatThread({
               <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
                 <div
                   className={cn(
-                    "max-w-[80%] rounded-lg px-3.5 py-2.5",
+                    "max-w-[80%] rounded-lg px-3.5 py-2.5 shadow-xs",
                     mine ? "bg-lapis text-blanc" : "border border-ligne bg-card text-encre",
                   )}
                 >
@@ -91,7 +91,7 @@ function ChatThread({
                       {m.auteur.prenom} {m.auteur.nom}
                     </p>
                   )}
-                  {m.pieceJointeNom && m.pieceJointeChemin && (
+                  {m.pieceJointeNom && (
                     <MessageAttachment
                       nom={m.pieceJointeNom}
                       taille={m.pieceJointeTaille}
@@ -327,11 +327,11 @@ function AdminView() {
   return (
     <Card className="overflow-hidden border-ligne bg-card p-0">
       <div className="grid h-[600px] md:grid-cols-[280px_1fr]">
-        <aside className="hidden md:flex flex-col border-r border-ligne">
+        <aside className="hidden md:flex flex-col min-h-0 border-r border-ligne bg-card">
           <div className="border-b border-ligne px-4 py-3">
             <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Correspondants</p>
           </div>
-          <div className="flex-1 overflow-y-auto scroll-fine p-2">
+          <div className="flex-1 min-h-0 overflow-y-auto chat-scroll p-2">
             {inbox.map((row) => {
               const active = row.financier.id === selectedId;
               const nom = `${row.financier.prenom} ${row.financier.nom}`;

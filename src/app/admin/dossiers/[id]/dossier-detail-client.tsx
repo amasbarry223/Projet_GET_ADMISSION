@@ -216,6 +216,7 @@ export default function DossierDetailClient() {
   const [attestationOpen, setAttestationOpen] = React.useState(false);
   const [attestationFile, setAttestationFile] = React.useState<File | null>(null);
   const [uploadingAttestation, setUploadingAttestation] = React.useState(false);
+  const adminChatScrollRef = React.useRef<HTMLDivElement>(null);
 
   const loadDossier = React.useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -277,6 +278,12 @@ export default function DossierDetailClient() {
   useRealtimeBroadcast(MESSAGES_LIVE_CHANNEL, "message_created", () => {
     void loadDossier({ silent: true });
   });
+
+  React.useEffect(() => {
+    if (dossier?.conversation?.messages?.length) {
+      adminChatScrollRef.current?.scrollTo({ top: adminChatScrollRef.current.scrollHeight, behavior: "smooth" });
+    }
+  }, [dossier?.conversation?.messages?.length]);
 
   // Polling silencieux (10s) en complément du broadcast Supabase — garantit l'actualisation
   // automatique sur desktop même si le websocket est inactif ou que le broadcast n'est pas reçu.
@@ -943,49 +950,53 @@ export default function DossierDetailClient() {
           </TabsContent>
 
           <TabsContent value="messages">
-            <Card className="overflow-hidden border-ligne bg-card p-0">
-              <div className="px-6 py-4">
+            <Card className="overflow-hidden border-ligne bg-card p-0 shadow-xs">
+              <div className="border-b border-ligne px-6 py-4 bg-card">
                 <h2 className="font-display text-base font-bold text-encre">Conversation avec {dossier.candidat.prenom}</h2>
               </div>
               {messages.length === 0 ? (
-                <p className="px-6 pb-4 text-sm text-ardoise">Aucun message échangé pour le moment.</p>
+                <p className="px-6 py-12 text-center text-sm text-ardoise">Aucun message échangé pour le moment.</p>
               ) : (
-                <div className="max-h-80 space-y-3 overflow-y-auto px-6 pb-4">
+                <div ref={adminChatScrollRef} className="h-[440px] max-h-[500px] space-y-3 overflow-y-auto chat-scroll bg-porcelaine/40 px-6 py-4">
                   {messages.map((m) => {
                     const isStaffMsg = m.auteurId !== dossier.candidat.id;
                     return (
-                      <div key={m.id} className={cn("max-w-[80%] rounded-md px-3.5 py-2.5 text-sm", isStaffMsg ? "ml-auto bg-lapis text-blanc" : "border border-ligne bg-card text-encre")}>
-                        {m.pieceJointeNom && (
-                          <MessageAttachment
-                            nom={m.pieceJointeNom}
-                            taille={m.pieceJointeTaille}
-                            downloadUrl={`/api/messages/${m.id}/download`}
-                            mine={isStaffMsg}
-                          />
-                        )}
-                        {m.texte && <p>{m.texte}</p>}
-                        <p className={cn("mt-1 font-mono text-[10px]", isStaffMsg ? "text-blanc/60" : "text-ardoise")}>{formatDateTime(m.createdAt)}</p>
+                      <div key={m.id} className={cn("flex", isStaffMsg ? "justify-end" : "justify-start")}>
+                        <div className={cn("max-w-[80%] rounded-lg px-3.5 py-2.5 text-sm shadow-xs", isStaffMsg ? "bg-lapis text-blanc" : "border border-ligne bg-card text-encre")}>
+                          {m.pieceJointeNom && (
+                            <MessageAttachment
+                              nom={m.pieceJointeNom}
+                              taille={m.pieceJointeTaille}
+                              downloadUrl={`/api/messages/${m.id}/download`}
+                              mine={isStaffMsg}
+                            />
+                          )}
+                          {m.texte && <p className="leading-relaxed">{m.texte}</p>}
+                          <p className={cn("mt-1 font-mono text-[10px]", isStaffMsg ? "text-blanc/60" : "text-ardoise")}>{formatDateTime(m.createdAt)}</p>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               )}
-              <MessageComposer
-                onSend={async (texte, fichier) => {
-                  const form = new FormData();
-                  form.set("dossierId", dossier.id);
-                  form.set("texte", texte);
-                  if (fichier) form.set("fichier", fichier);
-                  const result = await apiFetch("/api/messages", { method: "POST", body: form });
-                  if (!result.ok) {
-                    toast.error("Envoi échoué", { description: result.error });
-                    return;
-                  }
-                  toast.success("Message envoyé");
-                  void loadDossier({ silent: true });
-                }}
-                placeholder="Écrire au candidat…"
-              />
+              <div className="border-t border-ligne bg-card">
+                <MessageComposer
+                  onSend={async (texte, fichier) => {
+                    const form = new FormData();
+                    form.set("dossierId", dossier.id);
+                    form.set("texte", texte);
+                    if (fichier) form.set("fichier", fichier);
+                    const result = await apiFetch("/api/messages", { method: "POST", body: form });
+                    if (!result.ok) {
+                      toast.error("Envoi échoué", { description: result.error });
+                      return;
+                    }
+                    toast.success("Message envoyé");
+                    void loadDossier({ silent: true });
+                  }}
+                  placeholder="Écrire au candidat…"
+                />
+              </div>
             </Card>
           </TabsContent>
         </Tabs>

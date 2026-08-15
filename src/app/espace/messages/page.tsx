@@ -253,15 +253,15 @@ function MessagesInner() {
         <h1 className="font-display text-2xl font-bold tracking-tight text-encre sm:text-3xl">Vos messages.</h1>
       </div>
 
-      <Card className="border-ligne bg-card p-0 overflow-hidden">
-        <div className="grid h-[600px] md:grid-cols-[280px_1fr]">
+      <Card className="border-ligne bg-card p-0 overflow-hidden shadow-sm">
+        <div className="grid h-[640px] max-h-[calc(100vh-210px)] min-h-[500px] md:grid-cols-[280px_1fr]">
           {/* Conversation list */}
-          <aside className="hidden md:flex flex-col border-r border-ligne">
+          <aside className="hidden md:flex flex-col min-h-0 border-r border-ligne bg-card">
             <div className="border-b border-ligne px-4 py-3">
               <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ardoise">Conseiller</p>
             </div>
-            <div className="flex-1 overflow-y-auto scroll-fine p-2">
-              <button className="flex w-full items-start gap-3 rounded-md bg-lapis/5 p-3 text-left">
+            <div className="flex-1 min-h-0 overflow-y-auto chat-scroll p-2">
+              <button className="flex w-full items-start gap-3 rounded-md bg-lapis/5 p-3 text-left transition-colors hover:bg-lapis/10">
                 <div className="relative h-10 w-10 flex-none overflow-hidden rounded-full border border-ligne">
                   <Image src={conversation?.conseiller?.photoUrl ?? "/images/advisor-portrait.png"} alt={conseillerNom} fill className="object-cover" sizes="40px" />
                 </div>
@@ -281,7 +281,7 @@ function MessagesInner() {
                 )}
               </button>
             </div>
-            <div className="border-t border-ligne p-3">
+            <div className="border-t border-ligne p-3 bg-porcelaine/30">
               <div className="flex items-center gap-2 text-xs text-ardoise">
                 <Mail className="h-3.5 w-3.5" strokeWidth={1.5} />
                 <span>
@@ -298,7 +298,7 @@ function MessagesInner() {
           </aside>
 
           {/* Chat thread */}
-          <section className="flex flex-col">
+          <section className="flex flex-col min-h-0 overflow-hidden bg-card">
             {/* Mobile header */}
             <div className="flex items-center gap-3 border-b border-ligne px-4 py-3 md:hidden">
               <Button
@@ -318,7 +318,7 @@ function MessagesInner() {
               </div>
             </div>
             {/* Desktop header */}
-            <div className="hidden md:flex items-center gap-3 border-b border-ligne px-4 py-3">
+            <div className="hidden md:flex items-center gap-3 border-b border-ligne px-4 py-3 bg-card">
               <div className="relative h-9 w-9 flex-none overflow-hidden rounded-full border border-ligne">
                 <Image src={conversation?.conseiller?.photoUrl ?? "/images/advisor-portrait.png"} alt={conseillerNom} fill className="object-cover" sizes="36px" />
               </div>
@@ -329,7 +329,7 @@ function MessagesInner() {
             </div>
 
             {/* Messages */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto scroll-fine bg-porcelaine/50 p-4">
+            <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto chat-scroll bg-porcelaine/40 p-4 sm:p-6">
               <div className="mx-auto max-w-2xl space-y-3">
                 {messages.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center py-16 text-center">
@@ -340,7 +340,7 @@ function MessagesInner() {
                     const isCand = m.auteur.role === "CANDIDAT";
                     return (
                       <div key={m.id} className={cn("flex", isCand ? "justify-end" : "justify-start")}>
-                        <div className={cn("max-w-[80%] rounded-lg px-3.5 py-2.5", isCand ? "bg-lapis text-blanc" : "border border-ligne bg-card text-encre")}>
+                        <div className={cn("max-w-[80%] rounded-lg px-3.5 py-2.5 shadow-xs", isCand ? "bg-lapis text-blanc" : "border border-ligne bg-card text-encre")}>
                           {m.pieceJointeNom && (
                             <MessageAttachment
                               nom={m.pieceJointeNom}
@@ -360,7 +360,9 @@ function MessagesInner() {
             </div>
 
             {/* Input */}
-            <MessageComposer onSend={send} />
+            <div className="border-t border-ligne bg-card">
+              <MessageComposer onSend={send} />
+            </div>
           </section>
         </div>
       </Card>
