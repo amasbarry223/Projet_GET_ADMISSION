@@ -6,8 +6,13 @@ import { requireAdminPage } from "@/lib/admin-page-auth";
 import { INTERNAL_ROLES } from "@/lib/admin-users";
 import { hasPermission } from "@/lib/rbac";
 
-export default async function AdminUtilisateursPage() {
+export default async function AdminUtilisateursPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const session = await requireAdminPage("users.read");
+  const { tab } = await searchParams;
   const currentRole = session.user.role ?? "ADMIN";
   const currentUserId = session.user.id;
 
@@ -90,6 +95,7 @@ export default async function AdminUtilisateursPage() {
       currentRole={currentRole as "ADMIN" | "SUPER_ADMIN"}
       currentUserId={currentUserId}
       canWriteCandidats={hasPermission(currentRole, "candidats.write")}
+      defaultTab={tab === "candidats" ? "candidats" : "personnel"}
     />
   );
 }
