@@ -278,6 +278,15 @@ export default function DossierDetailClient() {
     void loadDossier({ silent: true });
   });
 
+  // Polling silencieux (10s) en complément du broadcast Supabase — garantit l'actualisation
+  // automatique sur desktop même si le websocket est inactif ou que le broadcast n'est pas reçu.
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      void loadDossier({ silent: true });
+    }, 10_000);
+    return () => clearInterval(interval);
+  }, [loadDossier]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -946,7 +955,7 @@ export default function DossierDetailClient() {
                     const isStaffMsg = m.auteurId !== dossier.candidat.id;
                     return (
                       <div key={m.id} className={cn("max-w-[80%] rounded-md px-3.5 py-2.5 text-sm", isStaffMsg ? "ml-auto bg-lapis text-blanc" : "border border-ligne bg-card text-encre")}>
-                        {m.pieceJointeNom && m.pieceJointeChemin && (
+                        {m.pieceJointeNom && (
                           <MessageAttachment
                             nom={m.pieceJointeNom}
                             taille={m.pieceJointeTaille}

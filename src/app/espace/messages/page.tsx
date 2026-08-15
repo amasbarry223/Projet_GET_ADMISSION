@@ -80,7 +80,7 @@ function MessagesInner() {
         return r.json();
       })
       .then((data: Conversation) => {
-        setConversation(data);
+        setConversation(data ?? { candidat: { prenom: "", nom: "" }, conseiller: null, nonLusCandidat: 0, messages: [] });
         setConversationLoading(false);
         if (data && data.nonLusCandidat > 0) {
           fetch("/api/messages/read", {
@@ -341,7 +341,7 @@ function MessagesInner() {
                     return (
                       <div key={m.id} className={cn("flex", isCand ? "justify-end" : "justify-start")}>
                         <div className={cn("max-w-[80%] rounded-lg px-3.5 py-2.5", isCand ? "bg-lapis text-blanc" : "border border-ligne bg-card text-encre")}>
-                          {m.pieceJointeNom && m.pieceJointeChemin && (
+                          {m.pieceJointeNom && (
                             <MessageAttachment
                               nom={m.pieceJointeNom}
                               taille={m.pieceJointeTaille}

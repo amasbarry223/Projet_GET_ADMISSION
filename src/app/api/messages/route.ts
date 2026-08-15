@@ -24,7 +24,11 @@ export async function GET(request: Request) {
 
   const dossier = await db.dossier.findUnique({
     where: { id: dossierId },
-    select: { candidatId: true, conseillerId: true },
+    select: {
+      candidatId: true,
+      conseillerId: true,
+      conseiller: { select: { prenom: true, nom: true, photoUrl: true } },
+    },
   });
   if (!dossier) {
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
@@ -55,10 +59,21 @@ export async function GET(request: Request) {
   });
 
   if (!conversation) {
-    return NextResponse.json(null);
+    // Pas encore de conversation — retourner une structure vide avec le conseiller du dossier
+    return NextResponse.json({
+      candidat: { prenom: "", nom: "" },
+      conseiller: dossier.conseiller ?? null,
+      nonLusCandidat: 0,
+      nonLusConseiller: 0,
+      messages: [],
+    });
   }
 
-  return NextResponse.json(conversation);
+  // Si la conversation n'a pas encore de conseiller enregistré mais que le dossier en a un,
+  // on enrichit la réponse avec le conseiller du dossier pour que son nom s'affiche côté candidat.
+  const conseillerEffectif = conversation.conseiller ?? dossier.conseiller ?? null;
+
+  return NextResponse.json({ ...conversation, conseiller: conseillerEffectif });
 }
 
 // POST /api/messages — envoyer un message (multipart/form-data : dossierId, texte?, fichier?)

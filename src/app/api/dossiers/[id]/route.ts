@@ -56,7 +56,14 @@ export async function GET(
       pieces: true,
       paiements: true,
       historiques: { orderBy: { date: "asc" } },
-      conversation: { include: { messages: { orderBy: { createdAt: "asc" } } } },
+      conversation: {
+        include: {
+          messages: {
+            orderBy: { createdAt: "asc" },
+            include: { auteur: { select: { prenom: true, nom: true, role: true } } },
+          },
+        },
+      },
       demandesCorrection: {
         orderBy: { createdAt: "desc" },
         include: { conseiller: { select: { prenom: true, nom: true } } },

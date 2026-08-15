@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireApiUser } from "@/lib/api-auth";
 import { readUpload } from "@/lib/storage";
-import { assertDossierFileAccess, buildPieceFilename } from "@/lib/dossier/piece-print";
+import { buildPieceFilename } from "@/lib/dossier/piece-print";
+import { hasPermission } from "@/lib/rbac";
 
 // GET /api/dossiers/[id]/attestation/download — télécharge le document de préinscription téléversé
 // Query params : ?disposition=inline (vue navigateur au lieu de forcer l'enregistrement)
@@ -27,9 +28,18 @@ export async function GET(
     return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
   }
 
-  const access = assertDossierFileAccess(auth.user.role, auth.user.id, dossier.candidatId, dossier.conseillerId);
-  if (!access.ok) {
-    return NextResponse.json({ error: access.error }, { status: access.status });
+  let hasAccess = false;
+  if (auth.user.role === "CANDIDAT") {
+    hasAccess = dossier.candidatId === auth.user.id;
+  } else {
+    hasAccess =
+      hasPermission(auth.user.role, "attestations.read") ||
+      hasPermission(auth.user.role, "dossiers.read") ||
+      dossier.conseillerId === auth.user.id;
+  }
+
+  if (!hasAccess) {
+    return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   }
 
   if (!dossier.attestation?.cheminFichier) {
