@@ -465,7 +465,15 @@ export function listPiecesManquantes<T extends PieceManquanteLike>(pieces: T[]):
     if (
       lib.includes("motivation") ||
       code.includes("motivation") ||
-      code.includes("lettre_motivation")
+      code.includes("lettre_motivation") ||
+      lib.includes("passeport") ||
+      lib.includes("passport") ||
+      lib.includes("cni") ||
+      lib.includes("carte d'identité") ||
+      lib.includes("carte nationale") ||
+      code.includes("passeport") ||
+      code.includes("passport") ||
+      code.includes("cni")
     ) {
       return false;
     }

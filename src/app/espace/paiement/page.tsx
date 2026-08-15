@@ -157,11 +157,38 @@ function PaiementInner() {
         });
 
       const returnStatus = searchParams.get("status");
+      const returnRef = searchParams.get("ref");
       if (returnStatus === "success") {
-        setStatus("pending");
-        toast.success("Retour du paiement", {
-          description: "Confirmation en cours — le statut se mettra à jour automatiquement.",
-        });
+        setStatus("loading");
+        fetch("/api/paiements/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reference: returnRef ?? undefined }),
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data: { success?: boolean; paiement?: { id: string; reference: string; montant: number } } | null) => {
+            if (cancelled) return;
+            if (data?.success) {
+              setStatus("success");
+              if (data.paiement) {
+                setReceiptRef(data.paiement.reference);
+                setLastPaiementId(data.paiement.id);
+                setLastMontant(data.paiement.montant);
+              }
+              toast.success("Paiement confirmé !", {
+                description: "Votre versement a été validé avec succès.",
+              });
+              loadDossier();
+            } else {
+              setStatus("pending");
+              toast.info("Paiement enregistré", {
+                description: "Confirmation en cours.",
+              });
+            }
+          })
+          .catch(() => {
+            if (!cancelled) setStatus("pending");
+          });
       } else if (returnStatus === "cancel") {
         toast.message("Paiement annulé", {
           description: "Vous pouvez réessayer quand vous voulez.",

@@ -155,7 +155,24 @@ function DossierWizard() {
   const prerequisList = parseStringList(formation?.prerequis);
 
   const piecesAcademiques = pieceRows.filter((piece) => piece.categorie !== "identite");
-  const piecesIdentite = pieceRows.filter((piece) => piece.categorie === "identite");
+  const piecesIdentite = pieceRows.filter((piece) => {
+    if (piece.categorie !== "identite") return false;
+    const lib = (piece.libelle || "").toLowerCase();
+    const code = (piece.code || "").toLowerCase();
+    if (
+      lib.includes("passeport") ||
+      lib.includes("passport") ||
+      lib.includes("cni") ||
+      lib.includes("carte d'identité") ||
+      lib.includes("carte nationale") ||
+      code.includes("passeport") ||
+      code.includes("passport") ||
+      code.includes("cni")
+    ) {
+      return false;
+    }
+    return true;
+  });
   const [userProfile, setUserProfile] = React.useState<{
     kycType?: string | null;
     kycNumero?: string | null;
@@ -173,11 +190,11 @@ function DossierWizard() {
       .catch(() => null);
   }, []);
 
-  const kycTypeLower = userProfile?.kycType?.toLowerCase()?.trim();
-  const needsVerso = kycTypeLower === "cni" || !kycTypeLower;
+  const kycTypeLower = (userProfile?.kycType || "passeport").toLowerCase().trim();
+  const isCni = kycTypeLower === "cni" || kycTypeLower.includes("carte");
+  const needsVerso = isCni;
   const isKycComplete = Boolean(
-    userProfile?.kycType &&
-      userProfile?.kycNumero?.trim() &&
+    userProfile?.kycNumero?.trim() &&
       userProfile?.kycRectoPath &&
       (!needsVerso || userProfile?.kycVersoPath),
   );
@@ -231,7 +248,7 @@ function DossierWizard() {
     }
   };
 
-  const createDossierIfNeeded = async (): Promise<DossierWizardData | null> => {
+  const createDossierIfNeeded = async (hasProfilValid = false): Promise<DossierWizardData | null> => {
     if (existingDossier) return existingDossier;
     if (procedure === "PRIVEE" && (!universiteId || !formationId)) {
       toastApiErrorSync(new Error("Choisissez une université et une formation."), {
@@ -239,7 +256,7 @@ function DossierWizard() {
       });
       return null;
     }
-    if (!hasProfil) {
+    if (!hasProfil && !hasProfilValid) {
       toastApiErrorSync(
         new Error("Complétez et enregistrez votre parcours académique (étape 3)."),
         { title: "Profil académique requis" },
@@ -326,7 +343,7 @@ function DossierWizard() {
     if (step === DOSSIER_WIZARD_STEPS.PROFIL_ACADEMIQUE) {
       const saved = await saveProfil();
       if (!saved) return;
-      const dossier = await createDossierIfNeeded();
+      const dossier = await createDossierIfNeeded(true);
       if (!dossier) return;
       setStep(DOSSIER_WIZARD_STEPS.DOCUMENTS);
       return;

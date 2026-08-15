@@ -161,9 +161,9 @@ export async function POST(request: Request) {
     where: { id: userId },
     data: {
       ...(side === "recto" ? { kycRectoPath: uploaded.cheminRelatif } : { kycVersoPath: uploaded.cheminRelatif }),
-      ...(kycType ? { kycType } : {}),
+      ...(kycType ? { kycType } : user.kycType ? {} : { kycType: "passeport" }),
       ...(kycNumero ? { kycNumero } : {}),
-      ...(kycType === "passeport" ? { kycVersoPath: null } : {}),
+      ...((kycType || user.kycType || "passeport") === "passeport" ? { kycVersoPath: null } : {}),
       kycVerifie: false,
       kycVerifieLe: null,
     },
@@ -234,7 +234,8 @@ export async function PUT(request: Request) {
       { status: 400 }
     );
   }
-  const needsVerso = target.kycType === "cni" || !target.kycType;
+  const targetKycType = (target.kycType || "passeport").toLowerCase().trim();
+  const needsVerso = targetKycType === "cni" || targetKycType.includes("carte");
   if (verifie && (!target.kycRectoPath || (needsVerso && !target.kycVersoPath))) {
     return NextResponse.json(
       {
