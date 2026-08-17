@@ -205,7 +205,7 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
       {
         label: "Transmettre à l'université",
         icon: Send,
-        hidden: (row) => !canTransmettre || row.etat.toUpperCase() === "CLOTURE" || row.etablissementNonAffecte,
+        hidden: (row) => !canTransmettre || row.etat.toUpperCase() === "CLOTURE",
         confirm: {
           title: "Transmettre à l'université ?",
           description: (row) =>

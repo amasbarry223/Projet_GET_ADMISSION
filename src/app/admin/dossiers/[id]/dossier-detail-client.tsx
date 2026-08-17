@@ -364,12 +364,16 @@ export default function DossierDetailClient() {
       icon: Send,
       tone: "primary",
       toastLabel: "Dossier transmis",
-      toastDesc: `${univ?.nom} a été notifié. Passage en attente de réponse.`,
+      toastDesc: etablissementNonAffecte
+        ? "Dossier transmis. Passage en attente de réponse."
+        : `${univ?.nom} a été notifié. Passage en attente de réponse.`,
       workflowAction: "transmettre",
-      confirm: { title: "Transmettre à l'université ?", desc: `Le dossier sera envoyé à ${univ?.nom}. Cette action est irréversible.` },
-      ...(etablissementNonAffecte
-        ? { disabled: true, disabledReason: "Affectez d'abord un établissement public avant de transmettre." }
-        : {}),
+      confirm: {
+        title: "Transmettre le dossier ?",
+        desc: etablissementNonAffecte
+          ? "Le dossier sera transmis. Cette action est irréversible."
+          : `Le dossier sera envoyé à ${univ?.nom}. Cette action est irréversible.`,
+      },
     });
   }
   if (etatLower === "transmis") {

@@ -141,12 +141,6 @@ export async function POST(
         { status: 400 },
       );
     }
-    if (dossier.procedure === "PUBLIQUE" && dossier.universite.estPlaceholder) {
-      return NextResponse.json(
-        { error: "Affectez d'abord un établissement public avant de transmettre le dossier." },
-        { status: 400 },
-      );
-    }
     if (dossier.paiementStatut !== PAYMENT_STATUSES.COMPLET) {
       return NextResponse.json(
         { error: "Transmission refusée : paiement des frais d'agence non confirmé" },
