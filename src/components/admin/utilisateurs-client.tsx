@@ -200,8 +200,8 @@ export function UtilisateursClient({
       toast.error("Suppression échouée", { description: result.error });
       return;
     }
-    toast.success(result.data.softDeleted ? "Compte désactivé" : "Compte supprimé", {
-      description: row.nom,
+    toast.success("Compte supprimé définitivement", {
+      description: `${row.nom} a été supprimé. Les dossiers éventuellement assignés ont été désassignés.`,
     });
     router.refresh();
   };
@@ -265,10 +265,10 @@ export function UtilisateursClient({
         tone: "danger",
         hidden: (row) => row.id === currentUserId,
         confirm: {
-          title: "Supprimer ce compte ?",
+          title: "Supprimer ce compte définitivement ?",
           description: (row) =>
-            `Si des données sont liées à ${row.nom}, le compte sera désactivé (soft-delete). Sinon, suppression définitive.`,
-          confirmLabel: "Supprimer",
+            `Cette action est irréversible. Le compte de ${row.nom} sera supprimé de la base de données. Les dossiers qu'il avait en charge seront automatiquement désassignés pour être réattribués.`,
+          confirmLabel: "Supprimer définitivement",
           onConfirm: (row) => void supprimer(row),
         },
       },

@@ -171,10 +171,10 @@ export async function DELETE(
     );
   }
 
-  const userId = session.user.id;
+  const actorId = session.user.id;
   const { id } = await params;
 
-  if (id === userId) {
+  if (id === actorId) {
     return NextResponse.json(
       { error: "Vous ne pouvez pas supprimer votre propre compte" },
       { status: 400 },
@@ -183,24 +183,7 @@ export async function DELETE(
 
   const target = await db.user.findUnique({
     where: { id },
-    select: {
-      id: true,
-      role: true,
-      email: true,
-      actif: true,
-      _count: {
-        select: {
-          dossiersCandidat: true,
-          dossiersConseiller: true,
-          messages: true,
-          historiquesAuteur: true,
-          attestationsEmises: true,
-          conversationsCandidat: true,
-          conversationsConseiller: true,
-          paiements: true,
-        },
-      },
-    },
+    select: { id: true, role: true, email: true },
   });
   if (!target) {
     return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 });
@@ -225,21 +208,57 @@ export async function DELETE(
     }
   }
 
-  const hasRelations =
-    target._count.dossiersCandidat > 0 ||
-    target._count.dossiersConseiller > 0 ||
-    target._count.messages > 0 ||
-    target._count.historiquesAuteur > 0 ||
-    target._count.attestationsEmises > 0 ||
-    target._count.conversationsCandidat > 0 ||
-    target._count.conversationsConseiller > 0 ||
-    target._count.paiements > 0;
+  try {
+    // Suppression hard-delete en transaction :
+    // 1. Détacher / réassigner toutes les FK pointant vers cet utilisateur
+    // 2. Supprimer les entités propres à l'utilisateur (notifications, messages internes, conversation interne)
+    // 3. Supprimer l'utilisateur
+    await db.$transaction(async (tx) => {
+      // Dossiers conseillés → détacher le conseiller (réattribuable ensuite)
+      await tx.dossier.updateMany({
+        where: { conseillerId: id },
+        data: { conseillerId: null },
+      });
 
-  if (hasRelations) {
-    const updated = await db.user.update({
-      where: { id },
-      data: { actif: false },
-      select: { id: true, actif: true },
+      // Conversations de dossiers → détacher le conseiller
+      await tx.conversation.updateMany({
+        where: { conseillerId: id },
+        data: { conseillerId: null },
+      });
+
+      // Historiques → détacher l'auteurId (le texte "auteur" reste dans le champ string)
+      await tx.historique.updateMany({
+        where: { auteurId: id },
+        data: { auteurId: null },
+      });
+
+      // Attestations émises → réassigner à l'acteur qui effectue la suppression
+      await tx.attestation.updateMany({
+        where: { emetteurId: id },
+        data: { emetteurId: actorId },
+      });
+
+      // Demandes de correction → réassigner au Super Admin acteur
+      await tx.demandeCorrection.updateMany({
+        where: { conseillerId: id },
+        data: { conseillerId: actorId },
+      });
+
+      // Partages CROUS → réassigner au Super Admin acteur
+      await tx.historiquePartageCrous.updateMany({
+        where: { auteurId: id },
+        data: { auteurId: actorId },
+      });
+
+      // Messagerie interne : supprimer les messages internes de cet auteur puis la conversation
+      await tx.messageInterne.deleteMany({ where: { auteurId: id } });
+      await tx.conversationInterne.deleteMany({ where: { financierId: id } });
+
+      // Notifications propres à l'utilisateur
+      await tx.notification.deleteMany({ where: { userId: id } });
+
+      // Suppression définitive de l'utilisateur
+      await tx.user.delete({ where: { id } });
     });
 
     await logAudit({
@@ -247,26 +266,15 @@ export async function DELETE(
       action: "DELETE",
       resource: "user",
       resourceId: id,
-      details: `Utilisateur désactivé (soft-delete) : ${target.email} (${target.role})`,
+      details: `Utilisateur supprimé définitivement : ${target.email} (${target.role}) — FK détachées/réassignées`,
     });
 
-    return NextResponse.json({
-      success: true,
-      softDeleted: true,
-      message: "Compte désactivé (des données sont liées à cet utilisateur)",
-      user: updated,
-    });
+    return NextResponse.json({ success: true, softDeleted: false, id });
+  } catch (err) {
+    console.error("[DELETE /api/admin/users]", err);
+    return NextResponse.json(
+      { error: "Une erreur est survenue lors de la suppression. Veuillez réessayer." },
+      { status: 500 },
+    );
   }
-
-  await db.user.delete({ where: { id } });
-
-  await logAudit({
-    session,
-    action: "DELETE",
-    resource: "user",
-    resourceId: id,
-    details: `Utilisateur supprimé : ${target.email} (${target.role})`,
-  });
-
-  return NextResponse.json({ success: true, softDeleted: false, id });
 }

@@ -23,6 +23,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { formatFCFA, formatDate, formatDateTime } from "@/lib/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -31,7 +39,9 @@ import { FormPageSkeleton } from "@/components/ui/skeleton-card";
 import { getApiErrorMessageSync } from "@/lib/api-error";
 import { apiJson } from "@/lib/api-client";
 import { usePrimaryDossier, type EspaceDossierSummary } from "@/hooks/use-primary-dossier";
-import { CheckCircle2, Download, Loader2, Lock, CreditCard, Smartphone, ShieldCheck, AlertCircle, Clock, FolderOpen, ArrowRight, Trash2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { CheckCircle2, Download, Loader2, Lock, CreditCard, Smartphone, ShieldCheck, AlertCircle, Clock, FolderOpen, ArrowRight, Trash2, RotateCcw } from "lucide-react";
+
 
 
 type MoyenPaiement = {
@@ -81,6 +91,13 @@ function PaiementInner() {
   const [lastPaiementId, setLastPaiementId] = React.useState<string>("");
   const [lastMontant, setLastMontant] = React.useState(0);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [refundingPaiement, setRefundingPaiement] = React.useState<{
+    id: string;
+    reference: string;
+    montant: number;
+  } | null>(null);
+  const [refundMotif, setRefundMotif] = React.useState("");
+  const [submittingRefund, setSubmittingRefund] = React.useState(false);
 
   const loadMoyens = React.useCallback(() => {
     setMethodsLoading(true);
@@ -124,6 +141,31 @@ function PaiementInner() {
       return;
     }
     toast.success("Transaction supprimée", { description: reference });
+    loadDossier();
+  };
+
+  const soumettreDemandeRemboursement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!refundingPaiement) return;
+
+    setSubmittingRefund(true);
+    const result = await apiJson(
+      `/api/paiements/${refundingPaiement.id}/demande-remboursement`,
+      "POST",
+      { motif: refundMotif.trim() || undefined },
+    );
+    setSubmittingRefund(false);
+
+    if (!result.ok) {
+      toast.error("Demande échouée", { description: result.error });
+      return;
+    }
+
+    toast.success("Demande de remboursement transmise", {
+      description: "Notre équipe financière examinera votre demande et reviendra vers vous.",
+    });
+    setRefundingPaiement(null);
+    setRefundMotif("");
     loadDossier();
   };
 
@@ -727,56 +769,78 @@ function PaiementInner() {
                         p.statut === "reussi" && "bg-vert/10 text-vert",
                         p.statut === "en_attente" && "bg-ambre/10 text-ambre",
                         p.statut === "echoue" && "bg-carmin/10 text-carmin",
-                        p.statut === "rembourse" && "bg-ardoise/10 text-ardoise",
+                        p.statut === "rembourse" && "bg-purple-500/10 text-purple-600 border border-purple-200",
                         !["reussi", "en_attente", "echoue", "rembourse"].includes(p.statut) && "bg-ardoise/10 text-ardoise"
                       )}
                     >
-                      {p.statut.replace(/_/g, " ")}
+                      {p.statut === "rembourse" ? "Remboursé" : p.statut.replace(/_/g, " ")}
                     </Badge>
                     {p.statut === "reussi" && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="ml-1 h-7 px-2 text-xs"
-                        onClick={() => window.open(`/api/recu/${p.id}?format=pdf`, "_blank")}
-                      >
-                        <Download className="h-3.5 w-3.5" strokeWidth={1.5} />
-                      </Button>
-                    )}
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
+                      <>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="ml-1 h-7 px-2 text-xs text-carmin hover:bg-carmin/10 hover:text-carmin"
-                          disabled={deletingId === p.id}
+                          className="ml-1 h-7 px-2 text-xs"
+                          title="Télécharger le reçu (PDF)"
+                          onClick={() => window.open(`/api/recu/${p.id}?format=pdf`, "_blank")}
                         >
-                          {deletingId === p.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
-                          ) : (
-                            <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                          )}
+                          <Download className="h-3.5 w-3.5" strokeWidth={1.5} />
                         </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Supprimer cette transaction ?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            La transaction {p.reference} ({formatFCFA(p.montant)}) sera définitivement
-                            supprimée. Le statut de paiement de votre dossier sera recalculé.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Annuler</AlertDialogCancel>
-                          <AlertDialogAction
-                            className="bg-carmin text-blanc hover:bg-carmin/90"
-                            onClick={() => void supprimerPaiement(p.id, p.reference)}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="ml-1 h-7 px-2 text-xs text-ardoise hover:text-encre hover:bg-porcelaine"
+                          title="Demander un remboursement"
+                          onClick={() => {
+                            setRefundingPaiement({
+                              id: p.id,
+                              reference: p.reference,
+                              montant: p.montant,
+                            });
+                            setRefundMotif("");
+                          }}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.5} />
+                        </Button>
+                      </>
+                    )}
+                    {p.statut !== "reussi" && p.statut !== "rembourse" && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="ml-1 h-7 px-2 text-xs text-carmin hover:bg-carmin/10 hover:text-carmin"
+                            title="Supprimer cette saisie"
+                            disabled={deletingId === p.id}
                           >
-                            Supprimer
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                            {deletingId === p.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                            )}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Supprimer cette transaction ?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              La transaction {p.reference} ({formatFCFA(p.montant)}) sera définitivement
+                              supprimée. Le statut de paiement de votre dossier sera recalculé.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Annuler</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-carmin text-blanc hover:bg-carmin/90"
+                              onClick={() => void supprimerPaiement(p.id, p.reference)}
+                            >
+                              Supprimer
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -784,6 +848,73 @@ function PaiementInner() {
           </Table>
         )}
       </Card>
+
+      {/* Modal Demande de Remboursement */}
+      <Dialog
+        open={Boolean(refundingPaiement)}
+        onOpenChange={(open) => {
+          if (!open && !submittingRefund) setRefundingPaiement(null);
+        }}
+      >
+        <DialogContent className="bg-card sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg font-bold text-encre">
+              Demander un remboursement
+            </DialogTitle>
+            <DialogDescription className="text-sm text-ardoise">
+              Vous sollicitez le remboursement de la transaction{" "}
+              <strong className="font-mono text-encre">{refundingPaiement?.reference}</strong>{" "}
+              d'un montant de{" "}
+              <strong className="font-mono text-encre">
+                {refundingPaiement ? formatFCFA(refundingPaiement.montant) : ""}
+              </strong>
+              . Cette demande sera instruite par notre équipe financière.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={soumettreDemandeRemboursement} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-encre">
+                Motif de la demande <span className="text-xs text-ardoise">(optionnel)</span>
+              </Label>
+              <Textarea
+                value={refundMotif}
+                onChange={(e) => setRefundMotif(e.target.value)}
+                placeholder="Ex. : Annulation de candidature, double règlement..."
+                className="resize-none text-sm"
+                rows={3}
+                maxLength={300}
+                disabled={submittingRefund}
+              />
+              <p className="text-right text-[11px] text-ardoise">{refundMotif.length}/300</p>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRefundingPaiement(null)}
+                disabled={submittingRefund}
+              >
+                Annuler
+              </Button>
+              <Button
+                type="submit"
+                className="bg-lapis text-blanc hover:bg-lapis/90"
+                disabled={submittingRefund}
+              >
+                {submittingRefund ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />
+                    Envoi…
+                  </>
+                ) : (
+                  "Transmettre la demande"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+

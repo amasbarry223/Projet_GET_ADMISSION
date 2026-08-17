@@ -30,6 +30,11 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       const existing = await tx.paiement.findUnique({ where: { id } });
       if (!existing || existing.candidatId !== userId) throw new Error("PAIEMENT_NOT_FOUND");
 
+      // Un paiement confirmé ou remboursé ne peut pas être supprimé par le candidat :
+      // seul le staff Finance peut gérer son cycle de vie.
+      if (existing.statut === "reussi") throw new Error("PAIEMENT_REUSSI");
+      if (existing.statut === "rembourse") throw new Error("PAIEMENT_REMBOURSE");
+
       await lockDossierRow(tx, existing.dossierId);
       const dossier = await tx.dossier.findUnique({ where: { id: existing.dossierId } });
       if (!dossier) throw new Error("DOSSIER_NOT_FOUND");
@@ -78,6 +83,24 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     const msg = e instanceof Error ? e.message : "";
     if (msg === "PAIEMENT_NOT_FOUND") {
       return NextResponse.json({ error: "Transaction introuvable" }, { status: 404 });
+    }
+    if (msg === "PAIEMENT_REUSSI") {
+      return NextResponse.json(
+        {
+          error:
+            "Un paiement confirmé ne peut pas être supprimé. Utilisez le bouton \"Demander un remboursement\" ou contactez l'agence.",
+        },
+        { status: 400 },
+      );
+    }
+    if (msg === "PAIEMENT_REMBOURSE") {
+      return NextResponse.json(
+        {
+          error:
+            "Une transaction remboursée fait partie de l'historique comptable et ne peut pas être supprimée.",
+        },
+        { status: 400 },
+      );
     }
     if (msg === "DOSSIER_NOT_FOUND") {
       return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });

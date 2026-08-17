@@ -23,6 +23,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
@@ -39,6 +49,7 @@ import {
   FileText,
   Plus,
   Loader2,
+  RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -51,7 +62,7 @@ export type TransactionRow = {
   date: string;
   moyen: string;
   montant: number;
-  statut: "réussi" | "en_attente" | "échoué";
+  statut: "réussi" | "en_attente" | "échoué" | "remboursé";
   typeEtablissement?: "PUBLIC" | "PRIVE";
 };
 
@@ -60,6 +71,7 @@ export type FinanceKpis = {
   enAttente: number;
   impayes: number;
   totalEncaisse: number;
+  totalRembourse?: number;
   encaissePublic?: number;
   encaissePrive?: number;
 };
@@ -71,6 +83,7 @@ const STATUT_TONE: Record<string, string> = {
   réussi: "bg-vert/10 text-vert border-vert",
   en_attente: "bg-ambre/10 text-ambre border-ambre",
   échoué: "bg-carmin/10 text-carmin border-carmin",
+  remboursé: "bg-purple-500/10 text-purple-600 border-purple-300",
 };
 
 export function FinanceClient({
@@ -82,6 +95,8 @@ export function FinanceClient({
 }) {
   const router = useRouter();
   const [newOpen, setNewOpen] = React.useState(false);
+  const [refundingRow, setRefundingRow] = React.useState<TransactionRow | null>(null);
+  const [refundingStaff, setRefundingStaff] = React.useState(false);
   const rows = initialTransactions;
   const kpis = initialKpis;
 
@@ -113,6 +128,25 @@ export function FinanceClient({
     });
   }, [newOpen, dossierOptions]);
 
+  const handleRembourser = async () => {
+    if (!refundingRow) return;
+    setRefundingStaff(true);
+    const result = await apiJson("/api/paiements", "PATCH", {
+      id: refundingRow.id,
+      statut: "rembourse",
+    });
+    setRefundingStaff(false);
+    if (!result.ok) {
+      toast.error("Remboursement échoué", { description: result.error });
+      return;
+    }
+    toast.success("Transaction remboursée", {
+      description: `Le paiement ${refundingRow.reference} a été marqué comme remboursé.`,
+    });
+    setRefundingRow(null);
+    router.refresh();
+  };
+
   const actions: ActionItem<TransactionRow>[] = React.useMemo(
     () => [
       {
@@ -121,9 +155,16 @@ export function FinanceClient({
         hidden: (row) => row.statut !== "réussi",
         onClick: (row) => window.open(`/api/recu/${row.id}?format=pdf`, "_blank"),
       },
+      {
+        label: "Rembourser la transaction",
+        icon: RotateCcw,
+        hidden: (row) => row.statut !== "réussi",
+        onClick: (row) => setRefundingRow(row),
+      },
     ],
     []
   );
+
 
   const columns: ColumnDef<TransactionRow>[] = React.useMemo(
     () => [
@@ -356,6 +397,7 @@ export function FinanceClient({
           { label: "En attente", value: formatFCFACompact(kpis.enAttente) },
           { label: "Impayés", value: formatFCFACompact(kpis.impayes) },
           { label: "Total encaissé", value: formatFCFACompact(kpis.totalEncaisse) },
+          { label: "Total remboursé", value: formatFCFACompact(kpis.totalRembourse ?? 0) },
         ]}
       />
       <StatStrip
@@ -393,6 +435,7 @@ export function FinanceClient({
                 <SelectItem value="réussi">Réussi</SelectItem>
                 <SelectItem value="en_attente">En attente</SelectItem>
                 <SelectItem value="échoué">Échoué</SelectItem>
+                <SelectItem value="remboursé">Remboursé</SelectItem>
               </SelectContent>
             </Select>
             <Select
@@ -421,6 +464,49 @@ export function FinanceClient({
           Le rapprochement mensuel est prévu le 5 du mois suivant.
         </AlertDescription>
       </Alert>
+
+      {/* Confirmation de remboursement staff */}
+      <AlertDialog
+        open={Boolean(refundingRow)}
+        onOpenChange={(open) => {
+          if (!open && !refundingStaff) setRefundingRow(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer le remboursement ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              La transaction <strong className="font-mono text-encre">{refundingRow?.reference}</strong> d'un montant de{" "}
+              <strong className="font-mono text-encre">
+                {refundingRow ? formatFCFA(refundingRow.montant) : ""}
+              </strong>{" "}
+              sera marquée comme remboursée. Le statut du dossier ({refundingRow?.dossier}) sera recalculé
+              automatiquement et un e-mail de confirmation sera adressé au candidat ({refundingRow?.candidat}).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={refundingStaff}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-purple-600 text-blanc hover:bg-purple-700"
+              disabled={refundingStaff}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleRembourser();
+              }}
+            >
+              {refundingStaff ? (
+                <>
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />
+                  Traitement…
+                </>
+              ) : (
+                "Rembourser"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
+

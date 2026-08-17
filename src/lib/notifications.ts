@@ -240,3 +240,36 @@ export async function notifyMessageInterne(opts: {
     ),
   );
 }
+
+/** Notifie (in-app) le staff Finance, Admin et Super Admin d'une demande de remboursement soumise par un candidat. */
+export async function notifyStaffDemandeRemboursement(opts: {
+  dossierId: string;
+  dossierReference: string;
+  paiementReference: string;
+  montant: string;
+  candidatNom: string;
+  motif?: string | undefined;
+}) {
+  const destinataires = await db.user.findMany({
+    where: { role: { in: ["FINANCIER", "ADMIN", "SUPER_ADMIN"] }, actif: true },
+    select: { id: true },
+  });
+
+  const message = opts.motif?.trim()
+    ? `${opts.candidatNom} demande le remboursement de ${opts.montant} (${opts.paiementReference}) pour le dossier ${opts.dossierReference}. Motif : ${opts.motif}`
+    : `${opts.candidatNom} demande le remboursement de ${opts.montant} (${opts.paiementReference}) pour le dossier ${opts.dossierReference}.`;
+
+  await Promise.all(
+    destinataires.map((u) =>
+      createNotification({
+        userId: u.id,
+        titre: `Demande de remboursement — ${opts.paiementReference}`,
+        message,
+        type: "paiement",
+        lien: `/admin/finance`,
+        dossierId: opts.dossierId,
+      }),
+    ),
+  );
+}
+

@@ -12,29 +12,32 @@ export default async function AdminFinancePage() {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const [transactions, encaisseMoisAgg, enAttenteAgg, impayesAgg, totalEncaisseAgg] = await Promise.all([
-    db.paiement.findMany({
-      include: {
-        candidat: { select: { prenom: true, nom: true } },
-        dossier: {
-          select: {
-            reference: true,
-            universite: { select: { typeEtablissement: true } },
+  const [transactions, encaisseMoisAgg, enAttenteAgg, impayesAgg, totalEncaisseAgg, rembourseAgg] =
+    await Promise.all([
+      db.paiement.findMany({
+        include: {
+          candidat: { select: { prenom: true, nom: true } },
+          dossier: {
+            select: {
+              reference: true,
+              universite: { select: { typeEtablissement: true } },
+            },
           },
         },
-      },
-      orderBy: { date: "desc" },
-    }),
-    db.paiement.aggregate({ _sum: { montant: true }, where: { date: { gte: startOfMonth }, statut: "reussi" } }),
-    db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "en_attente" } }),
-    db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "echoue" } }),
-    db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "reussi" } }),
-  ]);
+        orderBy: { date: "desc" },
+      }),
+      db.paiement.aggregate({ _sum: { montant: true }, where: { date: { gte: startOfMonth }, statut: "reussi" } }),
+      db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "en_attente" } }),
+      db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "echoue" } }),
+      db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "reussi" } }),
+      db.paiement.aggregate({ _sum: { montant: true }, where: { statut: "rembourse" } }),
+    ]);
 
   const normalizeStatut = (s: string): TransactionRow["statut"] => {
     const v = s.toLowerCase();
     if (v === "reussi" || v === "réussi") return "réussi";
     if (v === "echoue" || v === "échoué") return "échoué";
+    if (v === "rembourse" || v === "remboursé") return "remboursé";
     return "en_attente";
   };
 
@@ -64,9 +67,11 @@ export default async function AdminFinancePage() {
     enAttente: enAttenteAgg._sum.montant ?? 0,
     impayes: impayesAgg._sum.montant ?? 0,
     totalEncaisse: totalEncaisseAgg._sum.montant ?? 0,
+    totalRembourse: rembourseAgg._sum.montant ?? 0,
     encaissePublic,
     encaissePrive,
   };
 
   return <FinanceClient initialTransactions={rows} initialKpis={kpis} />;
 }
+
