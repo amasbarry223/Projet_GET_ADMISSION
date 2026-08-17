@@ -204,10 +204,21 @@ export async function POST(request: Request) {
       throw new Error("DOSSIER_DUPLICATE");
     }
 
-    const countThisYear = await tx.dossier.count({
+    // Génère une référence unique en cherchant le MAX actuel plutôt que le COUNT
+    // (évite les conflits quand des dossiers ont été supprimés)
+    const lastDossier = await tx.dossier.findFirst({
       where: { reference: { startsWith: `GETADM-${year}-` } },
+      orderBy: { reference: "desc" },
+      select: { reference: true },
     });
-    const reference = `GETADM-${year}-${String(countThisYear + 1).padStart(4, "0")}`;
+    let nextSeq = 1;
+    if (lastDossier) {
+      const parts = lastDossier.reference.split("-");
+      const lastNum = parseInt(parts[parts.length - 1] ?? "0", 10);
+      nextSeq = isNaN(lastNum) ? 1 : lastNum + 1;
+    }
+    const reference = `GETADM-${year}-${String(nextSeq).padStart(4, "0")}`;
+
 
     const mrz = generateMrz({
       nom: candidat.nom,
