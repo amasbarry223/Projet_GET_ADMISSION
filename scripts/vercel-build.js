@@ -68,14 +68,6 @@ if (isProduction && (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH
   );
 }
 
-// Avertir si GeniusPay en mode sandbox en production
-if (isProduction && process.env.GENIUSPAY_API_KEY?.startsWith("sk_sandbox_")) {
-  console.warn(
-    "[vercel-build] AVERTISSEMENT : GENIUSPAY_API_KEY est une clé SANDBOX en production !\n" +
-    "Les paiements réels ne seront pas encaissés. Remplace par les clés live GeniusPay.",
-  );
-}
-
 // ──────────────────────────────────────────────────────────────────────────────
 
 const dbHost = (() => {

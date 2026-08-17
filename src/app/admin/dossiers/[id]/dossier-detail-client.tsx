@@ -1110,14 +1110,12 @@ export default function DossierDetailClient() {
             <Alert className="border-ambre/40 bg-ambre/5">
               <Wallet className="h-4 w-4 text-ambre" strokeWidth={1.5} />
               <AlertTitle className="font-display text-sm font-bold text-encre">
-                En attente de paiement.
+                En attente de règlement hors plateforme.
               </AlertTitle>
               <AlertDescription className="text-sm text-ardoise">
-                Le dossier passera automatiquement à l&apos;étape suivante dès que{" "}
-                {formatFCFA(dossier.fraisAgence)} auront été encaissés — confirmation en ligne
-                (le système valide seul le paiement du candidat) ou encaissement hors ligne
-                enregistré depuis l&apos;onglet « Paiements ». Aucune confirmation manuelle n&apos;est
-                nécessaire ici.
+                Le candidat a été invité à convenir des modalités de paiement hors plateforme avec son conseiller.
+                Le dossier passera automatiquement à l&apos;étape suivante dès que l&apos;encaissement de{" "}
+                {formatFCFA(dossier.fraisAgence)} aura été enregistré depuis l&apos;onglet « Paiements » ou la section Finance.
               </AlertDescription>
             </Alert>
           )}

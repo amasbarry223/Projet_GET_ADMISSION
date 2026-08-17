@@ -12,12 +12,21 @@ export function MessageComposer({
   onSend,
   placeholder = "Écrivez votre message…",
   disabled = false,
+  initialValue = "",
 }: {
   onSend: (texte: string, fichier: File | null) => Promise<void>;
   placeholder?: string;
   disabled?: boolean;
+  initialValue?: string;
 }) {
-  const [input, setInput] = React.useState("");
+  const [input, setInput] = React.useState(initialValue);
+
+  React.useEffect(() => {
+    if (initialValue) {
+      setInput(initialValue);
+    }
+  }, [initialValue]);
+
   const [file, setFile] = React.useState<File | null>(null);
   const [sending, setSending] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);

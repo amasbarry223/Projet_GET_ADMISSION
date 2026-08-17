@@ -478,30 +478,6 @@ export const paytechIpnSchema = z
   .passthrough();
 export type PaytechIpnInput = z.infer<typeof paytechIpnSchema>;
 
-export const geniusPayWebhookSchema = z
-  .object({
-    event: z.string(),
-    timestamp: z.string().optional(),
-    data: z.object({
-      transaction: z.object({
-        id: z.union([z.string(), z.number()]).optional(),
-        reference: z.string().optional(),
-        amount: z.number().optional(),
-        status: z.string().optional(),
-        metadata: z
-          .object({
-            order_id: z.string().optional(),
-            paiementId: z.string().optional(),
-          })
-          .passthrough()
-          .optional(),
-      }).passthrough().optional(),
-    }).passthrough().optional(),
-  })
-  .passthrough();
-export type GeniusPayWebhookInput = z.infer<typeof geniusPayWebhookSchema>;
-
-
 // --- Notifications ---
 export const notificationsMarkReadSchema = z
   .object({

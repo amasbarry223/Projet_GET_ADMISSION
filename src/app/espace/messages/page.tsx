@@ -360,7 +360,10 @@ function MessagesInner() {
 
             {/* Input */}
             <div className="flex-none bg-card">
-              <MessageComposer onSend={send} />
+              <MessageComposer
+                onSend={send}
+                initialValue={searchParams.get("prefill") || searchParams.get("message") || ""}
+              />
             </div>
           </section>
         </div>
