@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireApiPermission, parseOrRespond } from "@/lib/api-auth";
 import { createNotification } from "@/lib/notifications";
-import { sendMail, logementCorrectionEmailHtml } from "@/lib/mail";
 import { logAudit } from "@/lib/audit";
 import { correctionMotifSchema } from "@/lib/validations";
 
@@ -43,17 +42,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     lien: "/espace/logement",
   });
 
-  if (demande.candidat.email) {
-    try {
-      await sendMail({
-        to: demande.candidat.email,
-        subject: "GET Admission — Correction demandée sur votre demande de logement CROUS",
-        html: logementCorrectionEmailHtml(demande.candidat.prenom, motif),
-      });
-    } catch (e) {
-      console.error("[admin/logement/crous/correction] email", e);
-    }
-  }
 
   await logAudit({
     session: auth.session,

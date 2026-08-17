@@ -2,10 +2,10 @@ import type { EtatDossier, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { createNotification, notifyDossierTransition } from "@/lib/notifications";
 import { broadcastDossierLive } from "@/lib/dossier/live-broadcast";
-import { sendMail, receiptEmailHtml } from "@/lib/mail";
-import { formatFCFA, formatDate } from "@/lib/format";
 import { logAudit } from "@/lib/audit";
 import { ETAPE_PAR_ETAT, PAYMENT_STATUSES } from "@/shared/constants";
+
+
 
 type Tx = Prisma.TransactionClient;
 
@@ -109,27 +109,11 @@ export async function afterPaiementReussiSideEffects(opts: {
     etat: opts.etat,
   });
 
-  const base = process.env.NEXTAUTH_URL || "http://localhost:3000";
   const dossier = await db.dossier.findUnique({
     where: { id: opts.paiement.dossierId },
     select: { reference: true },
   });
 
-  if (opts.candidat.email) {
-    await sendMail({
-      to: opts.candidat.email,
-      subject: `Reçu ${opts.paiement.reference} — GET Admission`,
-      html: receiptEmailHtml({
-        prenom: opts.candidat.prenom,
-        reference: opts.paiement.reference,
-        montantLabel: formatFCFA(opts.paiement.montant),
-        dateStr: formatDate(new Date().toISOString()),
-        ...(dossier?.reference ? { dossierRef: dossier.reference } : {}),
-        recuUrl: `${base}/api/recu/${opts.paiement.id}?format=pdf`,
-        logoUrl: `${base}/images/brand/logo-get-admission.png`,
-      }),
-    });
-  }
 
   // Paiement complet reçu pendant PAIEMENT_ATTENTE → dossier auto-transmis (cf. applyPaiementReussiInTx)
   if (opts.etat === "TRANSMIS" && dossier?.reference) {

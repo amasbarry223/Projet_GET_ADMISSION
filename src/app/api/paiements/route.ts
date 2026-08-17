@@ -8,10 +8,8 @@ import { createNotification } from "@/lib/notifications";
 import { hasPermission } from "@/lib/rbac";
 import { lockDossierRow, recomputePaiementStatutInTx } from "@/lib/dossier/paiement-effects";
 import { broadcastDossierLive } from "@/lib/dossier/live-broadcast";
-import { sendMail } from "@/lib/mail";
-import { formatFCFA, formatDate } from "@/lib/format";
-import { escapeHtml } from "@/lib/escape-html";
-import { BRAND_COLORS } from "@/lib/brand";
+import { formatFCFA } from "@/lib/format";
+
 
 // PATCH /api/paiements — rejeter / rembourser un paiement (staff finance). Un paiement ne devient
 // jamais "reussi" via cette route : seul un webhook de passerelle vérifié (PayTech), la
@@ -155,42 +153,6 @@ export async function PATCH(request: Request) {
       candidatId: outcome.candidatId,
       etat: outcome.etatApres ?? "PAIEMENT_ATTENTE",
     });
-    // Email de remboursement au candidat
-    if (outcome.candidat.email) {
-      const base = process.env.NEXTAUTH_URL || "http://localhost:3000";
-      const logoUrl = `${base}/images/brand/logo-get-admission.png`;
-      void sendMail({
-        to: outcome.candidat.email,
-        subject: `GET Admission — Remboursement ${outcome.paiement.reference}`,
-        html: `
-          <div style="font-family:Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;color:${BRAND_COLORS.encre};background:${BRAND_COLORS.blanc}">
-            <table role="presentation" width="100%" style="border-bottom:2px solid ${BRAND_COLORS.lapis};padding-bottom:18px;margin-bottom:24px">
-              <tr><td align="center">
-                <img src="${escapeHtml(logoUrl)}" alt="GET Admission" height="36" style="height:36px;width:auto;display:inline-block" />
-              </td></tr>
-            </table>
-            <p style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:${BRAND_COLORS.ardoise};margin:0 0 6px">Remboursement</p>
-            <h1 style="font-size:21px;font-weight:700;margin:0 0 18px;color:${BRAND_COLORS.encre}">Votre paiement a été remboursé.</h1>
-            <p style="font-size:14px">Bonjour ${escapeHtml(outcome.candidat.prenom)},</p>
-            <p style="font-size:14px">
-              Nous vous confirmons le remboursement du paiement
-              <strong>${escapeHtml(outcome.paiement.reference)}</strong>
-              d'un montant de <strong>${escapeHtml(formatFCFA(outcome.paiement.montant))}</strong>
-              traité le ${escapeHtml(formatDate(new Date().toISOString()))}.
-            </p>
-            <p style="font-size:14px">
-              Si vous avez des questions, n'hésitez pas à contacter l'équipe GET Admission.
-            </p>
-            <table role="presentation" width="100%" style="margin:26px 0">
-              <tr><td align="center">
-                <a href="${escapeHtml(`${base}/espace/paiement`)}" style="display:inline-block;background:${BRAND_COLORS.lapis};color:${BRAND_COLORS.blanc};text-decoration:none;font-weight:600;font-size:14px;padding:12px 30px;border-radius:6px">Voir mes paiements</a>
-              </td></tr>
-            </table>
-            <p style="font-size:11px;color:${BRAND_COLORS.ardoise};text-align:center;margin-top:28px;border-top:1px solid ${BRAND_COLORS.porcelaine};padding-top:14px">GET Admission · Ce remboursement a été traité par notre équipe financière.</p>
-          </div>
-        `,
-      });
-    }
   } else if (outcome.sideEffect === "echoue") {
     await createNotification({
       userId: outcome.candidatId,

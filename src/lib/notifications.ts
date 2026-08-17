@@ -1,8 +1,6 @@
 import { db } from "@/lib/db";
 import { etatParCode } from "@/lib/etats";
 import { broadcastDossierLive } from "@/lib/dossier/live-broadcast";
-import { sendMail, workflowEmailHtml, attestationEmiseEmailHtml } from "@/lib/mail";
-import { APP_NAME } from "@/shared/constants";
 
 type CreateNotifInput = {
   userId: string;
@@ -35,14 +33,13 @@ export async function createNotification(input: CreateNotifInput) {
   });
 }
 
-/** Notifie le candidat d'un changement d'état (in-app + e-mail si activé). */
+/** Notifie le candidat d'un changement d'état (in-app uniquement). */
 export async function notifyDossierTransition(opts: {
   candidatId: string;
   dossierId: string;
   reference: string;
   nouvelEtat: string;
   note?: string;
-  /** Évite double e-mail si l'appelant l'envoie déjà */
   skipEmail?: boolean;
 }) {
   const info = etatParCode(opts.nouvelEtat);
@@ -63,40 +60,14 @@ export async function notifyDossierTransition(opts: {
     etat: opts.nouvelEtat,
   });
 
-  if (!opts.skipEmail) {
-    try {
-      const [params, candidat] = await Promise.all([
-        db.parametre.findUnique({ where: { id: 1 }, select: { notifEmail: true } }),
-        db.user.findUnique({
-          where: { id: opts.candidatId },
-          select: { email: true, prenom: true },
-        }),
-      ]);
-      if (params?.notifEmail !== false && candidat?.email) {
-        await sendMail({
-          to: candidat.email,
-          subject: `${APP_NAME} — Dossier ${opts.reference} · ${info.libelle}`,
-          html: workflowEmailHtml(
-            candidat.prenom,
-            opts.reference,
-            info.libelle,
-            opts.note || info.description,
-          ),
-        });
-      }
-    } catch (e) {
-      console.error("[notifyDossierTransition] email", e);
-    }
-  }
-
   return notif;
 }
 
-/** Notifie le candidat (in-app + e-mail, message de félicitations) que l'université a accordé la préinscription. */
+/** Notifie le candidat (in-app, message de félicitations) que l'université a accordé la préinscription. */
 export async function notifyAttestationEmise(opts: {
   candidatId: string;
-  candidatEmail: string | null;
-  candidatPrenom: string;
+  candidatEmail?: string | null;
+  candidatPrenom?: string;
   dossierId: string;
   reference: string;
   universite: string;
@@ -116,28 +87,8 @@ export async function notifyAttestationEmise(opts: {
     candidatId: opts.candidatId,
     etat: "ATTESTATION",
   });
-
-  if (!opts.candidatEmail) return;
-  try {
-    const params = await db.parametre.findUnique({ where: { id: 1 }, select: { notifEmail: true } });
-    if (params?.notifEmail === false) return;
-    const base = process.env.NEXTAUTH_URL || "http://localhost:3000";
-    await sendMail({
-      to: opts.candidatEmail,
-      subject: `🎉 Félicitations — préinscription accordée · GET Admission`,
-      html: attestationEmiseEmailHtml({
-        prenom: opts.candidatPrenom,
-        reference: opts.reference,
-        universite: opts.universite,
-        formation: opts.formation,
-        espaceUrl: `${base}/espace/attestation`,
-        logoUrl: `${base}/images/brand/logo-get-admission.png`,
-      }),
-    });
-  } catch (e) {
-    console.error("[notifyAttestationEmise] email", e);
-  }
 }
+
 
 /** Poste le motif d'une demande de correction dans la conversation du dossier (visible côté candidat). */
 export async function postCorrectionMessage(opts: {

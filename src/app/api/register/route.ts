@@ -4,8 +4,7 @@ import { db } from "@/lib/db";
 import { registerSchema, validate } from "@/lib/validations";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import { isStaff } from "@/lib/rbac";
-import { createVerifyToken } from "@/lib/verify-token";
-import { sendMail, verificationEmailHtml } from "@/lib/mail";
+
 
 /**
  * POST /api/register — crée le compte candidat (passwordHash).
@@ -43,10 +42,6 @@ export async function POST(request: Request) {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const parametres = await db.parametre.findUnique({ where: { id: 1 } });
-    const requireEmail = !!parametres?.exigerEmailVerifie;
-    const verifyToken = requireEmail ? createVerifyToken() : null;
-
     const user = await db.user.create({
       data: {
         email: emailNorm,
@@ -56,26 +51,11 @@ export async function POST(request: Request) {
         nationalite: nationalite || null,
         role: "CANDIDAT",
         actif: true,
-        emailVerified: requireEmail ? null : new Date(),
-        verifyToken,
+        emailVerified: new Date(),
+        verifyToken: null,
       },
       select: { id: true, email: true, prenom: true, nom: true, role: true },
     });
-
-    if (requireEmail && verifyToken) {
-      const base = process.env.NEXTAUTH_URL || new URL(request.url).origin;
-      const verifyUrl = `${base}/api/auth/verify-email?token=${encodeURIComponent(verifyToken)}`;
-      try {
-        await sendMail({
-          to: user.email,
-          subject: "Vérifiez votre e-mail — GET Admission",
-          html: verificationEmailHtml(user.prenom, verifyUrl),
-          text: `Bonjour ${user.prenom}, confirmez votre e-mail : ${verifyUrl}`,
-        });
-      } catch (e) {
-        console.error("[register] Échec de l'envoi de l'e-mail de vérification:", e);
-      }
-    }
 
     return NextResponse.json(
       {
@@ -83,12 +63,8 @@ export async function POST(request: Request) {
         email: user.email,
         prenom: user.prenom,
         nom: user.nom,
-        nationalite,
-        user,
-        emailVerificationRequired: requireEmail,
-        message: requireEmail
-          ? "Compte créé. Vérifiez votre e-mail avant de vous connecter."
-          : "Compte créé. Vous pouvez vous connecter.",
+        role: user.role,
+        message: "Compte créé avec succès. Vous pouvez vous connecter.",
       },
       { status: 201 },
     );
@@ -97,3 +73,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
+

@@ -2,9 +2,8 @@ import { NextResponse } from "next/server";
 import { parseOrRespond } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { resendVerificationSchema } from "@/lib/validations";
-import { sendMail, verificationEmailHtml } from "@/lib/mail";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
-import { createVerifyToken } from "@/lib/verify-token";
+
 
 /**
  * POST /api/auth/resend-verification
@@ -61,35 +60,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ needsVerification: true }, { status: 409 });
   }
 
-  // Toujours régénérer un token frais (TTL 48h)
-  const verifyToken = createVerifyToken();
+  // Validation directe sans envoi de mail
   await db.user.update({
     where: { id: user.id },
-    data: { verifyToken },
+    data: { emailVerified: new Date(), verifyToken: null },
   });
-
-  const verifyUrl = `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/auth/verify-email?token=${encodeURIComponent(verifyToken)}`;
-  const mail = await sendMail({
-    to: user.email,
-    subject: "Vérifiez votre e-mail — GET Admission",
-    html: verificationEmailHtml(user.prenom, verifyUrl),
-    text: `Bonjour ${user.prenom}, confirmez votre e-mail : ${verifyUrl}`,
-  });
-
-  if (!mail.ok) {
-    return NextResponse.json(
-      {
-        error: mail.error || "Impossible d'envoyer l'e-mail de vérification. Réessayez plus tard.",
-        emailSent: false,
-      },
-      { status: 502 }
-    );
-  }
 
   return NextResponse.json({
     success: true,
-    emailSent: true,
-    message: "E-mail de vérification renvoyé.",
-    verifyUrl: process.env.NODE_ENV !== "production" ? verifyUrl : undefined,
+    emailSent: false,
+    message: "Votre compte a été vérifié avec succès.",
   });
 }
