@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { parseJsonArray } from "@/lib/parse-json";
 import { getFraisAgenceConfig, resolveFraisAgence } from "@/lib/dossier/frais-agence-server";
@@ -8,6 +9,23 @@ import {
 } from "@/components/site/catalogue-client";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Catalogue des Universités & Formations Partenaires",
+  description:
+    "Explorez notre catalogue complet d'établissements universitaires publics et privés partenaires. Filtrez par pays, domaine d'études, niveau (Licence, Master, Doctorat) et frais de scolarité.",
+  alternates: {
+    canonical: "https://get-admission.com/universites",
+  },
+  openGraph: {
+    title: "Catalogue des Universités & Formations Partenaires | GET Admission",
+    description:
+      "Trouvez l'université et la formation idéales pour vos études à l'étranger parmi nos établissements partenaires en France et en Europe.",
+    url: "https://get-admission.com/universites",
+    type: "website",
+  },
+};
+
 
 export default async function CatalogueUniversitesPage() {
   const [rows, fraisConfig] = await Promise.all([

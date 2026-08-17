@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, HelpCircle, MessageCircleQuestion } from "lucide-react";
 
@@ -11,14 +12,48 @@ import { Button } from "@/components/ui/button";
 import { Eyebrow, Reveal } from "@/components/site/reveal";
 import { db } from "@/lib/db";
 
+export const metadata: Metadata = {
+  title: "Foire Aux Questions (FAQ) — Réponses à vos questions d'admission",
+  description:
+    "Trouvez les réponses à toutes vos questions sur les démarches d'admission universitaire, les frais d'agence fixes, les pièces académiques, les délais et le logement CROUS.",
+  alternates: {
+    canonical: "https://get-admission.com/faq",
+  },
+  openGraph: {
+    title: "FAQ — GET Admission",
+    description:
+      "Tout ce qu'il faut savoir sur GET Admission, nos frais, nos délais et le suivi de votre dossier d'admission.",
+    url: "https://get-admission.com/faq",
+    type: "website",
+  },
+};
+
 export default async function FaqPage() {
   const faqItems = await db.faq.findMany({
     where: { actif: true },
     orderBy: { ordre: "asc" },
   }).catch(() => []);
 
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqItems.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.reponse,
+      },
+    })),
+  };
+
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
       <section className="bg-background" aria-labelledby="faq-title">
         <div className="mx-auto max-w-content px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
           <div className="mx-auto max-w-2xl text-center">

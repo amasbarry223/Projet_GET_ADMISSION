@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -16,6 +17,23 @@ import { formatFCFA } from "@/lib/format";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "À Propos — Notre Mission & Équipe",
+  description:
+    "Découvrez l'histoire, la mission et les engagements de GET Admission. Une agence humaine dédiée à la réussite des projets d'études universitaires à l'international.",
+  alternates: {
+    canonical: "https://get-admission.com/a-propos",
+  },
+  openGraph: {
+    title: "À Propos de GET Admission — Notre Mission & Engagements",
+    description:
+      "Une agence d'intermédiation universitaire transparente, humaine et engagée pour la réussite de vos études à l'étranger.",
+    url: "https://get-admission.com/a-propos",
+    type: "website",
+  },
+};
+
 
 const ICON_MAP = { HeartHandshake, Eye, Network } as const;
 

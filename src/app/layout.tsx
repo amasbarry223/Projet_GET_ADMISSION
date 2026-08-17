@@ -25,22 +25,72 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
+const SITE_URL = "https://get-admission.com";
+
 export const metadata: Metadata = {
-  title: "GET Admission — Votre passage vers l'international",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "GET Admission — Agence d'admission universitaire et d'études à l'étranger",
+    template: "%s | GET Admission",
+  },
   description:
-    "Agence d'admission universitaire. Créez votre dossier, choisissez votre université partenaire, suivez l'avancement en temps réel et récupérez votre attestation de pré-inscription.",
+    "Agence spécialisée d'accompagnement aux admissions universitaires à l'étranger (France, Europe). Constitution de dossier académique, choix de formation, logement CROUS, visa et obtention d'attestation de pré-inscription officielle.",
   keywords: [
     "GET Admission",
     "admission universitaire",
+    "études en France",
     "études à l'étranger",
-    "Afrique de l'Ouest",
-    "pré-inscription",
+    "pré-inscription université",
+    "logement CROUS",
+    "visa étudiant",
     "universités partenaires",
+    "Campus France",
+    "agence admission Afrique",
+    "dossier d'admission",
+    "attestation de préinscription",
   ],
-  authors: [{ name: "GET Admission" }],
+  authors: [{ name: "GET Admission", url: SITE_URL }],
+  creator: "GET Admission",
+  publisher: "GET Admission",
   applicationName: "GET Admission",
-  // Favicon : monogramme GET (lisible en onglet) + Apple = logo complet
-  // Les fichiers src/app/icon.png et apple-icon.png sont aussi servis par Next.js.
+  alternates: {
+    canonical: SITE_URL,
+  },
+  openGraph: {
+    type: "website",
+    locale: "fr_FR",
+    url: SITE_URL,
+    siteName: "GET Admission",
+    title: "GET Admission — Votre passage vers l'international",
+    description:
+      "Accompagnement complet pour vos admissions universitaires à l'étranger : dossier adaptatif, universités partenaires, suivi en temps réel et attestation officielle.",
+    images: [
+      {
+        url: "/images/brand/logo-get-admission.png",
+        width: 1200,
+        height: 630,
+        alt: "GET Admission — Plateforme d'admission universitaire",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "GET Admission — Votre passage vers l'international",
+    description:
+      "Accompagnement complet pour vos admissions universitaires à l'étranger : dossier adaptatif, universités partenaires, suivi en temps réel et attestation officielle.",
+    images: ["/images/brand/logo-get-admission.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
@@ -52,6 +102,45 @@ export const metadata: Metadata = {
   },
 };
 
+const jsonLdGlobal = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "EducationalOrganization",
+      "@id": `${SITE_URL}/#organization`,
+      name: "GET Admission",
+      url: SITE_URL,
+      logo: `${SITE_URL}/images/brand/logo-get-admission.png`,
+      description:
+        "Agence d'accompagnement et d'intermédiation universitaire pour les étudiants souhaitant intégrer des universités partenaires à l'étranger.",
+      sameAs: [],
+      contactPoint: {
+        "@type": "ContactPoint",
+        contactType: "customer service",
+        availableLanguage: ["French"],
+      },
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      url: SITE_URL,
+      name: "GET Admission",
+      publisher: {
+        "@id": `${SITE_URL}/#organization`,
+      },
+      potentialAction: {
+        "@type": "SearchAction",
+        target: {
+          "@type": "EntryPoint",
+          urlTemplate: `${SITE_URL}/universites?q={search_term_string}`,
+        },
+        "query-input": "required name=search_term_string",
+      },
+      inLanguage: "fr-FR",
+    },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -59,6 +148,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr" suppressHydrationWarning>
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdGlobal) }}
+        />
+      </head>
       <body
         className={`${bricolage.variable} ${generalSans.variable} ${geistMono.variable} antialiased bg-porcelaine text-encre`}
       >
@@ -68,3 +163,4 @@ export default function RootLayout({
     </html>
   );
 }
+

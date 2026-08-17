@@ -1,4 +1,5 @@
 
+import type { Metadata } from "next";
 import { HomeHero } from "@/components/sections/hero";
 import { PartnerMarquee } from "@/components/sections/partner-marquee";
 import { StatsBar } from "@/components/sections/stats-bar";
@@ -16,6 +17,17 @@ import { ETATS } from "@/lib/etats";
 import { isValidPartnerLogo } from "@/lib/partner-logos";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "GET Admission — Agence d'admission universitaire et d'études à l'étranger",
+  description:
+    "GET Admission vous accompagne pas à pas dans vos démarches d'inscription universitaire à l'étranger : constitution du dossier académique, universités partenaires, logement CROUS, visa étudiant et attestation officielle de pré-inscription.",
+  alternates: {
+    canonical: "https://get-admission.com",
+  },
+};
+
+
 
 const ETAPES_DEFAUT = [
   {

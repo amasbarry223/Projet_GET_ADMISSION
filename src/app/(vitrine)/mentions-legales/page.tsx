@@ -1,6 +1,21 @@
+import type { Metadata } from "next";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Mentions Légales & Politique de Confidentialité",
+  description:
+    "Mentions légales, conditions d'utilisation et politique de protection des données personnelles de la plateforme GET Admission.",
+  alternates: {
+    canonical: "https://get-admission.com/mentions-legales",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
+
 
 export default async function MentionsLegalesPage() {
   const params = await db.parametre.findUnique({ where: { id: 1 } }).catch(() => null);
