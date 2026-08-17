@@ -50,6 +50,7 @@ import {
   Plus,
   Loader2,
   RotateCcw,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -78,7 +79,6 @@ export type FinanceKpis = {
 
 type DossierOption = { id: string; reference: string; candidatNom: string };
 
-
 const STATUT_TONE: Record<string, string> = {
   réussi: "bg-vert/10 text-vert border-vert",
   en_attente: "bg-ambre/10 text-ambre border-ambre",
@@ -97,8 +97,17 @@ export function FinanceClient({
   const [newOpen, setNewOpen] = React.useState(false);
   const [refundingRow, setRefundingRow] = React.useState<TransactionRow | null>(null);
   const [refundingStaff, setRefundingStaff] = React.useState(false);
+  const [deletingRow, setDeletingRow] = React.useState<TransactionRow | null>(null);
+  const [deletingStaff, setDeletingStaff] = React.useState(false);
+  const [purgeGeniusPayOpen, setPurgeGeniusPayOpen] = React.useState(false);
+  const [purgingGeniusPay, setPurgingGeniusPay] = React.useState(false);
+
   const rows = initialTransactions;
   const kpis = initialKpis;
+
+  const hasGeniusPayRows = rows.some((r) =>
+    r.moyen.toLowerCase().includes("genius")
+  );
 
   // État du formulaire de transaction manuelle (paiement physique)
   const [dossierOptions, setDossierOptions] = React.useState<DossierOption[] | null>(null);
@@ -147,6 +156,40 @@ export function FinanceClient({
     router.refresh();
   };
 
+  const handleSupprimer = async () => {
+    if (!deletingRow) return;
+    setDeletingStaff(true);
+    const result = await apiJson(`/api/admin/paiements?id=${encodeURIComponent(deletingRow.id)}`, "DELETE");
+    setDeletingStaff(false);
+    if (!result.ok) {
+      toast.error("Suppression échouée", { description: result.error });
+      return;
+    }
+    toast.success("Transaction supprimée", {
+      description: `La transaction ${deletingRow.reference} a été supprimée de la base.`,
+    });
+    setDeletingRow(null);
+    router.refresh();
+  };
+
+  const handlePurgeGeniusPay = async () => {
+    setPurgingGeniusPay(true);
+    const result = await apiJson<{ count?: number; message?: string }>(
+      "/api/admin/paiements?purge=geniuspay",
+      "DELETE",
+    );
+    setPurgingGeniusPay(false);
+    if (!result.ok) {
+      toast.error("Purge échouée", { description: result.error });
+      return;
+    }
+    toast.success("Transactions GeniusPay supprimées", {
+      description: result.data?.message || "Toutes les anciennes transactions GeniusPay ont été effacées.",
+    });
+    setPurgeGeniusPayOpen(false);
+    router.refresh();
+  };
+
   const actions: ActionItem<TransactionRow>[] = React.useMemo(
     () => [
       {
@@ -161,9 +204,16 @@ export function FinanceClient({
         hidden: (row) => row.statut !== "réussi",
         onClick: (row) => setRefundingRow(row),
       },
+      {
+        label: "Supprimer cette transaction",
+        icon: Trash2,
+        destructive: true,
+        onClick: (row) => setDeletingRow(row),
+      },
     ],
     []
   );
+
 
 
   const columns: ColumnDef<TransactionRow>[] = React.useMemo(
@@ -275,6 +325,15 @@ export function FinanceClient({
           </h1>
         </div>
         <div className="flex flex-wrap gap-2">
+          {hasGeniusPayRows && (
+            <Button
+              variant="outline"
+              className="border-carmin/40 text-carmin hover:bg-carmin/10"
+              onClick={() => setPurgeGeniusPayOpen(true)}
+            >
+              <Trash2 className="mr-1.5 h-4 w-4" strokeWidth={1.5} /> Purger transactions GeniusPay
+            </Button>
+          )}
           <Dialog open={newOpen} onOpenChange={setNewOpen}>
             <DialogTrigger asChild>
               <Button className="bg-lapis text-blanc hover:bg-lapis/90">
@@ -506,7 +565,82 @@ export function FinanceClient({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Confirmation de suppression unitaire staff */}
+      <AlertDialog
+        open={Boolean(deletingRow)}
+        onOpenChange={(open) => {
+          if (!open && !deletingStaff) setDeletingRow(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer cette transaction ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              La transaction <strong className="font-mono text-encre">{deletingRow?.reference}</strong> ({deletingRow ? formatFCFA(deletingRow.montant) : ""}) sera définitivement supprimée de la base de données. Le statut du dossier ({deletingRow?.dossier}) sera recalculé.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingStaff}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-carmin text-blanc hover:bg-carmin/90"
+              disabled={deletingStaff}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleSupprimer();
+              }}
+            >
+              {deletingStaff ? (
+                <>
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />
+                  Suppression…
+                </>
+              ) : (
+                "Supprimer"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmation de purge GeniusPay staff */}
+      <AlertDialog
+        open={purgeGeniusPayOpen}
+        onOpenChange={(open) => {
+          if (!open && !purgingGeniusPay) setPurgeGeniusPayOpen(false);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Purger les anciennes transactions GeniusPay ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Toutes les transactions portant la mention <strong className="font-mono text-encre">GeniusPay</strong> seront définitivement supprimées de la base de données. Les statuts des dossiers associés seront automatiquement recalculés.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={purgingGeniusPay}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-carmin text-blanc hover:bg-carmin/90"
+              disabled={purgingGeniusPay}
+              onClick={(e) => {
+                e.preventDefault();
+                void handlePurgeGeniusPay();
+              }}
+            >
+              {purgingGeniusPay ? (
+                <>
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />
+                  Purge en cours…
+                </>
+              ) : (
+                "Purger définitivement"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
+
 

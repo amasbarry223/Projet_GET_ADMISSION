@@ -138,3 +138,112 @@ export async function GET() {
 
   return NextResponse.json(paiements);
 }
+
+// DELETE /api/admin/paiements — suppression d'une transaction manuelle ou purge des transactions GeniusPay
+export async function DELETE(request: Request) {
+  const auth = await requireApiPermission("finance.write");
+  if (!auth.ok) return auth.response;
+
+  const url = new URL(request.url);
+  const id = url.searchParams.get("id");
+  const purgeGeniusPay = url.searchParams.get("purge") === "geniuspay";
+
+  if (purgeGeniusPay) {
+    // Purge de toutes les anciennes transactions GeniusPay
+    const legacyPaiements = await db.paiement.findMany({
+      where: {
+        OR: [
+          { moyen: { contains: "GeniusPay", mode: "insensitive" } },
+          { moyen: { contains: "genius", mode: "insensitive" } },
+        ],
+      },
+      select: { id: true, dossierId: true, reference: true },
+    });
+
+    if (legacyPaiements.length === 0) {
+      return NextResponse.json({ count: 0, message: "Aucune transaction GeniusPay trouvée." });
+    }
+
+    const ids = legacyPaiements.map((p) => p.id);
+    const dossierIds = [...new Set(legacyPaiements.map((p) => p.dossierId))];
+
+    await db.paiement.deleteMany({
+      where: { id: { in: ids } },
+    });
+
+    // Recalculer le statut pour chaque dossier
+    for (const dossierId of dossierIds) {
+      const dossier = await db.dossier.findUnique({
+        where: { id: dossierId },
+        select: { id: true, fraisAgence: true },
+      });
+      if (!dossier) continue;
+
+      const agg = await db.paiement.aggregate({
+        where: { dossierId, statut: "reussi" },
+        _sum: { montant: true },
+      });
+      const paye = agg._sum.montant ?? 0;
+      const nouveauStatut = paye === 0 ? "aucun" : paye >= dossier.fraisAgence ? "complet" : "partiel";
+
+      await db.dossier.update({
+        where: { id: dossierId },
+        data: { paiementStatut: nouveauStatut },
+      });
+    }
+
+    await logAudit({
+      session: auth.session,
+      action: "DELETE",
+      resource: "paiement",
+      details: `Purge de ${ids.length} ancienne(s) transaction(s) GeniusPay`,
+    });
+
+    return NextResponse.json({
+      success: true,
+      count: ids.length,
+      message: `${ids.length} transaction(s) GeniusPay supprimée(s) avec succès.`,
+    });
+  }
+
+  if (!id) {
+    return NextResponse.json({ error: "Identifiant de transaction requis." }, { status: 400 });
+  }
+
+  const existing = await db.paiement.findUnique({ where: { id } });
+  if (!existing) {
+    return NextResponse.json({ error: "Transaction introuvable." }, { status: 404 });
+  }
+
+  await db.paiement.delete({ where: { id } });
+
+  // Recalcul du dossier
+  const dossier = await db.dossier.findUnique({
+    where: { id: existing.dossierId },
+    select: { id: true, fraisAgence: true },
+  });
+  if (dossier) {
+    const agg = await db.paiement.aggregate({
+      where: { dossierId: dossier.id, statut: "reussi" },
+      _sum: { montant: true },
+    });
+    const paye = agg._sum.montant ?? 0;
+    const nouveauStatut = paye === 0 ? "aucun" : paye >= dossier.fraisAgence ? "complet" : "partiel";
+
+    await db.dossier.update({
+      where: { id: dossier.id },
+      data: { paiementStatut: nouveauStatut },
+    });
+  }
+
+  await logAudit({
+    session: auth.session,
+    action: "DELETE",
+    resource: "paiement",
+    resourceId: id,
+    details: `Suppression de la transaction ${existing.reference}`,
+  });
+
+  return NextResponse.json({ success: true, message: `Transaction ${existing.reference} supprimée.` });
+}
+
