@@ -143,12 +143,14 @@ export const addressSchema = z
   );
 
 export const profileSchema = z.object({
-  prenom: z.string().min(1).max(NAME_MAX_LENGTH).optional(),
-  nom: z.string().min(1).max(NAME_MAX_LENGTH).optional(),
-  telephone: z.string().max(PHONE_MAX_LENGTH).optional(),
-  nationalite: z.string().max(NAME_MAX_LENGTH).optional(),
-  dateNaissance: z.string().max(20).optional(),
-  adresse: addressSchema.optional().or(z.literal("")),
+  prenom: z.string().min(1).max(NAME_MAX_LENGTH).optional().nullable(),
+  nom: z.string().min(1).max(NAME_MAX_LENGTH).optional().nullable(),
+  telephone: z.string().max(PHONE_MAX_LENGTH).optional().nullable(),
+  nationalite: z.string().max(NAME_MAX_LENGTH).optional().nullable(),
+  dateNaissance: z.string().max(20).optional().nullable(),
+  adresse: addressSchema.optional().nullable().or(z.literal("")).or(z.null()),
+  kycType: z.string().max(50).optional().nullable(),
+  kycNumero: z.string().max(100).optional().nullable(),
 });
 export type ProfileInput = z.infer<typeof profileSchema>;
 
@@ -164,16 +166,17 @@ const interruptionTypeEnum = z.enum([
 export const profilAcademiqueSchema = z.object({
   statutCandidat: z.enum(["LYCEEN", "BACHELIER"]),
   classeActuelle: z.string().max(NAME_MAX_LENGTH).optional().nullable(),
-  aObtenuBac: z.boolean().optional(),
-  trimestresSeconde: z.number().int().min(TRIMESTRES_MIN).max(TRIMESTRES_MAX).optional(),
-  trimestresPremiere: z.number().int().min(TRIMESTRES_MIN).max(TRIMESTRES_MAX).optional(),
-  trimestresTerminale: z.number().int().min(TRIMESTRES_MIN).max(TRIMESTRES_MAX).optional(),
-  attestationScolariteDisponible: z.boolean().optional(),
+  aObtenuBac: z.boolean().optional().nullable(),
+  trimestresSeconde: z.number().int().min(TRIMESTRES_MIN).max(TRIMESTRES_MAX).optional().nullable(),
+  trimestresPremiere: z.number().int().min(TRIMESTRES_MIN).max(TRIMESTRES_MAX).optional().nullable(),
+  trimestresTerminale: z.number().int().min(TRIMESTRES_MIN).max(TRIMESTRES_MAX).optional().nullable(),
+  attestationScolariteDisponible: z.boolean().optional().nullable(),
   niveauEtudesSuperieures: z
     .enum(["AUCUN", "L1", "L2", "L3", "DUT_BTS", "MASTER_PLUS"])
-    .optional(),
-  formationEnCours: z.boolean().optional(),
-  diplomesObtenus: z.array(z.string().min(1).max(80)).max(MAX_DIPLOMES_OBTENUS).optional(),
+    .optional()
+    .nullable(),
+  formationEnCours: z.boolean().optional().nullable(),
+  diplomesObtenus: z.array(z.string().min(1).max(80)).max(MAX_DIPLOMES_OBTENUS).optional().nullable(),
   redoublements: z
     .array(
       z.object({
@@ -182,18 +185,20 @@ export const profilAcademiqueSchema = z.object({
       })
     )
     .max(MAX_REDOUBLEMENTS)
-    .optional(),
+    .optional()
+    .nullable(),
   interruptions: z
     .array(
       z.object({
         type: interruptionTypeEnum,
         anneeDebut: z.string().min(1).max(20),
         anneeFin: z.string().min(1).max(20),
-        libelle: z.string().max(120).optional(),
+        libelle: z.string().max(120).optional().nullable(),
       })
     )
     .max(MAX_INTERRUPTIONS)
-    .optional(),
+    .optional()
+    .nullable(),
 });
 export type ProfilAcademiqueInputZod = z.infer<typeof profilAcademiqueSchema>;
 

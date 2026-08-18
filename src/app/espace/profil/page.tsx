@@ -128,12 +128,12 @@ export default function ProfilPage() {
         body: JSON.stringify({
           prenom: profile.prenom,
           nom: profile.nom,
-          telephone: profile.telephone,
-          nationalite: profile.nationalite,
-          dateNaissance: profile.dateNaissance,
-          adresse: profile.adresse,
-          kycType: profile.kycType,
-          kycNumero: profile.kycNumero,
+          telephone: profile.telephone || undefined,
+          nationalite: profile.nationalite || undefined,
+          dateNaissance: profile.dateNaissance || undefined,
+          adresse: profile.adresse || undefined,
+          kycType: profile.kycType || undefined,
+          kycNumero: profile.kycNumero || undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));

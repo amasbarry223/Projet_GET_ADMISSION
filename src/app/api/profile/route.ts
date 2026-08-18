@@ -97,10 +97,7 @@ export async function PUT(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
-  const { prenom, nom, telephone, nationalite, dateNaissance, adresse } = parsed.data;
-  // Champs KYC (optionnels)
-  const kycType = body.kycType;
-  const kycNumero = body.kycNumero;
+  const { prenom, nom, telephone, nationalite, dateNaissance, adresse, kycType, kycNumero } = parsed.data;
 
   const current = await db.user.findUnique({
     where: { id: userId },
@@ -114,14 +111,14 @@ export async function PUT(request: Request) {
   const updated = await db.user.update({
     where: { id: userId },
     data: {
-      ...(prenom !== undefined && { prenom }),
-      ...(nom !== undefined && { nom }),
-      ...(telephone !== undefined && { telephone }),
-      ...(nationalite !== undefined && { nationalite }),
-      ...(dateNaissance !== undefined && { dateNaissance }),
-      ...(adresse !== undefined && { adresse }),
-      ...(kycType !== undefined && { kycType }),
-      ...(kycNumero !== undefined && { kycNumero }),
+      ...(prenom ? { prenom: prenom.trim() } : {}),
+      ...(nom ? { nom: nom.trim() } : {}),
+      ...(telephone !== undefined ? { telephone } : {}),
+      ...(nationalite !== undefined ? { nationalite } : {}),
+      ...(dateNaissance !== undefined ? { dateNaissance } : {}),
+      ...(adresse !== undefined ? { adresse } : {}),
+      ...(kycType !== undefined ? { kycType } : {}),
+      ...(kycNumero !== undefined ? { kycNumero } : {}),
       // Changement d'identité KYC → révoquer la validation
       ...(kycIdentityChanged ? { kycVerifie: false, kycVerifieLe: null } : {}),
     },
