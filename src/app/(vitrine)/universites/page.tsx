@@ -73,5 +73,54 @@ export default async function CatalogueUniversitesPage() {
     };
   });
 
-  return <CatalogueClient universites={universites} />;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: "Accueil",
+            item: "https://get-admission.com",
+          },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: "Universités partenaires",
+            item: "https://get-admission.com/universites",
+          },
+        ],
+      },
+      {
+        "@type": "CollectionPage",
+        "@id": "https://get-admission.com/universites#webpage",
+        url: "https://get-admission.com/universites",
+        name: "Catalogue des Universités Partenaires — GET Admission",
+        description:
+          "Explorez notre catalogue complet d'établissements universitaires partenaires en France et en Europe avec formations en Licence, Master et Doctorat.",
+        mainEntity: {
+          "@type": "ItemList",
+          numberOfItems: universites.length,
+          itemListElement: universites.map((u, i) => ({
+            "@type": "ListItem",
+            position: i + 1,
+            url: `https://get-admission.com/universites/${encodeURIComponent(u.slug)}`,
+            name: u.nom,
+          })),
+        },
+      },
+    ],
+  };
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <CatalogueClient universites={universites} />
+    </>
+  );
 }

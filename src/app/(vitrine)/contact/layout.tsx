@@ -16,6 +16,51 @@ export const metadata: Metadata = {
   },
 };
 
+const contactJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Accueil",
+          item: "https://get-admission.com",
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Contact",
+          item: "https://get-admission.com/contact",
+        },
+      ],
+    },
+    {
+      "@type": "ContactPage",
+      "@id": "https://get-admission.com/contact#webpage",
+      url: "https://get-admission.com/contact",
+      name: "Contactez l'agence GET Admission",
+      description:
+        "Contactez nos conseillers spécialisés en admission universitaire internationale, visa étudiant et logement CROUS.",
+      mainEntity: {
+        "@type": "ContactPoint",
+        contactType: "customer service",
+        email: "contact@get-admission.com",
+        availableLanguage: ["French", "English"],
+      },
+    },
+  ],
+};
+
 export default function ContactLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(contactJsonLd) }}
+      />
+      {children}
+    </>
+  );
 }

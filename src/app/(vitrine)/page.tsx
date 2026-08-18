@@ -118,8 +118,39 @@ export default async function AccueilPage() {
     /candidat|étudi|inscrit/i.test(s.libelle),
   );
 
+  const howToJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    name: "Comment obtenir son admission universitaire en France avec GET Admission",
+    description:
+      "Guide pas à pas pour créer son dossier, choisir sa formation partenaire, valider son éligibilité et obtenir son attestation de pré-inscription officielle.",
+    totalTime: "P7D",
+    step: steps.map((s, index) => ({
+      "@type": "HowToStep",
+      position: index + 1,
+      name: s.titre,
+      text: s.description,
+      url: `https://get-admission.com/#etape-${s.numero}`,
+    })),
+  };
+
+  const partnerListJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    itemListElement: universities.map((u, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      url: `https://get-admission.com/universites/${encodeURIComponent(u.slug)}`,
+      name: u.nom,
+    })),
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify([howToJsonLd, partnerListJsonLd]) }}
+      />
       <HomeHero />
       <PartnerMarquee
         universities={universities

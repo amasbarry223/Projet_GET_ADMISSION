@@ -103,8 +103,46 @@ export default async function AProposPage() {
     icon: ICON_MAP[p.icon as keyof typeof ICON_MAP] ?? HeartHandshake,
   }));
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: "Accueil",
+            item: "https://get-admission.com",
+          },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: "À propos",
+            item: "https://get-admission.com/a-propos",
+          },
+        ],
+      },
+      {
+        "@type": "AboutPage",
+        "@id": "https://get-admission.com/a-propos#webpage",
+        url: "https://get-admission.com/a-propos",
+        name: "À Propos de GET Admission — Notre Mission, Engagements & Équipe",
+        description:
+          "Découvrez l'histoire, la mission et les engagements de GET Admission. Une agence humaine dédiée à la réussite des projets d'études universitaires à l'international.",
+        mainEntity: {
+          "@id": "https://get-admission.com/#organization",
+        },
+      },
+    ],
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Hero full-bleed */}
       <section
         className="relative isolate min-h-[min(92dvh,820px)] overflow-hidden"
