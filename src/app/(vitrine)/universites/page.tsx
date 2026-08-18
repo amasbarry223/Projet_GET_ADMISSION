@@ -11,14 +11,14 @@ import {
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Catalogue des Universités & Formations Partenaires",
+  title: "Catalogue des Universités & Formations Partenaires | Tonomi",
   description:
-    "Explorez notre catalogue complet d'établissements universitaires publics et privés partenaires. Filtrez par pays, domaine d'études, niveau (Licence, Master, Doctorat) et frais de scolarité.",
+    "Explorez le catalogue Tonomi d'établissements universitaires publics et privés partenaires. Filtrez par pays, domaine d'études, niveau (Licence, Master, Doctorat) et frais de scolarité.",
   alternates: {
     canonical: "https://get-admission.com/universites",
   },
   openGraph: {
-    title: "Catalogue des Universités & Formations Partenaires | GET Admission",
+    title: "Catalogue des Universités & Formations Partenaires | Tonomi (GET Admission)",
     description:
       "Trouvez l'université et la formation idéales pour vos études à l'étranger parmi nos établissements partenaires en France et en Europe.",
     url: "https://get-admission.com/universites",

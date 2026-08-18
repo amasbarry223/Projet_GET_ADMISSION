@@ -19,9 +19,9 @@ import { isValidPartnerLogo } from "@/lib/partner-logos";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "GET Admission — Agence d'admission universitaire et d'études à l'étranger",
+  title: "Tonomi — Agence d'admission universitaire & études à l'étranger",
   description:
-    "GET Admission vous accompagne pas à pas dans vos démarches d'inscription universitaire à l'étranger : constitution du dossier académique, universités partenaires, logement CROUS, visa étudiant et attestation officielle de pré-inscription.",
+    "Tonomi (GET Admission) vous accompagne pas à pas dans vos démarches d'inscription universitaire à l'étranger : constitution du dossier académique, universités partenaires, logement CROUS, visa étudiant et attestation officielle de pré-inscription.",
   alternates: {
     canonical: "https://get-admission.com",
   },
@@ -121,7 +121,7 @@ export default async function AccueilPage() {
   const howToJsonLd = {
     "@context": "https://schema.org",
     "@type": "HowTo",
-    name: "Comment obtenir son admission universitaire en France avec GET Admission",
+    name: "Comment obtenir son admission universitaire en France avec Tonomi (GET Admission)",
     description:
       "Guide pas à pas pour créer son dossier, choisir sa formation partenaire, valider son éligibilité et obtenir son attestation de pré-inscription officielle.",
     totalTime: "P7D",

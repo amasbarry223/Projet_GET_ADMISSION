@@ -13,16 +13,16 @@ import { Eyebrow, Reveal } from "@/components/site/reveal";
 import { db } from "@/lib/db";
 
 export const metadata: Metadata = {
-  title: "Foire Aux Questions (FAQ) — Réponses à vos questions d'admission",
+  title: "Foire Aux Questions (FAQ) — Tonomi",
   description:
-    "Trouvez les réponses à toutes vos questions sur les démarches d'admission universitaire, les frais d'agence fixes, les pièces académiques, les délais et le logement CROUS.",
+    "Trouvez les réponses à toutes vos questions sur les démarches d'admission universitaire avec Tonomi (GET Admission), les frais d'agence fixes, les pièces académiques, les délais et le logement CROUS.",
   alternates: {
     canonical: "https://get-admission.com/faq",
   },
   openGraph: {
-    title: "FAQ — GET Admission",
+    title: "FAQ Tonomi — Réponses à vos questions d'admission",
     description:
-      "Tout ce qu'il faut savoir sur GET Admission, nos frais, nos délais et le suivi de votre dossier d'admission.",
+      "Tout ce qu'il faut savoir sur Tonomi (GET Admission), nos frais, nos délais et le suivi de votre dossier d'admission.",
     url: "https://get-admission.com/faq",
     type: "website",
   },
