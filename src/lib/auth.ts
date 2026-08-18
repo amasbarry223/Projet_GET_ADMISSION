@@ -253,6 +253,25 @@ function buildAuthOptions(portal: Portal): NextAuthOptions {
         }
         return session;
       },
+      async redirect({ url, baseUrl }) {
+        // Chemins relatifs : autorisés et préservés
+        if (url.startsWith("/")) {
+          return url;
+        }
+        try {
+          const parsedUrl = new URL(url);
+          const parsedBase = new URL(baseUrl);
+          // Autoriser si même origine ou sous-domaine lié (ex: staff.get-admission.com / staff.localhost)
+          const baseHostname = parsedBase.hostname.replace(/^(?:staff|admin)\./, "");
+          const urlHostname = parsedUrl.hostname.replace(/^(?:staff|admin)\./, "");
+          if (baseHostname === urlHostname) {
+            return url;
+          }
+        } catch {
+          // Ignorer les erreurs de parsing d'URL et renvoyer le fallback
+        }
+        return baseUrl;
+      },
     },
   };
 }

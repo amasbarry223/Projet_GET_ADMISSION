@@ -52,16 +52,27 @@ export async function staffSignIn(
 
 export async function staffSignOut(options?: { callbackUrl?: string; redirect?: boolean }): Promise<void> {
   const csrfToken = await staffCsrfToken();
-  const res = await fetch(`${STAFF_BASE}/signout`, {
+  const fallbackUrl = "/back-office";
+  const targetCallback = options?.callbackUrl ?? fallbackUrl;
+
+  const targetUrl =
+    typeof window !== "undefined" && targetCallback.startsWith("/")
+      ? `${window.location.origin}${targetCallback}`
+      : targetCallback;
+
+  await fetch(`${STAFF_BASE}/signout`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       csrfToken,
-      callbackUrl: options?.callbackUrl ?? window.location.href,
+      callbackUrl: targetUrl,
       json: "true",
     }),
   });
+
   if (options?.redirect === false) return;
-  const data = (await res.json().catch(() => ({}))) as { url?: string };
-  window.location.href = data.url ?? options?.callbackUrl ?? window.location.href;
+
+  if (typeof window !== "undefined") {
+    window.location.href = targetUrl;
+  }
 }
