@@ -97,6 +97,7 @@ export default async function middleware(req: NextRequest) {
       const url = req.nextUrl.clone();
       url.pathname = targetPath;
       return NextResponse.rewrite(url);
+    }
   }
 
   // ─── 2. DOMAINE PUBLIC : MASQUER TOTALEMENT LE BACK-OFFICE (404) ───
