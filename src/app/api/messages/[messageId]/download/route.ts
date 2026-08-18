@@ -34,14 +34,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ mess
   const candidatId = message.conversation.dossier?.candidatId ?? message.conversation.candidatId;
   const conseillerId = message.conversation.dossier?.conseillerId ?? message.conversation.conseillerId;
 
-  // Accès : candidat propriétaire, auteur du message, conseiller affecté ou staff autorisé
+  // Accès : candidat propriétaire, auteur du message, ou conseiller affecté
   let hasAccess = false;
   if (session.user.id === candidatId || session.user.id === message.auteurId) {
     hasAccess = true;
   } else if (session.user.role === "CONSEILLER") {
     hasAccess = session.user.id === conseillerId || session.user.id === message.auteurId;
   } else {
-    hasAccess = hasPermission(session.user.role, "dossiers.read");
+    // Si aucun conseiller n'est affecté, l'admin peut accéder ; sinon l'échange est confidentiel
+    hasAccess = !conseillerId && hasPermission(session.user.role, "dossiers.read");
   }
 
   if (!hasAccess) {

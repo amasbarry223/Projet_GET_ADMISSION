@@ -38,11 +38,19 @@ export async function GET(request: Request) {
     if (dossier.candidatId !== userId) {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }
+  } else if (role === "CONSEILLER") {
+    if (dossier.conseillerId !== userId) {
+      return NextResponse.json({ error: "Accès refusé — ce dossier ne vous est pas affecté" }, { status: 403 });
+    }
   } else {
+    // ADMIN, SUPER_ADMIN, FINANCIER : si un conseiller est affecté, les échanges sont confidentiels entre le candidat et ce conseiller
     const gate = requirePermission(role, "dossiers.read");
     if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
-    if (role === "CONSEILLER" && dossier.conseillerId !== userId) {
-      return NextResponse.json({ error: "Accès refusé — ce dossier ne vous est pas affecté" }, { status: 403 });
+    if (dossier.conseillerId) {
+      return NextResponse.json(
+        { error: "Accès restreint : les messages de ce dossier sont confidentiels entre le candidat et son conseiller affecté." },
+        { status: 403 },
+      );
     }
   }
 
@@ -117,11 +125,18 @@ export async function POST(request: Request) {
     if (dossier.candidatId !== userId) {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
     }
+  } else if (role === "CONSEILLER") {
+    if (dossier.conseillerId !== userId) {
+      return NextResponse.json({ error: "Accès refusé — ce dossier ne vous est pas affecté" }, { status: 403 });
+    }
   } else {
     const gate = requirePermission(role, "dossiers.write");
     if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
-    if (role === "CONSEILLER" && dossier.conseillerId !== userId) {
-      return NextResponse.json({ error: "Accès refusé — ce dossier ne vous est pas affecté" }, { status: 403 });
+    if (dossier.conseillerId) {
+      return NextResponse.json(
+        { error: "Accès restreint : les échanges sont réservés au conseiller affecté et au candidat." },
+        { status: 403 },
+      );
     }
   }
 

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { hasPermission } from "@/lib/rbac";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -54,7 +54,7 @@ import { formatFCFA, formatDate, formatDateTime } from "@/lib/format";
 import { apiFetch, apiJson } from "@/lib/api-client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, CheckCircle2, AlertCircle, FileText, Send, Wallet, Stamp, XCircle, History, MessageSquare, User, ShieldCheck, Eye, AlertTriangle, Info, Loader2, UserPlus, UserMinus, Printer, Download, FileImage, IdCard, Landmark } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, FileText, Send, Wallet, Stamp, XCircle, History, MessageSquare, User, ShieldCheck, Eye, AlertTriangle, Info, Loader2, UserPlus, UserMinus, Printer, Download, FileImage, IdCard, Landmark, Trash2 } from "lucide-react";
 import { ETAPE_PAR_ETAT } from "@/shared/constants";
 
 type Conseiller = { id: string; prenom: string; nom: string; role: string; actif: boolean };
@@ -217,6 +217,24 @@ export default function DossierDetailClient() {
   const [attestationFile, setAttestationFile] = React.useState<File | null>(null);
   const [uploadingAttestation, setUploadingAttestation] = React.useState(false);
   const adminChatScrollRef = React.useRef<HTMLDivElement>(null);
+
+  const router = useRouter();
+  const canDeleteDossier = hasPermission(session?.user?.role, "dossiers.write");
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
+
+  const confirmDeleteDossier = async () => {
+    if (!dossier) return;
+    setDeleting(true);
+    const result = await apiJson(`/api/dossiers/${dossier.id}`, "DELETE");
+    setDeleting(false);
+    if (!result.ok) {
+      toast.error("Suppression impossible", { description: result.error });
+      return;
+    }
+    toast.success("Dossier supprimé", { description: `${dossier.reference} a été définitivement supprimé.` });
+    router.push("/admin/dossiers");
+  };
 
   const loadDossier = React.useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -479,6 +497,9 @@ export default function DossierDetailClient() {
   const etablissementAssignable =
     etapeActuelleDossier >= ETAPE_PAR_ETAT.VERIFICATION && etapeActuelleDossier <= ETAPE_PAR_ETAT.PAIEMENT_CONFIRME;
   const etablissementNonAffecte = !!dossier.universite.estPlaceholder;
+  const isAssignedToConseiller = Boolean(dossier.conseiller);
+  const isCurrentConseiller = isAssignedToConseiller && session?.user?.id === dossier.conseiller?.id;
+  const isRestrictedForConseiller = isAssignedToConseiller && !isCurrentConseiller;
 
   const openAssignDialog = () => {
     setSelectedConseillerId("");
@@ -609,13 +630,25 @@ export default function DossierDetailClient() {
           <span className="text-ardoise/50">/</span>
           <span className="font-mono text-encre">{dossier.reference}</span>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => window.open(`/api/dossiers/${dossier.id}/print`, "_blank")}
-        >
-          <Printer className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Imprimer la fiche
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open(`/api/dossiers/${dossier.id}/print`, "_blank")}
+          >
+            <Printer className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Imprimer la fiche
+          </Button>
+          {canDeleteDossier && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-carmin/30 text-carmin hover:bg-carmin/10"
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Supprimer le dossier
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Boarding pass */}
@@ -958,7 +991,17 @@ export default function DossierDetailClient() {
               <div className="border-b border-ligne px-6 py-4 bg-card">
                 <h2 className="font-display text-base font-bold text-encre">Conversation avec {dossier.candidat.prenom}</h2>
               </div>
-              {messages.length === 0 ? (
+              {isRestrictedForConseiller ? (
+                <div className="px-6 py-12 text-center space-y-2">
+                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-lapis/10 text-lapis">
+                    <ShieldCheck className="h-5 w-5" strokeWidth={1.5} />
+                  </div>
+                  <p className="font-medium text-encre text-sm">Échanges confidentiels</p>
+                  <p className="mx-auto max-w-md text-xs text-ardoise">
+                    Ce dossier est pris en charge par le conseiller <span className="font-semibold text-encre">{conseillerNomComplet}</span>. Les échanges de messages sont strictement privés et réservés au candidat et à son conseiller affecté.
+                  </p>
+                </div>
+              ) : messages.length === 0 ? (
                 <p className="px-6 py-12 text-center text-sm text-ardoise">Aucun message échangé pour le moment.</p>
               ) : (
                 <div ref={adminChatScrollRef} className="h-[440px] max-h-[500px] space-y-3 overflow-y-auto chat-scroll bg-porcelaine/40 px-6 py-4">
@@ -983,24 +1026,26 @@ export default function DossierDetailClient() {
                   })}
                 </div>
               )}
-              <div className="border-t border-ligne bg-card">
-                <MessageComposer
-                  onSend={async (texte, fichier) => {
-                    const form = new FormData();
-                    form.set("dossierId", dossier.id);
-                    form.set("texte", texte);
-                    if (fichier) form.set("fichier", fichier);
-                    const result = await apiFetch("/api/messages", { method: "POST", body: form });
-                    if (!result.ok) {
-                      toast.error("Envoi échoué", { description: result.error });
-                      return;
-                    }
-                    toast.success("Message envoyé");
-                    void loadDossier({ silent: true });
-                  }}
-                  placeholder="Écrire au candidat…"
-                />
-              </div>
+              {!isRestrictedForConseiller && (
+                <div className="border-t border-ligne bg-card">
+                  <MessageComposer
+                    onSend={async (texte, fichier) => {
+                      const form = new FormData();
+                      form.set("dossierId", dossier.id);
+                      form.set("texte", texte);
+                      if (fichier) form.set("fichier", fichier);
+                      const result = await apiFetch("/api/messages", { method: "POST", body: form });
+                      if (!result.ok) {
+                        toast.error("Envoi échoué", { description: result.error });
+                        return;
+                      }
+                      toast.success("Message envoyé");
+                      void loadDossier({ silent: true });
+                    }}
+                    placeholder="Écrire au candidat…"
+                  />
+                </div>
+              )}
             </Card>
           </TabsContent>
         </Tabs>
@@ -1435,6 +1480,36 @@ export default function DossierDetailClient() {
             >
               {assigningEtablissement && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.5} />}
               Affecter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal confirmation suppression dossier */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="border-ligne bg-card sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display text-base font-bold text-carmin">
+              Supprimer définitivement le dossier ?
+            </DialogTitle>
+            <DialogDescription className="text-sm text-ardoise">
+              Cette action est irréversible. Le dossier{" "}
+              <span className="font-semibold text-encre">{dossier.reference}</span> ({candidatNomComplet}) sera
+              définitivement supprimé avec l&apos;ensemble de ses pièces téléversées, messages, historiques et paiements
+              associés.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+              Annuler
+            </Button>
+            <Button
+              className="bg-carmin text-blanc hover:bg-carmin/90"
+              onClick={() => void confirmDeleteDossier()}
+              disabled={deleting}
+            >
+              {deleting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1.5 h-3.5 w-3.5" />}
+              Confirmer la suppression
             </Button>
           </DialogFooter>
         </DialogContent>

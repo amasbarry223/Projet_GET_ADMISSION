@@ -15,6 +15,7 @@ import {
 } from "@/lib/dossier/dossier-update";
 import type { PersonalInfoUpdate } from "@/lib/dossier/dossier-update";
 import { syncPiecesDossier } from "@/lib/dossier/sync-pieces";
+import { logAudit } from "@/lib/audit";
 import { stripUndefined } from "@/shared/types/utils.types";
 import { isDossierEditableByCandidate, ETAPE_PAR_ETAT } from "@/shared/constants";
 
@@ -499,4 +500,58 @@ export async function PUT(
   }
 
   return NextResponse.json(updated);
+}
+
+// DELETE /api/dossiers/[id] — supprimer un dossier (Super Admin ou Admin avec dossiers.write)
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await getSession();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  }
+
+  const role = session.user.role;
+  const gate = requirePermission(role, "dossiers.write");
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
+  }
+
+  const { id } = await params;
+  const dossier = await db.dossier.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      reference: true,
+      candidatId: true,
+      candidat: { select: { prenom: true, nom: true, email: true } },
+    },
+  });
+
+  if (!dossier) {
+    return NextResponse.json({ error: "Dossier non trouvé" }, { status: 404 });
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.message.deleteMany({ where: { conversation: { dossierId: id } } });
+    await tx.conversation.deleteMany({ where: { dossierId: id } });
+    await tx.demandeCorrection.deleteMany({ where: { dossierId: id } });
+    await tx.demandeCrous.deleteMany({ where: { dossierId: id } });
+    await tx.attestation.deleteMany({ where: { dossierId: id } });
+    await tx.piece.deleteMany({ where: { dossierId: id } });
+    await tx.historique.deleteMany({ where: { dossierId: id } });
+    await tx.paiement.deleteMany({ where: { dossierId: id } });
+    await tx.dossier.delete({ where: { id } });
+  });
+
+  await logAudit({
+    session,
+    action: "DELETE",
+    resource: "dossier",
+    resourceId: id,
+    details: `Dossier supprimé : ${dossier.reference} (${dossier.candidat.prenom} ${dossier.candidat.nom} - ${dossier.candidat.email})`,
+  });
+
+  return NextResponse.json({ success: true, id });
 }

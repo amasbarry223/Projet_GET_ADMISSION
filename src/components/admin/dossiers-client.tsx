@@ -33,7 +33,7 @@ import { ETATS, etatParCode, COULEUR_BADGE } from "@/lib/etats";
 import { formatFCFA, formatDate } from "@/lib/format";
 import { apiFetch, apiJson } from "@/lib/api-client";
 import { toast } from "sonner";
-import { FolderOpen, UserCog, Download, Eye, UserPlus, UserMinus, Send, Loader2 } from "lucide-react";
+import { FolderOpen, UserCog, Download, Eye, UserPlus, UserMinus, Send, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -53,13 +53,18 @@ export type DossierRow = {
   frais: number;
 };
 
+interface DossiersClientProps {
+  initialData: DossierRow[];
+}
+
 type Conseiller = { id: string; prenom: string; nom: string; role: string; actif: boolean };
 
-export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
+export function DossiersClient({ initialData }: DossiersClientProps) {
   const router = useRouter();
   const { data: session } = useSession();
   const canAssign = hasPermission(session?.user?.role, "dossiers.assign");
   const canTransmettre = hasPermission(session?.user?.role, "dossiers.transmettre");
+  const canWrite = hasPermission(session?.user?.role, "dossiers.write");
   const data = initialData;
 
   // Un dossier « pris en charge » (ou tout autre changement d'état) ailleurs pendant que cette
@@ -173,6 +178,19 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
     [router],
   );
 
+  const deleteDossier = React.useCallback(
+    async (row: DossierRow) => {
+      const result = await apiJson(`/api/dossiers/${row.id}`, "DELETE");
+      if (!result.ok) {
+        toast.error("Suppression impossible", { description: result.error });
+        return;
+      }
+      toast.success("Dossier supprimé", { description: `${row.reference} a été définitivement supprimé.` });
+      router.refresh();
+    },
+    [router],
+  );
+
   const actions: ActionItem<DossierRow>[] = React.useMemo(
     () => [
       {
@@ -222,8 +240,21 @@ export function DossiersClient({ initialData }: { initialData: DossierRow[] }) {
           },
         },
       },
+      {
+        label: "Supprimer le dossier",
+        icon: Trash2,
+        tone: "danger",
+        hidden: () => !canWrite,
+        confirm: {
+          title: "Supprimer définitivement ce dossier ?",
+          description: (row) =>
+            `Le dossier ${row.reference} (${row.candidat}) sera définitivement supprimé avec toutes ses pièces, historiques et paiements associés.`,
+          confirmLabel: "Supprimer le dossier",
+          onConfirm: deleteDossier,
+        },
+      },
     ],
-    [router, openAssign, unassignConseiller, canAssign, canTransmettre],
+    [router, openAssign, unassignConseiller, deleteDossier, canAssign, canTransmettre, canWrite],
   );
 
   const columns: ColumnDef<DossierRow>[] = React.useMemo(

@@ -178,17 +178,17 @@ export function CandidatsClient({
       {
         label: (row) => (row.actif ? "Désactiver" : "Réactiver"),
         icon: Pencil,
-        hidden: (row) => !canWrite || Boolean(row.isAssignedToConseiller),
+        hidden: () => !canWrite,
         onClick: (row) => void toggleActif(row),
       },
       {
         label: "Supprimer",
         icon: Trash2,
         tone: "danger",
-        hidden: (row) => !canWrite || Boolean(row.isAssignedToConseiller),
+        hidden: () => !canWrite,
         confirm: {
           title: "Supprimer ce candidat ?",
-          description: (row) => `${row.prenom} ${row.nom} sera définitivement supprimé.`,
+          description: (row) => `${row.prenom} ${row.nom} sera définitivement supprimé avec l'ensemble de ses dossiers.`,
           confirmLabel: "Confirmer la suppression",
           onConfirm: handleDelete,
         },

@@ -94,7 +94,7 @@ export async function PUT(
   return NextResponse.json(updated);
 }
 
-// DELETE /api/admin/candidats/[id] — supprimer un candidat (bloqué si dossier affecté à un conseiller)
+// DELETE /api/admin/candidats/[id] — supprimer un candidat
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -115,28 +115,28 @@ export async function DELETE(
     return NextResponse.json({ error: "Candidat non trouvé" }, { status: 404 });
   }
 
-  const assignedDossier = await db.dossier.findFirst({
-    where: { candidatId: id, conseillerId: { not: null } },
-    include: { conseiller: { select: { prenom: true, nom: true } } },
-  });
-
-  if (assignedDossier?.conseiller) {
-    return NextResponse.json(
-      {
-        error: `Suppression impossible : le dossier du candidat est affecté au conseiller ${assignedDossier.conseiller.prenom} ${assignedDossier.conseiller.nom}. L'admin ou super admin n'a plus la possibilité de le supprimer.`,
-      },
-      { status: 403 },
-    );
-  }
-
   await db.$transaction(async (tx) => {
+    await tx.message.deleteMany({
+      where: {
+        OR: [{ auteurId: id }, { conversation: { candidatId: id } }],
+      },
+    });
+    await tx.conversation.deleteMany({ where: { candidatId: id } });
+    await tx.demandeCorrection.deleteMany({ where: { dossier: { candidatId: id } } });
+    await tx.demandeCrous.deleteMany({ where: { candidatId: id } });
+    await tx.attestation.deleteMany({ where: { dossier: { candidatId: id } } });
     await tx.paiement.deleteMany({ where: { candidatId: id } });
     await tx.piece.deleteMany({ where: { dossier: { candidatId: id } } });
-    await tx.historique.deleteMany({ where: { dossier: { candidatId: id } } });
+    await tx.historique.deleteMany({
+      where: {
+        OR: [{ dossier: { candidatId: id } }, { auteurId: id }],
+      },
+    });
     await tx.dossier.deleteMany({ where: { candidatId: id } });
-    await tx.message.deleteMany({ where: { auteurId: id } });
     await tx.demandeLogementCrous.deleteMany({ where: { candidatId: id } });
     await tx.logementReservation.deleteMany({ where: { candidatId: id } });
+    await tx.demandeVisa.deleteMany({ where: { candidatId: id } });
+    await tx.notification.deleteMany({ where: { userId: id } });
     await tx.profilAcademique.deleteMany({ where: { userId: id } });
     await tx.user.delete({ where: { id } });
   });

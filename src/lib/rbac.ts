@@ -38,7 +38,8 @@ const MATRIX: Record<Role, Permission[]> = {
     "dossiers.transmettre",
     "attestations.read",
     "attestations.emit", // ◐ — émission autorisée
-    "kyc.read", // ◐ — consultation uniquement, pas de modification
+    "kyc.read", // consultation
+    "kyc.write", // validation et modification des pièces KYC de ses candidats
     "etablissement.assign", // procédure Université Publique — affecte l'établissement réel
     "messages.internes", // écrit à l'Admin/Super Admin — même fil interne que le Financier
     "logement.read",
