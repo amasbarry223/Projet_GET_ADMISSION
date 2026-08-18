@@ -46,7 +46,7 @@ const contactJsonLd = {
       mainEntity: {
         "@type": "ContactPoint",
         contactType: "customer service",
-        email: "contact@get-admission.com",
+        email: "getadmissionsfrance@gmail.com",
         availableLanguage: ["French", "English"],
       },
     },

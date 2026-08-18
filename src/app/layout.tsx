@@ -175,7 +175,7 @@ const jsonLdGlobal = {
         {
           "@type": "ContactPoint",
           contactType: "customer support",
-          email: "contact@get-admission.com",
+          email: "getadmissionsfrance@gmail.com",
           availableLanguage: ["French", "English"],
         },
       ],

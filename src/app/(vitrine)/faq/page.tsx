@@ -28,11 +28,100 @@ export const metadata: Metadata = {
   },
 };
 
+const DEFAULT_FAQS = [
+  {
+    id: 1,
+    question: "Comment fonctionne l'accompagnement GET Admission ?",
+    reponse:
+      "GET Admission est votre passerelle officielle vers les universités internationales. Vous créez votre compte en quelques clics, choisissez votre formation parmi nos établissements partenaires, téléversez vos pièces académiques et réglez les frais d'agence. Votre conseiller dédié vérifie et optimise votre dossier, le transmet à l'université et vous délivre votre attestation officielle de pré-inscription reconnue pour Campus France et le visa.",
+  },
+  {
+    id: 2,
+    question: "Dois-je passer par Campus France si j'obtiens une pré-admission avec GET Admission ?",
+    reponse:
+      "Oui, pour les pays adhérents au dispositif Études en France (Sénégal, Côte d'Ivoire, Cameroun, Guinée, Mali, Gabon, Congo, etc.), la procédure Campus France reste obligatoire. Cependant, grâce à l'attestation de pré-inscription officielle fournie par GET Admission, vous êtes dispensé de la phase de candidature standard et accédez directement à la procédure 'Je suis accepté', ce qui simplifie grandement vos démarches et accélère votre entretien.",
+  },
+  {
+    id: 3,
+    question: "Quels sont les frais d'agence et comment sont-ils calculés ?",
+    reponse:
+      "Nos frais d'agence sont forfaitaires, clairs et sans frais cachés : 65 000 FCFA pour une admission en université publique et 110 000 FCFA pour un établissement privé partenaire. Ces frais couvrent l'analyse d'éligibilité, le montage du dossier selon la matrice documentaire, les échanges avec l'établissement et l'édition de votre attestation certifiée.",
+  },
+  {
+    id: 4,
+    question: "Comment fonctionne la réservation de logement CROUS et l'attestation d'hébergement ?",
+    reponse:
+      "GET Admission dispose d'un service dédié d'assistance au logement étudiant (résidences CROUS et logements privés partenaires). Dès validation de votre pré-admission, nous vous accompagnons pour obtenir une attestation d'hébergement ou une réservation ferme en résidence universitaire, document indispensable pour le dépôt de votre demande de visa long séjour.",
+  },
+  {
+    id: 5,
+    question: "Quelles sont les démarches et justificatifs financiers pour le visa étudiant France (VLS-TS) ?",
+    reponse:
+      "Pour obtenir le visa étudiant (VLS-TS), le consulat exige votre attestation de pré-inscription officielle, l'accord Campus France, un justificatif de logement (CROUS ou attestation d'hébergement) et une preuve de ressources financières suffisantes (caution bancaire bloquée ABI ou prise en charge par un garant fiable avec fiches de paie et avis d'imposition). Nos conseillers vous orientent pas à pas pour fiabiliser votre dossier consulaire.",
+  },
+  {
+    id: 6,
+    question: "Puis-je candidater sans le Baccalauréat si je suis actuellement en classe de Terminale ?",
+    reponse:
+      "Absolument ! Les lycéens en classe de Terminale peuvent initier leur dossier d'admission dès le premier ou second trimestre en fournissant leurs bulletins de Seconde, Première et Terminale ainsi qu'un certificat de scolarité. L'université émet une pré-admission sous réserve de l'obtention du Baccalauréat.",
+  },
+  {
+    id: 7,
+    question: "Quels documents académiques et pièces dois-je fournir ?",
+    reponse:
+      "Selon votre parcours, notre matrice documentaire intelligente adapte les pièces requises : pièce d'identité valide (passeport ou CNI), relevés de notes du lycée (2nde, 1ère, Terminale), attestation ou relevé du Baccalauréat, et relevés de notes de l'enseignement supérieur pour les candidats en Licence ou Master.",
+  },
+  {
+    id: 8,
+    question: "Quels sont les délais moyens pour obtenir mon attestation ?",
+    reponse:
+      "Le traitement global prend en moyenne entre 2 et 6 semaines : 48 à 72h pour la vérification initiale de conformité par votre conseiller GET Admission, puis 2 à 4 semaines de traitement pédagogique par l'université partenaire. Dès acceptation, l'attestation officielle de pré-inscription est générée sous 24 à 48 heures.",
+  },
+  {
+    id: 9,
+    question: "Est-il possible de régler les frais d'agence en plusieurs fois ?",
+    reponse:
+      "Oui, nous proposons une option de paiement en deux tranches pour vous faciliter les démarches. Vous pouvez régler vos frais par mobile money (Orange Money, Wave, Moov Money) ou par carte bancaire sécurisée avec reçu téléchargeable instantanément.",
+  },
+  {
+    id: 10,
+    question: "L'attestation de pré-inscription est-elle officielle et vérifiable ?",
+    reponse:
+      "Oui, chaque attestation délivrée comporte une référence unique et un code de sécurité vérifiable instantanément en ligne sur notre portail public (get-admission.com/verifier). Elle est émise sous l'autorité de l'université partenaire et respecte les critères requis par les consulats et ambassades.",
+  },
+  {
+    id: 11,
+    question: "Que se passe-t-il si l'université refuse ma candidature ?",
+    reponse:
+      "En cas de rejet par une université spécifique, votre conseiller analyse les motifs et vous propose immédiatement une réorientation vers une formation alternative compatible dans notre réseau partenaire, sans facturation de nouveaux frais de dossier.",
+  },
+  {
+    id: 12,
+    question: "Quels pays et destinations sont proposés par GET Admission ?",
+    reponse:
+      "Nous accompagnons principalement les candidatures vers la France, ainsi que le Canada, la Belgique et d'autres destinations européennes et africaines de premier plan (Maroc, Sénégal, Tunisie). Notre catalogue compte plus de 10 établissements partenaires de renom.",
+  },
+  {
+    id: 13,
+    question: "Depuis quels pays africains puis-je déposer ma candidature ?",
+    reponse:
+      "GET Admission accompagne les étudiants résidant partout en Afrique francophone et subsaharienne : Sénégal, Côte d'Ivoire, Guinée, Cameroun, Mali, Gabon, Congo, Togo, Bénin, Burkina Faso, Niger, Tchad, etc. L'ensemble de la procédure se fait 100% en ligne ou via nos conseillers régionaux.",
+  },
+  {
+    id: 14,
+    question: "Comment contacter mon conseiller personnel ?",
+    reponse:
+      "Dès la soumission de votre dossier, un conseiller attitré vous est assigné. Vous pouvez échanger directement avec lui via la messagerie instantanée intégrée à votre espace candidat ou par nos canaux de support téléphonique et e-mail.",
+  },
+];
+
 export default async function FaqPage() {
-  const faqItems = await db.faq.findMany({
+  const dbItems = await db.faq.findMany({
     where: { actif: true },
     orderBy: { ordre: "asc" },
   }).catch(() => []);
+
+  const faqItems = dbItems.length > 0 ? dbItems : DEFAULT_FAQS;
 
   const faqJsonLd = {
     "@context": "https://schema.org",

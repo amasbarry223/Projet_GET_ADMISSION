@@ -54,15 +54,27 @@ export async function SiteFooter() {
             </p>
             <ul className="mt-5 space-y-2 text-sm text-muted-foreground">
               <li className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-primary" strokeWidth={1.5} />
-                <span>{email || "—"}</span>
+                <Mail className="h-4 w-4 text-primary shrink-0" strokeWidth={1.5} />
+                {email ? (
+                  <a href={`mailto:${email}`} className="hover:text-primary transition-colors">
+                    {email}
+                  </a>
+                ) : (
+                  <span>—</span>
+                )}
               </li>
               <li className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-primary" strokeWidth={1.5} />
-                <span>{telephone || "—"}</span>
+                <Phone className="h-4 w-4 text-primary shrink-0" strokeWidth={1.5} />
+                {telephone ? (
+                  <a href={`tel:${telephone.replace(/[^+0-9]/g, "")}`} className="hover:text-primary transition-colors">
+                    {telephone}
+                  </a>
+                ) : (
+                  <span>—</span>
+                )}
               </li>
               <li className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-primary" strokeWidth={1.5} />
+                <MapPin className="h-4 w-4 text-primary shrink-0" strokeWidth={1.5} />
                 <span>{adresses || "—"}</span>
               </li>
             </ul>
