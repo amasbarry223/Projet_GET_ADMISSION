@@ -97,10 +97,18 @@ export default async function middleware(req: NextRequest) {
       const url = req.nextUrl.clone();
       url.pathname = targetPath;
       return NextResponse.rewrite(url);
-    }
   }
 
-  // ─── 2. SÉCURITÉ & RBAC ROUTES /admin* ───
+  // ─── 2. DOMAINE PUBLIC : MASQUER TOTALEMENT LE BACK-OFFICE (404) ───
+  // Tout accès à /admin* ou /back-office* sur le domaine public (ex: get-admission.com)
+  // retourne une 404 immédiate pour garantir une invisibilité totale et obliger le staff à passer par staff.get-admission.com
+  if (!isStaffSubdomain && (path.startsWith("/admin") || path === "/back-office" || path.startsWith("/back-office/"))) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/not-found";
+    return NextResponse.rewrite(url, { status: 404 });
+  }
+
+  // ─── 3. SÉCURITÉ & RBAC ROUTES /admin* SUR SOUS-DOMAINE STAFF ───
   if (path.startsWith("/admin")) {
     const token = await getToken({
       req,
