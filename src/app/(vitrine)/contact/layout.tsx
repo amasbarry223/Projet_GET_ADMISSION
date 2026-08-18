@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Contactez l'agence Tonomi — Conseillers & Admissions",
+  title: "Contactez l'agence GET Admission — Conseillers & Admissions",
   description:
-    "Prenez contact avec l'équipe Tonomi (GET Admission). Posez vos questions sur les démarches d'admission, les universités partenaires ou prenez rendez-vous avec un conseiller dédié.",
+    "Prenez contact avec l'équipe GET Admission. Posez vos questions sur les démarches d'admission, les universités partenaires ou prenez rendez-vous avec un conseiller dédié.",
   alternates: {
     canonical: "https://get-admission.com/contact",
   },
   openGraph: {
-    title: "Contact Tonomi (GET Admission) — Conseillers Dédiés",
+    title: "Contact GET Admission — Conseillers Dédiés",
     description:
-      "Notre équipe Tonomi est à votre écoute pour vous accompagner dans votre projet d'études universitaires.",
+      "Notre équipe est à votre écoute pour vous accompagner dans votre projet d'études universitaires.",
     url: "https://get-admission.com/contact",
     type: "website",
   },

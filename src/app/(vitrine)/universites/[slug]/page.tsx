@@ -34,7 +34,7 @@ export async function generateMetadata({
       canonical: canonicalUrl,
     },
     openGraph: {
-      title: `${univ.nom} — ${univ.ville}, ${univ.pays} | Tonomi (GET Admission)`,
+      title: `${univ.nom} — ${univ.ville}, ${univ.pays} | GET Admission`,
       description: univ.description.slice(0, 160),
       url: canonicalUrl,
       type: "website",
@@ -42,7 +42,7 @@ export async function generateMetadata({
     },
     twitter: {
       card: "summary_large_image",
-      title: `${univ.nom} — ${univ.ville}, ${univ.pays} | Tonomi (GET Admission)`,
+      title: `${univ.nom} — ${univ.ville}, ${univ.pays} | GET Admission`,
       description: univ.description.slice(0, 160),
       images: [ogImage],
     },

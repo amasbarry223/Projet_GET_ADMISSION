@@ -19,16 +19,16 @@ import { db } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "À Propos de Tonomi — Notre Mission, Engagements & Équipe",
+  title: "À Propos de GET Admission — Notre Mission, Engagements & Équipe",
   description:
-    "Découvrez l'histoire, la mission et les engagements de Tonomi (GET Admission). Une agence et plateforme humaine dédiée à la réussite des projets d'études universitaires à l'international.",
+    "Découvrez l'histoire, la mission et les engagements de GET Admission. Une agence humaine dédiée à la réussite des projets d'études universitaires à l'international.",
   alternates: {
     canonical: "https://get-admission.com/a-propos",
   },
   openGraph: {
-    title: "À Propos de Tonomi (GET Admission) — Notre Mission & Engagements",
+    title: "À Propos de GET Admission — Notre Mission & Engagements",
     description:
-      "Tonomi est une agence d'intermédiation universitaire transparente, humaine et engagée pour la réussite de vos études à l'étranger.",
+      "GET Admission est une agence d'intermédiation universitaire transparente, humaine et engagée pour la réussite de vos études à l'étranger.",
     url: "https://get-admission.com/a-propos",
     type: "website",
   },

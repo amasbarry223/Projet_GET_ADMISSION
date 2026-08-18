@@ -30,22 +30,16 @@ const SITE_URL = "https://get-admission.com";
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Tonomi — Agence d'admission universitaire & études à l'étranger",
-    template: "%s | Tonomi (GET Admission)",
+    default: "GET Admission — Agence d'admission universitaire & études à l'étranger",
+    template: "%s | GET Admission",
   },
   description:
-    "Tonomi (GET Admission) est la plateforme et agence leader d'accompagnement aux admissions universitaires à l'étranger (France, Europe). Constitution de dossier académique, universités partenaires, réservation de logement CROUS, assistance visa étudiant et délivrance d'attestations de pré-inscription certifiées.",
+    "GET Admission est l'agence leader d'accompagnement aux admissions universitaires à l'étranger (France, Europe). Constitution de dossier académique, catalogue d'universités partenaires, réservation de logement CROUS, assistance visa étudiant et délivrance d'attestations de pré-inscription certifiées.",
   keywords: [
-    "Tonomi",
-    "Tonomi admission",
-    "Tonomi études en France",
-    "Tonomi GET Admission",
-    "Tonomi visa étudiant",
-    "Tonomi logement CROUS",
-    "Tonomi pré-inscription",
-    "plateforme Tonomi",
-    "agence Tonomi",
     "GET Admission",
+    "GET Admission France",
+    "GET Admission agence",
+    "GET Admission inscription",
     "admission universitaire France",
     "étudier en France",
     "étudier à l'étranger",
@@ -69,10 +63,10 @@ export const metadata: Metadata = {
     "bourse d'études étranger",
     "frais d'agence admission",
   ],
-  authors: [{ name: "Tonomi", url: SITE_URL }],
-  creator: "Tonomi",
-  publisher: "Tonomi",
-  applicationName: "Tonomi",
+  authors: [{ name: "GET Admission", url: SITE_URL }],
+  creator: "GET Admission",
+  publisher: "GET Admission",
+  applicationName: "GET Admission",
   category: "Education",
   alternates: {
     canonical: SITE_URL,
@@ -91,24 +85,24 @@ export const metadata: Metadata = {
     locale: "fr_FR",
     alternateLocale: ["fr_SN", "fr_CI", "fr_GN", "fr_CM", "fr_ML"],
     url: SITE_URL,
-    siteName: "Tonomi",
-    title: "Tonomi — Votre passerelle officielle vers les universités internationales",
+    siteName: "GET Admission",
+    title: "GET Admission — Votre passerelle officielle vers les universités internationales",
     description:
-      "Tonomi (GET Admission) vous accompagne de bout en bout : choix de formation, admission garantie dans nos universités partenaires, logement CROUS et visa étudiant.",
+      "GET Admission vous accompagne de bout en bout : choix de formation, admission garantie dans nos universités partenaires, logement CROUS et visa étudiant.",
     images: [
       {
         url: "/images/brand/logo-get-admission.png",
         width: 1200,
         height: 630,
-        alt: "Tonomi — Plateforme d'admission universitaire et d'études à l'étranger",
+        alt: "GET Admission — Agence d'admission universitaire et d'études à l'étranger",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Tonomi — Votre passerelle officielle vers les universités internationales",
+    title: "GET Admission — Votre passerelle officielle vers les universités internationales",
     description:
-      "Tonomi vous accompagne dans votre admission universitaire en France et en Europe. Suivi de dossier en temps réel, logement CROUS et visa.",
+      "GET Admission vous accompagne dans votre admission universitaire en France et en Europe. Suivi de dossier en temps réel, logement CROUS et visa.",
     images: ["/images/brand/logo-get-admission.png"],
   },
   robots: {
@@ -145,8 +139,8 @@ const jsonLdGlobal = {
     {
       "@type": "EducationalOrganization",
       "@id": `${SITE_URL}/#organization`,
-      name: "Tonomi",
-      alternateName: ["GET Admission", "Tonomi International", "Tonomi GET Admission"],
+      name: "GET Admission",
+      alternateName: ["GET Admission International", "GET Admission Agency"],
       url: SITE_URL,
       logo: {
         "@type": "ImageObject",
@@ -156,7 +150,7 @@ const jsonLdGlobal = {
       },
       image: `${SITE_URL}/images/brand/logo-get-admission.png`,
       description:
-        "Tonomi est la plateforme et agence d'intermédiation universitaire spécialisée dans l'accompagnement et l'admission des étudiants internationaux dans les universités partenaires en France et en Europe.",
+        "GET Admission est l'agence et plateforme d'intermédiation universitaire spécialisée dans l'accompagnement et l'admission des étudiants internationaux dans les universités partenaires en France et en Europe.",
       areaServed: [
         { "@type": "Country", name: "France" },
         { "@type": "Country", name: "Sénégal" },
