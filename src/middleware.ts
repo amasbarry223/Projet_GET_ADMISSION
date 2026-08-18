@@ -9,21 +9,98 @@ function requireNextAuthSecret(): string {
   return secret;
 }
 
-// Middleware RBAC :
-// - /espace* : cookie de session "candidat" → login /connexion
-// - /admin*  : cookie de session "staff" + permission par chemin → login /back-office
-// Deux cookies distincts (voir src/lib/auth.ts) pour que le même navigateur puisse porter les
-// deux identités en parallèle (un onglet par portail) sans que l'une écrase l'autre.
+const ADMIN_SECTIONS = new Set([
+  "dossiers",
+  "finance",
+  "kyc",
+  "catalogue",
+  "matrice",
+  "utilisateurs",
+  "parametres",
+  "profil",
+  "audit",
+  "logement",
+  "attestations",
+  "messages-internes",
+]);
+
+const VITRINE_PATHS = new Set([
+  "universites",
+  "a-propos",
+  "contact",
+  "faq",
+  "verifier",
+  "mentions-legales",
+  "politique-confidentialite",
+  "inscription",
+]);
+
+// Middleware Multi-Domaines & RBAC :
+// - Sous-domaine staff.* (ex: staff.get-admission.com ou staff.localhost) :
+//   * Racine "/" -> redirige vers /admin (si connecté) ou /back-office (si non connecté)
+//   * Routes staff directes (/dossiers, /finance, etc.) -> réécriture interne vers /admin/*
+//   * Vitrine & Espace candidat -> redirection automatique vers le domaine principal
+// - /admin*  : cookie de session "staff" + permission par chemin -> login /back-office
+// - /espace* : cookie de session "candidat" -> login /connexion
 export default async function middleware(req: NextRequest) {
+  const host = req.headers.get("host") || "";
+  const isStaffSubdomain = host.startsWith("staff.") || host.startsWith("admin.");
   const path = req.nextUrl.pathname;
 
-  // Manifeste PWA du back-office : aucune donnée sensible (nom, icônes, couleurs), doit rester
-  // accessible sans session pour que le navigateur puisse l'évaluer (critères d'installabilité) —
-  // sinon la requête est redirigée vers /back-office (HTML) et casse le parsing JSON du manifeste.
+  // Manifeste PWA du back-office : aucune donnée sensible, accessible sans session
   if (path === "/admin/manifest.webmanifest") {
     return NextResponse.next();
   }
 
+  // ─── 1. GESTION DU SOUS-DOMAINE STAFF (staff.get-admission.com / staff.localhost) ───
+  if (isStaffSubdomain) {
+    const firstSegment = path.split("/")[1] || "";
+
+    // Tentative d'accès à la vitrine ou à l'espace candidat depuis le sous-domaine staff -> renvoi vers domaine principal
+    if (VITRINE_PATHS.has(firstSegment) || path.startsWith("/espace")) {
+      const mainHost = host.replace(/^(staff|admin)\./, "");
+      const proto = req.headers.get("x-forwarded-proto") || "https";
+      const redirectUrl = new URL(path + req.nextUrl.search, `${proto}://${mainHost}`);
+      return NextResponse.redirect(redirectUrl);
+    }
+
+    // Racine "/" du sous-domaine staff
+    if (path === "/") {
+      const token = await getToken({
+        req,
+        secret: requireNextAuthSecret(),
+        cookieName: staffSessionCookieName,
+      });
+      const role = token?.role as string | undefined;
+
+      if (token && token.error !== "inactive" && isStaff(role)) {
+        const url = req.nextUrl.clone();
+        url.pathname = "/admin";
+        return NextResponse.redirect(url);
+      } else {
+        const url = req.nextUrl.clone();
+        url.pathname = "/back-office";
+        return NextResponse.redirect(url);
+      }
+    }
+
+    // Accès à /connexion ou /login sur le sous-domaine staff -> renvoi vers /back-office
+    if (path === "/connexion" || path === "/login") {
+      const url = req.nextUrl.clone();
+      url.pathname = "/back-office";
+      return NextResponse.redirect(url);
+    }
+
+    // Raccourcis directs : staff.get-admission.com/dossiers -> /admin/dossiers
+    if (ADMIN_SECTIONS.has(firstSegment)) {
+      const targetPath = `/admin${path}`;
+      const url = req.nextUrl.clone();
+      url.pathname = targetPath;
+      return NextResponse.rewrite(url);
+    }
+  }
+
+  // ─── 2. SÉCURITÉ & RBAC ROUTES /admin* ───
   if (path.startsWith("/admin")) {
     const token = await getToken({
       req,
@@ -58,6 +135,7 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // ─── 3. SÉCURITÉ & RBAC ROUTES /espace* (Espace Candidat) ───
   if (path.startsWith("/espace")) {
     const token = await getToken({
       req,
@@ -73,9 +151,6 @@ export default async function middleware(req: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Staff qui tente /espace avec un cookie candidat inexistant/expiré est déjà couvert
-    // ci-dessus ; un token candidat valide a nécessairement role === "CANDIDAT" côté serveur
-    // (authorize() du portail candidat refuse tout autre rôle), donc rien d'autre à vérifier ici.
     return NextResponse.next();
   }
 
@@ -83,5 +158,7 @@ export default async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/espace/:path*", "/admin/:path*"],
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|images|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js)$).*)",
+  ],
 };
