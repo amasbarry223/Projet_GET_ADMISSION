@@ -106,6 +106,7 @@ export function useLoadExistingDossier(
   prefUniv: string,
   prefForm: string,
   setters: LoadSetters,
+  forceNew?: boolean,
 ) {
   const [loadingDossier, setLoadingDossier] = React.useState(true);
   const [dossierError, setDossierError] = React.useState(false);
@@ -188,6 +189,15 @@ export function useLoadExistingDossier(
         .then((data: DossierWizardData[]) => {
           if (cancelled) return;
           const list = Array.isArray(data) ? data : [];
+          
+          if (forceNew) {
+            // L'utilisateur a explicitement demandé de créer une nouvelle candidature
+            setExistingDossier(null);
+            settersRef.current.setStep(DOSSIER_WIZARD_STEPS.UNIVERSITE);
+            setLoadingDossier(false);
+            return;
+          }
+
           const editable = list.filter((d) =>
             isDossierEditableByCandidate((d.etat || "").toUpperCase()),
           );
@@ -245,7 +255,7 @@ export function useLoadExistingDossier(
       cancelled = true;
       stop();
     };
-  }, [reloadToken]);
+  }, [reloadToken, forceNew]);
 
   React.useEffect(() => {
     if (loadingDossier || universitesLoading || existingDossier) return;

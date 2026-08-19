@@ -102,10 +102,10 @@ function getNextCandidateAction(params: {
   }
   if (etatUpper === "REFUSE") {
     return {
-      titre: "Candidature refusée",
-      desc: "L'université a décliné ce dossier. Contactez votre conseiller pour les options.",
-      href: "/espace/messages",
-      cta: "Écrire au conseiller",
+      titre: "Candidature non retenue",
+      desc: "Votre candidature n'a pas abouti pour cette formation. Vous pouvez déposer une nouvelle candidature (Privée ou Publique) sans ressaisir vos pièces.",
+      href: "/espace/dossier?nouvelle=true",
+      cta: "Déposer une nouvelle candidature",
     };
   }
   return {
@@ -127,7 +127,7 @@ export default function EspaceDashboard() {
 function EspaceDashboardInner() {
   const searchParams = useSearchParams();
   const dossierIdParam = searchParams.get("dossierId");
-  const { dossier, loading, error, liveStatus, lastSyncedAt, refresh } = useDossierLive({
+  const { dossier, allDossiers, loading, error, liveStatus, lastSyncedAt, refresh } = useDossierLive({
     dossierId: dossierIdParam,
   });
   const liveMeta = liveLabel(liveStatus);
@@ -229,6 +229,72 @@ function EspaceDashboardInner() {
 
   return (
     <div className="space-y-6">
+      {/* Sélecteur de dossiers multiples si l'étudiant a plusieurs candidatures (ex: refusée + nouvelle en cours) */}
+      {allDossiers.length > 1 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card/70 p-3 backdrop-blur-sm">
+          <div className="flex items-center gap-2">
+            <GraduationCap className="h-4 w-4 text-primary" strokeWidth={1.5} />
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Vos candidatures ({allDossiers.length}) :</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {allDossiers.map((item) => {
+              const isActive = item.id === d.id;
+              const itemEtat = etatParCode(item.etat);
+              const isRefuse = item.etat.toUpperCase() === "REFUSE";
+              return (
+                <Link
+                  key={item.id}
+                  href={`/espace?dossierId=${item.id}`}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "bg-muted/70 text-foreground hover:bg-muted"
+                  )}
+                >
+                  <span>{item.reference}</span>
+                  <span className={cn(
+                    "rounded px-1 py-0.2 font-mono text-[9px] uppercase",
+                    isActive ? "bg-primary-foreground/20 text-primary-foreground" : isRefuse ? "bg-destructive/15 text-destructive" : "bg-primary/10 text-primary"
+                  )}>
+                    {itemEtat.libelle}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Bannière d'orientation dédiée en cas de refus */}
+      {etatUpper === "REFUSE" && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-destructive" strokeWidth={1.5} />
+                <h2 className="font-display text-base font-bold text-foreground">
+                  Possibilité de réorientation de votre dossier
+                </h2>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Cette université n&apos;a pas pu donner une suite favorable. Vous pouvez immédiatement soumettre une <strong>nouvelle candidature</strong> dans un autre établissement privé ou opter pour la <strong>procédure publique</strong>. Vos pièces déjà vérifiées sont automatiquement conservées.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap flex-none">
+              <MotionButton asChild size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
+                <Link href={`/espace/dossier?nouvelle=true&sourceId=${d.id}`}>
+                  Nouvelle candidature <ArrowRight className="ml-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
+                </Link>
+              </MotionButton>
+              <Button asChild size="sm" variant="outline" className="border-border">
+                <Link href="/espace/messages">Conseiller</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hero = une seule next-action dominante */}
       <Card className="relative overflow-hidden border-primary/25 bg-card/60 p-0 shadow-sm backdrop-blur-md">
         <div className="grid lg:grid-cols-[1.3fr_1fr]">

@@ -228,6 +228,41 @@ export async function POST(request: Request) {
 
     const matriceVersionId = await resolveActiveMatriceVersionId(tx);
 
+    // Détection dossier source pour réorientation / reprise des pièces
+    const sourceId = parsed.data.sourceDossierId;
+    let sourceDossier = null;
+    if (sourceId) {
+      sourceDossier = await tx.dossier.findFirst({
+        where: { id: sourceId, candidatId: userId },
+        include: {
+          pieces: { where: { cheminFichier: { not: null } } },
+          paiements: { where: { statut: "reussi" } },
+        },
+      });
+    } else {
+      // Si aucun sourceId n'est fourni, vérifier s'il existe un ancien dossier refusé/clos avec pièces
+      sourceDossier = await tx.dossier.findFirst({
+        where: { candidatId: userId, etat: { in: ["REFUSE", "CLOTURE"] } },
+        orderBy: { updatedAt: "desc" },
+        include: {
+          pieces: { where: { cheminFichier: { not: null } } },
+          paiements: { where: { statut: "reussi" } },
+        },
+      });
+    }
+
+    // Calcul du report de paiement éventuel (Option A : Avoir / Report)
+    let initialPaiementStatut = "aucun";
+    let montantReporte = 0;
+    if (sourceDossier && sourceDossier.paiements.length > 0) {
+      montantReporte = sourceDossier.paiements.reduce((sum, p) => sum + p.montant, 0);
+      if (montantReporte >= fraisAgence) {
+        initialPaiementStatut = "complet";
+      } else if (montantReporte > 0) {
+        initialPaiementStatut = "partiel";
+      }
+    }
+
     const created = await tx.dossier.create({
       data: {
         reference,
@@ -239,7 +274,7 @@ export async function POST(request: Request) {
         etat: "BROUILLON",
         etapeActuelle: 1,
         fraisAgence,
-        paiementStatut: "aucun",
+        paiementStatut: initialPaiementStatut,
         mrz,
       },
     });
@@ -264,16 +299,68 @@ export async function POST(request: Request) {
       { formationPiecesRequises: formation.piecesRequises },
     );
 
+    // Reprise automatique des pièces déjà téléversées depuis le dossier précédent
+    if (sourceDossier && sourceDossier.pieces.length > 0) {
+      const sourcePieces = sourceDossier.pieces;
+      const newPieces = await tx.piece.findMany({ where: { dossierId: created.id } });
+
+      for (const np of newPieces) {
+        // Recherche d'une pièce correspondante par code exact ou par libellé similaire
+        const match = sourcePieces.find(
+          (sp) => (sp.code && np.code && sp.code === np.code) || sp.libelle.trim().toLowerCase() === np.libelle.trim().toLowerCase()
+        );
+        if (match && match.cheminFichier) {
+          await tx.piece.update({
+            where: { id: np.id },
+            data: {
+              cheminFichier: match.cheminFichier,
+              nomFichier: match.nomFichier,
+              taille: match.taille,
+              type: match.type,
+              televerseeLe: match.televerseeLe ?? new Date(),
+              statut: "televersee",
+            },
+          });
+        }
+      }
+    }
+
+    // Report comptable du paiement vers le nouveau dossier
+    if (montantReporte > 0 && sourceDossier) {
+      const nowYear = new Date().getFullYear();
+      const recRef = `REC-${nowYear}-REP-${Math.floor(1000 + Math.random() * 9000)}`;
+      await tx.paiement.create({
+        data: {
+          reference: recRef,
+          dossierId: created.id,
+          candidatId: userId,
+          montant: Math.min(montantReporte, fraisAgence),
+          moyen: "Report avoir (dossier refusé)",
+          statut: "reussi",
+          tranche: montantReporte >= fraisAgence ? "Report intégral" : "Acompte reporté",
+        },
+      });
+    }
+
+    let noteHistorique =
+      procedure === "PUBLIQUE"
+        ? "Brouillon créé — procédure Université Publique : l'agence affectera l'établissement après étude du profil."
+        : `Brouillon créé pour ${formation.intitule} — ${formation.universite.nom}`;
+
+    if (sourceDossier) {
+      noteHistorique += ` (Nouvelle candidature suite au dossier ${sourceDossier.reference}).`;
+      if (montantReporte > 0) {
+        noteHistorique += ` Frais reportés : ${montantReporte} FCFA.`;
+      }
+    }
+
     await tx.historique.create({
       data: {
         dossierId: created.id,
         etat: "BROUILLON",
         auteur: `${candidat.prenom} ${candidat.nom}`,
         auteurId: userId,
-        note:
-          procedure === "PUBLIQUE"
-            ? "Brouillon créé — procédure Université Publique : l'agence affectera l'établissement après étude du profil."
-            : `Brouillon créé pour ${formation.intitule} — ${formation.universite.nom}`,
+        note: noteHistorique,
       },
     });
 

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
@@ -74,6 +75,8 @@ function DossierWizard() {
   const searchParams = useSearchParams();
   const prefUniv = searchParams.get("universite") || "";
   const prefForm = searchParams.get("formation") || "";
+  const isNouvelle = searchParams.get("nouvelle") === "true";
+  const sourceIdParam = searchParams.get("sourceId");
 
   const wizard = useDossierWizardState();
   const {
@@ -114,16 +117,21 @@ function DossierWizard() {
     universitesError,
     existingDossier,
     setExistingDossier,
-  } = useLoadExistingDossier(prefUniv, prefForm, {
-    setProcedure,
-    setUniversiteId,
-    setFormationId,
-    setPersonalInfo,
-    setPieceRows,
-    setStep,
-    setProfil,
-    setHasProfil,
-  });
+  } = useLoadExistingDossier(
+    prefUniv,
+    prefForm,
+    {
+      setProcedure,
+      setUniversiteId,
+      setFormationId,
+      setPersonalInfo,
+      setPieceRows,
+      setStep,
+      setProfil,
+      setHasProfil,
+    },
+    isNouvelle,
+  );
 
   useAutosaveDossierDraft({
     loadingDossier,
@@ -264,12 +272,16 @@ function DossierWizard() {
       return null;
     }
     setCreatingDossier(true);
+    const effectiveSourceId = sourceIdParam || undefined;
+
     try {
       const response = await fetch(API_ROUTES.DOSSIERS, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          procedure === "PUBLIQUE" ? { procedure } : { procedure, universiteId, formationId },
+          procedure === "PUBLIQUE"
+            ? { procedure, sourceDossierId: effectiveSourceId }
+            : { procedure, universiteId, formationId, sourceDossierId: effectiveSourceId },
         ),
       });
       const data = await response.json();
@@ -496,6 +508,29 @@ function DossierWizard() {
 
   return (
     <div className="space-y-6">
+      {etatUpper === "REFUSE" && !isNouvelle && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-destructive" strokeWidth={1.5} />
+                <h2 className="font-display text-base font-bold text-foreground">
+                  Candidature refusée par l&apos;établissement
+                </h2>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Ce dossier a été décliné. Vous pouvez dès maintenant déposer une <strong>nouvelle candidature</strong> dans un autre établissement privé ou en procédure publique. Vos pièces déjà fournies seront automatiquement récupérées.
+              </p>
+            </div>
+            <MotionButton asChild size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 flex-none">
+              <Link href={`/espace/dossier?nouvelle=true&sourceId=${existingDossier?.id}`}>
+                Déposer une nouvelle candidature <ArrowRight className="ml-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
+              </Link>
+            </MotionButton>
+          </div>
+        </div>
+      )}
+
       {isDossierValide && (
         <Alert className="border-vert/40 bg-vert/5">
           <CheckCircle2 className="h-4 w-4 text-vert" strokeWidth={1.5} />

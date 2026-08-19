@@ -232,6 +232,7 @@ export const dossierCreateSchema = z
     procedure: z.enum(["PRIVEE", "PUBLIQUE"]).default("PRIVEE"),
     universiteId: z.string().min(1).optional(),
     formationId: z.string().min(1).optional(),
+    sourceDossierId: z.string().min(1).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.procedure === "PRIVEE") {

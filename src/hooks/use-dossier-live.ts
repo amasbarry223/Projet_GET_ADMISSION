@@ -84,6 +84,7 @@ async function fetchDossiersList(): Promise<DossierLive[]> {
 export function useDossierLive(options: Options = {}) {
   const { dossierId = null, pollMs = 12_000 } = options;
   const queryClient = useQueryClient();
+  const [allDossiers, setAllDossiers] = React.useState<DossierLive[]>([]);
   const [dossier, setDossier] = React.useState<DossierLive | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -120,6 +121,7 @@ export function useDossierLive(options: Options = {}) {
   const refresh = React.useCallback(async () => {
     try {
       const list = await fetchDossiersList();
+      setAllDossiers(list);
       queryClient.setQueryData(DOSSIERS_QUERY_KEY, list);
       applyDossier(resolvePreferred(list, dossierId));
       return true;
@@ -222,6 +224,7 @@ export function useDossierLive(options: Options = {}) {
 
   return {
     dossier,
+    allDossiers,
     loading,
     error,
     liveStatus,
