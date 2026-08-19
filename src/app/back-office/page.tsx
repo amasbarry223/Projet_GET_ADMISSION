@@ -8,7 +8,7 @@ import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Mail, Lock, ArrowRight, Loader2, Shield, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, ArrowRight, Loader2, Shield, Eye, EyeOff, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
 import { FieldError } from "@/components/ui/field-error";
@@ -153,7 +153,8 @@ function BackOfficeLoginInner() {
         <div className="mb-6 flex items-center justify-between gap-3">
           <Link
             href="/"
-            className="inline-flex rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
+            aria-label="Retour à l'accueil — GET Admission"
+            className="inline-flex rounded-md opacity-90 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
           >
             <BrandLogo height={44} priority className="object-left" />
           </Link>
@@ -283,11 +284,15 @@ function BackOfficeLoginInner() {
           <p className="text-center text-xs text-ardoise">
             Accès provisionné — pas d&apos;inscription libre.
           </p>
-          <p className="mt-2 text-center text-sm text-ardoise">
-            <Link href="/connexion" className="font-medium text-encre underline-offset-4 hover:text-lapis hover:underline">
+          <div className="mt-3 flex justify-center">
+            <Link
+              href="/connexion"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-ligne bg-porcelaine/60 px-4 py-2 text-sm font-medium text-encre transition-colors hover:border-lapis/30 hover:bg-lapis/5 hover:text-lapis"
+            >
+              <GraduationCap className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
               Espace candidat
             </Link>
-          </p>
+          </div>
         </div>
       </div>
     </div>

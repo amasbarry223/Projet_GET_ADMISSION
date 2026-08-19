@@ -348,6 +348,28 @@ export function buildPiecesRequises(profil: ProfilAcademiqueInput): PieceRequise
  * Fusionne les pièces catalogue formation (CV, TCF, portfolio…) en complémentaires obligatoires.
  * N'écrase jamais un code déjà généré par le profil.
  */
+/**
+ * Libellés de pièces formation qui correspondent à des pièces d'identité
+ * déjà gérées exclusivement par le module KYC (passeport / CNI).
+ * Ces entrées sont ignorées lors de la fusion pour éviter les doublons.
+ */
+const FORMATION_PIECES_KYC_FILTER = [
+  "passeport",
+  "passport",
+  "cni",
+  "carte nationale",
+  "carte d'identite",
+  "carte d'identité",
+  "piece d'identite",
+  "pièce d'identité",
+  "identity",
+];
+
+function isKycPiece(label: string): boolean {
+  const lower = label.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return FORMATION_PIECES_KYC_FILTER.some((kw) => lower.includes(kw));
+}
+
 export function mergePiecesFormation(
   profilPieces: PieceRequise[],
   formationPiecesRequises: string[] | string | null | undefined
@@ -362,6 +384,8 @@ export function mergePiecesFormation(
   for (const label of raw) {
     const trimmed = String(label || "").trim();
     if (!trimmed) continue;
+    // Ignorer les pièces d'identité : gérées exclusivement via le module KYC.
+    if (isKycPiece(trimmed)) continue;
     const slug = slugifyCode(trimmed);
     const isLettreMotivation =
       trimmed.toLowerCase().includes("motivation") ||

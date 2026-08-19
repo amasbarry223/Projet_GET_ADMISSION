@@ -17,12 +17,14 @@ const PREREQUIS_BACHELOR = ["Bac ou équivalent", "Dossier complet"];
 const PREREQUIS_MASTER = ["Licence ou équivalent Bac+3", "Dossier complet"];
 const PREREQUIS_GENERAL = ["Bac ou équivalent", "Dossier complet"];
 
+// "Passeport" retiré : la vérification d'identité (passeport / CNI) est
+// entièrement gérée par le module KYC du profil candidat — inutile de le
+// redemander ici (cf. pieces-requises.ts : seule IDENTITE_PHOTO subsiste).
 const PIECES = [
   "Diplôme",
   "Relevé de notes",
   "CV",
   "Lettre de motivation",
-  "Passeport",
 ];
 
 function bts(intitule: string, domaine: string): FormationCanonique {
