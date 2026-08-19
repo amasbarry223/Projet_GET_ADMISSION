@@ -1,9 +1,9 @@
 import { ImageResponse } from "next/og";
 
-export const size = { width: 32, height: 32 };
+export const size = { width: 48, height: 48 };
 export const contentType = "image/png";
 
-/** Favicon navigateur — marque GET Admission (carré vert). */
+/** Favicon navigateur & Google Search — marque GET Admission (carré vert 48x48). */
 export default function Icon() {
   return new ImageResponse(
     (
@@ -15,9 +15,9 @@ export default function Icon() {
           alignItems: "center",
           justifyContent: "center",
           background: "#3CA936",
-          borderRadius: 6,
+          borderRadius: 8,
           color: "#FFFFFF",
-          fontSize: 11,
+          fontSize: 16,
           fontWeight: 800,
           fontFamily: "Arial, Helvetica, sans-serif",
           letterSpacing: "-0.04em",
