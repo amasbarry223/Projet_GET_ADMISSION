@@ -4,6 +4,7 @@ import Link from "next/link";
 import { BoardingPass } from "@/components/getadm/boarding-pass";
 import { RecapLine } from "@/components/dossier/wizard/upload-zone";
 import type { Formation, PersonalInfo, PieceRow, Universite } from "@/components/dossier/wizard/types";
+import { isPiecePassportOrCni } from "@/lib/dossier/pieces-requises";
 import { formatFCFA } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
@@ -40,6 +41,9 @@ export function DossierStepRecap({
   boardingConseiller: string;
   onCompleterDocuments?: (pieceCode?: string | null) => void;
 }) {
+  const visiblePieces = pieceRows.filter((p) => !isPiecePassportOrCni(p));
+  const missingPieces = missingObligatoires.filter((p) => !isPiecePassportOrCni(p));
+
   return (
     <div className="space-y-5">
       <div>
@@ -81,11 +85,11 @@ export function DossierStepRecap({
 
       <div className="rounded-md border border-border bg-card p-4">
         <p className="font-mono text-[10px] uppercase tracking-eyebrow text-muted-foreground">
-          Pièces ({pieceRows.length - missingObligatoires.length}/{pieceRows.length} — obligatoires
-          manquantes : {missingObligatoires.length})
+          Pièces ({visiblePieces.length - missingPieces.length}/{visiblePieces.length} — obligatoires
+          manquantes : {missingPieces.length})
         </p>
         <ul className="mt-2 space-y-1.5">
-          {pieceRows.map((piece) => {
+          {visiblePieces.map((piece) => {
             const statut = piece.statut ?? "manquante";
             const incomplete = statut === "manquante" || statut === "a_corriger";
             return (

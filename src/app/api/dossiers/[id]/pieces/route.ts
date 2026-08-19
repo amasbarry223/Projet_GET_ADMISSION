@@ -6,6 +6,7 @@ import { pieceSchema, pieceUploadFormSchema, validate } from "@/lib/validations"
 import { saveUpload, deleteUpload } from "@/lib/storage";
 import { hasPermission, requirePermission } from "@/lib/rbac";
 import { isDossierEditableByCandidate } from "@/shared/constants";
+import { isPiecePassportOrCni } from "@/lib/dossier/pieces-requises";
 
 // POST /api/dossiers/[id]/pieces
 // - multipart/form-data : file + libelle (+ statut optionnel) → upload réel
@@ -238,5 +239,6 @@ export async function GET(
     orderBy: { createdAt: "asc" },
   });
 
-  return NextResponse.json(pieces);
+  const filteredPieces = pieces.filter((p) => !isPiecePassportOrCni(p));
+  return NextResponse.json(filteredPieces);
 }

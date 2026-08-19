@@ -345,15 +345,11 @@ export function buildPiecesRequises(profil: ProfilAcademiqueInput): PieceRequise
 }
 
 /**
- * Fusionne les pièces catalogue formation (CV, TCF, portfolio…) en complémentaires obligatoires.
- * N'écrase jamais un code déjà généré par le profil.
+ * Mots-clés désignant les pièces d'identité (Passeport / CNI / Page photo)
+ * qui sont exclusivement traitées via le module KYC du profil candidat.
+ * Elles ne doivent JAMAIS apparaître dans la liste des pièces justificatives du dossier.
  */
-/**
- * Libellés de pièces formation qui correspondent à des pièces d'identité
- * déjà gérées exclusivement par le module KYC (passeport / CNI).
- * Ces entrées sont ignorées lors de la fusion pour éviter les doublons.
- */
-const FORMATION_PIECES_KYC_FILTER = [
+const PASSPORT_CNI_KEYWORDS = [
   "passeport",
   "passport",
   "cni",
@@ -362,12 +358,18 @@ const FORMATION_PIECES_KYC_FILTER = [
   "carte d'identité",
   "piece d'identite",
   "pièce d'identité",
+  "page photo",
   "identity",
 ];
 
-function isKycPiece(label: string): boolean {
-  const lower = label.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  return FORMATION_PIECES_KYC_FILTER.some((kw) => lower.includes(kw));
+export function isPiecePassportOrCni(piece: { libelle?: string | null; code?: string | null }): boolean {
+  const lib = (piece.libelle || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const code = (piece.code || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  return PASSPORT_CNI_KEYWORDS.some((kw) => {
+    const cleanKw = kw.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return lib.includes(cleanKw) || code.includes(cleanKw);
+  });
 }
 
 export function mergePiecesFormation(
@@ -385,7 +387,7 @@ export function mergePiecesFormation(
     const trimmed = String(label || "").trim();
     if (!trimmed) continue;
     // Ignorer les pièces d'identité : gérées exclusivement via le module KYC.
-    if (isKycPiece(trimmed)) continue;
+    if (isPiecePassportOrCni({ libelle: trimmed })) continue;
     const slug = slugifyCode(trimmed);
     const isLettreMotivation =
       trimmed.toLowerCase().includes("motivation") ||
@@ -484,20 +486,13 @@ export type PieceManquanteLike = {
 export function listPiecesManquantes<T extends PieceManquanteLike>(pieces: T[]): T[] {
   return pieces.filter((piece) => {
     if (piece.obligatoire === false) return false;
+    if (isPiecePassportOrCni(piece)) return false;
     const lib = (piece.libelle || "").toLowerCase();
     const code = (piece.code || "").toLowerCase();
     if (
       lib.includes("motivation") ||
       code.includes("motivation") ||
-      code.includes("lettre_motivation") ||
-      lib.includes("passeport") ||
-      lib.includes("passport") ||
-      lib.includes("cni") ||
-      lib.includes("carte d'identité") ||
-      lib.includes("carte nationale") ||
-      code.includes("passeport") ||
-      code.includes("passport") ||
-      code.includes("cni")
+      code.includes("lettre_motivation")
     ) {
       return false;
     }

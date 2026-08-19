@@ -32,7 +32,7 @@ import { DossierStepDocuments } from "@/components/dossier/wizard/step-documents
 import { DossierStepIdentite } from "@/components/dossier/wizard/step-identite";
 import { DossierStepRecap } from "@/components/dossier/wizard/step-recap";
 import { resolveFraisAgence } from "@/lib/dossier/frais-agence";
-import { listPiecesManquantes } from "@/lib/dossier/pieces-requises";
+import { isPiecePassportOrCni, listPiecesManquantes } from "@/lib/dossier/pieces-requises";
 import { etatParCode } from "@/lib/etats";
 import { toastApiErrorSync, toastApiSuccess } from "@/lib/toast-api";
 import { wizardPersonalInfoSchema } from "@/lib/validations";
@@ -162,25 +162,19 @@ function DossierWizard() {
   const fraisAgenceAffiche = existingDossier?.fraisAgence ?? resolveFraisAgence(typeEtab);
   const prerequisList = parseStringList(formation?.prerequis);
 
-  const piecesAcademiques = pieceRows.filter((piece) => piece.categorie !== "identite");
-  const piecesIdentite = pieceRows.filter((piece) => {
-    if (piece.categorie !== "identite") return false;
-    const lib = (piece.libelle || "").toLowerCase();
-    const code = (piece.code || "").toLowerCase();
-    if (
-      lib.includes("passeport") ||
-      lib.includes("passport") ||
-      lib.includes("cni") ||
-      lib.includes("carte d'identité") ||
-      lib.includes("carte nationale") ||
-      code.includes("passeport") ||
-      code.includes("passport") ||
-      code.includes("cni")
-    ) {
-      return false;
-    }
-    return true;
-  });
+  // Filtrage strict : Aucune pièce passeport / CNI ne doit figurer dans les pièces justificatives (géré exclusivement par KYC)
+  const visiblePieces = React.useMemo(() => {
+    return pieceRows.filter((piece) => !isPiecePassportOrCni(piece));
+  }, [pieceRows]);
+
+  const piecesAcademiques = React.useMemo(() => {
+    return visiblePieces.filter((piece) => piece.categorie !== "identite");
+  }, [visiblePieces]);
+
+  const piecesIdentite = React.useMemo(() => {
+    return visiblePieces.filter((piece) => piece.categorie === "identite");
+  }, [visiblePieces]);
+
   const [userProfile, setUserProfile] = React.useState<{
     kycType?: string | null;
     kycNumero?: string | null;
@@ -207,7 +201,7 @@ function DossierWizard() {
       (!needsVerso || userProfile?.kycVersoPath),
   );
 
-  const missingObligatoires = listPiecesManquantes(pieceRows);
+  const missingObligatoires = listPiecesManquantes(visiblePieces);
   const etatUpper = (existingDossier?.etat || "BROUILLON").toUpperCase();
   const isEditable = isDossierEditableByCandidate(etatUpper);
   const canSubmit =
@@ -754,7 +748,7 @@ function DossierWizard() {
             formation={formation}
             typeEtab={typeEtab}
             fraisAgenceAffiche={fraisAgenceAffiche}
-            pieceRows={pieceRows}
+            pieceRows={visiblePieces}
             missingObligatoires={missingObligatoires}
             isKycComplete={isKycComplete}
             boardingReference={boardingReference}

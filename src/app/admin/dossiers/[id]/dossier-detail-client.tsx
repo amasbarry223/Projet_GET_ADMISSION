@@ -56,6 +56,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, CheckCircle2, AlertCircle, FileText, Send, Wallet, Stamp, XCircle, History, MessageSquare, User, ShieldCheck, Eye, AlertTriangle, Info, Loader2, UserPlus, UserMinus, Printer, Download, FileImage, IdCard, Landmark, Trash2 } from "lucide-react";
 import { ETAPE_PAR_ETAT } from "@/shared/constants";
+import { isPiecePassportOrCni } from "@/lib/dossier/pieces-requises";
 
 type Conseiller = { id: string; prenom: string; nom: string; role: string; actif: boolean };
 
@@ -804,45 +805,49 @@ export default function DossierDetailClient() {
 
           <TabsContent value="pieces">
             <Card className="border-ligne bg-card p-0 overflow-hidden">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ligne px-6 py-4">
-                <div>
-                  <h2 className="font-display text-base font-bold text-encre">Pièces du dossier</h2>
-                  <p className="mt-0.5 text-xs text-ardoise">{dossier.pieces.length} document(s)</p>
-                </div>
-                {dossier.pieces.some((p) => (p as { cheminFichier?: string }).cheminFichier) && (
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={`/api/dossiers/${dossier.id}/pieces/export/print`} target="_blank" rel="noreferrer">
-                        <Printer className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Imprimer tout
-                      </a>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={downloadingPieces}
-                      onClick={() => void downloadAllPieces()}
-                    >
-                      {downloadingPieces ? (
-                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
-                      ) : (
-                        <Download className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
+              {(() => {
+                const nonKycPieces = dossier.pieces.filter((p) => !isPiecePassportOrCni(p));
+                return (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ligne px-6 py-4">
+                      <div>
+                        <h2 className="font-display text-base font-bold text-encre">Pièces du dossier</h2>
+                        <p className="mt-0.5 text-xs text-ardoise">{nonKycPieces.length} document(s)</p>
+                      </div>
+                      {nonKycPieces.some((p) => (p as { cheminFichier?: string }).cheminFichier) && (
+                        <div className="flex flex-wrap gap-2">
+                          <Button variant="outline" size="sm" asChild>
+                            <a href={`/api/dossiers/${dossier.id}/pieces/export/print`} target="_blank" rel="noreferrer">
+                              <Printer className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} /> Imprimer tout
+                            </a>
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={downloadingPieces}
+                            onClick={() => void downloadAllPieces()}
+                          >
+                            {downloadingPieces ? (
+                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+                            ) : (
+                              <Download className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.5} />
+                            )}
+                            Télécharger tout (PDF)
+                          </Button>
+                        </div>
                       )}
-                      Télécharger tout (PDF)
-                    </Button>
-                  </div>
-                )}
-              </div>
-              {dossier.pieces.length === 0 ? (
-                <p className="px-6 py-10 text-center text-sm text-ardoise">Aucune pièce enregistrée.</p>
-              ) : (
-                <ul className="divide-y divide-ligne">
-                  {dossier.pieces.map((p) => {
-                    const cfg = {
-                      manquante: { icon: AlertCircle, color: "text-carmin", bg: "bg-carmin/5", label: "Manquante" },
-                      televersee: { icon: FileText, color: "text-lapis", bg: "bg-lapis/5", label: "Téléversée" },
-                      a_corriger: { icon: AlertCircle, color: "text-ambre", bg: "bg-ambre/5", label: "À corriger" },
-                      validee: { icon: CheckCircle2, color: "text-vert", bg: "bg-vert/5", label: "Validée" },
-                    }[p.statut] ?? { icon: FileText, color: "text-ardoise", bg: "bg-porcelaine", label: p.statut };
+                    </div>
+                    {nonKycPieces.length === 0 ? (
+                      <p className="px-6 py-10 text-center text-sm text-ardoise">Aucune pièce enregistrée.</p>
+                    ) : (
+                      <ul className="divide-y divide-ligne">
+                        {nonKycPieces.map((p) => {
+                          const cfg = {
+                            manquante: { icon: AlertCircle, color: "text-carmin", bg: "bg-carmin/5", label: "Manquante" },
+                            televersee: { icon: FileText, color: "text-lapis", bg: "bg-lapis/5", label: "Téléversée" },
+                            a_corriger: { icon: AlertCircle, color: "text-ambre", bg: "bg-ambre/5", label: "À corriger" },
+                            validee: { icon: CheckCircle2, color: "text-vert", bg: "bg-vert/5", label: "Validée" },
+                          }[p.statut] ?? { icon: FileText, color: "text-ardoise", bg: "bg-porcelaine", label: p.statut };
                     return (
                       <li key={p.id} className="flex items-center gap-3 px-6 py-3">
                         <div className={cn("flex h-9 w-9 items-center justify-center rounded-md", cfg.bg, cfg.color)}>
@@ -901,8 +906,11 @@ export default function DossierDetailClient() {
                   })}
                 </ul>
               )}
-            </Card>
-          </TabsContent>
+            </>
+          );
+        })()}
+      </Card>
+    </TabsContent>
 
           <TabsContent value="paiements">
             <Card className="border-ligne bg-card p-0 overflow-hidden">
