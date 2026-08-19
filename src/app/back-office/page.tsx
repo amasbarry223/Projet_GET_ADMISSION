@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
@@ -78,10 +77,12 @@ function BackOfficeLoginInner() {
 
   const [landingUrl, setLandingUrl] = React.useState("/");
   const [candidatLoginUrl, setCandidatLoginUrl] = React.useState("/connexion");
+  const [forgotPasswordUrl, setForgotPasswordUrl] = React.useState("/mot-de-passe-oublie");
 
   React.useEffect(() => {
     setLandingUrl(getMainSiteUrl("/"));
     setCandidatLoginUrl(getMainSiteUrl("/connexion"));
+    setForgotPasswordUrl(getMainSiteUrl("/mot-de-passe-oublie"));
   }, []);
 
   const redirectAfterLogin = (role: string | undefined) => {
@@ -236,12 +237,12 @@ function BackOfficeLoginInner() {
               <Label htmlFor="bo-password" className="text-sm font-medium text-encre">
                 Mot de passe
               </Label>
-              <Link
-                href="/mot-de-passe-oublie"
+              <a
+                href={forgotPasswordUrl}
                 className="text-xs font-medium text-lapis hover:underline"
               >
                 Mot de passe oublié ?
-              </Link>
+              </a>
             </div>
             <div className="relative">
               <Lock
