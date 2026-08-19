@@ -26,6 +26,17 @@ function adminCallback(callbackUrl: string | null): string | null {
   return null;
 }
 
+function getMainSiteUrl(path: string = "/"): string {
+  if (typeof window === "undefined") return path;
+  const host = window.location.host;
+  // Détecte si nous sommes sur un sous-domaine (ex: staff.get-admission.com, admin., f.)
+  if (/^(staff|admin|f)\./i.test(host)) {
+    const mainHost = host.replace(/^(staff|admin|f)\./i, "");
+    return `${window.location.protocol}//${mainHost}${path}`;
+  }
+  return path;
+}
+
 export default function BackOfficeLoginPage() {
   return (
     <div className="relative flex min-h-screen items-center justify-center p-6">
@@ -64,6 +75,14 @@ function BackOfficeLoginInner() {
   const [loading, setLoading] = React.useState(false);
   const [suggestCandidat, setSuggestCandidat] = React.useState(false);
   const [fieldErrors, setFieldErrors] = React.useState<{ email?: string; password?: string }>({});
+
+  const [landingUrl, setLandingUrl] = React.useState("/");
+  const [candidatLoginUrl, setCandidatLoginUrl] = React.useState("/connexion");
+
+  React.useEffect(() => {
+    setLandingUrl(getMainSiteUrl("/"));
+    setCandidatLoginUrl(getMainSiteUrl("/connexion"));
+  }, []);
 
   const redirectAfterLogin = (role: string | undefined) => {
     const allowed = adminCallback(callbackUrl);
@@ -151,13 +170,13 @@ function BackOfficeLoginInner() {
 
       <div className="p-8 sm:p-9">
         <div className="mb-6 flex items-center justify-between gap-3">
-          <Link
-            href="/"
+          <a
+            href={landingUrl}
             aria-label="Retour à l'accueil — GET Admission"
-            className="inline-flex rounded-md opacity-90 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
+            className="inline-flex cursor-pointer rounded-md opacity-90 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis"
           >
             <BrandLogo height={44} priority className="object-left" />
-          </Link>
+          </a>
           <span className="inline-flex items-center gap-1.5 rounded-md border border-ligne bg-porcelaine px-2.5 py-1 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ardoise">
             <Shield className="h-3 w-3 text-lapis" strokeWidth={2} aria-hidden />
             Staff
@@ -175,9 +194,9 @@ function BackOfficeLoginInner() {
         {suggestCandidat && (
           <div className="mt-4 rounded-md border border-ambre/30 bg-ambre/5 p-3 text-sm text-ardoise">
             Compte étudiant ?{" "}
-            <Link href="/connexion" className="font-medium text-lapis underline">
+            <a href={candidatLoginUrl} className="font-medium text-lapis underline">
               Accéder à l&apos;espace candidat
-            </Link>
+            </a>
           </div>
         )}
 
@@ -285,13 +304,13 @@ function BackOfficeLoginInner() {
             Accès provisionné — pas d&apos;inscription libre.
           </p>
           <div className="mt-3 flex justify-center">
-            <Link
-              href="/connexion"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-ligne bg-porcelaine/60 px-4 py-2 text-sm font-medium text-encre transition-colors hover:border-lapis/30 hover:bg-lapis/5 hover:text-lapis"
+            <a
+              href={candidatLoginUrl}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-ligne bg-porcelaine/60 px-4 py-2 text-sm font-medium text-encre transition-colors hover:border-lapis/30 hover:bg-lapis/5 hover:text-lapis"
             >
               <GraduationCap className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
               Espace candidat
-            </Link>
+            </a>
           </div>
         </div>
       </div>

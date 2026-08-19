@@ -44,7 +44,7 @@ const VITRINE_PATHS = new Set([
 // - /espace* : cookie de session "candidat" -> login /connexion
 export default async function middleware(req: NextRequest) {
   const host = req.headers.get("host") || "";
-  const isStaffSubdomain = host.startsWith("staff.") || host.startsWith("admin.");
+  const isStaffSubdomain = /^(staff|admin|f)\./i.test(host);
   const path = req.nextUrl.pathname;
 
   // Manifeste PWA du back-office : aucune donnée sensible, accessible sans session
@@ -56,9 +56,19 @@ export default async function middleware(req: NextRequest) {
   if (isStaffSubdomain) {
     const firstSegment = path.split("/")[1] || "";
 
-    // Tentative d'accès à la vitrine ou à l'espace candidat depuis le sous-domaine staff -> renvoi vers domaine principal
-    if (VITRINE_PATHS.has(firstSegment) || path.startsWith("/espace")) {
-      const mainHost = host.replace(/^(staff|admin)\./, "");
+    // Tentative d'accès à la vitrine, connexion candidat ou espace candidat depuis le sous-domaine staff -> renvoi vers domaine principal
+    if (
+      VITRINE_PATHS.has(firstSegment) ||
+      path.startsWith("/espace") ||
+      path === "/connexion" ||
+      path === "/login" ||
+      path === "/inscription" ||
+      path === "/mot-de-passe-oublie" ||
+      path === "/reinitialiser-mot-de-passe" ||
+      path === "/verification-email" ||
+      path === "/verification-otp"
+    ) {
+      const mainHost = host.replace(/^(staff|admin|f)\./i, "");
       const proto = req.headers.get("x-forwarded-proto") || "https";
       const redirectUrl = new URL(path + req.nextUrl.search, `${proto}://${mainHost}`);
       return NextResponse.redirect(redirectUrl);
@@ -82,13 +92,6 @@ export default async function middleware(req: NextRequest) {
         url.pathname = "/back-office";
         return NextResponse.redirect(url);
       }
-    }
-
-    // Accès à /connexion ou /login sur le sous-domaine staff -> renvoi vers /back-office
-    if (path === "/connexion" || path === "/login") {
-      const url = req.nextUrl.clone();
-      url.pathname = "/back-office";
-      return NextResponse.redirect(url);
     }
 
     // Raccourcis directs : staff.get-admission.com/dossiers -> /admin/dossiers
