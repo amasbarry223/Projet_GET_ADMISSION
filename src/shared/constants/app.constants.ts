@@ -1,11 +1,11 @@
 /** Configuration générale de l'application. */
 export const APP_NAME = "GET Admission";
 
-/** Durée de session NextAuth (24 heures). */
-export const SESSION_MAX_AGE_SECONDS = 24 * 60 * 60;
+/** Durée de session NextAuth (4 minutes). */
+export const SESSION_MAX_AGE_SECONDS = 4 * 60;
 
-/** Revalidation JWT rôle/actif depuis la DB (au plus toutes les 30 s). */
-export const JWT_REVALIDATE_INTERVAL_MS = 30 * 1000;
+/** Revalidation JWT rôle/actif depuis la DB (au plus toutes les 15 s). */
+export const JWT_REVALIDATE_INTERVAL_MS = 15 * 1000;
 
 export const PAGINATION = {
   DEFAULT_PAGE: 1,

@@ -234,14 +234,10 @@ export async function PUT(request: Request) {
       { status: 400 }
     );
   }
-  const targetKycType = (target.kycType || "passeport").toLowerCase().trim();
-  const needsVerso = targetKycType === "cni" || targetKycType.includes("carte");
-  if (verifie && (!target.kycRectoPath || (needsVerso && !target.kycVersoPath))) {
+  if (verifie && !target.kycRectoPath) {
     return NextResponse.json(
       {
-        error: needsVerso
-          ? "Impossible de valider le KYC sans les 2 fichiers distincts du recto et du verso téléversés."
-          : "Impossible de valider le KYC sans le scan du passeport (recto).",
+        error: "Impossible de valider le KYC sans la pièce d'identité (recto) téléversée.",
       },
       { status: 400 }
     );

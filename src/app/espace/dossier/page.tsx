@@ -192,13 +192,8 @@ function DossierWizard() {
       .catch(() => null);
   }, []);
 
-  const kycTypeLower = (userProfile?.kycType || "passeport").toLowerCase().trim();
-  const isCni = kycTypeLower === "cni" || kycTypeLower.includes("carte");
-  const needsVerso = isCni;
   const isKycComplete = Boolean(
-    userProfile?.kycNumero?.trim() &&
-      userProfile?.kycRectoPath &&
-      (!needsVerso || userProfile?.kycVersoPath),
+    userProfile?.kycNumero?.trim() && userProfile?.kycRectoPath,
   );
 
   const missingObligatoires = listPiecesManquantes(visiblePieces);

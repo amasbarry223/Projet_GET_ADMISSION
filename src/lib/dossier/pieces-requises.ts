@@ -372,6 +372,34 @@ export function isPiecePassportOrCni(piece: { libelle?: string | null; code?: st
   });
 }
 
+/**
+ * Liste de mots-clés génériques de formations (CV, Diplôme, Relevé, etc.)
+ * qui ne doivent pas être rajoutés au-dessus de la matrice documentaire du profil académique.
+ */
+const IGNORED_FORMATION_PIECES = [
+  "cv",
+  "curriculum",
+  "diplome",
+  "diplôme",
+  "diplome de bac",
+  "diplôme de bac",
+  "diplome de licence",
+  "diplôme de licence",
+  "diplome bac+2",
+  "diplôme bac+2",
+  "diplome de bac+3",
+  "diplôme de bac+3",
+  "releve",
+  "relevé",
+  "releve de notes",
+  "relevé de notes",
+  "releves de notes",
+  "relevés de notes",
+  "lettre de motivation",
+  "lettre",
+  "motivation",
+];
+
 export function mergePiecesFormation(
   profilPieces: PieceRequise[],
   formationPiecesRequises: string[] | string | null | undefined
@@ -388,23 +416,25 @@ export function mergePiecesFormation(
     if (!trimmed) continue;
     // Ignorer les pièces d'identité : gérées exclusivement via le module KYC.
     if (isPiecePassportOrCni({ libelle: trimmed })) continue;
+    // Ignorer les pièces génériques (CV, diplômes génériques, relevés, lettre de motivation) :
+    // toute l'arborescence des pièces est gérée dynamiquement par la matrice documentaire.
+    const cleanLabel = trimmed.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    if (IGNORED_FORMATION_PIECES.some((ignored) => cleanLabel === ignored || cleanLabel.startsWith(ignored))) {
+      continue;
+    }
     const slug = slugifyCode(trimmed);
-    const isLettreMotivation =
-      trimmed.toLowerCase().includes("motivation") ||
-      trimmed.toLowerCase().includes("lettre") ||
-      slug.includes("MOTIVATION");
     pushUnique(list, {
       code: `FORM_${slug || "AUTRE"}`,
       libelle: trimmed,
       categorie: "complementaire",
-      obligatoire: !isLettreMotivation,
+      obligatoire: false,
     });
   }
 
   return list;
 }
 
-/** Profil + pièces formation → liste complète pour sync. */
+/** Profil + pièces formation → liste complète pour sync (fondée sur la matrice documentaire). */
 export function buildPiecesDossier(
   profil: ProfilAcademiqueInput,
   formationPiecesRequises?: string[] | string | null

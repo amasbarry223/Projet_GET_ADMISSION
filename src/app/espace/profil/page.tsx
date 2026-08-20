@@ -451,25 +451,22 @@ export default function ProfilPage() {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                {(["recto", "verso"] as const).map((side) => {
-                  const hasFile = side === "recto" ? !!profile.kycRectoPath : !!profile.kycVersoPath;
+              <div className="grid gap-3 sm:grid-cols-1">
+                {(() => {
+                  const hasFile = !!profile.kycRectoPath;
                   return (
                     <div
-                      key={side}
                       className="flex flex-col items-center justify-between rounded-lg border border-dashed border-ligne bg-card p-5 text-center transition-colors hover:border-lapis/40"
                     >
                       <div className="flex flex-col items-center">
                         <Upload className="h-5 w-5 text-ardoise" strokeWidth={1.5} />
                         <p className="mt-2 text-xs font-medium text-encre">
-                          {side === "recto" ? "Recto de la pièce" : "Verso de la pièce"}
+                          Pièce d&apos;identité (Recto / Page photo)
                         </p>
                         <p className="text-[11px] text-ardoise">
                           {hasFile
                             ? "Document téléversé"
-                            : side === "verso" && (profile.kycType ?? "passeport") === "passeport"
-                              ? "Optionnel pour passeport"
-                              : "Requis"}
+                            : "Requis (Passeport ou CNI)"}
                         </p>
                       </div>
 
@@ -480,7 +477,7 @@ export default function ProfilPage() {
                             variant="outline"
                             size="sm"
                             className="h-8 text-xs gap-1.5 bg-porcelaine/60"
-                            onClick={() => window.open(`/api/profile/kyc?side=${side}`, "_blank")}
+                            onClick={() => window.open(`/api/profile/kyc?side=recto`, "_blank")}
                           >
                             <Eye className="h-3.5 w-3.5 text-lapis" /> Voir le document
                           </Button>
@@ -493,13 +490,13 @@ export default function ProfilPage() {
                             type="file"
                             accept=".pdf,.jpg,.jpeg,.png,.webp"
                             className="sr-only"
-                            aria-label={`Téléverser le ${side} de la pièce d'identité`}
+                            aria-label="Téléverser la pièce d'identité (Recto / Page photo)"
                             onChange={async (e) => {
                               const file = e.target.files?.[0];
                               if (!file) return;
                               const fd = new FormData();
                               fd.append("file", file);
-                              fd.append("side", side);
+                              fd.append("side", "recto");
                               if (profile.kycType) fd.append("kycType", profile.kycType);
                               if (profile.kycNumero) fd.append("kycNumero", profile.kycNumero);
                               const res = await fetch("/api/profile/kyc", { method: "POST", body: fd });
@@ -511,7 +508,7 @@ export default function ProfilPage() {
                                 return;
                               }
                               setProfile((p) => (p ? { ...p, ...data.user } : p));
-                              toast.success(`${side === "recto" ? "Recto" : "Verso"} téléversé`);
+                              toast.success("Pièce d'identité téléversée");
                               e.target.value = "";
                             }}
                           />
@@ -519,7 +516,7 @@ export default function ProfilPage() {
                       </div>
                     </div>
                   );
-                })}
+                })()}
               </div>
 
               <div className="flex items-center gap-2 rounded-md border border-ligne bg-card p-3 text-xs text-ardoise">

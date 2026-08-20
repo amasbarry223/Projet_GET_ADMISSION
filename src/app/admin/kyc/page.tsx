@@ -5,10 +5,9 @@ import { KycClient, type KycRow } from "@/components/admin/kyc-client";
 function kycStatus(row: {
   kycVerifie: boolean;
   kycRectoPath: string | null;
-  kycVersoPath: string | null;
 }): KycRow["statut"] {
   if (row.kycVerifie) return "verifie";
-  if (row.kycRectoPath || row.kycVersoPath) return "en_attente";
+  if (row.kycRectoPath) return "en_attente";
   return "incomplet";
 }
 

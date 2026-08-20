@@ -283,9 +283,8 @@ function DetailPanel({
   onDeletePiece: (side: "recto" | "verso") => void;
   pieceBusy: boolean;
 }) {
-  const needsVerso = row.kycType === "cni" || !row.kycType;
-  const canValidate = !row.kycVerifie && (row.hasRecto || row.hasVerso);
-  const isEmptyDossier = !row.hasRecto && !row.hasVerso && !row.kycType && !row.kycNumero;
+  const canValidate = !row.kycVerifie && row.hasRecto;
+  const isEmptyDossier = !row.hasRecto && !row.kycType && !row.kycNumero;
   const name = displayName(row);
   const dateLabel = row.kycVerifie ? "Vérifié le" : "Mis à jour";
   const dateValue =
@@ -306,18 +305,9 @@ function DetailPanel({
     },
     {
       done: row.hasRecto,
-      label: "Face recto",
+      label: "Pièce d'identité (Recto / Page photo)",
       detail: row.hasRecto ? "Fichier disponible" : "Upload manquant",
     },
-    ...(needsVerso
-      ? [
-          {
-            done: row.hasVerso,
-            label: "Face verso",
-            detail: row.hasVerso ? "Fichier disponible" : "Upload manquant",
-          },
-        ]
-      : []),
   ];
   const doneCount = checks.filter((c) => c.done).length;
   const progress = Math.round((doneCount / checks.length) * 100);
@@ -434,31 +424,20 @@ function DetailPanel({
           </dl>
         </section>
 
-        {/* Slots pièces */}
+        {/* Slot pièce */}
         <section>
           <div className="flex items-baseline justify-between gap-2">
-            <h3 className="text-xs font-medium uppercase tracking-wide text-ardoise">Pièces</h3>
+            <h3 className="text-xs font-medium uppercase tracking-wide text-ardoise">Pièce d&apos;identité</h3>
             <span className="font-mono text-[10px] text-ardoise">
-              {[row.hasRecto, needsVerso ? row.hasVerso : row.hasRecto].filter(Boolean).length}/
-              {needsVerso ? 2 : 1}
+              {row.hasRecto ? "1/1" : "0/1"}
             </span>
           </div>
-          <div className="mt-2.5 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <div className="mt-2.5 grid grid-cols-1 gap-2.5">
             <PieceSlot
               side="recto"
               present={row.hasRecto}
               userId={row.id}
-              needsVerso={needsVerso}
-              canWrite={canWrite}
-              onReplace={onReplace}
-              onDelete={onDeletePiece}
-              busy={pieceBusy}
-            />
-            <PieceSlot
-              side="verso"
-              present={row.hasVerso}
-              userId={row.id}
-              needsVerso={needsVerso}
+              needsVerso={false}
               canWrite={canWrite}
               onReplace={onReplace}
               onDelete={onDeletePiece}
@@ -624,21 +603,15 @@ export function KycClient({ initialData }: { initialData: KycRow[] }) {
         onClick: (row) => openDetail(row),
       },
       {
-        label: "Voir recto",
+        label: "Voir la pièce",
         icon: FileImage,
         hidden: (row) => !row.hasRecto,
         onClick: (row) => window.open(`/api/profile/kyc?side=recto&userId=${row.id}`, "_blank"),
       },
       {
-        label: "Voir verso",
-        icon: FileImage,
-        hidden: (row) => !row.hasVerso,
-        onClick: (row) => window.open(`/api/profile/kyc?side=verso&userId=${row.id}`, "_blank"),
-      },
-      {
         label: "Valider le KYC",
         icon: ShieldCheck,
-        hidden: (row) => !canWrite || row.kycVerifie || (!row.hasRecto && !row.hasVerso),
+        hidden: (row) => !canWrite || row.kycVerifie || !row.hasRecto,
         onClick: (row) => void setKyc(row.id, true),
       },
       {

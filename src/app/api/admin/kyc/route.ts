@@ -7,10 +7,9 @@ export type KycStatus = "en_attente" | "verifie" | "incomplet";
 function kycStatus(row: {
   kycVerifie: boolean;
   kycRectoPath: string | null;
-  kycVersoPath: string | null;
 }): KycStatus {
   if (row.kycVerifie) return "verifie";
-  if (row.kycRectoPath || row.kycVersoPath) return "en_attente";
+  if (row.kycRectoPath) return "en_attente";
   return "incomplet";
 }
 
