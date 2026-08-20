@@ -46,22 +46,39 @@ type CandidateNextAction = {
   cta: string;
 };
 
-function getNextCandidateAction(params: {
+function getNextCandidateAction({
+  etatUpper,
+  etatInfo,
+  payePartiel,
+  fraisAgence,
+  universiteNom,
+  attestationPret,
+  motifCorrection,
+  hasRefuse,
+  dossierId,
+}: {
   etatUpper: string;
-  etatInfo: { libelle: string; description: string };
+  etatInfo: ReturnType<typeof etatParCode>;
   payePartiel: boolean;
   fraisAgence: number;
   universiteNom: string;
   attestationPret: boolean;
   motifCorrection?: string | null;
+  hasRefuse?: boolean;
+  dossierId?: string;
 }): CandidateNextAction {
-  const { etatUpper, etatInfo, payePartiel, fraisAgence, universiteNom, attestationPret, motifCorrection } =
-    params;
-
+  if (hasRefuse || etatUpper === "REFUSE") {
+    return {
+      titre: "Candidature non retenue",
+      desc: `Votre candidature auprès de ${universiteNom} n'a pas abouti. Vous pouvez dès maintenant déposer une nouvelle candidature (Privée ou Publique) sans ressaisir vos pièces.`,
+      href: dossierId ? `/espace/dossier?nouvelle=true&sourceId=${dossierId}` : "/espace/dossier?nouvelle=true",
+      cta: "Déposer une nouvelle candidature",
+    };
+  }
   if (etatUpper === "BROUILLON") {
     return {
-      titre: "Finalisez votre dossier",
-      desc: "Complétez les étapes du formulaire et soumettez pour entrer en file de traitement.",
+      titre: "Compléter votre dossier",
+      desc: "Finalisez vos pièces requises et confirmez les informations avant la date limite.",
       href: "/espace/dossier",
       cta: "Continuer mon dossier",
     };
@@ -98,14 +115,6 @@ function getNextCandidateAction(params: {
       desc: "Votre attestation de pré-inscription est prête à télécharger ou à retirer.",
       href: "/espace/attestation",
       cta: "Voir l'attestation",
-    };
-  }
-  if (etatUpper === "REFUSE") {
-    return {
-      titre: "Candidature non retenue",
-      desc: "Votre candidature n'a pas abouti pour cette formation. Vous pouvez déposer une nouvelle candidature (Privée ou Publique) sans ressaisir vos pièces.",
-      href: "/espace/dossier?nouvelle=true",
-      cta: "Déposer une nouvelle candidature",
     };
   }
   return {
@@ -200,9 +209,12 @@ function EspaceDashboardInner() {
     .reverse()
     .find((h) => h.etat.toLowerCase() === d.etat.toLowerCase())?.note;
   const etatUpper = d.etat.toUpperCase();
+  const hasRefuse =
+    etatUpper === "REFUSE" ||
+    (d.historiques ?? []).some((h: { etat: string }) => h.etat.toUpperCase() === "REFUSE");
   const payeComplet = d.paiementStatut === "complet";
   const payePartiel = d.paiementStatut === "partiel";
-  const attestationPret = etatUpper === "ATTESTATION" || etatUpper === "CLOTURE";
+  const attestationPret = !hasRefuse && (etatUpper === "ATTESTATION" || etatUpper === "CLOTURE");
   const coverSrc = univ.coverUrl || "/images/campus-sorbonne.jpg";
 
   const demandesCorrection = d.demandesCorrection ?? [];
@@ -217,6 +229,8 @@ function EspaceDashboardInner() {
     universiteNom: univ.nom,
     attestationPret,
     motifCorrection: motifCorrectionActuel,
+    hasRefuse,
+    dossierId: d.id,
   });
 
   const secondaryNotes: string[] = [];
@@ -388,23 +402,23 @@ function EspaceDashboardInner() {
         <KpiCard
           icon={Stamp}
           label="Attestation"
-          value={attestationPret ? "Prête" : "—"}
-          suffix={attestationPret ? "disponible" : "Non disponible"}
-          tone={attestationPret ? "vert" : "violet"}
+          value={hasRefuse ? "Non émise" : attestationPret ? "Prête" : "—"}
+          suffix={hasRefuse ? "Candidature refusée" : attestationPret ? "disponible" : "Non disponible"}
+          tone={hasRefuse ? "carmin" : attestationPret ? "vert" : "violet"}
         />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <Card className="overflow-hidden border-border bg-card/60 p-0 shadow-sm backdrop-blur-md">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-4">
-            <ChartSectionHeader eyebrow="Suivi" title="Les 12 étapes de votre dossier" />
+            <ChartSectionHeader eyebrow="Suivi" title="Les étapes de votre dossier" />
             <div className="flex flex-wrap items-center gap-2">
               <Badge className={cn("border font-mono text-[10px] uppercase tracking-wider", liveMeta.tone)}>
                 <Radio className={cn("mr-1 h-3 w-3", liveStatus === "live" && "animate-pulse")} strokeWidth={2} />
                 {liveMeta.text}
               </Badge>
               <Badge className="bg-primary/20 font-mono text-[11px] uppercase text-primary">
-                Étape {workflowStep} / 12
+                {hasRefuse ? (etatUpper === "REFUSE" ? "Refusé" : "Clôturé") : `Étape ${workflowStep} / 12`}
               </Badge>
             </div>
           </div>

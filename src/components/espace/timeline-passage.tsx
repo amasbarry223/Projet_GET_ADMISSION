@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Check, CircleDot, Lock, X } from "lucide-react";
+import { Check, CircleDot, X } from "lucide-react";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -41,8 +41,24 @@ export function TimelinePassage({
   const reduce = useReducedMotion();
   const dates = datesMap(dateParEtat);
   const current = etats.find((e) => e.ordre === etapeActuelle) ?? etats[0];
-  const isRefuse = current?.code === "refuse" || current?.categorie === "refuse";
-  const progressPct = Math.min(100, Math.max(0, ((etapeActuelle - 1) / 11) * 100));
+
+  // Le dossier est dans la branche refus s'il est actuellement 'refuse', ou si 'refuse' est présent dans les dates/historique
+  const hasRefuse = current?.code === "refuse" || dates.has("refuse") || current?.categorie === "refuse";
+
+  // Adapter la timeline pour afficher uniquement la trajectoire réelle :
+  // Branche Refus : Exclure 'pre_admission' et 'attestation' (passage direct vers Refusé -> Clôturé)
+  // Branche Favorable : Exclure 'refuse' de la suite séquentielle
+  const visibleEtats = React.useMemo(() => {
+    if (hasRefuse) {
+      return etats.filter((e) => e.code !== "pre_admission" && e.code !== "attestation");
+    }
+    return etats.filter((e) => e.code !== "refuse");
+  }, [etats, hasRefuse]);
+
+  const totalSteps = visibleEtats.length;
+  const currentIndex = visibleEtats.findIndex((e) => e.code === current?.code);
+  const displayStepNumber = currentIndex >= 0 ? currentIndex + 1 : 1;
+  const progressPct = Math.min(100, Math.max(0, ((displayStepNumber - 1) / Math.max(1, totalSteps - 1)) * 100));
 
   const listRef = React.useRef<HTMLOListElement>(null);
 
@@ -68,7 +84,10 @@ export function TimelinePassage({
                 animate={{ opacity: 1, y: 0 }}
                 {...(!reduce ? { exit: { opacity: 0, y: -6 } } : {})}
                 transition={{ duration: 0.28 }}
-                className="mt-1 font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl"
+                className={cn(
+                  "mt-1 font-display text-xl font-bold tracking-tight sm:text-2xl",
+                  hasRefuse && current?.code === "refuse" ? "text-destructive" : "text-foreground",
+                )}
               >
                 {current?.libelle}
               </motion.h3>
@@ -81,12 +100,13 @@ export function TimelinePassage({
             <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1">
               <span
                 className={cn(
-                  "h-1.5 w-1.5 rounded-full bg-primary",
+                  "h-1.5 w-1.5 rounded-full",
+                  hasRefuse && current?.code === "refuse" ? "bg-destructive" : "bg-primary",
                   live && "animate-pulse",
                 )}
               />
               <span className="font-mono text-[10px] uppercase tracking-wider text-primary">
-                {live ? "Live" : "Sync"} · {String(etapeActuelle).padStart(2, "0")}/12
+                {live ? "Live" : "Sync"} · {String(displayStepNumber).padStart(2, "0")}/{String(totalSteps).padStart(2, "0")}
               </span>
             </div>
           </div>
@@ -95,7 +115,12 @@ export function TimelinePassage({
         <div className="mt-4">
           <div className="relative h-2 overflow-hidden rounded-full bg-border/70">
             <motion.div
-              className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-primary/80 to-primary"
+              className={cn(
+                "absolute inset-y-0 left-0 rounded-full",
+                hasRefuse && current?.code === "refuse"
+                  ? "bg-gradient-to-r from-destructive/80 to-destructive"
+                  : "bg-gradient-to-r from-primary/80 to-primary",
+              )}
               initial={false}
               animate={{ width: `${progressPct}%` }}
               transition={{ type: "spring", stiffness: 120, damping: 22 }}
@@ -103,25 +128,23 @@ export function TimelinePassage({
           </div>
           <div className="mt-2 flex justify-between font-mono text-[10px] text-muted-foreground">
             <span>Départ</span>
-            <span>Attestation</span>
+            <span>{hasRefuse ? "Clôture sans suite" : "Attestation & Clôture"}</span>
           </div>
         </div>
       </div>
 
-      {/* Liste des 12 étapes */}
+      {/* Liste des étapes filtrées selon la trajectoire réelle */}
       <ol ref={listRef} className="relative space-y-0">
         <span
           className="absolute left-[19px] top-3 bottom-3 w-px bg-gradient-to-b from-primary/50 via-border to-border"
           aria-hidden
         />
-        {etats.map((etat, index) => {
-          const isPast = etat.ordre < etapeActuelle;
-          const isCurrent = etat.ordre === etapeActuelle;
-          const skipped =
-            isRefuse && etat.ordre > etapeActuelle && etat.code !== "refuse";
-          const isFuture = etat.ordre > etapeActuelle && !skipped;
+        {visibleEtats.map((etat, index) => {
+          const isPast = index < currentIndex;
+          const isCurrent = index === currentIndex;
+          const isFuture = index > currentIndex;
           const date = dates.get(etat.code.toLowerCase()) ?? dates.get(etat.code);
-          const isTerminalRefuse = etat.code === "refuse" && isCurrent;
+          const isTerminalRefuse = etat.code === "refuse";
           const isTerminalCloture = etat.code === "cloture" && isCurrent;
 
           return (
@@ -134,42 +157,50 @@ export function TimelinePassage({
               transition={{ delay: reduce ? 0 : Math.min(index * 0.03, 0.35), duration: 0.35 }}
               className={cn(
                 "relative flex gap-4 py-2.5 pl-0",
-                isCurrent && "rounded-xl bg-primary/[0.06] px-2 -mx-2 sm:px-3 sm:-mx-3",
+                isCurrent &&
+                  (isTerminalRefuse
+                    ? "rounded-xl bg-destructive/[0.06] px-2 -mx-2 sm:px-3 sm:-mx-3"
+                    : "rounded-xl bg-primary/[0.06] px-2 -mx-2 sm:px-3 sm:-mx-3"),
               )}
             >
               <span
                 className={cn(
                   "relative z-10 mt-0.5 flex h-10 w-10 flex-none items-center justify-center rounded-full border-2 text-xs font-semibold shadow-sm transition-colors",
-                  isPast && "border-primary bg-primary text-primary-foreground",
+                  isPast &&
+                    (etat.code === "refuse"
+                      ? "border-destructive bg-destructive text-destructive-foreground"
+                      : "border-primary bg-primary text-primary-foreground"),
                   isCurrent &&
                     !isTerminalRefuse &&
                     "border-primary bg-card text-primary ring-4 ring-primary/15",
-                  isTerminalRefuse && "border-destructive bg-destructive text-destructive-foreground",
+                  isCurrent &&
+                    isTerminalRefuse &&
+                    "border-destructive bg-destructive text-destructive-foreground ring-4 ring-destructive/15",
                   isFuture && "border-border bg-card text-muted-foreground",
-                  skipped && "border-dashed border-muted-foreground/40 bg-muted/40 text-muted-foreground",
                 )}
               >
                 {isPast ? (
-                  <Check className="h-4 w-4" strokeWidth={2.5} />
-                ) : isTerminalRefuse ? (
+                  etat.code === "refuse" ? (
+                    <X className="h-4 w-4" strokeWidth={2.5} />
+                  ) : (
+                    <Check className="h-4 w-4" strokeWidth={2.5} />
+                  )
+                ) : isCurrent && isTerminalRefuse ? (
                   <X className="h-4 w-4" strokeWidth={2.5} />
                 ) : isCurrent ? (
                   <CircleDot className={cn("h-4 w-4", live && "animate-pulse")} strokeWidth={2} />
-                ) : skipped ? (
-                  <Lock className="h-3.5 w-3.5" strokeWidth={2} />
                 ) : (
-                  <span className="font-mono text-[11px]">{String(etat.ordre).padStart(2, "0")}</span>
+                  <span className="font-mono text-[11px]">{String(index + 1).padStart(2, "0")}</span>
                 )}
               </span>
 
-              <div className={cn("min-w-0 flex-1 pt-1", (isFuture || skipped) && "opacity-50")}>
+              <div className={cn("min-w-0 flex-1 pt-1", isFuture && "opacity-50")}>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <p
                     className={cn(
                       "text-sm font-semibold tracking-tight",
-                      isCurrent && "text-primary",
-                      isTerminalRefuse && "text-destructive",
-                      !isCurrent && "text-foreground",
+                      isCurrent && (isTerminalRefuse ? "text-destructive" : "text-primary"),
+                      !isCurrent && (etat.code === "refuse" ? "text-destructive" : "text-foreground"),
                     )}
                   >
                     {etat.libelle}
@@ -188,12 +219,7 @@ export function TimelinePassage({
                           : "bg-primary/15 text-primary",
                       )}
                     >
-                      {isTerminalRefuse ? "Terminé" : isTerminalCloture ? "Fin" : "En cours"}
-                    </span>
-                  )}
-                  {skipped && (
-                    <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-                      Non applicable
+                      {isTerminalRefuse ? "Refusé" : isTerminalCloture ? "Fin" : "En cours"}
                     </span>
                   )}
                 </div>

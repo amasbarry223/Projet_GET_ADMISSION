@@ -215,9 +215,12 @@ function AttestationInner() {
 
   const d = dossier;
   const etatUpper = d.etat.toUpperCase();
-  const isIssued = !!displayAttestation;
-  const phaseAttestation = etatUpper === "ATTESTATION" || etatUpper === "CLOTURE";
   const historiques = d.historiques ?? [];
+  const hasRefuse =
+    etatUpper === "REFUSE" ||
+    historiques.some((h: { etat: string }) => h.etat.toUpperCase() === "REFUSE");
+  const isIssued = !hasRefuse && !!displayAttestation;
+  const phaseAttestation = !hasRefuse && (etatUpper === "ATTESTATION" || etatUpper === "CLOTURE");
   const preAdmissionEntry = historiques.find(
     (h: { etat: string; date: string }) => h.etat.toUpperCase() === "PRE_ADMISSION",
   );
@@ -245,6 +248,36 @@ function AttestationInner() {
             </button>
           </AlertDescription>
         </Alert>
+      ) : hasRefuse ? (
+        <div className="rounded-2xl border border-destructive/25 bg-destructive/[0.04] p-6 sm:p-8 space-y-4">
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+              <AlertCircle className="h-6 w-6" strokeWidth={1.5} />
+            </div>
+            <div>
+              <h2 className="font-display text-lg font-bold text-foreground sm:text-xl">
+                Aucune attestation pour cette candidature
+              </h2>
+              <p className="text-xs font-medium text-muted-foreground">
+                Candidature refusée par l&apos;établissement
+              </p>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Votre dossier auprès de <strong className="text-foreground">{d.universite.nom}</strong> a été décliné. 
+            Aucune attestation de pré-inscription n&apos;est délivrée pour une candidature refusée. Vous pouvez dès maintenant déposer une <strong>nouvelle candidature</strong> dans un autre établissement ou en procédure publique sans avoir à re-téléverser vos documents.
+          </p>
+          <div className="pt-2 flex flex-wrap items-center gap-3">
+            <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
+              <Link href={`/espace/dossier?nouvelle=true&sourceId=${dossier.id}`}>
+                Déposer une nouvelle candidature <ArrowRight className="ml-1.5 h-4 w-4" strokeWidth={1.5} />
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/espace">Retour au tableau de bord</Link>
+            </Button>
+          </div>
+        </div>
       ) : isIssued ? (
         <Alert className="border-vert/30 bg-vert/5 p-6">
           <CheckCircle2 className="h-5 w-5 text-vert" strokeWidth={1.5} />
