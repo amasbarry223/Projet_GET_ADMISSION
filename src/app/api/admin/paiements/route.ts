@@ -56,6 +56,17 @@ export async function POST(request: Request) {
         throw new Error("NOT_PAYABLE");
       }
 
+      // Vérification que le candidat a bien déclaré son souhait de paiement dans la messagerie avec son conseiller
+      const messagePaiement = await tx.message.findFirst({
+        where: {
+          conversation: { dossierId },
+          auteurId: dossier.candidatId,
+        },
+      });
+      if (!messagePaiement) {
+        throw new Error("NO_PAYMENT_MESSAGE_DECLARED");
+      }
+
       const created = await tx.paiement.create({
         data: {
           reference: ref,
@@ -106,6 +117,15 @@ export async function POST(request: Request) {
     if (msg === "NOT_PAYABLE") {
       return NextResponse.json(
         { error: "Ce dossier n'est pas encore en phase de paiement (vérification staff requise)." },
+        { status: 400 },
+      );
+    }
+    if (msg === "NO_PAYMENT_MESSAGE_DECLARED") {
+      return NextResponse.json(
+        {
+          error:
+            "Validation impossible : le candidat doit d'abord déclarer son souhait de paiement dans la messagerie avec son conseiller.",
+        },
         { status: 400 },
       );
     }

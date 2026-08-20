@@ -192,7 +192,7 @@ export async function notifyMessageInterne(opts: {
   );
 }
 
-/** Notifie (in-app) le staff Finance, Admin et Super Admin d'une demande de remboursement soumise par un candidat. */
+/** Notifie (in-app) l'Admin et le Super Admin d'une demande de remboursement soumise par un candidat avec accès direct à la messagerie du dossier. */
 export async function notifyStaffDemandeRemboursement(opts: {
   dossierId: string;
   dossierReference: string;
@@ -202,7 +202,7 @@ export async function notifyStaffDemandeRemboursement(opts: {
   motif?: string | undefined;
 }) {
   const destinataires = await db.user.findMany({
-    where: { role: { in: ["FINANCIER", "ADMIN", "SUPER_ADMIN"] }, actif: true },
+    where: { role: { in: ["ADMIN", "SUPER_ADMIN", "FINANCIER"] }, actif: true },
     select: { id: true },
   });
 
@@ -217,7 +217,7 @@ export async function notifyStaffDemandeRemboursement(opts: {
         titre: `Demande de remboursement — ${opts.paiementReference}`,
         message,
         type: "paiement",
-        lien: `/admin/finance`,
+        lien: `/admin/dossiers/${opts.dossierId}?tab=messages`,
         dossierId: opts.dossierId,
       }),
     ),

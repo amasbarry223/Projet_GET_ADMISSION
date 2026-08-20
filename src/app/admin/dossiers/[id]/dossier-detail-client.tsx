@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { hasPermission } from "@/lib/rbac";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -218,8 +218,14 @@ export default function DossierDetailClient() {
   const [attestationFile, setAttestationFile] = React.useState<File | null>(null);
   const [uploadingAttestation, setUploadingAttestation] = React.useState(false);
   const adminChatScrollRef = React.useRef<HTMLDivElement>(null);
-
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const [activeTab, setActiveTab] = React.useState<string>(
+    tabParam === "messages" || tabParam === "pieces" || tabParam === "paiements" || tabParam === "historique"
+      ? tabParam
+      : "profil",
+  );
   const canDeleteDossier = hasPermission(session?.user?.role, "dossiers.write");
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
@@ -500,7 +506,7 @@ export default function DossierDetailClient() {
   const etablissementNonAffecte = !!dossier.universite.estPlaceholder;
   const isAssignedToConseiller = Boolean(dossier.conseiller);
   const isCurrentConseiller = isAssignedToConseiller && session?.user?.id === dossier.conseiller?.id;
-  const isRestrictedForConseiller = isAssignedToConseiller && !isCurrentConseiller;
+  const isRestrictedForConseiller = isConseiller && isAssignedToConseiller && !isCurrentConseiller;
 
   const openAssignDialog = () => {
     setSelectedConseillerId("");
@@ -668,7 +674,7 @@ export default function DossierDetailClient() {
 
       <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
         {/* Main: tabs */}
-        <Tabs defaultValue="profil" onValueChange={handleTabChange}>
+        <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); handleTabChange(val); }}>
           <TabsList className="bg-porcelaine">
             <TabsTrigger value="profil"><User className="mr-1.5 h-3.5 w-3.5" /> Profil candidat</TabsTrigger>
             <TabsTrigger value="pieces"><FileText className="mr-1.5 h-3.5 w-3.5" /> Pièces</TabsTrigger>

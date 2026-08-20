@@ -12,6 +12,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
  *   pour porter une session staff totalement indépendante dans le même navigateur.
  * - React Query (cache partagé dossiers espace candidat)
  */
+import { IdleSessionTimer } from "@/components/idle-session-timer";
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
@@ -27,6 +29,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <SessionProvider basePath="/api/auth/candidat">
+      <IdleSessionTimer portal="candidat" />
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </SessionProvider>
   );

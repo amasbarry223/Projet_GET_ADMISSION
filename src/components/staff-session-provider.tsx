@@ -10,6 +10,13 @@ import { SessionProvider } from "next-auth/react";
  * Ce wrapper local, comme src/components/providers.tsx pour le portail candidat, est le point
  * de passage "use client" obligatoire pour le portail staff (/admin, /back-office).
  */
+import { IdleSessionTimer } from "@/components/idle-session-timer";
+
 export function StaffSessionProvider({ children }: { children: React.ReactNode }) {
-  return <SessionProvider basePath="/api/auth/staff">{children}</SessionProvider>;
+  return (
+    <SessionProvider basePath="/api/auth/staff">
+      <IdleSessionTimer portal="staff" />
+      {children}
+    </SessionProvider>
+  );
 }

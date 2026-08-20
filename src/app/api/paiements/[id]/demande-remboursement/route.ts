@@ -78,7 +78,33 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     },
   });
 
-  // 2. Notifier le staff (Finance / Admin / Super Admin)
+  // 2. Poster le message dans la messagerie du dossier
+  let conversation = await db.conversation.findUnique({ where: { dossierId: dossier.id } });
+  if (!conversation) {
+    conversation = await db.conversation.create({
+      data: {
+        dossierId: dossier.id,
+        candidatId: userId,
+        conseillerId: dossier.conseillerId ?? null,
+      },
+    });
+  }
+
+  const messageTexte = `Demande de remboursement — Paiement ${paiement.reference} (${montantFormate}).${motif ? ` Motif : ${motif}` : " Je souhaite échanger avec l'administration concernant les détails du remboursement."}`;
+  await db.message.create({
+    data: {
+      conversationId: conversation.id,
+      auteurId: userId,
+      texte: messageTexte,
+    },
+  });
+
+  await db.conversation.update({
+    where: { id: conversation.id },
+    data: { nonLusConseiller: { increment: 1 } },
+  });
+
+  // 3. Notifier le staff (Admin / Super Admin)
   await notifyStaffDemandeRemboursement({
     dossierId: dossier.id,
     dossierReference: dossier.reference,
@@ -88,7 +114,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     motif,
   });
 
-  // 3. Journal d'audit
+  // 4. Journal d'audit
   await logAudit({
     session: auth.session,
     action: "CREATE",
