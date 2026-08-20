@@ -236,7 +236,6 @@ export async function POST(request: Request) {
         where: { id: sourceId, candidatId: userId },
         include: {
           pieces: { where: { cheminFichier: { not: null } } },
-          paiements: { where: { statut: "reussi" } },
         },
       });
     } else {
@@ -246,23 +245,11 @@ export async function POST(request: Request) {
         orderBy: { updatedAt: "desc" },
         include: {
           pieces: { where: { cheminFichier: { not: null } } },
-          paiements: { where: { statut: "reussi" } },
         },
       });
     }
 
-    // Calcul du report de paiement éventuel (Option A : Avoir / Report)
-    let initialPaiementStatut = "aucun";
-    let montantReporte = 0;
-    if (sourceDossier && sourceDossier.paiements.length > 0) {
-      montantReporte = sourceDossier.paiements.reduce((sum, p) => sum + p.montant, 0);
-      if (montantReporte >= fraisAgence) {
-        initialPaiementStatut = "complet";
-      } else if (montantReporte > 0) {
-        initialPaiementStatut = "partiel";
-      }
-    }
-
+    // Chaque nouvelle candidature exige un nouveau paiement dédié (aucun report de paiement)
     const created = await tx.dossier.create({
       data: {
         reference,
@@ -274,7 +261,7 @@ export async function POST(request: Request) {
         etat: "BROUILLON",
         etapeActuelle: 1,
         fraisAgence,
-        paiementStatut: initialPaiementStatut,
+        paiementStatut: "aucun",
         mrz,
       },
     });
@@ -325,33 +312,13 @@ export async function POST(request: Request) {
       }
     }
 
-    // Report comptable du paiement vers le nouveau dossier
-    if (montantReporte > 0 && sourceDossier) {
-      const nowYear = new Date().getFullYear();
-      const recRef = `REC-${nowYear}-REP-${Math.floor(1000 + Math.random() * 9000)}`;
-      await tx.paiement.create({
-        data: {
-          reference: recRef,
-          dossierId: created.id,
-          candidatId: userId,
-          montant: Math.min(montantReporte, fraisAgence),
-          moyen: "Report avoir (dossier refusé)",
-          statut: "reussi",
-          tranche: montantReporte >= fraisAgence ? "Report intégral" : "Acompte reporté",
-        },
-      });
-    }
-
     let noteHistorique =
       procedure === "PUBLIQUE"
         ? "Brouillon créé — procédure Université Publique : l'agence affectera l'établissement après étude du profil."
         : `Brouillon créé pour ${formation.intitule} — ${formation.universite.nom}`;
 
     if (sourceDossier) {
-      noteHistorique += ` (Nouvelle candidature suite au dossier ${sourceDossier.reference}).`;
-      if (montantReporte > 0) {
-        noteHistorique += ` Frais reportés : ${montantReporte} FCFA.`;
-      }
+      noteHistorique += ` (Nouvelle candidature faisant suite au dossier ${sourceDossier.reference}).`;
     }
 
     await tx.historique.create({
