@@ -290,8 +290,11 @@ export function buildPiecesRequises(profil: ProfilAcademiqueInput): PieceRequise
     // Bac : obligatoire seulement s'il l'a déjà obtenu ; sinon optionnel (ajout ultérieur)
     piecesBac(list, Boolean(profil.aObtenuBac));
   } else {
-    // BACHELIER — pas de bulletins lycée (hors redoublement déclaré)
+    // BACHELIER — diplôme & relevé de bac + bulletins de lycée (10e, 11e, Terminale) + études supérieures
     piecesBac(list, true);
+    bulletinsClasse(list, "BULLETIN_SECONDE", "Seconde (10ᵉ année)", 3);
+    bulletinsClasse(list, "BULLETIN_PREMIERE", "Première (11ᵉ année)", 3);
+    bulletinsClasse(list, "BULLETIN_TERMINALE", "Terminale (12ᵉ année)", 3);
     piecesSuperieur(
       list,
       profil.niveauEtudesSuperieures ?? "AUCUN",

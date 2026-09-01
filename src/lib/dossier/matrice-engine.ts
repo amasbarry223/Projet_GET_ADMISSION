@@ -150,16 +150,16 @@ export function buildPiecesFromRegles(
 
     switch (rule.condition) {
       case "BULLETINS_LYCEE": {
-        if (!isLyceen) break;
         const prefix = String(meta.prefix || rule.code);
         const label = String(meta.label || rule.libelle);
         const classe = String(meta.classe || "");
-        const trimestres =
-          classe === "SECONDE"
+        const trimestres = isLyceen
+          ? classe === "SECONDE"
             ? tSeconde
             : classe === "PREMIERE"
               ? tPremiere
-              : tTerminale;
+              : tTerminale
+          : 3;
         for (let t = 1; t <= trimestres; t++) {
           pushUnique(list, {
             code: `${prefix}_T${t}`,
