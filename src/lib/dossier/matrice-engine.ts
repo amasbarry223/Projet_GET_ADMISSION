@@ -161,11 +161,14 @@ export function buildPiecesFromRegles(
               : tTerminale
           : 3;
         for (let t = 1; t <= trimestres; t++) {
+          const isT3 = t === 3;
           pushUnique(list, {
             code: `${prefix}_T${t}`,
-            libelle: `Bulletin scolaire — ${label} — Trimestre ${t}`,
+            libelle: isT3
+              ? `Bulletin scolaire — ${label} — Trimestre ${t} (si disponible)`
+              : `Bulletin scolaire — ${label} — Trimestre ${t}`,
             categorie: "academique",
-            obligatoire: rule.obligatoire,
+            obligatoire: isT3 ? false : rule.obligatoire,
           });
         }
         break;

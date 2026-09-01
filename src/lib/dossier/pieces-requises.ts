@@ -130,11 +130,14 @@ function bulletinsClasse(
   obligatoire = true
 ) {
   for (let trimestreNumber = 1; trimestreNumber <= trimestres; trimestreNumber++) {
+    const isT3 = trimestreNumber === 3;
     pushUnique(list, {
       code: `${prefix}_T${trimestreNumber}`,
-      libelle: `Bulletin scolaire — ${labelClasse} — Trimestre ${trimestreNumber}`,
+      libelle: isT3
+        ? `Bulletin scolaire — ${labelClasse} — Trimestre ${trimestreNumber} (si disponible)`
+        : `Bulletin scolaire — ${labelClasse} — Trimestre ${trimestreNumber}`,
       categorie: "academique",
-      obligatoire,
+      obligatoire: isT3 ? false : obligatoire,
     });
   }
 }
