@@ -273,13 +273,9 @@ export async function PUT(
           kycVersoPath: true,
         },
       });
-      const kycTypeLower = (candidatUser?.kycType || "passeport").toLowerCase().trim();
-      const isCni = kycTypeLower === "cni" || kycTypeLower.includes("carte");
-      const needsVerso = isCni;
       const isKycComplete = Boolean(
         candidatUser?.kycNumero?.trim() &&
-        candidatUser?.kycRectoPath &&
-        (!needsVerso || candidatUser?.kycVersoPath)
+        candidatUser?.kycRectoPath
       );
 
       if (!isKycComplete) {

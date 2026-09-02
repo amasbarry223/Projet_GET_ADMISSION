@@ -171,10 +171,6 @@ function DossierWizard() {
     return visiblePieces.filter((piece) => piece.categorie !== "identite");
   }, [visiblePieces]);
 
-  const piecesIdentite = React.useMemo(() => {
-    return visiblePieces.filter((piece) => piece.categorie === "identite");
-  }, [visiblePieces]);
-
   const [userProfile, setUserProfile] = React.useState<{
     kycType?: string | null;
     kycNumero?: string | null;
@@ -325,12 +321,78 @@ function DossierWizard() {
     return false;
   };
 
-  const goNext = async () => {
+  const handleSaveKycInfo = async (data: { kycType: string; kycNumero: string }): Promise<boolean> => {
+    try {
+      const res = await fetch(API_ROUTES.PROFILE, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prenom: personalInfo.prenom,
+          nom: personalInfo.nom,
+          telephone: personalInfo.tel,
+          nationalite: personalInfo.nationalite,
+          ...(personalInfo.naissance ? { dateNaissance: personalInfo.naissance } : {}),
+          adresse: personalInfo.adresse,
+          kycType: data.kycType,
+          kycNumero: data.kycNumero,
+        }),
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toastApiErrorSync(res.status, { title: "Pièce d'identité", body: resData });
+        return false;
+      }
+      setUserProfile((prev) => ({
+        ...prev,
+        kycType: data.kycType,
+        kycNumero: data.kycNumero,
+      }));
+      toastApiSuccess("Informations d'identité enregistrées");
+      return true;
+    } catch (e) {
+      toastApiErrorSync(e, { title: "Pièce d'identité" });
+      return false;
+    }
+  };
+
+  const handleUploadKycFile = async (file: File, side: "recto"): Promise<boolean> => {
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("side", side);
+      if (userProfile?.kycType) fd.append("kycType", userProfile.kycType);
+      if (userProfile?.kycNumero) fd.append("kycNumero", userProfile.kycNumero);
+
+      const res = await fetch("/api/profile/kyc", {
+        method: "POST",
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toastApiErrorSync(res.status, { title: "Pièce d'identité", body: data });
+        return false;
+      }
+      setUserProfile((prev) => ({
+        ...prev,
+        kycRectoPath: data.uploaded?.cheminRelatif || "uploaded",
+        kycType: data.user?.kycType || prev?.kycType,
+        kycNumero: data.user?.kycNumero || prev?.kycNumero,
+      }));
+      toastApiSuccess("Pièce d'identité téléversée");
+      return true;
+    } catch (e) {
+      toastApiErrorSync(e, { title: "Pièce d'identité" });
+      return false;
+    }
+  };
+
+  const nextStep = async () => {
     if (step === DOSSIER_WIZARD_STEPS.UNIVERSITE) {
       if (procedure === "PRIVEE" && (!universiteId || !formationId)) {
-        toastApiErrorSync(new Error("Choisissez une université et une formation."), {
-          title: "Sélection incomplète",
-        });
+        toastApiErrorSync(
+          new Error("Veuillez sélectionner un établissement et une formation."),
+          { title: "Sélection requise" },
+        );
         return;
       }
       setStep(DOSSIER_WIZARD_STEPS.INFORMATIONS);
@@ -362,11 +424,10 @@ function DossierWizard() {
       return;
     }
     if (step === DOSSIER_WIZARD_STEPS.IDENTITE) {
-      const manquantes = listPiecesManquantes(piecesIdentite);
-      if (manquantes.length > 0) {
+      if (!isKycComplete) {
         toastApiErrorSync(
-          new Error(`${manquantes.length} pièce(s) d'identité obligatoire(s) manquante(s).`),
-          { title: "Pièces d'identité incomplètes" },
+          new Error("Veuillez renseigner le numéro et téléverser votre pièce d'identité avant de continuer."),
+          { title: "Pièce d'identité incomplète" },
         );
         return;
       }
@@ -375,13 +436,15 @@ function DossierWizard() {
     }
     setStep((current) => Math.min(DOSSIER_WIZARD_STEP_COUNT, current + 1));
   };
+  const goNext = nextStep;
 
   const submit = async () => {
     if (!isKycComplete) {
       toastApiErrorSync(
-        new Error("Vous devez obligatoirement renseigner et téléverser votre pièce d'identité (KYC) dans votre profil avant de soumettre votre dossier."),
-        { title: "KYC obligatoire" },
+        new Error("Vous devez renseigner le numéro et téléverser votre pièce d'identité (Étape 5) avant de soumettre votre dossier."),
+        { title: "Pièce d'identité requise" },
       );
+      setStep(DOSSIER_WIZARD_STEPS.IDENTITE);
       return;
     }
     if (!canSubmit) {
@@ -728,11 +791,10 @@ function DossierWizard() {
 
         {step === DOSSIER_WIZARD_STEPS.IDENTITE && (
           <DossierStepIdentite
-            piecesIdentite={piecesIdentite}
-            togglingPiece={togglingPiece}
+            kycData={userProfile}
             isEditable={isEditable}
-            onUpload={uploadPiece}
-            onRefresh={reloadDossier}
+            onSaveKycInfo={handleSaveKycInfo}
+            onUploadKycFile={handleUploadKycFile}
           />
         )}
 
@@ -751,6 +813,7 @@ function DossierWizard() {
             boardingEtape={boardingEtape}
             boardingMrz={boardingMrz}
             boardingConseiller={boardingConseiller}
+            onCompleterKyc={() => setStep(DOSSIER_WIZARD_STEPS.IDENTITE)}
             onCompleterDocuments={(pieceCode) => {
               setStep(DOSSIER_WIZARD_STEPS.DOCUMENTS);
               if (pieceCode && typeof document !== "undefined") {

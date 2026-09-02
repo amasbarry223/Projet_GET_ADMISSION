@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { BoardingPass } from "@/components/getadm/boarding-pass";
 import { RecapLine } from "@/components/dossier/wizard/upload-zone";
 import type { Formation, PersonalInfo, PieceRow, Universite } from "@/components/dossier/wizard/types";
@@ -25,6 +24,7 @@ export function DossierStepRecap({
   boardingMrz,
   boardingConseiller,
   onCompleterDocuments,
+  onCompleterKyc,
 }: {
   personalInfo: PersonalInfo;
   universite: Universite | undefined;
@@ -40,6 +40,7 @@ export function DossierStepRecap({
   boardingMrz: string;
   boardingConseiller: string;
   onCompleterDocuments?: (pieceCode?: string | null) => void;
+  onCompleterKyc?: () => void;
 }) {
   const visiblePieces = pieceRows.filter((p) => !isPiecePassportOrCni(p));
   const missingPieces = missingObligatoires.filter((p) => !isPiecePassportOrCni(p));
@@ -129,18 +130,25 @@ export function DossierStepRecap({
       </div>
 
       {!isKycComplete && (
-        <div className="flex items-start gap-3 rounded-md border border-ambre/40 bg-jaune-pale/80 p-4 text-encre">
-          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-ambre" strokeWidth={1.5} />
+        <div className="flex items-start gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-4 text-foreground">
+          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" strokeWidth={1.5} />
           <div className="space-y-1 text-sm">
-            <p className="font-semibold text-encre">Pièce d&apos;identité (KYC) requise</p>
-            <p className="text-xs text-ardoise">
-              Vous devez obligatoirement renseigner et téléverser votre pièce d&apos;identité (KYC) dans votre profil avant de pouvoir soumettre votre dossier.
+            <p className="font-semibold text-foreground">Pièce d&apos;identité (KYC) requise</p>
+            <p className="text-xs text-muted-foreground">
+              Vous devez renseigner le numéro et téléverser votre pièce d&apos;identité à l&apos;étape 5 avant de pouvoir soumettre votre dossier.
             </p>
-            <div className="pt-1">
-              <Button size="sm" variant="outline" className="border-ambre/40 text-encre hover:bg-ambre/10" asChild>
-                <Link href="/espace/profil?tab=kyc">Renseigner mon KYC dans mon profil &rarr;</Link>
-              </Button>
-            </div>
+            {onCompleterKyc && (
+              <div className="pt-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-amber-500/40 text-foreground hover:bg-amber-500/15"
+                  onClick={onCompleterKyc}
+                >
+                  Compléter ma pièce d&apos;identité (Étape 5) &rarr;
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}
