@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { listPiecesManquantes } from "@/lib/dossier/pieces-requises";
+import { listPiecesManquantes, isPiecePassportOrCni } from "@/lib/dossier/pieces-requises";
 import { markCorrectionSubmitted } from "@/lib/dossier/correction";
 import { ETAPE_PAR_ETAT, PIECE_STATUSES } from "@/shared/constants";
 
@@ -27,7 +27,9 @@ export async function assertPiecesObligatoiresCompletes(
   dossierId: string,
 ): Promise<NextResponse | null> {
   const piecesDb = await db.piece.findMany({ where: { dossierId } });
-  const obligatoires = piecesDb.filter((piece) => piece.obligatoire !== false);
+  // Filtrer les pièces d'identité (KYC) car l'identité est validée de manière dédiée
+  const piecesDocumentaires = piecesDb.filter((piece) => !isPiecePassportOrCni(piece));
+  const obligatoires = piecesDocumentaires.filter((piece) => piece.obligatoire !== false);
 
   if (obligatoires.length === 0) {
     return NextResponse.json(
@@ -39,7 +41,7 @@ export async function assertPiecesObligatoiresCompletes(
     );
   }
 
-  const incompletes = listPiecesManquantes(piecesDb);
+  const incompletes = listPiecesManquantes(piecesDocumentaires);
 
   if (incompletes.length > 0) {
     return NextResponse.json(

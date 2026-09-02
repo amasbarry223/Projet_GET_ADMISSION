@@ -172,12 +172,4 @@ export const MATRICE_V1_REGLES: SeedRegle[] = [
     condition: "INTERRUPTION",
     ordre: 90,
   },
-  {
-    code: "IDENTITE_PHOTO",
-    libelle: "Photo d'identité récente",
-    categorie: "identite",
-    obligatoire: true,
-    condition: "IDENTITE",
-    ordre: 101,
-  },
 ];

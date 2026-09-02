@@ -339,20 +339,12 @@ export function buildPiecesRequises(profil: ProfilAcademiqueInput): PieceRequise
     });
   });
 
-  // Identité (photo uniquement — le passeport/CNI est géré via le module KYC du profil)
-  pushUnique(list, {
-    code: "IDENTITE_PHOTO",
-    libelle: "Photo d'identité récente",
-    categorie: "identite",
-    obligatoire: true,
-  });
-
   return list;
 }
 
 /**
- * Mots-clés désignant les pièces d'identité (Passeport / CNI / Page photo)
- * qui sont exclusivement traitées via le module KYC du profil candidat.
+ * Mots-clés désignant les pièces d'identité (Passeport / CNI / Page photo / Photo d'identité)
+ * qui sont exclusivement traitées via le module KYC du profil candidat (Étape 5).
  * Elles ne doivent JAMAIS apparaître dans la liste des pièces justificatives du dossier.
  */
 const PASSPORT_CNI_KEYWORDS = [
@@ -365,10 +357,17 @@ const PASSPORT_CNI_KEYWORDS = [
   "piece d'identite",
   "pièce d'identité",
   "page photo",
+  "photo d'identite",
+  "photo d'identité",
+  "photo d identite",
+  "photo identite",
+  "identite_photo",
   "identity",
 ];
 
-export function isPiecePassportOrCni(piece: { libelle?: string | null; code?: string | null }): boolean {
+export function isPiecePassportOrCni(piece: { libelle?: string | null; code?: string | null; categorie?: string | null }): boolean {
+  if (piece.categorie === "identite") return true;
+
   const lib = (piece.libelle || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const code = (piece.code || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
